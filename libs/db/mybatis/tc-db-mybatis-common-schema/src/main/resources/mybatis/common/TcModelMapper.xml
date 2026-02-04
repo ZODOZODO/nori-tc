@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelMapper">
+
+    <resultMap id="TcModelMap" type="com.nori.tc.db.domain.model.TcModel">
+        <constructor>
+            <idArg column="model_key" javaType="long"/>
+            <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="model_version" javaType="java.lang.String"/>
+            <arg column="protocol_type"
+                 javaType="com.nori.tc.db.domain.common.ProtocolType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="status"
+                 javaType="com.nori.tc.db.domain.common.ModelStatus"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcModelColumns">
+        model_key, model_name, model_version, protocol_type, status, created_at, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_model
+            (model_name, model_version, protocol_type, status)
+        VALUES
+            (#{m.modelName},
+             #{m.modelVersion},
+             #{m.protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_model
+           SET model_name    = #{m.modelName},
+               model_version = #{m.modelVersion},
+               protocol_type = #{m.protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               status        = #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               updated_at    = CURRENT_TIMESTAMP
+         WHERE model_key     = #{m.modelKey}
+    </update>
+
+    <select id="findByModelKey" resultMap="TcModelMap">
+        SELECT <include refid="TcModelColumns"/>
+          FROM tc_model
+         WHERE model_key = #{modelKey}
+    </select>
+
+    <select id="findByNameVersion" resultMap="TcModelMap">
+        SELECT <include refid="TcModelColumns"/>
+          FROM tc_model
+         WHERE model_name = #{modelName}
+           AND model_version = #{modelVersion}
+    </select>
+
+    <select id="findAll" resultMap="TcModelMap">
+        SELECT <include refid="TcModelColumns"/>
+          FROM tc_model
+        <where>
+            <if test="modelNameLike != null and modelNameLike != ''">
+                AND model_name LIKE CONCAT('%', #{modelNameLike}, '%')
+            </if>
+            <if test="protocolType != null">
+                AND protocol_type = #{protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+            </if>
+            <if test="status != null">
+                AND status = #{status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+            </if>
+        </where>
+        ORDER BY model_key DESC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByModelKey">
+        DELETE FROM tc_model WHERE model_key = #{modelKey}
+    </delete>
+
+</mapper>

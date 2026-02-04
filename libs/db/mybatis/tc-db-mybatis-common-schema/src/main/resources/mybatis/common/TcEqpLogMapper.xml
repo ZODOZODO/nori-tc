@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_log Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpLogMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpLog">
+        <constructor>
+            <idArg column="eqp_id" javaType="java.lang.String"/>
+            <arg column="log_level"
+                 javaType="com.nori.tc.db.domain.common.LogLevel"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="log_path" javaType="java.lang.String"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        eqp_id, log_level, log_path, created_at, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_log
+            (eqp_id, log_level, log_path)
+        VALUES
+            (#{l.eqpId},
+             #{l.logLevel, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{l.logPath})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_eqp_log
+           SET log_level  = #{l.logLevel, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               log_path   = #{l.logPath},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE eqp_id     = #{l.eqpId}
+    </update>
+
+    <select id="findByEqpId" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_log
+         WHERE eqp_id = #{eqpId}
+    </select>
+
+    <delete id="deleteByEqpId">
+        DELETE FROM tc_eqp_log WHERE eqp_id = #{eqpId}
+    </delete>
+
+</mapper>

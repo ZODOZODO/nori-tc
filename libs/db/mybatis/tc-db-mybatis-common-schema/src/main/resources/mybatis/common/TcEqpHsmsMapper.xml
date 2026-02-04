@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_hsms Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpHsmsMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpHsms">
+        <constructor>
+            <idArg column="eqp_id" javaType="java.lang.String"/>
+            <arg column="device_id" javaType="int"/>
+            <arg column="t3_ms" javaType="int"/>
+            <arg column="t5_ms" javaType="int"/>
+            <arg column="t6_ms" javaType="int"/>
+            <arg column="t7_ms" javaType="int"/>
+            <arg column="t8_ms" javaType="int"/>
+            <arg column="linktest_enabled" javaType="boolean"/>
+            <arg column="linktest_interval_ms" javaType="int"/>
+            <arg column="max_msg_bytes" javaType="int"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        eqp_id, device_id, t3_ms, t5_ms, t6_ms, t7_ms, t8_ms,
+        linktest_enabled, linktest_interval_ms, max_msg_bytes, created_at, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_hsms
+            (eqp_id, device_id, t3_ms, t5_ms, t6_ms, t7_ms, t8_ms,
+             linktest_enabled, linktest_interval_ms, max_msg_bytes)
+        VALUES
+            (#{h.eqpId},
+             #{h.deviceId},
+             #{h.t3Ms},
+             #{h.t5Ms},
+             #{h.t6Ms},
+             #{h.t7Ms},
+             #{h.t8Ms},
+             #{h.linktestEnabled},
+             #{h.linktestIntervalMs},
+             #{h.maxMsgBytes})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_eqp_hsms
+           SET device_id            = #{h.deviceId},
+               t3_ms                = #{h.t3Ms},
+               t5_ms                = #{h.t5Ms},
+               t6_ms                = #{h.t6Ms},
+               t7_ms                = #{h.t7Ms},
+               t8_ms                = #{h.t8Ms},
+               linktest_enabled     = #{h.linktestEnabled},
+               linktest_interval_ms = #{h.linktestIntervalMs},
+               max_msg_bytes        = #{h.maxMsgBytes},
+               updated_at           = CURRENT_TIMESTAMP
+         WHERE eqp_id              = #{h.eqpId}
+    </update>
+
+    <select id="findByEqpId" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_hsms
+         WHERE eqp_id = #{eqpId}
+    </select>
+
+    <delete id="deleteByEqpId">
+        DELETE FROM tc_eqp_hsms WHERE eqp_id = #{eqpId}
+    </delete>
+
+</mapper>

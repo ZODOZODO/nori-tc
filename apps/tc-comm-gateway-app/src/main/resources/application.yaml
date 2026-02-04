@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: tc-comm-gateway-app
+
+  # 1. 웹 서버 비활성화
+  # - Gateway는 Kafka/Socket 통신이 메인이므로 Tomcat(Web)을 띄우지 않습니다.
+  main:
+    web-application-type: none
+
+  # 2. 외부 설정 파일 Import (핵심)
+  # - @PropertySource 대신 여기서 선언적으로 가져옵니다.
+  # - "optional:" : 파일이 없어도 앱이 죽지 않도록 함 (필수라면 제거)
+  # - "file:config/..." : 실행 위치(Working Dir) 기준 config 폴더 탐색
+  config:
+    import:
+      - optional:file:../../config/tc-db.properties
+      - optional:file:config/tc-messaging.properties
+
+logging:
+  level:
+    root: INFO
+    # 디버깅 시 아래 레벨 조정
+    com.nori.tc: DEBUG
+    org.springframework.kafka: INFO
