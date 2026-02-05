@@ -11,6 +11,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -18,12 +20,17 @@ import jakarta.persistence.UniqueConstraint;
  * tc_model 테이블 매핑 엔티티.
  *
  * [DB 스키마]
- * - model_key     : bigint generated always as identity (PK)
- * - model_name    : varchar(128) NOT NULL
- * - model_version : varchar(32) NOT NULL
- * - protocol_type : varchar(16) NOT NULL (HSMS/SOCKET)
- * - status        : varchar(16) NOT NULL (DRAFT/ACTIVE/DEPRECATED)
- * - Constraints   : UNIQUE (model_name, model_version)
+ * - model_key      : bigint generated always as identity (PK)
+ * - model_name     : varchar(128) NOT NULL
+ * - model_version  : varchar(32) NOT NULL
+ * - comm_interface : varchar(16) NOT NULL (HSMS/SOCKET)
+ * - status         : varchar(16) NOT NULL (DRAFT/ACTIVE/DEPRECATED)
+ * - maker          : varchar(32)
+ * - created_at     : timestamptz NOT NULL
+ * - updated_at     : timestamptz NOT NULL
+ * - created_by     : varchar(50) NOT NULL default 'SYSTEM'
+ * - updated_by     : varchar(50) NOT NULL default 'SYSTEM'
+ * - Constraints    : UNIQUE (model_name, model_version)
  *
  * [설계 포인트]
  * 1. MapStruct 호환성:
@@ -53,12 +60,21 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
     private String modelVersion;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "protocol_type", length = 16, nullable = false)
-    private ProtocolType protocolType;
+    @Column(name = "comm_interface", length = 16, nullable = false)
+    private ProtocolType commInterface;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 16, nullable = false)
     private ModelStatus status;
+
+    @Column(name = "maker", length = 32)
+    private String maker;
+
+    @Column(name = "created_by", length = 50, nullable = false)
+    private String createdBy;
+
+    @Column(name = "updated_by", length = 50, nullable = false)
+    private String updatedBy;
 
     // =========================================================================
     // Constructors (MapStruct & JPA)
@@ -73,12 +89,15 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
     /**
      * 전체 인자 생성자
      */
-    public TcModelEntity(Long modelKey, String modelName, String modelVersion, ProtocolType protocolType, ModelStatus status) {
+    public TcModelEntity(Long modelKey, String modelName, String modelVersion, ProtocolType commInterface, ModelStatus status, String maker, String createdBy, String updatedBy) {
         this.modelKey = modelKey;
         this.modelName = modelName;
         this.modelVersion = modelVersion;
-        this.protocolType = protocolType;
+        this.commInterface = commInterface;
         this.status = status;
+        this.maker = maker;
+        this.createdBy = createdBy;
+        this.updatedBy = updatedBy;
     }
 
     // =========================================================================
@@ -96,6 +115,31 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
         e.setModelName(modelName);
         e.setModelVersion(modelVersion);
         return e;
+    }
+
+    /**
+     * DB Insert 전 데이터 보정
+     * - created_by/updated_by가 비어있으면 SYSTEM으로 기본값 세팅
+     */
+    @PrePersist
+    private void applyDefaults() {
+        if (this.createdBy == null || this.createdBy.isBlank()) {
+            this.createdBy = "SYSTEM";
+        }
+        if (this.updatedBy == null || this.updatedBy.isBlank()) {
+            this.updatedBy = "SYSTEM";
+        }
+    }
+
+    /**
+     * DB Update 전 데이터 보정
+     * - updated_by가 비어있으면 SYSTEM으로 기본값 세팅
+     */
+    @PreUpdate
+    private void applyUpdateDefaults() {
+        if (this.updatedBy == null || this.updatedBy.isBlank()) {
+            this.updatedBy = "SYSTEM";
+        }
     }
 
     // =========================================================================
@@ -126,12 +170,12 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
         this.modelVersion = modelVersion;
     }
 
-    public ProtocolType getProtocolType() {
-        return protocolType;
+    public ProtocolType getCommInterface() {
+        return commInterface;
     }
 
-    public void setProtocolType(ProtocolType protocolType) {
-        this.protocolType = protocolType;
+    public void setCommInterface(ProtocolType commInterface) {
+        this.commInterface = commInterface;
     }
 
     public ModelStatus getStatus() {
@@ -140,5 +184,29 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
 
     public void setStatus(ModelStatus status) {
         this.status = status;
+    }
+
+    public String getMaker() {
+        return maker;
+    }
+
+    public void setMaker(String maker) {
+        this.maker = maker;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(String updatedBy) {
+        this.updatedBy = updatedBy;
     }
 }

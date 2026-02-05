@@ -46,10 +46,13 @@ public class TcModelMybatisStore implements TcModelStore {
                 0L,
                 modelName,
                 modelVersion,
-                command.protocolType(),
+                command.commInterface(),
                 command.status(),
+                command.maker(),
                 null,
-                null
+                null,
+                defaultActor(command.createdBy()),
+                defaultActor(command.updatedBy())
         );
 
         try {
@@ -80,10 +83,13 @@ public class TcModelMybatisStore implements TcModelStore {
                 modelKey,
                 command.modelName(),
                 command.modelVersion(),
-                command.protocolType(),
+                command.commInterface(),
                 command.status(),
+                command.maker(),
                 null,
-                null
+                null,
+                null,
+                defaultActor(command.updatedBy())
         );
 
         try {
@@ -139,7 +145,7 @@ public class TcModelMybatisStore implements TcModelStore {
             // FIX: DB 페이징 적용
             return mapper.findAll(
                     c.modelNameLike(),
-                    c.protocolType(),
+                    c.commInterface(),
                     c.status(),
                     p.offset(),
                     p.limit()
@@ -162,5 +168,12 @@ public class TcModelMybatisStore implements TcModelStore {
         } catch (RuntimeException e) {
             throw new DbAccessException("tc_model deleteByModelKey failed (unexpected). modelKey=" + modelKey, e);
         }
+    }
+
+    private String defaultActor(String actor) {
+        if (actor == null || actor.isBlank()) {
+            return "SYSTEM";
+        }
+        return actor;
     }
 }

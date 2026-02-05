@@ -33,11 +33,11 @@ public interface TcModelMapper {
     /**
      * 간단 검색 (FIX: DB 페이징 적용)
      * - modelNameLike: null이면 조건 미적용, 아니면 "%like%" 형태로 사용
-     * - protocolType/status: null이면 조건 미적용
+     * - commInterface/status: null이면 조건 미적용
      */
     List<TcModel> findAll(
             @Param("modelNameLike") String modelNameLike,
-            @Param("protocolType") ProtocolType protocolType,
+            @Param("commInterface") ProtocolType commInterface,
             @Param("status") ModelStatus status,
             @Param("offset") int offset,
             @Param("limit") int limit

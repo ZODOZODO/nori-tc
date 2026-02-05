@@ -2,7 +2,7 @@ package com.nori.tc.db.core.eqp.upsert;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.EqpStateType;
+import com.nori.tc.db.domain.common.eqp.EqpStateType;
 
 /**
  * tc_eqp_state_hist insert 입력(Command)

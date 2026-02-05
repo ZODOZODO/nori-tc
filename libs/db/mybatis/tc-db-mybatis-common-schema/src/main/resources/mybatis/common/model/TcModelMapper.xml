@@ -10,41 +10,49 @@
             <idArg column="model_key" javaType="long"/>
             <arg column="model_name" javaType="java.lang.String"/>
             <arg column="model_version" javaType="java.lang.String"/>
-            <arg column="protocol_type"
+            <arg column="comm_interface"
                  javaType="com.nori.tc.db.domain.common.ProtocolType"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="status"
                  javaType="com.nori.tc.db.domain.common.ModelStatus"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="maker" javaType="java.lang.String"/>
             <arg column="created_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
             <arg column="updated_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
     <sql id="TcModelColumns">
-        model_key, model_name, model_version, protocol_type, status, created_at, updated_at
+        model_key, model_name, model_version, comm_interface, status, maker, created_at, updated_at, created_by, updated_by
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model
-            (model_name, model_version, protocol_type, status)
+            (model_name, model_version, comm_interface, status, maker, created_by, updated_by)
         VALUES
             (#{m.modelName},
              #{m.modelVersion},
-             #{m.protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-             #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler})
+             #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{m.maker},
+             #{m.createdBy},
+             #{m.updatedBy})
     </insert>
 
     <update id="update">
         UPDATE tc_model
            SET model_name    = #{m.modelName},
                model_version = #{m.modelVersion},
-               protocol_type = #{m.protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-               status        = #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               comm_interface = #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               status         = #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               maker          = #{m.maker},
+               updated_by     = #{m.updatedBy},
                updated_at    = CURRENT_TIMESTAMP
          WHERE model_key     = #{m.modelKey}
     </update>
@@ -69,8 +77,8 @@
             <if test="modelNameLike != null and modelNameLike != ''">
                 AND model_name LIKE CONCAT('%', #{modelNameLike}, '%')
             </if>
-            <if test="protocolType != null">
-                AND protocol_type = #{protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+            <if test="commInterface != null">
+                AND comm_interface = #{commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
             </if>
             <if test="status != null">
                 AND status = #{status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}

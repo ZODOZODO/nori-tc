@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.eqp;
 
 /**
  * 설비 제어 상태 (tc_eqp_state.control_state)

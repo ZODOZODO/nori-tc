@@ -2,10 +2,10 @@ package com.nori.tc.db.domain.eqp;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.CarrierState;
-import com.nori.tc.db.domain.common.CarrierType;
-import com.nori.tc.db.domain.common.PortState;
-import com.nori.tc.db.domain.common.PortType;
+import com.nori.tc.db.domain.common.eqp.CarrierState;
+import com.nori.tc.db.domain.common.eqp.CarrierType;
+import com.nori.tc.db.domain.common.eqp.PortState;
+import com.nori.tc.db.domain.common.eqp.PortType;
 
 /**
  * tc_eqp_port_status 테이블 1행에 대응하는 순수 DTO.

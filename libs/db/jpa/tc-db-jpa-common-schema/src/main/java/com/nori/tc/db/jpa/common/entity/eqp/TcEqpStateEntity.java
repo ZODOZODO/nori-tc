@@ -2,8 +2,8 @@ package com.nori.tc.db.jpa.common.entity.eqp;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.ControlState;
-import com.nori.tc.db.domain.common.EqpState;
+import com.nori.tc.db.domain.common.eqp.ControlState;
+import com.nori.tc.db.domain.common.eqp.EqpState;
 import com.nori.tc.db.jpa.common.entity.base.AbstractUpdatedEntity;
 
 import jakarta.persistence.Column;

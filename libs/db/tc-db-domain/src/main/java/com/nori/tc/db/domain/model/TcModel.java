@@ -10,14 +10,19 @@ import com.nori.tc.db.domain.common.ProtocolType;
  *
  * - model_key: DB에서 IDENTITY로 생성됨 (조회 결과에는 항상 존재)
  * - (model_name, model_version) 유니크
+ * - comm_interface: HSMS/SOCKET
+ * - created_by/updated_by: 시스템 계정 또는 호출자 계정
  */
 public record TcModel(
         long modelKey,
         String modelName,
         String modelVersion,
-        ProtocolType protocolType,
+        ProtocolType commInterface,
         ModelStatus status,
+        String maker,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        String createdBy,
+        String updatedBy
 ) {
 }

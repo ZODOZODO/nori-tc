@@ -11,7 +11,7 @@ import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpLog;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.domain.common.LogLevel;
+import com.nori.tc.db.domain.common.eqp.LogLevel;
 import com.nori.tc.db.domain.eqp.TcEqpLog;
 import com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpLogMapper;
 

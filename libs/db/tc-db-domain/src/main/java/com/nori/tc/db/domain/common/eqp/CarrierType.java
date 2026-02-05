@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.eqp;
 
 /**
  * 포트 캐리어 타입 (tc_eqp_port_status.carrier_type)

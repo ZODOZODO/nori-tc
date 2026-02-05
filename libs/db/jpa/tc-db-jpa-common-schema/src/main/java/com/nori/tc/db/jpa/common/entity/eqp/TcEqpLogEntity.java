@@ -1,6 +1,6 @@
 package com.nori.tc.db.jpa.common.entity.eqp;
 
-import com.nori.tc.db.domain.common.LogLevel;
+import com.nori.tc.db.domain.common.eqp.LogLevel;
 import com.nori.tc.db.jpa.common.entity.base.AbstractUpdatedEntity;
 
 import jakarta.persistence.Column;

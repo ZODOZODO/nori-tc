@@ -37,7 +37,7 @@ import com.nori.tc.db.jpa.common.repository.model.TcModelJpaRepository;
  * <b>주요 기능:</b>
  * <ul>
  * <li><b>Create/Update 분리:</b> 생성과 수정 Command가 분리되어 있으며, MapStruct를 통해 각각 최적화된 매핑을 수행합니다.</li>
- * <li><b>동적 검색:</b> Criteria API를 사용하여 modelName(LIKE), protocolType, status 등의 조합 검색을 지원합니다.</li>
+ * <li><b>동적 검색:</b> Criteria API를 사용하여 modelName(LIKE), commInterface, status 등의 조합 검색을 지원합니다.</li>
  * </ul>
  * </p>
  */
@@ -149,8 +149,8 @@ public class TcModelJpaStore implements TcModelStore {
                 String pattern = "%" + escapeLike(keyword) + "%";
                 predicates.add(cb.like(cb.lower(root.get("modelName")), pattern, '\\'));
             }
-            if (c.protocolType() != null) {
-                predicates.add(cb.equal(root.get("protocolType"), c.protocolType()));
+            if (c.commInterface() != null) {
+                predicates.add(cb.equal(root.get("commInterface"), c.commInterface()));
             }
             if (c.status() != null) {
                 predicates.add(cb.equal(root.get("status"), c.status()));
@@ -193,7 +193,7 @@ public class TcModelJpaStore implements TcModelStore {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.modelName() == null || command.modelName().isBlank()) throw new IllegalArgumentException("command.modelName must not be null/blank");
         if (command.modelVersion() == null || command.modelVersion().isBlank()) throw new IllegalArgumentException("command.modelVersion must not be null/blank");
-        if (command.protocolType() == null) throw new IllegalArgumentException("command.protocolType must not be null");
+        if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
         if (command.status() == null) throw new IllegalArgumentException("command.status must not be null");
     }
 
@@ -202,7 +202,7 @@ public class TcModelJpaStore implements TcModelStore {
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
         if (command.modelName() == null || command.modelName().isBlank()) throw new IllegalArgumentException("command.modelName must not be null/blank");
         if (command.modelVersion() == null || command.modelVersion().isBlank()) throw new IllegalArgumentException("command.modelVersion must not be null/blank");
-        if (command.protocolType() == null) throw new IllegalArgumentException("command.protocolType must not be null");
+        if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
         if (command.status() == null) throw new IllegalArgumentException("command.status must not be null");
     }
 

@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.eqp;
 
 /**
  * 설비 상태 이력 구분값 (tc_eqp_state_hist.state_type).

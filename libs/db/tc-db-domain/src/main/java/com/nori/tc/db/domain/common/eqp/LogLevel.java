@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.eqp;
 
 /**
  * 설비 로그 레벨 (tc_eqp_log.log_level)

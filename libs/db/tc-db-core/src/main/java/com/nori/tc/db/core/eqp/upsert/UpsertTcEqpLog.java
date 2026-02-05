@@ -1,6 +1,6 @@
 package com.nori.tc.db.core.eqp.upsert;
 
-import com.nori.tc.db.domain.common.LogLevel;
+import com.nori.tc.db.domain.common.eqp.LogLevel;
 
 /**
  * tc_eqp_log upsert 입력(Command)

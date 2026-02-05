@@ -1,9 +1,9 @@
 package com.nori.tc.db.jpa.common.entity.eqp;
 
-import com.nori.tc.db.domain.common.CarrierState;
-import com.nori.tc.db.domain.common.CarrierType;
-import com.nori.tc.db.domain.common.PortState;
-import com.nori.tc.db.domain.common.PortType;
+import com.nori.tc.db.domain.common.eqp.CarrierState;
+import com.nori.tc.db.domain.common.eqp.CarrierType;
+import com.nori.tc.db.domain.common.eqp.PortState;
+import com.nori.tc.db.domain.common.eqp.PortType;
 import com.nori.tc.db.jpa.common.entity.base.AbstractUpdatedEntity;
 
 import jakarta.persistence.Column;

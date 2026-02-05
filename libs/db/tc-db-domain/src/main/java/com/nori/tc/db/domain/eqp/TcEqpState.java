@@ -2,8 +2,8 @@ package com.nori.tc.db.domain.eqp;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.ControlState;
-import com.nori.tc.db.domain.common.EqpState;
+import com.nori.tc.db.domain.common.eqp.ControlState;
+import com.nori.tc.db.domain.common.eqp.EqpState;
 
 /**
  * tc_eqp_state 테이블 1행에 대응하는 순수 DTO.

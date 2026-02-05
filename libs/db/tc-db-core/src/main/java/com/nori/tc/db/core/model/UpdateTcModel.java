@@ -12,12 +12,15 @@ import com.nori.tc.db.domain.common.ProtocolType;
  * 주의:
  * - created_at은 변경 대상이 아닙니다.
  * - updated_at은 DB(또는 구현체)에서 현재 시각으로 갱신되도록 처리하는 것을 권장합니다.
+ * - created_by는 생성자 값이므로 변경하지 않습니다(업데이트 입력에서 제외).
  */
 public record UpdateTcModel(
         long modelKey,
         String modelName,
         String modelVersion,
-        ProtocolType protocolType,
-        ModelStatus status
+        ProtocolType commInterface,
+        ModelStatus status,
+        String maker,
+        String updatedBy
 ) {
 }
