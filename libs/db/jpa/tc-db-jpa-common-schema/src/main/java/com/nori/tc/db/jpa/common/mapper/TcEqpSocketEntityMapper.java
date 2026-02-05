@@ -19,11 +19,11 @@ public interface TcEqpSocketEntityMapper {
     /**
      * Command -> Entity (Write/Update)
      * - charset: Store에서 기본값(UTF-8) 로직 처리하므로 ignore
-     * - eqpId: PK
+     * - eqpKey: PK
      * - createdAt, updatedAt: JPA 관리
      */
     @Mapping(target = "charset", ignore = true)
-    @Mapping(target = "eqpId", ignore = true)
+    @Mapping(target = "eqpKey", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     void updateEntity(UpsertTcEqpSocket command, @MappingTarget TcEqpSocketEntity entity);

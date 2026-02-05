@@ -8,7 +8,7 @@ import com.nori.tc.db.domain.common.ProtocolType;
  * - null은 "조건 없음"을 의미합니다.
  */
 public record TcEqpSearchCriteria(
-        ProtocolType protocolType,
+        ProtocolType commInterface,
         Boolean enabled
 ) {
     public static TcEqpSearchCriteria empty() {

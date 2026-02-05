@@ -12,56 +12,61 @@ import jakarta.persistence.Table;
  * tc_eqp_hsms 테이블 매핑 엔티티.
  *
  * [DB 스키마]
- * - eqp_id               : varchar(64) PK (tc_eqp FK, ON DELETE CASCADE)
- * - device_id            : int NOT NULL
- * - t3_ms ~ t8_ms        : int NOT NULL (CHECK > 0)
- * - linktest_enabled     : boolean NOT NULL default true
- * - linktest_interval_ms : int NOT NULL (CHECK > 0)
- * - max_msg_bytes        : int NOT NULL (CHECK > 0)
- * - created_at           : timestamptz NOT NULL
- * - updated_at           : timestamptz NOT NULL
+ * - eqp_key            : bigint PK/FK (tc_eqp FK, ON DELETE CASCADE)
+ * - device_id          : int NOT NULL
+ * - connection_mode    : varchar(10) NOT NULL (ACTIVE/PASSIVE)
+ * - t3_timeout ~ t8_timeout : int NOT NULL (CHECK > 0)
+ * - link_test_enabled  : boolean NOT NULL default true
+ * - link_test_interval : int NOT NULL (CHECK > 0)
+ * - max_msg_bytes      : bigint NOT NULL (CHECK > 0)
+ * - created_at         : timestamptz NOT NULL
+ * - updated_at         : timestamptz NOT NULL
  *
  * [설계 포인트]
  * 1. MapStruct 호환성:
  * - MapStruct/Store에서 객체를 생성하고 값을 주입할 수 있도록 public 생성자들을 제공합니다.
  *
  * 2. 안전한 기본값 처리:
- * - linktest_enabled는 DB Default가 true이므로, null 유입 시 true로 보정합니다.
+ * - link_test_enabled는 DB Default가 true이므로, null 유입 시 true로 보정합니다.
+ * - t3~t8, link_test_interval, max_msg_bytes는 DB Default가 있으므로 null 유입 시 기본값으로 보정합니다.
  */
 @Entity
 @Table(name = "tc_eqp_hsms")
 public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
 
     @Id
-    @Column(name = "eqp_id", length = 64, nullable = false)
-    private String eqpId;
+    @Column(name = "eqp_key", nullable = false)
+    private Long eqpKey;
 
     @Column(name = "device_id", nullable = false)
     private Integer deviceId;
 
-    @Column(name = "t3_ms", nullable = false)
-    private Integer t3Ms;
+    @Column(name = "connection_mode", length = 10, nullable = false)
+    private String connectionMode;
 
-    @Column(name = "t5_ms", nullable = false)
-    private Integer t5Ms;
+    @Column(name = "t3_timeout", nullable = false)
+    private Integer t3Timeout;
 
-    @Column(name = "t6_ms", nullable = false)
-    private Integer t6Ms;
+    @Column(name = "t5_timeout", nullable = false)
+    private Integer t5Timeout;
 
-    @Column(name = "t7_ms", nullable = false)
-    private Integer t7Ms;
+    @Column(name = "t6_timeout", nullable = false)
+    private Integer t6Timeout;
 
-    @Column(name = "t8_ms", nullable = false)
-    private Integer t8Ms;
+    @Column(name = "t7_timeout", nullable = false)
+    private Integer t7Timeout;
 
-    @Column(name = "linktest_enabled", nullable = false)
-    private Boolean linktestEnabled;
+    @Column(name = "t8_timeout", nullable = false)
+    private Integer t8Timeout;
 
-    @Column(name = "linktest_interval_ms", nullable = false)
-    private Integer linktestIntervalMs;
+    @Column(name = "link_test_enabled", nullable = false)
+    private Boolean linkTestEnabled;
+
+    @Column(name = "link_test_interval", nullable = false)
+    private Integer linkTestInterval;
 
     @Column(name = "max_msg_bytes", nullable = false)
-    private Integer maxMsgBytes;
+    private Long maxMsgBytes;
 
     // =========================================================================
     // Constructors (MapStruct & JPA)
@@ -79,18 +84,19 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
      * 전체 인자 생성자
      * - MapStruct가 Domain -> Entity 변환 시 모든 필드를 한 번에 주입할 때 사용
      */
-    public TcEqpHsmsEntity(String eqpId, Integer deviceId, Integer t3Ms, Integer t5Ms, Integer t6Ms,
-                           Integer t7Ms, Integer t8Ms, Boolean linktestEnabled,
-                           Integer linktestIntervalMs, Integer maxMsgBytes) {
-        this.eqpId = eqpId;
+    public TcEqpHsmsEntity(Long eqpKey, Integer deviceId, String connectionMode, Integer t3Timeout, Integer t5Timeout,
+                           Integer t6Timeout, Integer t7Timeout, Integer t8Timeout, Boolean linkTestEnabled,
+                           Integer linkTestInterval, Long maxMsgBytes) {
+        this.eqpKey = eqpKey;
         this.deviceId = deviceId;
-        this.t3Ms = t3Ms;
-        this.t5Ms = t5Ms;
-        this.t6Ms = t6Ms;
-        this.t7Ms = t7Ms;
-        this.t8Ms = t8Ms;
-        this.linktestEnabled = linktestEnabled;
-        this.linktestIntervalMs = linktestIntervalMs;
+        this.connectionMode = connectionMode;
+        this.t3Timeout = t3Timeout;
+        this.t5Timeout = t5Timeout;
+        this.t6Timeout = t6Timeout;
+        this.t7Timeout = t7Timeout;
+        this.t8Timeout = t8Timeout;
+        this.linkTestEnabled = linkTestEnabled;
+        this.linkTestInterval = linkTestInterval;
         this.maxMsgBytes = maxMsgBytes;
     }
 
@@ -102,23 +108,44 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
      * 신규 엔티티 생성 팩토리
      * - Store 계층에서 upsert 로직 수행 중, 해당 ID가 없을 때 사용
      */
-    public static TcEqpHsmsEntity newEntity(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public static TcEqpHsmsEntity newEntity(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be > 0");
         }
         TcEqpHsmsEntity e = new TcEqpHsmsEntity();
-        e.setEqpId(eqpId);
+        e.setEqpKey(eqpKey);
         return e;
     }
 
     /**
      * DB Insert 전 데이터 보정
-     * - linktest_enabled: null이면 true로 설정 (DB Default 준수)
+     * - link_test_enabled: null이면 true로 설정 (DB Default 준수)
      */
     @PrePersist
     private void applyDefaults() {
-        if (this.linktestEnabled == null) {
-            this.linktestEnabled = Boolean.TRUE;
+        if (this.t3Timeout == null) {
+            this.t3Timeout = 45;
+        }
+        if (this.t5Timeout == null) {
+            this.t5Timeout = 10;
+        }
+        if (this.t6Timeout == null) {
+            this.t6Timeout = 5;
+        }
+        if (this.t7Timeout == null) {
+            this.t7Timeout = 10;
+        }
+        if (this.t8Timeout == null) {
+            this.t8Timeout = 5;
+        }
+        if (this.linkTestEnabled == null) {
+            this.linkTestEnabled = Boolean.TRUE;
+        }
+        if (this.linkTestInterval == null) {
+            this.linkTestInterval = 60;
+        }
+        if (this.maxMsgBytes == null) {
+            this.maxMsgBytes = 10_485_760L;
         }
     }
 
@@ -126,12 +153,12 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
-    public String getEqpId() {
-        return eqpId;
+    public Long getEqpKey() {
+        return eqpKey;
     }
 
-    public void setEqpId(String eqpId) {
-        this.eqpId = eqpId;
+    public void setEqpKey(Long eqpKey) {
+        this.eqpKey = eqpKey;
     }
 
     public Integer getDeviceId() {
@@ -142,67 +169,75 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
         this.deviceId = deviceId;
     }
 
-    public Integer getT3Ms() {
-        return t3Ms;
+    public String getConnectionMode() {
+        return connectionMode;
     }
 
-    public void setT3Ms(Integer t3Ms) {
-        this.t3Ms = t3Ms;
+    public void setConnectionMode(String connectionMode) {
+        this.connectionMode = connectionMode;
     }
 
-    public Integer getT5Ms() {
-        return t5Ms;
+    public Integer getT3Timeout() {
+        return t3Timeout;
     }
 
-    public void setT5Ms(Integer t5Ms) {
-        this.t5Ms = t5Ms;
+    public void setT3Timeout(Integer t3Timeout) {
+        this.t3Timeout = t3Timeout;
     }
 
-    public Integer getT6Ms() {
-        return t6Ms;
+    public Integer getT5Timeout() {
+        return t5Timeout;
     }
 
-    public void setT6Ms(Integer t6Ms) {
-        this.t6Ms = t6Ms;
+    public void setT5Timeout(Integer t5Timeout) {
+        this.t5Timeout = t5Timeout;
     }
 
-    public Integer getT7Ms() {
-        return t7Ms;
+    public Integer getT6Timeout() {
+        return t6Timeout;
     }
 
-    public void setT7Ms(Integer t7Ms) {
-        this.t7Ms = t7Ms;
+    public void setT6Timeout(Integer t6Timeout) {
+        this.t6Timeout = t6Timeout;
     }
 
-    public Integer getT8Ms() {
-        return t8Ms;
+    public Integer getT7Timeout() {
+        return t7Timeout;
     }
 
-    public void setT8Ms(Integer t8Ms) {
-        this.t8Ms = t8Ms;
+    public void setT7Timeout(Integer t7Timeout) {
+        this.t7Timeout = t7Timeout;
     }
 
-    public Boolean getLinktestEnabled() {
-        return linktestEnabled;
+    public Integer getT8Timeout() {
+        return t8Timeout;
     }
 
-    public void setLinktestEnabled(Boolean linktestEnabled) {
-        this.linktestEnabled = linktestEnabled;
+    public void setT8Timeout(Integer t8Timeout) {
+        this.t8Timeout = t8Timeout;
     }
 
-    public Integer getLinktestIntervalMs() {
-        return linktestIntervalMs;
+    public Boolean getLinkTestEnabled() {
+        return linkTestEnabled;
     }
 
-    public void setLinktestIntervalMs(Integer linktestIntervalMs) {
-        this.linktestIntervalMs = linktestIntervalMs;
+    public void setLinkTestEnabled(Boolean linkTestEnabled) {
+        this.linkTestEnabled = linkTestEnabled;
     }
 
-    public Integer getMaxMsgBytes() {
+    public Integer getLinkTestInterval() {
+        return linkTestInterval;
+    }
+
+    public void setLinkTestInterval(Integer linkTestInterval) {
+        this.linkTestInterval = linkTestInterval;
+    }
+
+    public Long getMaxMsgBytes() {
         return maxMsgBytes;
     }
 
-    public void setMaxMsgBytes(Integer maxMsgBytes) {
+    public void setMaxMsgBytes(Long maxMsgBytes) {
         this.maxMsgBytes = maxMsgBytes;
     }
 }

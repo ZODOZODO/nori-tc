@@ -6,11 +6,16 @@ import java.time.OffsetDateTime;
  * tc_eqp_socket upsert 입력(Command)
  */
 public record UpsertTcEqpSocket(
-        String eqpId,
+        long eqpKey,
         String socketProtocolType,
+        String connectionMode,
         String charset,
         boolean heartbeatEnabled,
-        int heartbeatIntervalMs,
+        int heartbeatInterval,
+        int readTimeout,
+        int writeTimeout,
+        int maxFrameSizeBytes,
+        boolean keepAliveEnabled,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {

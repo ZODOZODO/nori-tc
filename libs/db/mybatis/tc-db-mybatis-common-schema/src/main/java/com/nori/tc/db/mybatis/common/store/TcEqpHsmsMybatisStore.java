@@ -17,7 +17,7 @@ import com.nori.tc.db.mybatis.common.mapper.TcEqpHsmsMapper;
 /**
  * tc_eqp_hsms MyBatis Store 구현체.
  *
- * - 1:1 테이블 (PK=eqp_id)
+ * - 1:1 테이블 (PK=eqp_key)
  * - created_at/updated_at은 DB/SQL이 관리(CURRENT_TIMESTAMP)하므로
  *   command의 createdAt/updatedAt은 "입력 DTO"로만 보관되고 실제 SQL에서는 반영되지 않을 수 있다.
  */
@@ -33,18 +33,19 @@ public class TcEqpHsmsMybatisStore implements TcEqpHsmsStore {
     @Override
     @Transactional
     public TcEqpHsms upsert(UpsertTcEqpHsms command) {
-        final String eqpId = command.eqpId();
+        final long eqpKey = command.eqpKey();
 
         final TcEqpHsms row = new TcEqpHsms(
-                eqpId,
+                eqpKey,
                 command.deviceId(),
-                command.t3Ms(),
-                command.t5Ms(),
-                command.t6Ms(),
-                command.t7Ms(),
-                command.t8Ms(),
-                command.linktestEnabled(),
-                command.linktestIntervalMs(),
+                command.connectionMode(),
+                command.t3Timeout(),
+                command.t5Timeout(),
+                command.t6Timeout(),
+                command.t7Timeout(),
+                command.t8Timeout(),
+                command.linkTestEnabled(),
+                command.linkTestInterval(),
                 command.maxMsgBytes(),
                 command.createdAt(),
                 command.updatedAt()
@@ -60,39 +61,39 @@ public class TcEqpHsmsMybatisStore implements TcEqpHsmsStore {
                 }
             }
 
-            return mapper.findByEqpId(eqpId)
-                    .orElseThrow(() -> new DbAccessException("tc_eqp_hsms upsert succeeded but row not found. eqpId=" + eqpId));
+            return mapper.findByEqpKey(eqpKey)
+                    .orElseThrow(() -> new DbAccessException("tc_eqp_hsms upsert succeeded but row not found. eqpKey=" + eqpKey));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_eqp_hsms upsert duplicate key. eqpId=" + eqpId, e);
+            throw new DbDuplicateKeyException("tc_eqp_hsms upsert duplicate key. eqpKey=" + eqpKey, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_eqp_hsms upsert failed. eqpId=" + eqpId, e);
+            throw new DbAccessException("tc_eqp_hsms upsert failed. eqpKey=" + eqpKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_eqp_hsms upsert failed (unexpected). eqpId=" + eqpId, e);
+            throw new DbAccessException("tc_eqp_hsms upsert failed (unexpected). eqpKey=" + eqpKey, e);
         }
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcEqpHsms> findByEqpId(String eqpId) {
+    public Optional<TcEqpHsms> findByEqpKey(long eqpKey) {
         try {
-            return mapper.findByEqpId(eqpId);
+            return mapper.findByEqpKey(eqpKey);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_eqp_hsms findByEqpId failed. eqpId=" + eqpId, e);
+            throw new DbAccessException("tc_eqp_hsms findByEqpKey failed. eqpKey=" + eqpKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_eqp_hsms findByEqpId failed (unexpected). eqpId=" + eqpId, e);
+            throw new DbAccessException("tc_eqp_hsms findByEqpKey failed (unexpected). eqpKey=" + eqpKey, e);
         }
     }
 
     @Override
     @Transactional
-    public void deleteByEqpId(String eqpId) {
+    public void deleteByEqpKey(long eqpKey) {
         try {
-            mapper.deleteByEqpId(eqpId);
+            mapper.deleteByEqpKey(eqpKey);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_eqp_hsms deleteByEqpId failed. eqpId=" + eqpId, e);
+            throw new DbAccessException("tc_eqp_hsms deleteByEqpKey failed. eqpKey=" + eqpKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_eqp_hsms deleteByEqpId failed (unexpected). eqpId=" + eqpId, e);
+            throw new DbAccessException("tc_eqp_hsms deleteByEqpKey failed (unexpected). eqpKey=" + eqpKey, e);
         }
     }
 }

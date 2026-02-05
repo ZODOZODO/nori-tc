@@ -7,5 +7,5 @@ import com.nori.tc.db.jpa.common.entity.TcEqpSocketEntity;
 /**
  * tc_eqp_socket Repository
  */
-public interface TcEqpSocketJpaRepository extends JpaRepository<TcEqpSocketEntity, String> {
+public interface TcEqpSocketJpaRepository extends JpaRepository<TcEqpSocketEntity, Long> {
 }

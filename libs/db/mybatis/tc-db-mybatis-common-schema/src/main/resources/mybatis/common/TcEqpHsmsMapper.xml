@@ -8,16 +8,17 @@
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpHsms">
         <constructor>
-            <idArg column="eqp_id" javaType="java.lang.String"/>
+            <idArg column="eqp_key" javaType="long"/>
             <arg column="device_id" javaType="int"/>
-            <arg column="t3_ms" javaType="int"/>
-            <arg column="t5_ms" javaType="int"/>
-            <arg column="t6_ms" javaType="int"/>
-            <arg column="t7_ms" javaType="int"/>
-            <arg column="t8_ms" javaType="int"/>
-            <arg column="linktest_enabled" javaType="boolean"/>
-            <arg column="linktest_interval_ms" javaType="int"/>
-            <arg column="max_msg_bytes" javaType="int"/>
+            <arg column="connection_mode" javaType="java.lang.String"/>
+            <arg column="t3_timeout" javaType="int"/>
+            <arg column="t5_timeout" javaType="int"/>
+            <arg column="t6_timeout" javaType="int"/>
+            <arg column="t7_timeout" javaType="int"/>
+            <arg column="t8_timeout" javaType="int"/>
+            <arg column="link_test_enabled" javaType="boolean"/>
+            <arg column="link_test_interval" javaType="int"/>
+            <arg column="max_msg_bytes" javaType="long"/>
             <arg column="created_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
@@ -28,50 +29,52 @@
     </resultMap>
 
     <sql id="Columns">
-        eqp_id, device_id, t3_ms, t5_ms, t6_ms, t7_ms, t8_ms,
-        linktest_enabled, linktest_interval_ms, max_msg_bytes, created_at, updated_at
+        eqp_key, device_id, connection_mode, t3_timeout, t5_timeout, t6_timeout, t7_timeout, t8_timeout,
+        link_test_enabled, link_test_interval, max_msg_bytes, created_at, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp_hsms
-            (eqp_id, device_id, t3_ms, t5_ms, t6_ms, t7_ms, t8_ms,
-             linktest_enabled, linktest_interval_ms, max_msg_bytes)
+            (eqp_key, device_id, connection_mode, t3_timeout, t5_timeout, t6_timeout, t7_timeout, t8_timeout,
+             link_test_enabled, link_test_interval, max_msg_bytes)
         VALUES
-            (#{h.eqpId},
+            (#{h.eqpKey},
              #{h.deviceId},
-             #{h.t3Ms},
-             #{h.t5Ms},
-             #{h.t6Ms},
-             #{h.t7Ms},
-             #{h.t8Ms},
-             #{h.linktestEnabled},
-             #{h.linktestIntervalMs},
+             #{h.connectionMode},
+             #{h.t3Timeout},
+             #{h.t5Timeout},
+             #{h.t6Timeout},
+             #{h.t7Timeout},
+             #{h.t8Timeout},
+             #{h.linkTestEnabled},
+             #{h.linkTestInterval},
              #{h.maxMsgBytes})
     </insert>
 
     <update id="update">
         UPDATE tc_eqp_hsms
            SET device_id            = #{h.deviceId},
-               t3_ms                = #{h.t3Ms},
-               t5_ms                = #{h.t5Ms},
-               t6_ms                = #{h.t6Ms},
-               t7_ms                = #{h.t7Ms},
-               t8_ms                = #{h.t8Ms},
-               linktest_enabled     = #{h.linktestEnabled},
-               linktest_interval_ms = #{h.linktestIntervalMs},
+               connection_mode      = #{h.connectionMode},
+               t3_timeout           = #{h.t3Timeout},
+               t5_timeout           = #{h.t5Timeout},
+               t6_timeout           = #{h.t6Timeout},
+               t7_timeout           = #{h.t7Timeout},
+               t8_timeout           = #{h.t8Timeout},
+               link_test_enabled    = #{h.linkTestEnabled},
+               link_test_interval   = #{h.linkTestInterval},
                max_msg_bytes        = #{h.maxMsgBytes},
                updated_at           = CURRENT_TIMESTAMP
-         WHERE eqp_id              = #{h.eqpId}
+         WHERE eqp_key             = #{h.eqpKey}
     </update>
 
-    <select id="findByEqpId" resultMap="Map">
+    <select id="findByEqpKey" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_eqp_hsms
-         WHERE eqp_id = #{eqpId}
+         WHERE eqp_key = #{eqpKey}
     </select>
 
-    <delete id="deleteByEqpId">
-        DELETE FROM tc_eqp_hsms WHERE eqp_id = #{eqpId}
+    <delete id="deleteByEqpKey">
+        DELETE FROM tc_eqp_hsms WHERE eqp_key = #{eqpKey}
     </delete>
 
 </mapper>

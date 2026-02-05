@@ -62,10 +62,15 @@ public class TcEqpJpaStore implements TcEqpStore {
             final String eqpId = command.eqpId();
 
             // 1. 조회 또는 신규 생성
-            final TcEqpEntity entity = repository.findById(eqpId).orElseGet(() -> TcEqpEntity.newEntity(eqpId));
+            final TcEqpEntity entity = repository.findByEqpId(eqpId).orElseGet(() -> TcEqpEntity.newEntity(eqpId));
 
             // 2. [MapStruct] Command 값으로 Entity 업데이트 (Dirty Checking 유도)
             mapper.updateEntity(command, entity);
+
+            // 2-1. 생성자 정보는 최초 생성 시점에만 반영 (null/blank 방어)
+            if (entity.getEqpKey() == null && command.createdBy() != null && !command.createdBy().isBlank()) {
+                entity.setCreatedBy(command.createdBy());
+            }
 
             // 3. 저장 및 반환
             TcEqpEntity saved = repository.save(entity);
@@ -85,7 +90,7 @@ public class TcEqpJpaStore implements TcEqpStore {
             throw new IllegalArgumentException("eqpId must not be null/blank");
         }
         try {
-            return repository.findById(eqpId).map(mapper::toDomain);
+            return repository.findByEqpId(eqpId).map(mapper::toDomain);
         } catch (RuntimeException e) {
             throw new DbAccessException("[tc_eqp] findByEqpId failed: eqpId=" + eqpId, e);
         }
@@ -105,8 +110,8 @@ public class TcEqpJpaStore implements TcEqpStore {
             List<Predicate> predicates = new ArrayList<>();
 
             // --- 동적 쿼리 조건 구성 ---
-            if (c.protocolType() != null) {
-                predicates.add(cb.equal(root.get("protocolType"), c.protocolType()));
+            if (c.commInterface() != null) {
+                predicates.add(cb.equal(root.get("commInterface"), c.commInterface()));
             }
             if (c.enabled() != null) {
                 predicates.add(cb.equal(root.get("enabled"), c.enabled()));
@@ -139,7 +144,7 @@ public class TcEqpJpaStore implements TcEqpStore {
             throw new IllegalArgumentException("eqpId must not be null/blank");
         }
         try {
-            repository.deleteById(eqpId);
+            repository.deleteByEqpId(eqpId);
         } catch (EmptyResultDataAccessException ignore) {
             // Idempotent delete
         } catch (RuntimeException e) {
@@ -150,7 +155,7 @@ public class TcEqpJpaStore implements TcEqpStore {
     private void validateCommand(UpsertTcEqp command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.eqpId() == null || command.eqpId().isBlank()) throw new IllegalArgumentException("command.eqpId must not be null/blank");
-        if (command.protocolType() == null) throw new IllegalArgumentException("command.protocolType must not be null");
+        if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
         if (command.eqpIp() == null || command.eqpIp().isBlank()) throw new IllegalArgumentException("command.eqpIp must not be null/blank");
         if (command.eqpPort() <= 0) throw new IllegalArgumentException("command.eqpPort must be > 0");
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");

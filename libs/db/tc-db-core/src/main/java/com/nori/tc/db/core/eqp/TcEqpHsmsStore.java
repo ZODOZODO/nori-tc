@@ -11,7 +11,7 @@ public interface TcEqpHsmsStore {
 
     TcEqpHsms upsert(UpsertTcEqpHsms command);
 
-    Optional<TcEqpHsms> findByEqpId(String eqpId);
+    Optional<TcEqpHsms> findByEqpKey(long eqpKey);
 
-    void deleteByEqpId(String eqpId);
+    void deleteByEqpKey(long eqpKey);
 }

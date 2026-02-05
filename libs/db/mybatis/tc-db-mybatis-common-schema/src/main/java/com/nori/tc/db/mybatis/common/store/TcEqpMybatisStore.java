@@ -44,14 +44,17 @@ public class TcEqpMybatisStore implements TcEqpStore {
 
         // created_at/updated_at은 DB/default 또는 SQL(CURRENT_TIMESTAMP)에 위임한다.
         final TcEqp row = new TcEqp(
+                null,
                 eqpId,
-                command.protocolType(),
+                command.commInterface(),
                 command.eqpIp(),
                 command.eqpPort(),
                 command.modelKey(),
                 command.enabled(),
                 null,
-                null
+                null,
+                command.createdBy(),
+                command.updatedBy()
         );
 
         try {
@@ -104,7 +107,7 @@ public class TcEqpMybatisStore implements TcEqpStore {
         try {
             // FIX: DB 페이징 적용 (메모리 로딩 이슈 해결)
             return mapper.findAll(
-                    c.protocolType(),
+                    c.commInterface(),
                     c.enabled(),
                     p.offset(),
                     p.limit()

@@ -7,8 +7,9 @@
 
     <resultMap id="TcEqpMap" type="com.nori.tc.db.domain.eqp.TcEqp">
         <constructor>
-            <idArg column="eqp_id" javaType="java.lang.String"/>
-            <arg column="protocol_type"
+            <idArg column="eqp_key" javaType="java.lang.Long"/>
+            <arg column="eqp_id" javaType="java.lang.String"/>
+            <arg column="comm_interface"
                  javaType="com.nori.tc.db.domain.common.ProtocolType"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="eqp_ip" javaType="java.lang.String"/>
@@ -21,33 +22,38 @@
             <arg column="updated_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
     <sql id="TcEqpColumns">
-        eqp_id, protocol_type, eqp_ip, eqp_port, model_key, enabled, created_at, updated_at
+        eqp_key, eqp_id, comm_interface, eqp_ip, eqp_port, model_key, enabled, created_at, updated_at, created_by, updated_by
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp
-            (eqp_id, protocol_type, eqp_ip, eqp_port, model_key, enabled)
+            (eqp_id, comm_interface, eqp_ip, eqp_port, model_key, enabled, created_by, updated_by)
         VALUES
             (#{e.eqpId},
-             #{e.protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{e.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
              #{e.eqpIp},
              #{e.eqpPort},
              #{e.modelKey},
-             #{e.enabled})
+             #{e.enabled},
+             COALESCE(#{e.createdBy}, 'SYSTEM'),
+             COALESCE(#{e.updatedBy}, 'SYSTEM'))
     </insert>
 
     <update id="update">
         UPDATE tc_eqp
-           SET protocol_type = #{e.protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+           SET comm_interface = #{e.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
                eqp_ip        = #{e.eqpIp},
                eqp_port      = #{e.eqpPort},
                model_key     = #{e.modelKey},
                enabled       = #{e.enabled},
-               updated_at    = CURRENT_TIMESTAMP
+               updated_at    = CURRENT_TIMESTAMP,
+               updated_by    = COALESCE(#{e.updatedBy}, 'SYSTEM')
          WHERE eqp_id        = #{e.eqpId}
     </update>
 
@@ -61,8 +67,8 @@
         SELECT <include refid="TcEqpColumns"/>
           FROM tc_eqp
         <where>
-            <if test="protocolType != null">
-                AND protocol_type = #{protocolType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+            <if test="commInterface != null">
+                AND comm_interface = #{commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
             </if>
             <if test="enabled != null">
                 AND enabled = #{enabled}

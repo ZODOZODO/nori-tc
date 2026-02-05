@@ -44,10 +44,10 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
         validateCommand(command);
 
         try {
-            final String eqpId = command.eqpId();
+            final long eqpKey = command.eqpKey();
 
-            final TcEqpSocketEntity entity = repository.findById(eqpId)
-                    .orElseGet(() -> TcEqpSocketEntity.newEntity(eqpId));
+            final TcEqpSocketEntity entity = repository.findById(eqpKey)
+                    .orElseGet(() -> TcEqpSocketEntity.newEntity(eqpKey));
 
             // 1. [MapStruct] 일반 필드 매핑
             mapper.updateEntity(command, entity);
@@ -71,35 +71,36 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcEqpSocket> findByEqpId(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public Optional<TcEqpSocket> findByEqpKey(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be positive");
         }
         try {
-            return repository.findById(eqpId).map(mapper::toDomain);
+            return repository.findById(eqpKey).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_eqp_socket] findByEqpId failed: eqpId=" + eqpId, e);
+            throw new DbAccessException("[tc_eqp_socket] findByEqpKey failed: eqpKey=" + eqpKey, e);
         }
     }
 
     @Override
     @Transactional
-    public void deleteByEqpId(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public void deleteByEqpKey(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be positive");
         }
         try {
-            repository.deleteById(eqpId);
+            repository.deleteById(eqpKey);
         } catch (EmptyResultDataAccessException ignore) {
             // Idempotent delete
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_eqp_socket] deleteByEqpId failed: eqpId=" + eqpId, e);
+            throw new DbAccessException("[tc_eqp_socket] deleteByEqpKey failed: eqpKey=" + eqpKey, e);
         }
     }
 
     private void validateCommand(UpsertTcEqpSocket command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.eqpId() == null || command.eqpId().isBlank()) throw new IllegalArgumentException("command.eqpId must not be null/blank");
+        if (command.eqpKey() <= 0) throw new IllegalArgumentException("command.eqpKey must be positive");
         if (command.socketProtocolType() == null || command.socketProtocolType().isBlank()) throw new IllegalArgumentException("command.socketProtocolType must not be null/blank");
+        if (command.connectionMode() == null || command.connectionMode().isBlank()) throw new IllegalArgumentException("command.connectionMode must not be null/blank");
     }
 }

@@ -19,10 +19,10 @@ public interface TcEqpHsmsEntityMapper {
     /**
      * Command -> Entity (Write/Update)
      * - createdAt, updatedAt은 JPA가 관리하므로 무시
-     * - eqpId는 조회 키이므로 무시
+     * - eqpKey는 조회 키이므로 무시
      */
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "eqpId", ignore = true)
+    @Mapping(target = "eqpKey", ignore = true)
     void updateEntity(UpsertTcEqpHsms command, @MappingTarget TcEqpHsmsEntity entity);
 }

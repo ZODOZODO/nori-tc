@@ -42,11 +42,11 @@ public class TcEqpHsmsJpaStore implements TcEqpHsmsStore {
         validateCommand(command);
 
         try {
-            final String eqpId = command.eqpId();
+            final long eqpKey = command.eqpKey();
 
             // 1. 조회 또는 신규 생성
-            final TcEqpHsmsEntity entity = repository.findById(eqpId)
-                    .orElseGet(() -> TcEqpHsmsEntity.newEntity(eqpId));
+            final TcEqpHsmsEntity entity = repository.findById(eqpKey)
+                    .orElseGet(() -> TcEqpHsmsEntity.newEntity(eqpKey));
 
             // 2. [MapStruct] 전체 필드 자동 매핑
             mapper.updateEntity(command, entity);
@@ -64,34 +64,45 @@ public class TcEqpHsmsJpaStore implements TcEqpHsmsStore {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcEqpHsms> findByEqpId(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public Optional<TcEqpHsms> findByEqpKey(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be > 0");
         }
         try {
-            return repository.findById(eqpId).map(mapper::toDomain);
+            return repository.findById(eqpKey).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_eqp_hsms] findByEqpId failed: eqpId=" + eqpId, e);
+            throw new DbAccessException("[tc_eqp_hsms] findByEqpKey failed: eqpKey=" + eqpKey, e);
         }
     }
 
     @Override
     @Transactional
-    public void deleteByEqpId(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public void deleteByEqpKey(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be > 0");
         }
         try {
-            repository.deleteById(eqpId);
+            repository.deleteById(eqpKey);
         } catch (EmptyResultDataAccessException ignore) {
             // Idempotent delete
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_eqp_hsms] deleteByEqpId failed: eqpId=" + eqpId, e);
+            throw new DbAccessException("[tc_eqp_hsms] deleteByEqpKey failed: eqpKey=" + eqpKey, e);
         }
     }
 
     private void validateCommand(UpsertTcEqpHsms command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.eqpId() == null || command.eqpId().isBlank()) throw new IllegalArgumentException("command.eqpId must not be null/blank");
+        if (command.eqpKey() <= 0) throw new IllegalArgumentException("command.eqpKey must be > 0");
+        if (command.deviceId() < 0) throw new IllegalArgumentException("command.deviceId must be >= 0");
+        if (command.connectionMode() == null || command.connectionMode().isBlank()) {
+            throw new IllegalArgumentException("command.connectionMode must not be null/blank");
+        }
+        if (command.t3Timeout() <= 0) throw new IllegalArgumentException("command.t3Timeout must be > 0");
+        if (command.t5Timeout() <= 0) throw new IllegalArgumentException("command.t5Timeout must be > 0");
+        if (command.t6Timeout() <= 0) throw new IllegalArgumentException("command.t6Timeout must be > 0");
+        if (command.t7Timeout() <= 0) throw new IllegalArgumentException("command.t7Timeout must be > 0");
+        if (command.t8Timeout() <= 0) throw new IllegalArgumentException("command.t8Timeout must be > 0");
+        if (command.linkTestInterval() <= 0) throw new IllegalArgumentException("command.linkTestInterval must be > 0");
+        if (command.maxMsgBytes() <= 0) throw new IllegalArgumentException("command.maxMsgBytes must be > 0");
     }
 }

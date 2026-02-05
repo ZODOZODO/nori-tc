@@ -9,7 +9,7 @@ import com.nori.tc.db.domain.eqp.TcEqpHsms;
 /**
  * tc_eqp_hsms Mapper (FIX)
  *
- * - 1:1 테이블, PK=eqp_id
+ * - 1:1 테이블, PK=eqp_key
  * - created_at/updated_at은 DB default(now())를 신뢰하고 insert에서 생략한다.
  * - update 시 updated_at은 CURRENT_TIMESTAMP로 갱신한다.
  */
@@ -19,7 +19,7 @@ public interface TcEqpHsmsMapper {
 
     int update(@Param("h") TcEqpHsms hsms);
 
-    Optional<TcEqpHsms> findByEqpId(@Param("eqpId") String eqpId);
+    Optional<TcEqpHsms> findByEqpKey(@Param("eqpKey") long eqpKey);
 
-    int deleteByEqpId(@Param("eqpId") String eqpId);
+    int deleteByEqpKey(@Param("eqpKey") long eqpKey);
 }

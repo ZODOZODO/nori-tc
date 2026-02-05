@@ -11,7 +11,7 @@ public interface TcEqpSocketStore {
 
     TcEqpSocket upsert(UpsertTcEqpSocket command);
 
-    Optional<TcEqpSocket> findByEqpId(String eqpId);
+    Optional<TcEqpSocket> findByEqpKey(long eqpKey);
 
-    void deleteByEqpId(String eqpId);
+    void deleteByEqpKey(long eqpKey);
 }

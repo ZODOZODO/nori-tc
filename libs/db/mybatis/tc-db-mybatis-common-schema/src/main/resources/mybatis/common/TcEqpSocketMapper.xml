@@ -8,11 +8,16 @@
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpSocket">
         <constructor>
-            <idArg column="eqp_id" javaType="java.lang.String"/>
+            <idArg column="eqp_key" javaType="long"/>
             <arg column="socket_protocol_type" javaType="java.lang.String"/>
+            <arg column="connection_mode" javaType="java.lang.String"/>
             <arg column="charset" javaType="java.lang.String"/>
             <arg column="heartbeat_enabled" javaType="boolean"/>
-            <arg column="heartbeat_interval_ms" javaType="int"/>
+            <arg column="heartbeat_interval" javaType="int"/>
+            <arg column="read_timeout" javaType="int"/>
+            <arg column="write_timeout" javaType="int"/>
+            <arg column="max_frame_size_bytes" javaType="int"/>
+            <arg column="keep_alive_enabled" javaType="boolean"/>
             <arg column="created_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
@@ -23,39 +28,75 @@
     </resultMap>
 
     <sql id="Columns">
-        eqp_id, socket_protocol_type, charset, heartbeat_enabled, heartbeat_interval_ms, created_at, updated_at
+        eqp_key,
+        socket_protocol_type,
+        connection_mode,
+        charset,
+        heartbeat_enabled,
+        heartbeat_interval,
+        read_timeout,
+        write_timeout,
+        max_frame_size_bytes,
+        keep_alive_enabled,
+        created_at,
+        updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp_socket
-            (eqp_id, socket_protocol_type, charset, heartbeat_enabled, heartbeat_interval_ms)
+            (eqp_key,
+             socket_protocol_type,
+             connection_mode,
+             charset,
+             heartbeat_enabled,
+             heartbeat_interval,
+             read_timeout,
+             write_timeout,
+             max_frame_size_bytes,
+             keep_alive_enabled)
         VALUES
-            (#{s.eqpId},
+            (#{s.eqpKey},
              #{s.socketProtocolType},
+             #{s.connectionMode},
              /* charset NOT NULL + default('UTF-8') 안전 처리 */
              COALESCE(#{s.charset}, 'UTF-8'),
-             #{s.heartbeatEnabled},
-             #{s.heartbeatIntervalMs})
+             /* heartbeat_enabled NOT NULL + default(true) 안전 처리 */
+             COALESCE(#{s.heartbeatEnabled}, true),
+             /* heartbeat_interval NOT NULL + default(30) 안전 처리 */
+             COALESCE(#{s.heartbeatInterval}, 30),
+             /* read_timeout NOT NULL + default(0) 안전 처리 */
+             COALESCE(#{s.readTimeout}, 0),
+             /* write_timeout NOT NULL + default(0) 안전 처리 */
+             COALESCE(#{s.writeTimeout}, 0),
+             /* max_frame_size_bytes NOT NULL + default(8192) 안전 처리 */
+             COALESCE(#{s.maxFrameSizeBytes}, 8192),
+             /* keep_alive_enabled NOT NULL + default(true) 안전 처리 */
+             COALESCE(#{s.keepAliveEnabled}, true))
     </insert>
 
     <update id="update">
         UPDATE tc_eqp_socket
            SET socket_protocol_type  = #{s.socketProtocolType},
+               connection_mode       = #{s.connectionMode},
                charset               = COALESCE(#{s.charset}, charset),
                heartbeat_enabled     = #{s.heartbeatEnabled},
-               heartbeat_interval_ms = #{s.heartbeatIntervalMs},
+               heartbeat_interval    = #{s.heartbeatInterval},
+               read_timeout          = #{s.readTimeout},
+               write_timeout         = #{s.writeTimeout},
+               max_frame_size_bytes  = #{s.maxFrameSizeBytes},
+               keep_alive_enabled    = #{s.keepAliveEnabled},
                updated_at            = CURRENT_TIMESTAMP
-         WHERE eqp_id               = #{s.eqpId}
+         WHERE eqp_key              = #{s.eqpKey}
     </update>
 
-    <select id="findByEqpId" resultMap="Map">
+    <select id="findByEqpKey" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_eqp_socket
-         WHERE eqp_id = #{eqpId}
+         WHERE eqp_key = #{eqpKey}
     </select>
 
-    <delete id="deleteByEqpId">
-        DELETE FROM tc_eqp_socket WHERE eqp_id = #{eqpId}
+    <delete id="deleteByEqpKey">
+        DELETE FROM tc_eqp_socket WHERE eqp_key = #{eqpKey}
     </delete>
 
 </mapper>

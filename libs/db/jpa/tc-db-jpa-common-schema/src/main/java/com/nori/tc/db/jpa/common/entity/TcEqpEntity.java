@@ -7,22 +7,28 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 /**
  * tc_eqp 테이블 매핑 엔티티.
  *
  * [DB 스키마]
- * - eqp_id        : varchar(64) PK
- * - protocol_type : varchar(16) NOT NULL
- * - eqp_ip        : varchar(64) NOT NULL
+ * - eqp_key       : bigint PK (IDENTITY)
+ * - eqp_id        : varchar(64) NOT NULL (UNIQUE)
+ * - comm_interface: varchar(16) NOT NULL
+ * - eqp_ip        : varchar(45) NOT NULL
  * - eqp_port      : int NOT NULL
  * - model_key     : bigint NOT NULL
  * - enabled       : boolean NOT NULL default true
  * - created_at    : timestamptz NOT NULL
  * - updated_at    : timestamptz NOT NULL
+ * - created_by    : varchar(50) NOT NULL default 'SYSTEM'
+ * - updated_by    : varchar(50) NOT NULL default 'SYSTEM'
  *
  * [설계 포인트]
  * 1. MapStruct 호환성:
@@ -37,14 +43,18 @@ import jakarta.persistence.Table;
 public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
 
     @Id
-    @Column(name = "eqp_id", length = 64, nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "eqp_key", nullable = false)
+    private Long eqpKey;
+
+    @Column(name = "eqp_id", length = 64, nullable = false, unique = true)
     private String eqpId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "protocol_type", length = 16, nullable = false)
-    private ProtocolType protocolType;
+    @Column(name = "comm_interface", length = 16, nullable = false)
+    private ProtocolType commInterface;
 
-    @Column(name = "eqp_ip", length = 64, nullable = false)
+    @Column(name = "eqp_ip", length = 45, nullable = false)
     private String eqpIp;
 
     @Column(name = "eqp_port", nullable = false)
@@ -55,6 +65,12 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
 
     @Column(name = "enabled", nullable = false)
     private Boolean enabled;
+
+    @Column(name = "created_by", length = 50, nullable = false)
+    private String createdBy;
+
+    @Column(name = "updated_by", length = 50, nullable = false)
+    private String updatedBy;
 
     // =========================================================================
     // Constructors (MapStruct & JPA)
@@ -73,13 +89,16 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      * - MapStruct가 Domain -> Entity 변환 시 모든 필드를 한 번에 주입할 때 사용
      * - Store에서 수동으로 객체를 생성해야 할 때 사용
      */
-    public TcEqpEntity(String eqpId, ProtocolType protocolType, String eqpIp, Integer eqpPort, Long modelKey, Boolean enabled) {
+    public TcEqpEntity(Long eqpKey, String eqpId, ProtocolType commInterface, String eqpIp, Integer eqpPort, Long modelKey, Boolean enabled, String createdBy, String updatedBy) {
+        this.eqpKey = eqpKey;
         this.eqpId = eqpId;
-        this.protocolType = protocolType;
+        this.commInterface = commInterface;
         this.eqpIp = eqpIp;
         this.eqpPort = eqpPort;
         this.modelKey = modelKey;
         this.enabled = enabled;
+        this.createdBy = createdBy;
+        this.updatedBy = updatedBy;
     }
 
     // =========================================================================
@@ -108,11 +127,32 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
         if (this.enabled == null) {
             this.enabled = Boolean.TRUE;
         }
+        if (this.createdBy == null || this.createdBy.isBlank()) {
+            this.createdBy = "SYSTEM";
+        }
+        if (this.updatedBy == null || this.updatedBy.isBlank()) {
+            this.updatedBy = "SYSTEM";
+        }
+    }
+
+    @PreUpdate
+    private void applyUpdateDefaults() {
+        if (this.updatedBy == null || this.updatedBy.isBlank()) {
+            this.updatedBy = "SYSTEM";
+        }
     }
 
     // =========================================================================
     // Getters & Setters
     // =========================================================================
+
+    public Long getEqpKey() {
+        return eqpKey;
+    }
+
+    public void setEqpKey(Long eqpKey) {
+        this.eqpKey = eqpKey;
+    }
 
     public String getEqpId() {
         return eqpId;
@@ -122,12 +162,12 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
         this.eqpId = eqpId;
     }
 
-    public ProtocolType getProtocolType() {
-        return protocolType;
+    public ProtocolType getCommInterface() {
+        return commInterface;
     }
 
-    public void setProtocolType(ProtocolType protocolType) {
-        this.protocolType = protocolType;
+    public void setCommInterface(ProtocolType commInterface) {
+        this.commInterface = commInterface;
     }
 
     public String getEqpIp() {
@@ -160,5 +200,21 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
 
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(String updatedBy) {
+        this.updatedBy = updatedBy;
     }
 }
