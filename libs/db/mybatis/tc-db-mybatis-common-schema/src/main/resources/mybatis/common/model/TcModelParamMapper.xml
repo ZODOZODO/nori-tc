@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelParamMapper">
+
+    <resultMap id="TcModelParamMap" type="com.nori.tc.db.domain.model.TcModelParam">
+        <constructor>
+            <idArg column="model_param_key" javaType="long"/>
+            <arg column="model_key" javaType="long"/>
+            <arg column="param_name" javaType="java.lang.String"/>
+            <arg column="param_value" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcModelParamColumns">
+        model_param_key, model_key, param_name, param_value, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_model_param
+            (model_key, param_name, param_value)
+        VALUES
+            (#{m.modelKey},
+             #{m.paramName},
+             #{m.paramValue})
+    </insert>
+
+    <update id="updateByUniqueKey">
+        UPDATE tc_model_param
+           SET param_value = #{m.paramValue},
+               updated_at  = CURRENT_TIMESTAMP
+         WHERE model_key = #{m.modelKey}
+           AND param_name = #{m.paramName}
+    </update>
+
+    <select id="findByModelKeyAndName" resultMap="TcModelParamMap">
+        SELECT <include refid="TcModelParamColumns"/>
+          FROM tc_model_param
+         WHERE model_key = #{modelKey}
+           AND param_name = #{paramName}
+    </select>
+
+    <select id="findAllByModelKey" resultMap="TcModelParamMap">
+        SELECT <include refid="TcModelParamColumns"/>
+          FROM tc_model_param
+         WHERE model_key = #{modelKey}
+         ORDER BY model_param_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByModelParamKey">
+        DELETE FROM tc_model_param WHERE model_param_key = #{modelParamKey}
+    </delete>
+
+</mapper>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelReportIdMapper">
+
+    <resultMap id="TcModelReportIdMap" type="com.nori.tc.db.domain.model.TcModelReportId">
+        <constructor>
+            <idArg column="report_key" javaType="long"/>
+            <arg column="model_key" javaType="long"/>
+            <arg column="report_id" javaType="java.lang.String"/>
+            <arg column="variable_id" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="boolean"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcModelReportIdColumns">
+        report_key, model_key, report_id, variable_id, enabled, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_model_reportid
+            (model_key, report_id, variable_id, enabled)
+        VALUES
+            (#{r.modelKey},
+             #{r.reportId},
+             #{r.variableId},
+             #{r.enabled})
+    </insert>
+
+    <update id="updateByUniqueKey">
+        UPDATE tc_model_reportid
+           SET variable_id = #{r.variableId},
+               enabled     = #{r.enabled},
+               updated_at  = CURRENT_TIMESTAMP
+         WHERE model_key = #{r.modelKey}
+           AND report_id = #{r.reportId}
+    </update>
+
+    <select id="findByReportKey" resultMap="TcModelReportIdMap">
+        SELECT <include refid="TcModelReportIdColumns"/>
+          FROM tc_model_reportid
+         WHERE report_key = #{reportKey}
+    </select>
+
+    <select id="findByModelKeyAndReportId" resultMap="TcModelReportIdMap">
+        SELECT <include refid="TcModelReportIdColumns"/>
+          FROM tc_model_reportid
+         WHERE model_key = #{modelKey}
+           AND report_id = #{reportId}
+    </select>
+
+    <select id="findAll" resultMap="TcModelReportIdMap">
+        SELECT <include refid="TcModelReportIdColumns"/>
+          FROM tc_model_reportid
+        <where>
+            <if test="modelKey != null">
+                AND model_key = #{modelKey}
+            </if>
+            <if test="reportId != null and reportId != ''">
+                AND report_id = #{reportId}
+            </if>
+            <if test="enabled != null">
+                AND enabled = #{enabled}
+            </if>
+        </where>
+        ORDER BY report_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByReportKey">
+        DELETE FROM tc_model_reportid WHERE report_key = #{reportKey}
+    </delete>
+
+</mapper>

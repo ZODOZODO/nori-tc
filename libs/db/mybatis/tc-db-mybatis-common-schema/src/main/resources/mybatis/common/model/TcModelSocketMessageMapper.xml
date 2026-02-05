@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_model_socket_message Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelSocketMessageMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.model.TcModelSocketMessage">
+        <constructor>
+            <idArg column="socket_msg_key" javaType="long"/>
+            <arg column="model_key" javaType="long"/>
+            <arg column="socket_msg_name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="data_index" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        socket_msg_key, model_key, socket_msg_name, description, data_index, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_model_socket_message
+            (model_key, socket_msg_name, description, data_index)
+        VALUES
+            (#{s.modelKey},
+             #{s.socketMsgName},
+             #{s.description},
+             #{s.dataIndex})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_model_socket_message
+           SET description = #{s.description},
+               data_index  = #{s.dataIndex},
+               updated_at  = CURRENT_TIMESTAMP
+         WHERE model_key = #{s.modelKey}
+           AND socket_msg_name = #{s.socketMsgName}
+    </update>
+
+    <select id="findByModelKeySocketMsgName" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_model_socket_message
+         WHERE model_key = #{modelKey}
+           AND socket_msg_name = #{socketMsgName}
+    </select>
+
+    <select id="findAllByModelKey" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_model_socket_message
+         WHERE model_key = #{modelKey}
+         ORDER BY socket_msg_name ASC, socket_msg_key ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByModelKeySocketMsgName">
+        DELETE FROM tc_model_socket_message
+         WHERE model_key = #{modelKey}
+           AND socket_msg_name = #{socketMsgName}
+    </delete>
+
+</mapper>

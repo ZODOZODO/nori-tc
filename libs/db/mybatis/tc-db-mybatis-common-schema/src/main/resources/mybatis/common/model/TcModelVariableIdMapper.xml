@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelVariableIdMapper">
+
+    <resultMap id="TcModelVariableIdMap" type="com.nori.tc.db.domain.model.TcModelVariableId">
+        <constructor>
+            <idArg column="variable_key" javaType="long"/>
+            <arg column="model_key" javaType="long"/>
+            <arg column="variable_id" javaType="java.lang.String"/>
+            <arg column="variable_id_type"
+                 javaType="com.nori.tc.db.domain.common.VariableIdType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcModelVariableIdColumns">
+        variable_key, model_key, variable_id, variable_id_type, description, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_model_variableid
+            (model_key, variable_id, variable_id_type, description)
+        VALUES
+            (#{m.modelKey},
+             #{m.variableId},
+             #{m.variableIdType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{m.description})
+    </insert>
+
+    <update id="updateByUniqueKey">
+        UPDATE tc_model_variableid
+           SET description = #{m.description},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE model_key = #{m.modelKey}
+           AND variable_id_type = #{m.variableIdType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+           AND variable_id = #{m.variableId}
+    </update>
+
+    <select id="findByVariableKey" resultMap="TcModelVariableIdMap">
+        SELECT <include refid="TcModelVariableIdColumns"/>
+          FROM tc_model_variableid
+         WHERE variable_key = #{variableKey}
+    </select>
+
+    <select id="findByModelKeyAndTypeAndVariableId" resultMap="TcModelVariableIdMap">
+        SELECT <include refid="TcModelVariableIdColumns"/>
+          FROM tc_model_variableid
+         WHERE model_key = #{modelKey}
+           AND variable_id_type = #{variableIdType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+           AND variable_id = #{variableId}
+    </select>
+
+    <select id="findAllByModelKey" resultMap="TcModelVariableIdMap">
+        SELECT <include refid="TcModelVariableIdColumns"/>
+          FROM tc_model_variableid
+         WHERE model_key = #{modelKey}
+         ORDER BY variable_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByVariableKey">
+        DELETE FROM tc_model_variableid WHERE variable_key = #{variableKey}
+    </delete>
+
+</mapper>
