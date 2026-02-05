@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_socket_protocol_type Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpSocketProtocolTypeMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpSocketProtocolType">
+        <constructor>
+            <idArg column="socket_protocol_type" javaType="java.lang.String"/>
+            <arg column="socket_protocol_type_name" javaType="java.lang.String"/>
+            <arg column="parse_start_rule" javaType="java.lang.String"/>
+            <arg column="parse_end_rule" javaType="java.lang.String"/>
+            <arg column="parse_regex" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        socket_protocol_type,
+        socket_protocol_type_name,
+        parse_start_rule,
+        parse_end_rule,
+        parse_regex,
+        description
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_socket_protocol_type
+            (socket_protocol_type, socket_protocol_type_name, parse_start_rule, parse_end_rule, parse_regex, description)
+        VALUES
+            (#{t.socketProtocolType},
+             #{t.socketProtocolTypeName},
+             #{t.parseStartRule},
+             #{t.parseEndRule},
+             #{t.parseRegex},
+             #{t.description})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_eqp_socket_protocol_type
+           SET socket_protocol_type_name = #{t.socketProtocolTypeName},
+               parse_start_rule          = #{t.parseStartRule},
+               parse_end_rule            = #{t.parseEndRule},
+               parse_regex               = #{t.parseRegex},
+               description               = #{t.description}
+         WHERE socket_protocol_type      = #{t.socketProtocolType}
+    </update>
+
+    <select id="findBySocketProtocolType" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_socket_protocol_type
+         WHERE socket_protocol_type = #{socketProtocolType}
+    </select>
+
+    <select id="findAll" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_socket_protocol_type
+         ORDER BY socket_protocol_type
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteBySocketProtocolType">
+        DELETE FROM tc_eqp_socket_protocol_type
+         WHERE socket_protocol_type = #{socketProtocolType}
+    </delete>
+
+</mapper>
