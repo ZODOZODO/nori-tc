@@ -1,8 +1,9 @@
-package com.nori.tc.db.core.eqp;
+package com.nori.tc.db.core.eqp.store;
 
 import java.util.List;
 import java.util.Optional;
 
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpGlobal;
 import com.nori.tc.db.domain.eqp.TcEqpGlobal;
 
 /**

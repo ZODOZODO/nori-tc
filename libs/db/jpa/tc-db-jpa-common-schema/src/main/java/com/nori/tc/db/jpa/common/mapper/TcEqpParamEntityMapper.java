@@ -5,7 +5,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.MappingTarget;
 
-import com.nori.tc.db.core.eqp.UpsertTcEqpParam;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpParam;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
 import com.nori.tc.db.jpa.common.entity.TcEqpParamEntity;
 

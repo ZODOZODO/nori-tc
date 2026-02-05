@@ -5,7 +5,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.MappingTarget;
 
-import com.nori.tc.db.core.eqp.UpsertTcEqpGlobal;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpGlobal;
 import com.nori.tc.db.domain.eqp.TcEqpGlobal;
 import com.nori.tc.db.jpa.common.entity.TcEqpGlobalEntity;
 

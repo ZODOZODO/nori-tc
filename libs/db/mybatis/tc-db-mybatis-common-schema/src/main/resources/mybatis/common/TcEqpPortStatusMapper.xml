@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_port_status Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpPortStatusMapper">
+
+    <resultMap id="TcEqpPortStatusMap" type="com.nori.tc.db.domain.eqp.TcEqpPortStatus">
+        <constructor>
+            <idArg column="eqp_port_status_key" javaType="long"/>
+            <arg column="eqp_key" javaType="long"/>
+            <arg column="port_id" javaType="java.lang.String"/>
+            <arg column="port_type"
+                 javaType="com.nori.tc.db.domain.common.PortType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="port_state"
+                 javaType="com.nori.tc.db.domain.common.PortState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="carrier_id" javaType="java.lang.String"/>
+            <arg column="carrier_type"
+                 javaType="com.nori.tc.db.domain.common.CarrierType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="carrier_state"
+                 javaType="com.nori.tc.db.domain.common.CarrierState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        eqp_port_status_key, eqp_key, port_id, port_type, port_state,
+        carrier_id, carrier_type, carrier_state, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_port_status
+            (eqp_key, port_id, port_type, port_state, carrier_id, carrier_type, carrier_state)
+        VALUES
+            (#{s.eqpKey},
+             #{s.portId},
+             #{s.portType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{s.portState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{s.carrierId},
+             #{s.carrierType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{s.carrierState, typeHandler=org.apache.ibatis.type.EnumTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_eqp_port_status
+           SET port_type    = #{s.portType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               port_state   = #{s.portState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               carrier_id   = #{s.carrierId},
+               carrier_type = #{s.carrierType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               carrier_state= #{s.carrierState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               updated_at   = CURRENT_TIMESTAMP
+         WHERE eqp_key = #{s.eqpKey}
+           AND port_id = #{s.portId}
+    </update>
+
+    <select id="findByEqpKeyPortId" resultMap="TcEqpPortStatusMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_port_status
+         WHERE eqp_key = #{eqpKey}
+           AND port_id = #{portId}
+    </select>
+
+    <select id="findAllByEqpKey" resultMap="TcEqpPortStatusMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_port_status
+         WHERE eqp_key = #{eqpKey}
+         ORDER BY port_id ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByEqpKeyPortId">
+        DELETE FROM tc_eqp_port_status
+         WHERE eqp_key = #{eqpKey}
+           AND port_id = #{portId}
+    </delete>
+
+</mapper>

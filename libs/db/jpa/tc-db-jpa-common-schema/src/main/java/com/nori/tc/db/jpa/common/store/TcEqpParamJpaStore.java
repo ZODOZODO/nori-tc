@@ -16,8 +16,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.eqp.TcEqpParamStore;
-import com.nori.tc.db.core.eqp.UpsertTcEqpParam;
+import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpParam;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.domain.eqp.TcEqpParam;

@@ -19,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.TcEqpSearchCriteria;
-import com.nori.tc.db.core.eqp.TcEqpStore;
-import com.nori.tc.db.core.eqp.UpsertTcEqp;
+import com.nori.tc.db.core.eqp.store.TcEqpStore;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.domain.eqp.TcEqp;

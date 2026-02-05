@@ -1,9 +1,11 @@
-package com.nori.tc.db.core.eqp;
+package com.nori.tc.db.core.eqp.store;
 
 import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
+import com.nori.tc.db.core.eqp.TcEqpSearchCriteria;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.domain.eqp.TcEqp;
 
 /**

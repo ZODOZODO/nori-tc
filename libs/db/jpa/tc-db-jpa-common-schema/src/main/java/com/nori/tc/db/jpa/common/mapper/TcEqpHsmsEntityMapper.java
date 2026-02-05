@@ -1,6 +1,6 @@
 package com.nori.tc.db.jpa.common.mapper;
 
-import com.nori.tc.db.core.eqp.UpsertTcEqpHsms;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpHsms;
 import com.nori.tc.db.domain.eqp.TcEqpHsms;
 import com.nori.tc.db.jpa.common.entity.TcEqpHsmsEntity;
 import org.mapstruct.Mapper;

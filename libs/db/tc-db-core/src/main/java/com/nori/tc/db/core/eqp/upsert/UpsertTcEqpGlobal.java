@@ -1,4 +1,4 @@
-package com.nori.tc.db.core.eqp;
+package com.nori.tc.db.core.eqp.upsert;
 
 import java.time.OffsetDateTime;
 

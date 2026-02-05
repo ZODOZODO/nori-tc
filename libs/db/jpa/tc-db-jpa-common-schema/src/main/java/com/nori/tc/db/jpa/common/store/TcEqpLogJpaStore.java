@@ -7,8 +7,8 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.nori.tc.db.core.eqp.TcEqpLogStore;
-import com.nori.tc.db.core.eqp.UpsertTcEqpLog;
+import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpLog;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.domain.common.LogLevel;
