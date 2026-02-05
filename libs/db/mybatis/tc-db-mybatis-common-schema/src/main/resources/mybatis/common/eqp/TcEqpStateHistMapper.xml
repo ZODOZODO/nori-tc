@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_state_hist Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpStateHistMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpStateHist">
+        <constructor>
+            <idArg column="state_hist_key" javaType="long"/>
+            <arg column="eqp_key" javaType="long"/>
+            <arg column="state_type"
+                 javaType="com.nori.tc.db.domain.common.EqpStateType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="from_state" javaType="java.lang.String"/>
+            <arg column="to_state" javaType="java.lang.String"/>
+            <arg column="changed_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="reason_code" javaType="java.lang.String"/>
+            <arg column="reason_detail" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        state_hist_key, eqp_key, state_type, from_state, to_state, changed_at, reason_code, reason_detail
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_state_hist
+            (eqp_key, state_type, from_state, to_state, changed_at, reason_code, reason_detail)
+        VALUES
+            (#{h.eqpKey},
+             #{h.stateType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{h.fromState},
+             #{h.toState},
+             #{h.changedAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{h.reasonCode},
+             #{h.reasonDetail})
+    </insert>
+
+    <select id="findAllByEqpKey" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_state_hist
+         WHERE eqp_key = #{eqpKey}
+         ORDER BY changed_at DESC, state_hist_key DESC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+</mapper>
