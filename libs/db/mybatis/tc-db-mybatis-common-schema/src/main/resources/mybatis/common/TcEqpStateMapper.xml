@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_state Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpStateMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpState">
+        <constructor>
+            <idArg column="eqp_key" javaType="long"/>
+            <arg column="control_state"
+                 javaType="com.nori.tc.db.domain.common.ControlState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="eqp_state"
+                 javaType="com.nori.tc.db.domain.common.EqpState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="since_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="reason_code" javaType="java.lang.String"/>
+            <arg column="reason_detail" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        eqp_key, control_state, eqp_state, since_at, reason_code, reason_detail, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_state
+            (eqp_key, control_state, eqp_state, since_at, reason_code, reason_detail)
+        VALUES
+            (#{s.eqpKey},
+             #{s.controlState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{s.eqpState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{s.sinceAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{s.reasonCode},
+             #{s.reasonDetail})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_eqp_state
+           SET control_state = #{s.controlState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               eqp_state     = #{s.eqpState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               since_at      = #{s.sinceAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               reason_code   = #{s.reasonCode},
+               reason_detail = #{s.reasonDetail},
+               updated_at    = CURRENT_TIMESTAMP
+         WHERE eqp_key      = #{s.eqpKey}
+    </update>
+
+    <select id="findByEqpKey" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_state
+         WHERE eqp_key = #{eqpKey}
+    </select>
+
+    <delete id="deleteByEqpKey">
+        DELETE FROM tc_eqp_state WHERE eqp_key = #{eqpKey}
+    </delete>
+
+</mapper>

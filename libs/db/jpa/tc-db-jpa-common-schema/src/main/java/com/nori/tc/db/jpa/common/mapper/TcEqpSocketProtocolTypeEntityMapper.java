@@ -1,6 +1,6 @@
 package com.nori.tc.db.jpa.common.mapper;
 
-import com.nori.tc.db.core.eqp.UpsertTcEqpSocketProtocolType;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpSocketProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqpSocketProtocolType;
 import com.nori.tc.db.jpa.common.entity.TcEqpSocketProtocolTypeEntity;
 import org.mapstruct.Mapper;
