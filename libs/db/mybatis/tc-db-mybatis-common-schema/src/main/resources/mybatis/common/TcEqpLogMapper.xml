@@ -8,14 +8,12 @@
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpLog">
         <constructor>
-            <idArg column="eqp_id" javaType="java.lang.String"/>
+            <idArg column="eqp_key" javaType="long"/>
             <arg column="log_level"
                  javaType="com.nori.tc.db.domain.common.LogLevel"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="log_retention_days" javaType="int"/>
             <arg column="log_path" javaType="java.lang.String"/>
-            <arg column="created_at"
-                 javaType="java.time.OffsetDateTime"
-                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
             <arg column="updated_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
@@ -23,34 +21,36 @@
     </resultMap>
 
     <sql id="Columns">
-        eqp_id, log_level, log_path, created_at, updated_at
+        eqp_key, log_level, log_retention_days, log_path, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp_log
-            (eqp_id, log_level, log_path)
+            (eqp_key, log_level, log_retention_days, log_path)
         VALUES
-            (#{l.eqpId},
+            (#{l.eqpKey},
              #{l.logLevel, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{l.logRetentionDays},
              #{l.logPath})
     </insert>
 
     <update id="update">
         UPDATE tc_eqp_log
-           SET log_level  = #{l.logLevel, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-               log_path   = #{l.logPath},
-               updated_at = CURRENT_TIMESTAMP
-         WHERE eqp_id     = #{l.eqpId}
+           SET log_level          = #{l.logLevel, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               log_retention_days = #{l.logRetentionDays},
+               log_path           = #{l.logPath},
+               updated_at         = CURRENT_TIMESTAMP
+         WHERE eqp_key            = #{l.eqpKey}
     </update>
 
-    <select id="findByEqpId" resultMap="Map">
+    <select id="findByEqpKey" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_eqp_log
-         WHERE eqp_id = #{eqpId}
+         WHERE eqp_key = #{eqpKey}
     </select>
 
-    <delete id="deleteByEqpId">
-        DELETE FROM tc_eqp_log WHERE eqp_id = #{eqpId}
+    <delete id="deleteByEqpKey">
+        DELETE FROM tc_eqp_log WHERE eqp_key = #{eqpKey}
     </delete>
 
 </mapper>

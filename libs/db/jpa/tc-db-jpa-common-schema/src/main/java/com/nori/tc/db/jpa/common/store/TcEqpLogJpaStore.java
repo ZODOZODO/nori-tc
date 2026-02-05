@@ -11,6 +11,7 @@ import com.nori.tc.db.core.eqp.TcEqpLogStore;
 import com.nori.tc.db.core.eqp.UpsertTcEqpLog;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
+import com.nori.tc.db.domain.common.LogLevel;
 import com.nori.tc.db.domain.eqp.TcEqpLog;
 import com.nori.tc.db.jpa.common.entity.TcEqpLogEntity;
 import com.nori.tc.db.jpa.common.mapper.TcEqpLogEntityMapper;
@@ -33,15 +34,16 @@ public class TcEqpLogJpaStore implements TcEqpLogStore {
     @Override
     @Transactional
     public TcEqpLog upsert(UpsertTcEqpLog command) {
-        validateCommand(command);
+        UpsertTcEqpLog normalized = normalizeCommand(command);
+        validateCommand(normalized);
 
         try {
-            final String eqpId = command.eqpId();
+            final Long eqpKey = normalized.eqpKey();
 
-            final TcEqpLogEntity entity = repository.findById(eqpId)
-                    .orElseGet(() -> TcEqpLogEntity.newEntity(eqpId));
+            final TcEqpLogEntity entity = repository.findById(eqpKey)
+                    .orElseGet(() -> TcEqpLogEntity.newEntity(eqpKey));
 
-            mapper.updateEntity(command, entity);
+            mapper.updateEntity(normalized, entity);
 
             TcEqpLogEntity saved = repository.save(entity);
             return mapper.toDomain(saved);
@@ -55,36 +57,50 @@ public class TcEqpLogJpaStore implements TcEqpLogStore {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcEqpLog> findByEqpId(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public Optional<TcEqpLog> findByEqpKey(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be positive");
         }
         try {
-            return repository.findById(eqpId).map(mapper::toDomain);
+            return repository.findById(eqpKey).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_eqp_log] findByEqpId failed: eqpId=" + eqpId, e);
+            throw new DbAccessException("[tc_eqp_log] findByEqpKey failed: eqpKey=" + eqpKey, e);
         }
     }
 
     @Override
     @Transactional
-    public void deleteByEqpId(String eqpId) {
-        if (eqpId == null || eqpId.isBlank()) {
-            throw new IllegalArgumentException("eqpId must not be null/blank");
+    public void deleteByEqpKey(long eqpKey) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be positive");
         }
         try {
-            repository.deleteById(eqpId);
+            repository.deleteById(eqpKey);
         } catch (EmptyResultDataAccessException ignore) {
             // Idempotent delete
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_eqp_log] deleteByEqpId failed: eqpId=" + eqpId, e);
+            throw new DbAccessException("[tc_eqp_log] deleteByEqpKey failed: eqpKey=" + eqpKey, e);
         }
     }
 
     private void validateCommand(UpsertTcEqpLog command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.eqpId() == null || command.eqpId().isBlank()) throw new IllegalArgumentException("command.eqpId must not be null/blank");
+        if (command.eqpKey() == null || command.eqpKey() <= 0) throw new IllegalArgumentException("command.eqpKey must be positive");
         if (command.logLevel() == null) throw new IllegalArgumentException("command.logLevel must not be null");
-        if (command.logPath() == null || command.logPath().isBlank()) throw new IllegalArgumentException("command.logPath must not be null/blank");
+        if (command.logRetentionDays() < 1) {
+            throw new IllegalArgumentException("command.logRetentionDays must be >= 1");
+        }
+    }
+
+    private UpsertTcEqpLog normalizeCommand(UpsertTcEqpLog command) {
+        if (command == null) {
+            throw new IllegalArgumentException("command must not be null");
+        }
+        return new UpsertTcEqpLog(
+                command.eqpKey(),
+                command.logLevel() == null ? LogLevel.INFO : command.logLevel(),
+                command.logRetentionDays() == null ? 30 : command.logRetentionDays(),
+                command.logPath()
+        );
     }
 }

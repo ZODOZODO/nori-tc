@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_eqp_global Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpGlobalMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpGlobal">
+        <constructor>
+            <idArg column="eqp_global_key" javaType="long"/>
+            <arg column="eqp_key" javaType="long"/>
+            <arg column="param_name" javaType="java.lang.String"/>
+            <arg column="param_value" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        eqp_global_key, eqp_key, param_name, param_value, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_global
+            (eqp_key, param_name, param_value)
+        VALUES
+            (#{g.eqpKey},
+             #{g.paramName},
+             #{g.paramValue})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_eqp_global
+           SET param_value = #{g.paramValue},
+               updated_at  = CURRENT_TIMESTAMP
+         WHERE eqp_key     = #{g.eqpKey}
+           AND param_name  = #{g.paramName}
+    </update>
+
+    <select id="findByEqpKeyAndParamName" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_global
+         WHERE eqp_key = #{eqpKey}
+           AND param_name = #{paramName}
+    </select>
+
+    <select id="findByEqpKey" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_eqp_global
+         WHERE eqp_key = #{eqpKey}
+         ORDER BY eqp_global_key ASC
+    </select>
+
+    <delete id="deleteByEqpKeyAndParamName">
+        DELETE FROM tc_eqp_global
+         WHERE eqp_key = #{eqpKey}
+           AND param_name = #{paramName}
+    </delete>
+
+</mapper>

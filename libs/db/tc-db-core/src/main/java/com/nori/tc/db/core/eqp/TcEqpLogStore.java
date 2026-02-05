@@ -11,7 +11,7 @@ public interface TcEqpLogStore {
 
     TcEqpLog upsert(UpsertTcEqpLog command);
 
-    Optional<TcEqpLog> findByEqpId(String eqpId);
+    Optional<TcEqpLog> findByEqpKey(long eqpKey);
 
-    void deleteByEqpId(String eqpId);
+    void deleteByEqpKey(long eqpKey);
 }
