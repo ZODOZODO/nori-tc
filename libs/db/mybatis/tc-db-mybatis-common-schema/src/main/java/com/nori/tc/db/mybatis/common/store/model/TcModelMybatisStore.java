@@ -14,8 +14,8 @@ import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.NewTcModel;
 import com.nori.tc.db.core.model.TcModelSearchCriteria;
-import com.nori.tc.db.core.model.TcModelStore;
-import com.nori.tc.db.core.model.UpdateTcModel;
+import com.nori.tc.db.core.model.store.TcModelStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.mybatis.common.mapper.model.TcModelMapper;
 
@@ -76,7 +76,7 @@ public class TcModelMybatisStore implements TcModelStore {
 
     @Override
     @Transactional
-    public TcModel update(UpdateTcModel command) {
+    public TcModel update(UpsertTcModel command) {
         final long modelKey = command.modelKey();
 
         final TcModel row = new TcModel(

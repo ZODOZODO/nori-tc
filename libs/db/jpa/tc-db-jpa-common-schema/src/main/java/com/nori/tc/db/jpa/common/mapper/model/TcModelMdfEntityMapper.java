@@ -1,7 +1,7 @@
 package com.nori.tc.db.jpa.common.mapper.model;
 
 import com.nori.tc.db.core.model.NewTcModelMdf;
-import com.nori.tc.db.core.model.UpdateTcModelMdf;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.jpa.common.entity.model.TcModelMdfEntity;
 
@@ -42,5 +42,5 @@ public interface TcModelMdfEntityMapper {
      */
     @Mapping(target = "mdfKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void updateFromUpdate(UpdateTcModelMdf command, @MappingTarget TcModelMdfEntity entity);
+    void updateFromUpdate(UpsertTcModelMdf command, @MappingTarget TcModelMdfEntity entity);
 }

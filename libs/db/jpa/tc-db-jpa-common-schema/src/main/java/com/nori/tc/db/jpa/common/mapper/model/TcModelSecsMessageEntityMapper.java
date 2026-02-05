@@ -1,7 +1,7 @@
 package com.nori.tc.db.jpa.common.mapper.model;
 
 import com.nori.tc.db.core.model.NewTcModelSecsMessage;
-import com.nori.tc.db.core.model.UpdateTcModelSecsMessage;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.jpa.common.entity.model.TcModelSecsMessageEntity;
 
@@ -34,5 +34,5 @@ public interface TcModelSecsMessageEntityMapper {
      */
     @Mapping(target = "secsMsgKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void updateFromUpdate(UpdateTcModelSecsMessage command, @MappingTarget TcModelSecsMessageEntity entity);
+    void updateFromUpdate(UpsertTcModelSecsMessage command, @MappingTarget TcModelSecsMessageEntity entity);
 }

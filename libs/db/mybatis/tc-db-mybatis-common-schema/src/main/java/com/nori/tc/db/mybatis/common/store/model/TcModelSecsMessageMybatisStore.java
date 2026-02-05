@@ -12,8 +12,8 @@ import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.NewTcModelSecsMessage;
-import com.nori.tc.db.core.model.TcModelSecsMessageStore;
-import com.nori.tc.db.core.model.UpdateTcModelSecsMessage;
+import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.mybatis.common.mapper.model.TcModelSecsMessageMapper;
 
@@ -70,7 +70,7 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
 
     @Override
     @Transactional
-    public TcModelSecsMessage update(UpdateTcModelSecsMessage command) {
+    public TcModelSecsMessage update(UpsertTcModelSecsMessage command) {
         validateUpdate(command);
 
         final long secsMsgKey = command.secsMsgKey();
@@ -162,7 +162,7 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
         }
     }
 
-    private void validateUpdate(UpdateTcModelSecsMessage command) {
+    private void validateUpdate(UpsertTcModelSecsMessage command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
         }

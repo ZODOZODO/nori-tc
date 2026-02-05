@@ -12,8 +12,8 @@ import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.NewTcModelSecsMessage;
-import com.nori.tc.db.core.model.TcModelSecsMessageStore;
-import com.nori.tc.db.core.model.UpdateTcModelSecsMessage;
+import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.jpa.common.entity.model.TcModelSecsMessageEntity;
 import com.nori.tc.db.jpa.common.mapper.model.TcModelSecsMessageEntityMapper;
@@ -69,7 +69,7 @@ public class TcModelSecsMessageJpaStore implements TcModelSecsMessageStore {
 
     @Override
     @Transactional
-    public TcModelSecsMessage update(UpdateTcModelSecsMessage command) {
+    public TcModelSecsMessage update(UpsertTcModelSecsMessage command) {
         validateUpdate(command);
 
         try {
@@ -155,7 +155,7 @@ public class TcModelSecsMessageJpaStore implements TcModelSecsMessageStore {
         }
     }
 
-    private void validateUpdate(UpdateTcModelSecsMessage command) {
+    private void validateUpdate(UpsertTcModelSecsMessage command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.secsMsgKey() <= 0) throw new IllegalArgumentException("command.secsMsgKey must be > 0");
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");

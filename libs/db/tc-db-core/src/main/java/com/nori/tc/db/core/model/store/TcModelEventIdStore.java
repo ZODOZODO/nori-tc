@@ -1,4 +1,4 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.store;
 
 import java.util.Optional;
 

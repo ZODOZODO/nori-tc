@@ -12,8 +12,8 @@ import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.model.TcModelReportIdSearchCriteria;
-import com.nori.tc.db.core.model.TcModelReportIdStore;
-import com.nori.tc.db.core.model.UpsertTcModelReportId;
+import com.nori.tc.db.core.model.store.TcModelReportIdStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelReportId;
 import com.nori.tc.db.domain.model.TcModelReportId;
 import com.nori.tc.db.mybatis.common.mapper.model.TcModelReportIdMapper;
 

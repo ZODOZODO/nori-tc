@@ -1,9 +1,11 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.store;
 
 import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
+import com.nori.tc.db.core.model.NewTcModelMdf;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
 
 /**
@@ -35,7 +37,7 @@ public interface TcModelMdfStore {
      *
      * @return 갱신 후 상태의 TcModelMdf
      */
-    TcModelMdf update(UpdateTcModelMdf command);
+    TcModelMdf update(UpsertTcModelMdf command);
 
     Optional<TcModelMdf> findByMdfKey(long mdfKey);
 

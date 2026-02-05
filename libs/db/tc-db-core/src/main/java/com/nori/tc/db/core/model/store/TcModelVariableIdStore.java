@@ -1,9 +1,10 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.store;
 
 import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelVariableId;
 import com.nori.tc.db.domain.common.VariableIdType;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 

@@ -1,8 +1,10 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.store;
 
 import java.util.List;
 import java.util.Optional;
 
+import com.nori.tc.db.core.model.NewTcModelSecsMessage;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 
 /**
@@ -30,7 +32,7 @@ public interface TcModelSecsMessageStore {
      *
      * @return 갱신 후 상태의 TcModelSecsMessage
      */
-    TcModelSecsMessage update(UpdateTcModelSecsMessage command);
+    TcModelSecsMessage update(UpsertTcModelSecsMessage command);
 
     Optional<TcModelSecsMessage> findBySecsMsgKey(long secsMsgKey);
 

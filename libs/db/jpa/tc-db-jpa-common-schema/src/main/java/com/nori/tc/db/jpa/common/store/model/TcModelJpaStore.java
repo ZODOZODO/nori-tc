@@ -23,8 +23,8 @@ import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.NewTcModel;
 import com.nori.tc.db.core.model.TcModelSearchCriteria;
-import com.nori.tc.db.core.model.TcModelStore;
-import com.nori.tc.db.core.model.UpdateTcModel;
+import com.nori.tc.db.core.model.store.TcModelStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.jpa.common.entity.model.TcModelEntity;
 import com.nori.tc.db.jpa.common.mapper.model.TcModelEntityMapper;
@@ -80,7 +80,7 @@ public class TcModelJpaStore implements TcModelStore {
 
     @Override
     @Transactional
-    public TcModel update(UpdateTcModel command) {
+    public TcModel update(UpsertTcModel command) {
         validateUpdate(command);
 
         try {
@@ -197,7 +197,7 @@ public class TcModelJpaStore implements TcModelStore {
         if (command.status() == null) throw new IllegalArgumentException("command.status must not be null");
     }
 
-    private void validateUpdate(UpdateTcModel command) {
+    private void validateUpdate(UpsertTcModel command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
         if (command.modelName() == null || command.modelName().isBlank()) throw new IllegalArgumentException("command.modelName must not be null/blank");

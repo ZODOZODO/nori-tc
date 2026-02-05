@@ -1,9 +1,12 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.store;
 
 import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
+import com.nori.tc.db.core.model.NewTcModel;
+import com.nori.tc.db.core.model.TcModelSearchCriteria;
+import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 
 /**
@@ -31,7 +34,7 @@ public interface TcModelStore {
      *
      * @return 갱신 후 상태의 TcModel
      */
-    TcModel update(UpdateTcModel command);
+    TcModel update(UpsertTcModel command);
 
     Optional<TcModel> findByModelKey(long modelKey);
 

@@ -5,7 +5,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.MappingTarget;
 
-import com.nori.tc.db.core.model.UpsertTcModelVariableId;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelVariableId;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 import com.nori.tc.db.jpa.common.entity.model.TcModelVariableIdEntity;
 

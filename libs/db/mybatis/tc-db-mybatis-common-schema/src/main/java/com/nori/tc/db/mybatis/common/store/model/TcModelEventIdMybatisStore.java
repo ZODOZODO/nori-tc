@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.model.TcModelEventIdStore;
+import com.nori.tc.db.core.model.store.TcModelEventIdStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelEventId;
 import com.nori.tc.db.domain.model.TcModelEventId;
 import com.nori.tc.db.mybatis.common.mapper.model.TcModelEventIdMapper;

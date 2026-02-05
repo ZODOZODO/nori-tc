@@ -17,8 +17,8 @@ import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.NewTcModelMdf;
-import com.nori.tc.db.core.model.TcModelMdfStore;
-import com.nori.tc.db.core.model.UpdateTcModelMdf;
+import com.nori.tc.db.core.model.store.TcModelMdfStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.jpa.common.entity.model.TcModelMdfEntity;
 import com.nori.tc.db.jpa.common.mapper.model.TcModelMdfEntityMapper;
@@ -74,7 +74,7 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
 
     @Override
     @Transactional
-    public TcModelMdf update(UpdateTcModelMdf command) {
+    public TcModelMdf update(UpsertTcModelMdf command) {
         validateUpdate(command);
 
         try {
@@ -170,7 +170,7 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
         }
     }
 
-    private void validateUpdate(UpdateTcModelMdf command) {
+    private void validateUpdate(UpsertTcModelMdf command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.mdfKey() <= 0) throw new IllegalArgumentException("command.mdfKey must be > 0");
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");

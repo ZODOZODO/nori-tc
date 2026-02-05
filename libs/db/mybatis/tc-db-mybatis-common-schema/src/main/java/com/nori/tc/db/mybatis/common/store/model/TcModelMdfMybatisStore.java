@@ -13,8 +13,8 @@ import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.NewTcModelMdf;
-import com.nori.tc.db.core.model.TcModelMdfStore;
-import com.nori.tc.db.core.model.UpdateTcModelMdf;
+import com.nori.tc.db.core.model.store.TcModelMdfStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.mybatis.common.mapper.model.TcModelMdfMapper;
 
@@ -70,7 +70,7 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
 
     @Override
     @Transactional
-    public TcModelMdf update(UpdateTcModelMdf command) {
+    public TcModelMdf update(UpsertTcModelMdf command) {
         final long mdfKey = command.mdfKey();
 
         final TcModelMdf row = new TcModelMdf(

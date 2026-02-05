@@ -1,4 +1,4 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.upsert;
 
 /**
  * tc_model_secs_message 갱신 입력(Command)
@@ -9,7 +9,7 @@ package com.nori.tc.db.core.model;
  * 주의:
  * - updated_at은 DB(또는 구현체)에서 현재 시각으로 갱신되도록 처리하는 것을 권장합니다.
  */
-public record UpdateTcModelSecsMessage(
+public record UpsertTcModelSecsMessage(
         long secsMsgKey,
         long modelKey,
         String secsMsgName,

@@ -1,7 +1,7 @@
 package com.nori.tc.db.jpa.common.mapper.model;
 
 import com.nori.tc.db.core.model.NewTcModel;
-import com.nori.tc.db.core.model.UpdateTcModel;
+import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.jpa.common.entity.model.TcModelEntity;
 
@@ -37,5 +37,5 @@ public interface TcModelEntityMapper {
     @Mapping(target = "modelKey", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void updateFromUpdate(UpdateTcModel command, @MappingTarget TcModelEntity entity);
+    void updateFromUpdate(UpsertTcModel command, @MappingTarget TcModelEntity entity);
 }
