@@ -1,4 +1,4 @@
-package com.nori.tc.db.core.model;
+package com.nori.tc.db.core.model.store;
 
 import java.util.List;
 import java.util.Optional;
@@ -8,7 +8,7 @@ import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
 
 /**
- * tc_model_workflow CRUD 인터페이스 (기술 중립)
+ * tc_model_workflow CRUD 인터이스 (기술 중립)
  *
  * 구현 책임:
  * - JPA 구현: tc-db-jpa-*-schema 모듈이 구현체 제공

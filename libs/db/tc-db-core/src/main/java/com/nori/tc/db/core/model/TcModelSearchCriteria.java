@@ -11,7 +11,7 @@ import com.nori.tc.db.domain.common.ProtocolType;
  * - commInterface는 tc_model.comm_interface(HSMS/SOCKET) 기준 필터입니다.
  */
 public record TcModelSearchCriteria(
-        String modelNameLike,
+        String modelName,
         ProtocolType commInterface,
         ModelStatus status
 ) {
