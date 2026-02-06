@@ -29,11 +29,13 @@ public class TcModelMybatisStore implements TcModelStore {
     public TcModel upsert(UpsertTcModel command) {
         if (command == null) throw new IllegalArgumentException("UpsertTcModel must not be null");
 
+        TcModel row = toRow(command);
+
         try {
-            if (command.modelKey() != null && command.modelKey() > 0) {
-                mapper.update(command.toDomain());
+            if (row.modelKey() > 0) {
+                mapper.update(row);
             } else {
-                mapper.insert(command.toDomain());
+                mapper.insert(row);
             }
             // model_key가 반환되지 않으므로 이름/버전으로 재조회한다.
             return mapper.findByNameVersion(command.modelName(), command.modelVersion())
@@ -97,4 +99,19 @@ public class TcModelMybatisStore implements TcModelStore {
         }
     }
 
+    private TcModel toRow(UpsertTcModel command) {
+        long modelKey = command.modelKey() == null ? 0L : command.modelKey();
+        return new TcModel(
+                modelKey,
+                command.modelName(),
+                command.modelVersion(),
+                command.commInterface(),
+                command.status(),
+                command.maker(),
+                null,
+                null,
+                command.createdBy(),
+                command.updatedBy()
+        );
+    }
 }

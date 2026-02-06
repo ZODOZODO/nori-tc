@@ -9,6 +9,7 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +21,17 @@ import com.nori.tc.db.core.model.store.TcModelStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.jpa.common.entity.model.TcModelEntity;
+import com.nori.tc.db.jpa.common.mapper.model.TcModelEntityMapper;
+import com.nori.tc.db.jpa.common.repository.model.TcModelJpaRepository;
 
 @Repository
 public class TcModelJpaStore implements TcModelStore {
 
     private final EntityManager em;
-    private final TcModelRepository repository;
-    private final TcModelMapper mapper;
+    private final TcModelJpaRepository repository;
+    private final TcModelEntityMapper mapper;
 
-    public TcModelJpaStore(EntityManager em, TcModelRepository repository, TcModelMapper mapper) {
+    public TcModelJpaStore(EntityManager em, TcModelJpaRepository repository, TcModelEntityMapper mapper) {
         this.em = em;
         this.repository = repository;
         this.mapper = mapper;
@@ -38,23 +41,26 @@ public class TcModelJpaStore implements TcModelStore {
     @Transactional
     public TcModel upsert(UpsertTcModel command) {
         if (command == null) throw new IllegalArgumentException("UpsertTcModel must not be null");
+        if (command.modelName() == null || command.modelName().isBlank()) {
+            throw new IllegalArgumentException("modelName must not be null/blank");
+        }
+        if (command.modelVersion() == null || command.modelVersion().isBlank()) {
+            throw new IllegalArgumentException("modelVersion must not be null/blank");
+        }
 
         try {
-            TcModelEntity saved;
-            if (command.modelKey() != null && command.modelKey() > 0) {
-                saved = repository.save(mapper.toEntity(command));
-            } else {
-                Optional<TcModelEntity> existing = repository.findByModelNameAndModelVersion(command.modelName(), command.modelVersion());
-                if (existing.isPresent()) {
-                    saved = repository.save(mapper.toEntity(command.withModelKey(existing.get().getModelKey())));
-                } else {
-                    saved = repository.save(mapper.toEntity(command));
-                }
+            TcModelEntity entity = resolveEntity(command);
+            mapper.updateFromUpsert(command, entity);
+            if (entity.getModelKey() == null && command.createdBy() != null && !command.createdBy().isBlank()) {
+                entity.setCreatedBy(command.createdBy());
             }
+            TcModelEntity saved = repository.save(entity);
             return mapper.toDomain(saved);
 
-        } catch (RuntimeException e) {
+        } catch (DataIntegrityViolationException e) {
             throw new DbDuplicateKeyException("[tc_model] upsert failed: integrity violation", e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_model] upsert failed", e);
         }
     }
 
@@ -123,4 +129,13 @@ public class TcModelJpaStore implements TcModelStore {
         }
     }
 
+    private TcModelEntity resolveEntity(UpsertTcModel command) {
+        Long modelKey = command.modelKey();
+        if (modelKey != null && modelKey > 0) {
+            return repository.findById(modelKey)
+                    .orElseGet(() -> TcModelEntity.newEntity(command.modelName(), command.modelVersion()));
+        }
+        return repository.findByModelNameAndModelVersion(command.modelName(), command.modelVersion())
+                .orElseGet(() -> TcModelEntity.newEntity(command.modelName(), command.modelVersion()));
+    }
 }
