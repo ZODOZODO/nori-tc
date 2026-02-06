@@ -1,6 +1,6 @@
 package com.nori.tc.db.jpa.common.entity.model;
 
-import com.nori.tc.db.domain.common.VariableIdType;
+import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.jpa.common.entity.base.AbstractUpdatedEntity;
 
 import jakarta.persistence.Column;

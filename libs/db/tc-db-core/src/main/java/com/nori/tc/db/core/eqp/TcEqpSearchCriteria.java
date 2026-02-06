@@ -1,6 +1,6 @@
 package com.nori.tc.db.core.eqp;
 
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 
 /**
  * tc_eqp 검색 조건(Criteria)

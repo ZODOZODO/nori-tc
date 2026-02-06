@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import org.apache.ibatis.annotations.Param;
 
-import com.nori.tc.db.domain.common.VariableIdType;
+import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 
 /**

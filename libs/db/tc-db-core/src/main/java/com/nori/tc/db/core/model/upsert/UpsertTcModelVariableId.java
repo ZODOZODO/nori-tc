@@ -1,6 +1,6 @@
 package com.nori.tc.db.core.model.upsert;
 
-import com.nori.tc.db.domain.common.VariableIdType;
+import com.nori.tc.db.domain.common.model.VariableIdType;
 
 /**
  * tc_model_variableid upsert 입력(Command)

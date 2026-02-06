@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.model;
 
 /**
  * DCOP 계산 규칙 (tc_model_dcop_item.calculation_rule)

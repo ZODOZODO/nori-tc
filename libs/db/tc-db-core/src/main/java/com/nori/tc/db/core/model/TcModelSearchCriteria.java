@@ -1,7 +1,7 @@
 package com.nori.tc.db.core.model;
 
-import com.nori.tc.db.domain.common.ModelStatus;
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ModelStatus;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 
 /**
  * tc_model 검색 조건(Criteria)

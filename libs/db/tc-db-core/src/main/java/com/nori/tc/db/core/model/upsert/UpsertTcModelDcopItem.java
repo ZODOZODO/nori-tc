@@ -1,7 +1,7 @@
 package com.nori.tc.db.core.model.upsert;
 
-import com.nori.tc.db.domain.common.DcopCalculationRule;
-import com.nori.tc.db.domain.common.DcopCollectionRule;
+import com.nori.tc.db.domain.common.model.DcopCalculationRule;
+import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 
 /**
  * tc_model_dcop_item upsert 입력(Command)

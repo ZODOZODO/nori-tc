@@ -20,7 +20,7 @@ import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.model.store.TcModelVariableIdStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelVariableId;
-import com.nori.tc.db.domain.common.VariableIdType;
+import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 import com.nori.tc.db.jpa.common.entity.model.TcModelVariableIdEntity;
 import com.nori.tc.db.jpa.common.mapper.model.TcModelVariableIdEntityMapper;

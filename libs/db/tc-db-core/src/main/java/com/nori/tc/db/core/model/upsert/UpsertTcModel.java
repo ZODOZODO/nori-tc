@@ -1,7 +1,7 @@
 package com.nori.tc.db.core.model.upsert;
 
-import com.nori.tc.db.domain.common.ModelStatus;
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ModelStatus;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 
 /**
  * tc_model upsert 입력(Command).

@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.model;
 
 /**
  * 모델 상태 (tc_model.status)

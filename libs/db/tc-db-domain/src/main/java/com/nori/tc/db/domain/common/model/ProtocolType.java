@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.model;
 
 /**
  * 프로토콜 타입 (tc_eqp.comm_interface, tc_model.protocol_type)

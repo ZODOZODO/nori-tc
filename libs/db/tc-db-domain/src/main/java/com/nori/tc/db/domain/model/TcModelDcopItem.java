@@ -2,8 +2,8 @@ package com.nori.tc.db.domain.model;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.DcopCalculationRule;
-import com.nori.tc.db.domain.common.DcopCollectionRule;
+import com.nori.tc.db.domain.common.model.DcopCalculationRule;
+import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 
 /**
  * tc_model_dcop_item 테이블 1행에 대응하는 순수 DTO.

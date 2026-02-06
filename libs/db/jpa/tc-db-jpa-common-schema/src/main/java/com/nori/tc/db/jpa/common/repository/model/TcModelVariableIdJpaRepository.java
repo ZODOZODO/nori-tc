@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.nori.tc.db.domain.common.VariableIdType;
+import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.jpa.common.entity.model.TcModelVariableIdEntity;
 
 /**

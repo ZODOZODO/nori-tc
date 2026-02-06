@@ -1,7 +1,7 @@
 package com.nori.tc.db.jpa.common.entity.model;
 
-import com.nori.tc.db.domain.common.DcopCalculationRule;
-import com.nori.tc.db.domain.common.DcopCollectionRule;
+import com.nori.tc.db.domain.common.model.DcopCalculationRule;
+import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 import com.nori.tc.db.jpa.common.entity.base.AbstractUpdatedEntity;
 
 import jakarta.persistence.Column;

@@ -2,7 +2,7 @@ package com.nori.tc.db.domain.eqp;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 
 /**
  * tc_eqp 테이블 1행에 대응하는 순수 DTO.

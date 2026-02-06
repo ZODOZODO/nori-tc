@@ -2,8 +2,8 @@ package com.nori.tc.db.domain.model;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.ModelStatus;
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ModelStatus;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 
 /**
  * tc_model 테이블 1행에 대응하는 순수 DTO.

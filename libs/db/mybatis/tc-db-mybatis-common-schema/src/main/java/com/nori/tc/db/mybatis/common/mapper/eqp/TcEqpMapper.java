@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import org.apache.ibatis.annotations.Param;
 
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 
 /**

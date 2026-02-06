@@ -1,7 +1,7 @@
 package com.nori.tc.db.jpa.common.entity.model;
 
-import com.nori.tc.db.domain.common.ModelStatus;
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ModelStatus;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.jpa.common.entity.base.AbstractCreatedUpdatedEntity;
 
 import jakarta.persistence.Column;

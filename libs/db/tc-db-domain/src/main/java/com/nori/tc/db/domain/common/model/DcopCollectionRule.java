@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.model;
 
 /**
  * DCOP 수집 규칙 (tc_model_dcop_item.collection_rule)

@@ -1,4 +1,4 @@
-package com.nori.tc.db.domain.common;
+package com.nori.tc.db.domain.common.model;
 
 /**
  * 변수 ID 타입 (tc_model_variableid.variable_id_type)

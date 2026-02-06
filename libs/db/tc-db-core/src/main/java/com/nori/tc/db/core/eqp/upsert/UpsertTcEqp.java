@@ -1,6 +1,6 @@
 package com.nori.tc.db.core.eqp.upsert;
 
-import com.nori.tc.db.domain.common.ProtocolType;
+import com.nori.tc.db.domain.common.model.ProtocolType;
 
 /**
  * tc_eqp upsert 입력(Command)
