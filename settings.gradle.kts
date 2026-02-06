@@ -119,3 +119,20 @@ project(":libs:messaging:starter:tc-messaging-rabbitmq-starter").projectDir = fi
 
 include(":libs:messaging:starter:tc-messaging-rendezvous-starter")
 project(":libs:messaging:starter:tc-messaging-rendezvous-starter").projectDir = file("libs/messaging/starter/tc-messaging-rendezvous-starter")
+
+/* ===================================================
+ * 4. Gateway Modules (comm-gateway Layer)
+ * - HSMS, Socket 모듈
+ * =================================================== */
+
+include(":libs:comm:tc-comm-domain")
+project(":libs:comm:tc-comm-domain").projectDir = file("libs/comm/tc-comm-domain")
+
+include(":libs:comm:tc-comm-core")
+project(":libs:comm:tc-comm-core").projectDir = file("libs/comm/tc-comm-core")
+
+include(":libs:comm:tc-comm-hsms")
+project(":libs:comm:tc-comm-hsms").projectDir = file("libs/comm/tc-comm-hsms")
+
+include(":libs:comm:tc-comm-socket")
+project(":libs:comm:tc-comm-socket").projectDir = file("libs/comm/tc-comm-socket")
