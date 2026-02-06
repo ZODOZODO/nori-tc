@@ -21,21 +21,13 @@ import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
 import com.nori.tc.db.core.model.TcModelWorkflowStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
-import com.nori.tc.domain.model.TcModelWorkflow;
+import com.nori.tc.db.domain.model.TcModelWorkflow; // 패키지 경로 수정 반영
 import com.nori.tc.db.jpa.common.entity.model.TcModelWorkflowEntity;
 import com.nori.tc.db.jpa.common.mapper.model.TcModelWorkflowEntityMapper;
 import com.nori.tc.db.jpa.common.repository.model.TcModelWorkflowJpaRepository;
 
 /**
  * tc_model_workflow JPA Store 구현체.
- *
- * <p>
- * <b>주요 기능:</b>
- * <ul>
- * <li><b>Upsert:</b> 워크플로 키 또는 유니크 키로 존재 여부를 확인한 뒤 생성/갱신을 수행합니다.</li>
- * <li><b>목록 조회:</b> model_key 기준으로 최신 workflow_key DESC 정렬 + 페이징을 제공합니다.</li>
- * </ul>
- * </p>
  */
 @Repository
 public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
@@ -59,13 +51,13 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         try {
             TcModelWorkflowEntity entity = resolveEntity(command);
 
-            mapper.updateFromUpsert(command, entity);
+            // 1. 엔티티 필드 업데이트 (표준 메서드명 updateEntity 사용)
+            mapper.updateEntity(command, entity);
 
+            // 2. 저장 후 도메인 모델로 변환하여 반환
             TcModelWorkflowEntity saved = repository.save(entity);
             return mapper.toDomain(saved);
 
-        } catch (DbEntityNotFoundException e) {
-            throw e;
         } catch (DataIntegrityViolationException e) {
             throw new DbDuplicateKeyException("[tc_model_workflow] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
@@ -82,26 +74,19 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         try {
             return repository.findById(workflowKey).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_workflow] findByWorkflowKey failed: workflowKey=" + workflowKey, e);
+            throw new DbAccessException("[tc_model_workflow] findByWorkflowKey failed", e);
         }
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
-            long modelKey,
-            String workflowName,
-            String messageName
-    ) {
-        if (modelKey <= 0) throw new IllegalArgumentException("modelKey must be > 0");
-        if (workflowName == null || workflowName.isBlank()) throw new IllegalArgumentException("workflowName must not be null/blank");
-        if (messageName == null || messageName.isBlank()) throw new IllegalArgumentException("messageName must not be null/blank");
-
+            long modelKey, String workflowName, String messageName) {
         try {
             return repository.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName)
                     .map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_workflow] findByUnique failed", e);
+            throw new DbAccessException("[tc_model_workflow] findByUniqueKey failed", e);
         }
     }
 
@@ -118,8 +103,7 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
             CriteriaQuery<TcModelWorkflowEntity> cq = cb.createQuery(TcModelWorkflowEntity.class);
             Root<TcModelWorkflowEntity> root = cq.from(TcModelWorkflowEntity.class);
 
-            cq.select(root);
-            cq.where(cb.equal(root.get("modelKey"), modelKey));
+            cq.select(root).where(cb.equal(root.get("modelKey"), modelKey));
             cq.orderBy(cb.desc(root.get("workflowKey")));
 
             TypedQuery<TcModelWorkflowEntity> query = em.createQuery(cq);
@@ -127,7 +111,6 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
             query.setMaxResults(p.limit());
 
             return query.getResultList().stream().map(mapper::toDomain).toList();
-
         } catch (RuntimeException e) {
             throw new DbAccessException("[tc_model_workflow] findAllByModelKey failed", e);
         }
@@ -142,17 +125,13 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         try {
             repository.deleteById(workflowKey);
         } catch (EmptyResultDataAccessException ignore) {
-            // Idempotent delete
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_workflow] deleteByWorkflowKey failed: workflowKey=" + workflowKey, e);
+            throw new DbAccessException("[tc_model_workflow] deleteByWorkflowKey failed", e);
         }
     }
 
     private void validateUpsert(UpsertTcModelWorkflow command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.workflowKey() != null && command.workflowKey() <= 0) {
-            throw new IllegalArgumentException("command.workflowKey must be > 0 when provided");
-        }
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
         if (command.workflowName() == null || command.workflowName().isBlank()) {
             throw new IllegalArgumentException("command.workflowName must not be null/blank");

@@ -44,15 +44,18 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
 
     @Override
     @Transactional
-    public void upsert(UpsertTcModelReportId command) {
+    public TcModelReportId upsert(UpsertTcModelReportId command) {
         validateUpsert(command);
 
         try {
             TcModelReportIdEntity entity = repository.findByModelKeyAndReportId(command.modelKey(), command.reportId())
                     .orElseGet(TcModelReportIdEntity::new);
 
-            mapper.updateFromUpsert(command, entity);
-            repository.save(entity);
+            // Mapper 메서드명 updateEntity로 변경 적용
+            mapper.updateEntity(command, entity);
+            
+            TcModelReportIdEntity saved = repository.save(entity);
+            return mapper.toDomain(saved);
         } catch (DataIntegrityViolationException e) {
             throw new DbDuplicateKeyException("[tc_model_reportid] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
@@ -82,7 +85,6 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
         if (reportId == null || reportId.isBlank()) {
             throw new IllegalArgumentException("reportId must not be null/blank");
         }
-
         try {
             return repository.findByModelKeyAndReportId(modelKey, reportId)
                     .map(mapper::toDomain);
@@ -104,7 +106,7 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
             CriteriaQuery<TcModelReportIdEntity> cq = cb.createQuery(TcModelReportIdEntity.class);
             Root<TcModelReportIdEntity> root = cq.from(TcModelReportIdEntity.class);
 
-            cq.where(cb.equal(root.get("modelKey"), modelKey));
+            cq.select(root).where(cb.equal(root.get("modelKey"), modelKey));
             cq.orderBy(cb.asc(root.get("reportKey")));
 
             TypedQuery<TcModelReportIdEntity> query = em.createQuery(cq);
@@ -112,7 +114,6 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
             query.setMaxResults(p.limit());
 
             return query.getResultList().stream().map(mapper::toDomain).toList();
-
         } catch (RuntimeException e) {
             throw new DbAccessException("[tc_model_reportid] findAllByModelKey failed", e);
         }

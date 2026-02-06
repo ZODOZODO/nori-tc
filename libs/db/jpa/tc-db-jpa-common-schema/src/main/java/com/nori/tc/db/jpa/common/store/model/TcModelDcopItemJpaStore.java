@@ -44,15 +44,20 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
 
     @Override
     @Transactional
-    public void upsert(UpsertTcModelDcopItem command) {
+    public TcModelDcopItem upsert(UpsertTcModelDcopItem command) {
         validateUpsert(command);
 
         try {
             TcModelDcopItemEntity entity = repository.findByModelKeyAndDcopItemName(command.modelKey(), command.dcopItemName())
                     .orElseGet(TcModelDcopItemEntity::new);
 
-            mapper.updateFromUpsert(command, entity);
-            repository.save(entity);
+            // 1. 엔티티 필드 업데이트 (명칭 변경 반영)
+            mapper.updateEntity(command, entity);
+
+            // 2. 저장 후 도메인 모델로 변환하여 반환
+            TcModelDcopItemEntity saved = repository.save(entity);
+            return mapper.toDomain(saved);
+
         } catch (DataIntegrityViolationException e) {
             throw new DbDuplicateKeyException("[tc_model_dcop_item] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
