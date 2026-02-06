@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.model.TcModelReportIdSearchCriteria;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelReportId;
 import com.nori.tc.db.domain.model.TcModelReportId;
 
@@ -27,7 +26,11 @@ public interface TcModelReportIdStore {
 
     Optional<TcModelReportId> findByModelKeyAndReportId(long modelKey, String reportId);
 
-    List<TcModelReportId> findAll(TcModelReportIdSearchCriteria criteria, PageRequest page);
+    /**
+     * 특정 모델(model_key)의 report_id 목록 조회.
+     * - 페이징은 반드시 DB 레벨에서 처리해야 한다.
+     */
+    List<TcModelReportId> findAllByModelKey(long modelKey, PageRequest page);
 
     void deleteByReportKey(long reportKey);
 }

@@ -25,7 +25,11 @@ public interface TcModelSecsMessageMapper {
             @Param("secsMsgName") String secsMsgName
     );
 
-    List<TcModelSecsMessage> findByModelKey(@Param("modelKey") long modelKey);
+    List<TcModelSecsMessage> findAllByModelKey(
+            @Param("modelKey") long modelKey,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
 
     int deleteBySecsMsgKey(@Param("secsMsgKey") long secsMsgKey);
 }

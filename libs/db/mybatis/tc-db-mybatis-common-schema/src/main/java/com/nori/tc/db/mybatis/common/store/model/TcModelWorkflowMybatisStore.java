@@ -11,18 +11,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.exception.DbEntityNotFoundException;
-import com.nori.tc.db.core.model.NewTcModelWorkflow;
-import com.nori.tc.db.core.model.TcModelWorkflowSearchCriteria;
-import com.nori.tc.db.core.model.TcModelWorkflowStore;
-import com.nori.tc.db.core.model.UpdateTcModelWorkflow;
+import com.nori.tc.db.core.model.store.TcModelWorkflowStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
 import com.nori.tc.db.mybatis.common.mapper.model.TcModelWorkflowMapper;
 
 /**
  * tc_model_workflow MyBatis Store 구현체.
  *
- * 생성(create) 주의
+ * upsert 주의
  * - common-schema의 TcModelWorkflowMapper.xml은 벤더 중립성을 위해 "generated key 반환"을 하지 않는다.
  * - 따라서 insert 후 (model_key, workflow_name, message_name)으로 재조회하여 workflow_key를 확보한다.
  */
@@ -37,14 +34,16 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
 
     @Override
     @Transactional
-    public TcModelWorkflow create(NewTcModelWorkflow command) {
+    public TcModelWorkflow upsert(UpsertTcModelWorkflow command) {
+        final Long workflowKey = command.workflowKey();
         final long modelKey = command.modelKey();
         final String workflowName = command.workflowName();
         final String messageName = command.messageName();
 
-        // workflow_key/updated_at은 DB가 생성한다.
+        final long resolvedKey = resolveKey(workflowKey, modelKey, workflowName, messageName);
+
         final TcModelWorkflow row = new TcModelWorkflow(
-                0L,
+                resolvedKey,
                 modelKey,
                 workflowName,
                 messageName,
@@ -57,72 +56,34 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         );
 
         try {
-            int inserted = mapper.insert(row);
-            if (inserted != 1) {
-                throw new DbAccessException("tc_model_workflow insert affected rows != 1. affected=" + inserted);
+            int updated = mapper.update(row);
+            if (updated == 0) {
+                int inserted = mapper.insert(row);
+                if (inserted != 1) {
+                    throw new DbAccessException("tc_model_workflow insert affected rows != 1. affected=" + inserted);
+                }
             }
 
             return mapper.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName)
                     .orElseThrow(() -> new DbAccessException(
-                            "tc_model_workflow insert succeeded but row not found. key=" + modelKey + "/" + workflowName + "/" + messageName
+                            "tc_model_workflow upsert succeeded but row not found. key=" + modelKey + "/" + workflowName + "/" + messageName
                     ));
 
         } catch (DuplicateKeyException e) {
             throw new DbDuplicateKeyException(
-                    "tc_model_workflow duplicate (model_key, workflow_name, message_name). key=" + modelKey + "/" + workflowName + "/" + messageName,
+                    "tc_model_workflow upsert duplicate (model_key, workflow_name, message_name). key=" + modelKey + "/" + workflowName + "/" + messageName,
                     e
             );
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_workflow create failed. key=" + modelKey + "/" + workflowName + "/" + messageName,
+                    "tc_model_workflow upsert failed. key=" + modelKey + "/" + workflowName + "/" + messageName,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_workflow create failed (unexpected). key=" + modelKey + "/" + workflowName + "/" + messageName,
+                    "tc_model_workflow upsert failed (unexpected). key=" + modelKey + "/" + workflowName + "/" + messageName,
                     e
             );
-        }
-    }
-
-    @Override
-    @Transactional
-    public TcModelWorkflow update(UpdateTcModelWorkflow command) {
-        final long workflowKey = command.workflowKey();
-
-        final TcModelWorkflow row = new TcModelWorkflow(
-                workflowKey,
-                command.modelKey(),
-                command.workflowName(),
-                command.messageName(),
-                command.eventId(),
-                command.transactionId(),
-                command.workflowFilter(),
-                command.actionName(),
-                command.actionDataIndex(),
-                null
-        );
-
-        try {
-            int updated = mapper.update(row);
-            if (updated == 0) {
-                throw new DbEntityNotFoundException("tc_model_workflow not found for update. workflowKey=" + workflowKey);
-            }
-
-            return mapper.findByWorkflowKey(workflowKey)
-                    .orElseThrow(() -> new DbAccessException(
-                            "tc_model_workflow update succeeded but row not found. workflowKey=" + workflowKey
-                    ));
-
-        } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException(
-                    "tc_model_workflow update duplicate (model_key, workflow_name, message_name). workflowKey=" + workflowKey,
-                    e
-            );
-        } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_workflow update failed. workflowKey=" + workflowKey, e);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_workflow update failed (unexpected). workflowKey=" + workflowKey, e);
         }
     }
 
@@ -156,22 +117,19 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelWorkflow> findAll(TcModelWorkflowSearchCriteria criteria, PageRequest page) {
-        final TcModelWorkflowSearchCriteria c = (criteria == null) ? TcModelWorkflowSearchCriteria.empty() : criteria;
+    public List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAll(
-                    c.modelKey(),
-                    c.workflowNameLike(),
-                    c.messageNameLike(),
+            return mapper.findAllByModelKey(
+                    modelKey,
                     p.offset(),
                     p.limit()
             );
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_workflow findAll failed.", e);
+            throw new DbAccessException("tc_model_workflow findAllByModelKey failed.", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_workflow findAll failed (unexpected).", e);
+            throw new DbAccessException("tc_model_workflow findAllByModelKey failed (unexpected).", e);
         }
     }
 
@@ -186,5 +144,18 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         } catch (RuntimeException e) {
             throw new DbAccessException("tc_model_workflow deleteByWorkflowKey failed (unexpected). workflowKey=" + workflowKey, e);
         }
+    }
+
+    private long resolveKey(Long workflowKey, long modelKey, String workflowName, String messageName) {
+        if (workflowKey != null) {
+            if (workflowKey <= 0) {
+                throw new IllegalArgumentException("workflowKey must be > 0 when provided");
+            }
+            return workflowKey;
+        }
+
+        return mapper.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName)
+                .map(TcModelWorkflow::workflowKey)
+                .orElse(0L);
     }
 }

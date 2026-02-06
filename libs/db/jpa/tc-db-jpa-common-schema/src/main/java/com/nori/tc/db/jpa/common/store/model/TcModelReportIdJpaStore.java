@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.store.model;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,7 +8,6 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.model.TcModelReportIdSearchCriteria;
 import com.nori.tc.db.core.model.store.TcModelReportIdStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelReportId;
 import com.nori.tc.db.domain.model.TcModelReportId;
@@ -47,24 +44,15 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
 
     @Override
     @Transactional
-    public TcModelReportId upsert(UpsertTcModelReportId command) {
+    public void upsert(UpsertTcModelReportId command) {
         validateUpsert(command);
 
         try {
-            Optional<TcModelReportIdEntity> existing = repository.findByModelKeyAndReportId(
-                    command.modelKey(),
-                    command.reportId()
-            );
+            TcModelReportIdEntity entity = repository.findByModelKeyAndReportId(command.modelKey(), command.reportId())
+                    .orElseGet(TcModelReportIdEntity::new);
 
-            TcModelReportIdEntity entity = existing.orElseGet(
-                    () -> TcModelReportIdEntity.newEntity(command.modelKey(), command.reportId())
-            );
-
-            mapper.updateEntity(command, entity);
-
-            TcModelReportIdEntity saved = repository.save(entity);
-            return mapper.toDomain(saved);
-
+            mapper.updateFromUpsert(command, entity);
+            repository.save(entity);
         } catch (DataIntegrityViolationException e) {
             throw new DbDuplicateKeyException("[tc_model_reportid] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
@@ -78,7 +66,6 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
         if (reportKey <= 0) {
             throw new IllegalArgumentException("reportKey must be > 0");
         }
-
         try {
             return repository.findById(reportKey).map(mapper::toDomain);
         } catch (RuntimeException e) {
@@ -106,10 +93,10 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelReportId> findAll(TcModelReportIdSearchCriteria criteria, PageRequest page) {
-        final TcModelReportIdSearchCriteria c = (criteria == null)
-                ? new TcModelReportIdSearchCriteria(null, null, null)
-                : criteria;
+    public List<TcModelReportId> findAllByModelKey(long modelKey, PageRequest page) {
+        if (modelKey <= 0) {
+            throw new IllegalArgumentException("modelKey must be > 0");
+        }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
@@ -117,22 +104,7 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
             CriteriaQuery<TcModelReportIdEntity> cq = cb.createQuery(TcModelReportIdEntity.class);
             Root<TcModelReportIdEntity> root = cq.from(TcModelReportIdEntity.class);
 
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (c.modelKey() != null) {
-                predicates.add(cb.equal(root.get("modelKey"), c.modelKey()));
-            }
-            if (c.reportId() != null && !c.reportId().isBlank()) {
-                predicates.add(cb.equal(root.get("reportId"), c.reportId()));
-            }
-            if (c.enabled() != null) {
-                predicates.add(cb.equal(root.get("enabled"), c.enabled()));
-            }
-
-            if (!predicates.isEmpty()) {
-                cq.where(predicates.toArray(new Predicate[0]));
-            }
-
+            cq.where(cb.equal(root.get("modelKey"), modelKey));
             cq.orderBy(cb.asc(root.get("reportKey")));
 
             TypedQuery<TcModelReportIdEntity> query = em.createQuery(cq);
@@ -142,7 +114,7 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
             return query.getResultList().stream().map(mapper::toDomain).toList();
 
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_reportid] findAll failed", e);
+            throw new DbAccessException("[tc_model_reportid] findAllByModelKey failed", e);
         }
     }
 

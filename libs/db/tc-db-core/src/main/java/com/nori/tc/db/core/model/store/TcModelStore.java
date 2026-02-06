@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.model.NewTcModel;
 import com.nori.tc.db.core.model.TcModelSearchCriteria;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
@@ -23,18 +22,17 @@ import com.nori.tc.db.domain.model.TcModel;
 public interface TcModelStore {
 
     /**
-     * 모델 생성.
+     * 모델 upsert.
      *
-     * @return DB가 부여한 model_key 및 timestamp가 채워진 TcModel
-     */
-    TcModel create(NewTcModel command);
-
-    /**
-     * 모델 갱신.
+     * <p>
+     * - model_key가 있으면 해당 PK 기반으로 갱신합니다.
+     * - model_key가 없으면 (model_name, model_version) 유니크 키 기준으로
+     * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
+     * </p>
      *
-     * @return 갱신 후 상태의 TcModel
+     * @return upsert 후 상태의 TcModel
      */
-    TcModel update(UpsertTcModel command);
+    TcModel upsert(UpsertTcModel command);
 
     Optional<TcModel> findByModelKey(long modelKey);
 

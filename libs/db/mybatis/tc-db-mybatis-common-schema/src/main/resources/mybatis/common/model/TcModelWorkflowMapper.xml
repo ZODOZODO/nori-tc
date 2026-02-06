@@ -1,63 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
-<!-- tc_model_workflow Mapper XML (FIX) -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelWorkflowMapper">
-
-    <resultMap id="TcModelWorkflowMap" type="com.nori.tc.db.domain.model.TcModelWorkflow">
-        <constructor>
-            <idArg column="workflow_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
-            <arg column="workflow_name" javaType="java.lang.String"/>
-            <arg column="message_name" javaType="java.lang.String"/>
-            <arg column="event_id" javaType="java.lang.String"/>
-            <arg column="transaction_id" javaType="java.lang.String"/>
-            <arg column="workflow_filter" javaType="java.lang.String"/>
-            <arg column="action_name" javaType="java.lang.String"/>
-            <arg column="action_data_index" javaType="java.lang.String"/>
-            <arg column="updated_at"
-                 javaType="java.time.OffsetDateTime"
-                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
-        </constructor>
-    </resultMap>
-
-    <sql id="TcModelWorkflowColumns">
-        workflow_key,
-        model_key,
-        workflow_name,
-        message_name,
-        event_id,
-        transaction_id,
-        workflow_filter,
-        action_name,
-        action_data_index,
-        updated_at
-    </sql>
-
-    <insert id="insert">
-        INSERT INTO tc_model_workflow
-            (model_key,
-             workflow_name,
-             message_name,
-             event_id,
-             transaction_id,
-             workflow_filter,
-             action_name,
-             action_data_index)
-        VALUES
-            (#{w.modelKey},
-             #{w.workflowName},
-             #{w.messageName},
-             #{w.eventId},
-             #{w.transactionId},
-             #{w.workflowFilter},
-             #{w.actionName},
-             #{w.actionDataIndex})
-    </insert>
-
-    <update id="update">
+<update id="update">
         UPDATE tc_model_workflow
            SET model_key         = #{w.modelKey},
                workflow_name     = #{w.workflowName},
@@ -85,21 +26,11 @@
            AND message_name = #{messageName}
     </select>
 
-    <select id="findAll" resultMap="TcModelWorkflowMap">
+    <select id="findAllByModelKey" resultMap="TcModelWorkflowMap">
         SELECT <include refid="TcModelWorkflowColumns"/>
           FROM tc_model_workflow
-        <where>
-            <if test="modelKey != null">
-                AND model_key = #{modelKey}
-            </if>
-            <if test="workflowNameLike != null and workflowNameLike != ''">
-                AND workflow_name LIKE CONCAT('%', #{workflowNameLike}, '%')
-            </if>
-            <if test="messageNameLike != null and messageNameLike != ''">
-                AND message_name LIKE CONCAT('%', #{messageNameLike}, '%')
-            </if>
-        </where>
-        ORDER BY workflow_key DESC
+         WHERE model_key = #{modelKey}
+         ORDER BY workflow_key DESC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}
         </if>

@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.model.NewTcModelMdf;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
 
@@ -14,8 +13,8 @@ import com.nori.tc.db.domain.model.TcModelMdf;
  * <p>
  * 구현 책임:
  * <ul>
- *   <li>JPA 구현: tc-db-jpa-*-schema 모듈이 구현체 제공</li>
- *   <li>MyBatis 구현: tc-db-mybatis-*-schema 모듈이 구현체 제공</li>
+ * <li>JPA 구현: tc-db-jpa-*-schema 모듈이 구현체 제공</li>
+ * <li>MyBatis 구현: tc-db-mybatis-*-schema 모듈이 구현체 제공</li>
  * </ul>
  * </p>
  *
@@ -26,18 +25,17 @@ import com.nori.tc.db.domain.model.TcModelMdf;
 public interface TcModelMdfStore {
 
     /**
-     * MDF 생성.
+     * MDF upsert.
      *
-     * @return DB가 부여한 mdf_key 및 updated_at이 채워진 TcModelMdf
-     */
-    TcModelMdf create(NewTcModelMdf command);
-
-    /**
-     * MDF 갱신.
+     * <p>
+     * - mdf_key가 있으면 해당 PK 기반으로 갱신합니다.
+     * - mdf_key가 없으면 (model_key, mdf_name) 유니크 키 기준으로
+     * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
+     * </p>
      *
-     * @return 갱신 후 상태의 TcModelMdf
+     * @return upsert 후 상태의 TcModelMdf
      */
-    TcModelMdf update(UpsertTcModelMdf command);
+    TcModelMdf upsert(UpsertTcModelMdf command);
 
     Optional<TcModelMdf> findByMdfKey(long mdfKey);
 

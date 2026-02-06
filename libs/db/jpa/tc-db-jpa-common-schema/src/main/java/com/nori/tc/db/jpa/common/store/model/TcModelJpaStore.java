@@ -21,7 +21,6 @@ import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
-import com.nori.tc.db.core.model.NewTcModel;
 import com.nori.tc.db.core.model.TcModelSearchCriteria;
 import com.nori.tc.db.core.model.store.TcModelStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
@@ -36,7 +35,7 @@ import com.nori.tc.db.jpa.common.repository.model.TcModelJpaRepository;
  * <p>
  * <b>주요 기능:</b>
  * <ul>
- * <li><b>Create/Update 분리:</b> 생성과 수정 Command가 분리되어 있으며, MapStruct를 통해 각각 최적화된 매핑을 수행합니다.</li>
+ * <li><b>Upsert:</b> 모델 키 또는 유니크 키로 존재 여부를 확인한 뒤 생성/갱신을 수행합니다.</li>
  * <li><b>동적 검색:</b> Criteria API를 사용하여 modelName(LIKE), commInterface, status 등의 조합 검색을 지원합니다.</li>
  * </ul>
  * </p>
@@ -57,39 +56,18 @@ public class TcModelJpaStore implements TcModelStore {
 
     @Override
     @Transactional
-    public TcModel create(NewTcModel command) {
-        validateCreate(command);
+    public TcModel upsert(UpsertTcModel command) {
+        validateUpsert(command);
 
         try {
-            // 1. 필수 Business Key(name, version)로 초기 엔티티 생성
-            TcModelEntity entity = TcModelEntity.newEntity(command.modelName(), command.modelVersion());
-
-            // 2. 나머지 필드 자동 매핑
-            mapper.updateFromNew(command, entity);
-
-            // 3. 저장 및 반환
-            TcModelEntity saved = repository.save(entity);
-            return mapper.toDomain(saved);
-
-        } catch (DataIntegrityViolationException e) {
-            throw new DbDuplicateKeyException("[tc_model] create failed: integrity violation", e);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model] create failed", e);
-        }
-    }
-
-    @Override
-    @Transactional
-    public TcModel update(UpsertTcModel command) {
-        validateUpdate(command);
-
-        try {
-            // 1. 조회 (없으면 예외)
-            TcModelEntity entity = repository.findById(command.modelKey())
-                    .orElseThrow(() -> new DbEntityNotFoundException("[tc_model] not found: modelKey=" + command.modelKey()));
+            // 1. PK 또는 유니크 키 기반으로 대상 엔티티 결정
+            TcModelEntity entity = resolveEntity(command);
+            if (entity.getModelKey() == null && command.createdBy() != null && !command.createdBy().isBlank()) {
+                entity.setCreatedBy(command.createdBy());
+            }
 
             // 2. Dirty Checking용 필드 업데이트
-            mapper.updateFromUpdate(command, entity);
+            mapper.updateFromUpsert(command, entity);
 
             // 3. 저장 및 반환
             TcModelEntity saved = repository.save(entity);
@@ -98,9 +76,9 @@ public class TcModelJpaStore implements TcModelStore {
         } catch (DbEntityNotFoundException e) {
             throw e;
         } catch (DataIntegrityViolationException e) {
-            throw new DbDuplicateKeyException("[tc_model] update failed: integrity violation", e);
+            throw new DbDuplicateKeyException("[tc_model] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model] update failed: modelKey=" + command.modelKey(), e);
+            throw new DbAccessException("[tc_model] upsert failed", e);
         }
     }
 
@@ -142,12 +120,8 @@ public class TcModelJpaStore implements TcModelStore {
             Root<TcModelEntity> root = cq.from(TcModelEntity.class);
 
             List<Predicate> predicates = new ArrayList<>();
-
-            // --- LIKE 검색 (contains, case-insensitive) ---
-            if (c.modelNameLike() != null && !c.modelNameLike().isBlank()) {
-                String keyword = c.modelNameLike().trim().toLowerCase();
-                String pattern = "%" + escapeLike(keyword) + "%";
-                predicates.add(cb.like(cb.lower(root.get("modelName")), pattern, '\\'));
+            if (c.modelName() != null && !c.modelName().isBlank()) {
+                predicates.add(cb.like(root.get("modelName"), "%" + escapeLike(c.modelName()) + "%"));
             }
             if (c.commInterface() != null) {
                 predicates.add(cb.equal(root.get("commInterface"), c.commInterface()));
@@ -156,12 +130,8 @@ public class TcModelJpaStore implements TcModelStore {
                 predicates.add(cb.equal(root.get("status"), c.status()));
             }
 
-            cq.select(root);
-            if (!predicates.isEmpty()) {
-                cq.where(predicates.toArray(Predicate[]::new));
-            }
-
-            cq.orderBy(cb.desc(root.get("modelKey")));
+            cq.select(root).where(predicates.toArray(Predicate[]::new));
+            cq.orderBy(cb.desc(root.get("updatedAt")), cb.asc(root.get("modelName")));
 
             TypedQuery<TcModelEntity> query = em.createQuery(cq);
             query.setFirstResult(p.offset());
@@ -189,21 +159,29 @@ public class TcModelJpaStore implements TcModelStore {
         }
     }
 
-    private void validateCreate(NewTcModel command) {
+    private void validateUpsert(UpsertTcModel command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelName() == null || command.modelName().isBlank()) throw new IllegalArgumentException("command.modelName must not be null/blank");
-        if (command.modelVersion() == null || command.modelVersion().isBlank()) throw new IllegalArgumentException("command.modelVersion must not be null/blank");
+        if (command.modelKey() != null && command.modelKey() <= 0) {
+            throw new IllegalArgumentException("command.modelKey must be > 0 when provided");
+        }
+        if (command.modelName() == null || command.modelName().isBlank()) {
+            throw new IllegalArgumentException("command.modelName must not be null/blank");
+        }
+        if (command.modelVersion() == null || command.modelVersion().isBlank()) {
+            throw new IllegalArgumentException("command.modelVersion must not be null/blank");
+        }
         if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
         if (command.status() == null) throw new IllegalArgumentException("command.status must not be null");
     }
 
-    private void validateUpdate(UpsertTcModel command) {
-        if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
-        if (command.modelName() == null || command.modelName().isBlank()) throw new IllegalArgumentException("command.modelName must not be null/blank");
-        if (command.modelVersion() == null || command.modelVersion().isBlank()) throw new IllegalArgumentException("command.modelVersion must not be null/blank");
-        if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
-        if (command.status() == null) throw new IllegalArgumentException("command.status must not be null");
+    private TcModelEntity resolveEntity(UpsertTcModel command) {
+        if (command.modelKey() != null) {
+            return repository.findById(command.modelKey())
+                    .orElseThrow(() -> new DbEntityNotFoundException("[tc_model] not found: modelKey=" + command.modelKey()));
+        }
+
+        return repository.findByModelNameAndModelVersion(command.modelName(), command.modelVersion())
+                .orElseGet(() -> TcModelEntity.newEntity(command.modelName(), command.modelVersion()));
     }
 
     private String escapeLike(String s) {

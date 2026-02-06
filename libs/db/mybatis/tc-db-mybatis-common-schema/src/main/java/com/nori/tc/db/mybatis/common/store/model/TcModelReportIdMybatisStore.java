@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.model.TcModelReportIdSearchCriteria;
 import com.nori.tc.db.core.model.store.TcModelReportIdStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelReportId;
 import com.nori.tc.db.domain.model.TcModelReportId;
@@ -39,41 +38,23 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
                 0L,
                 modelKey,
                 reportId,
-                command.variableId(),
+                command.reportName(),
                 command.enabled(),
+                null,
                 null
         );
 
         try {
             int updated = mapper.updateByUniqueKey(row);
             if (updated == 0) {
-                try {
-                    mapper.insert(row);
-                } catch (DuplicateKeyException dup) {
-                    mapper.updateByUniqueKey(row);
-                }
+                mapper.insert(row);
             }
-
             return mapper.findByModelKeyAndReportId(modelKey, reportId)
-                    .orElseThrow(() -> new DbAccessException(
-                            "tc_model_reportid upsert succeeded but row not found. modelKey=" + modelKey + ", reportId=" + reportId
-                    ));
-
+                    .orElseThrow(() -> new DbAccessException("tc_model_reportid upsert succeeded but row not found. modelKey/reportId=" + modelKey + "/" + reportId));
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException(
-                    "tc_model_reportid upsert duplicate key. modelKey=" + modelKey + ", reportId=" + reportId,
-                    e
-            );
+            throw new DbDuplicateKeyException("tc_model_reportid duplicate key. modelKey/reportId=" + modelKey + "/" + reportId, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException(
-                    "tc_model_reportid upsert failed. modelKey=" + modelKey + ", reportId=" + reportId,
-                    e
-            );
-        } catch (RuntimeException e) {
-            throw new DbAccessException(
-                    "tc_model_reportid upsert failed (unexpected). modelKey=" + modelKey + ", reportId=" + reportId,
-                    e
-            );
+            throw new DbAccessException("tc_model_reportid upsert failed. modelKey/reportId=" + modelKey + "/" + reportId, e);
         }
     }
 
@@ -109,24 +90,19 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelReportId> findAll(TcModelReportIdSearchCriteria criteria, PageRequest page) {
-        final TcModelReportIdSearchCriteria c = (criteria == null)
-                ? new TcModelReportIdSearchCriteria(null, null, null)
-                : criteria;
+    public List<TcModelReportId> findAllByModelKey(long modelKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAll(
-                    c.modelKey(),
-                    c.reportId(),
-                    c.enabled(),
+            return mapper.findAllByModelKey(
+                    modelKey,
                     p.offset(),
                     p.limit()
             );
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_reportid findAll failed.", e);
+            throw new DbAccessException("tc_model_reportid findAllByModelKey failed.", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_reportid findAll failed (unexpected).", e);
+            throw new DbAccessException("tc_model_reportid findAllByModelKey failed (unexpected).", e);
         }
     }
 

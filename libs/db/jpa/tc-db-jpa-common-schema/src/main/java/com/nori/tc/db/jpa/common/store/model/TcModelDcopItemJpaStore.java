@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.store.model;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,7 +8,6 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.model.TcModelDcopItemSearchCriteria;
 import com.nori.tc.db.core.model.store.TcModelDcopItemStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelDcopItem;
 import com.nori.tc.db.domain.model.TcModelDcopItem;
@@ -47,24 +44,15 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
 
     @Override
     @Transactional
-    public TcModelDcopItem upsert(UpsertTcModelDcopItem command) {
+    public void upsert(UpsertTcModelDcopItem command) {
         validateUpsert(command);
 
         try {
-            Optional<TcModelDcopItemEntity> existing = repository.findByModelKeyAndDcopItemName(
-                    command.modelKey(),
-                    command.dcopItemName()
-            );
+            TcModelDcopItemEntity entity = repository.findByModelKeyAndDcopItemName(command.modelKey(), command.dcopItemName())
+                    .orElseGet(TcModelDcopItemEntity::new);
 
-            TcModelDcopItemEntity entity = existing.orElseGet(
-                    () -> TcModelDcopItemEntity.newEntity(command.modelKey(), command.dcopItemName())
-            );
-
-            mapper.updateEntity(command, entity);
-
-            TcModelDcopItemEntity saved = repository.save(entity);
-            return mapper.toDomain(saved);
-
+            mapper.updateFromUpsert(command, entity);
+            repository.save(entity);
         } catch (DataIntegrityViolationException e) {
             throw new DbDuplicateKeyException("[tc_model_dcop_item] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
@@ -92,26 +80,18 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelDcopItem> findAll(TcModelDcopItemSearchCriteria criteria, PageRequest page) {
-        if (criteria == null) {
-            throw new IllegalArgumentException("criteria must not be null");
+    public List<TcModelDcopItem> findAllByModelKey(long modelKey, PageRequest page) {
+        if (modelKey <= 0) {
+            throw new IllegalArgumentException("modelKey must be > 0");
         }
-        final TcModelDcopItemSearchCriteria c = criteria;
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
-
-        if (c.modelKey() <= 0) {
-            throw new IllegalArgumentException("criteria.modelKey must be > 0");
-        }
 
         try {
             CriteriaBuilder cb = em.getCriteriaBuilder();
             CriteriaQuery<TcModelDcopItemEntity> cq = cb.createQuery(TcModelDcopItemEntity.class);
             Root<TcModelDcopItemEntity> root = cq.from(TcModelDcopItemEntity.class);
 
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("modelKey"), c.modelKey()));
-
-            cq.select(root).where(predicates.toArray(Predicate[]::new));
+            cq.select(root).where(cb.equal(root.get("modelKey"), modelKey));
             cq.orderBy(cb.asc(root.get("orderRule")), cb.asc(root.get("dcopItemName")));
 
             TypedQuery<TcModelDcopItemEntity> query = em.createQuery(cq);
@@ -121,7 +101,7 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
             return query.getResultList().stream().map(mapper::toDomain).toList();
 
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_dcop_item] findAll failed", e);
+            throw new DbAccessException("[tc_model_dcop_item] findAllByModelKey failed", e);
         }
     }
 
@@ -148,9 +128,6 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
         if (command.dcopItemName() == null || command.dcopItemName().isBlank()) {
             throw new IllegalArgumentException("command.dcopItemName must not be null/blank");
-        }
-        if (command.orderRule() != null && command.orderRule() < 0) {
-            throw new IllegalArgumentException("command.orderRule must be >= 0");
         }
     }
 }

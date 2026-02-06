@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.mapper.model;
 
-import com.nori.tc.db.core.model.NewTcModel;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.jpa.common.entity.model.TcModelEntity;
@@ -19,23 +18,13 @@ public interface TcModelEntityMapper {
     TcModel toDomain(TcModelEntity entity);
 
     /**
-     * NewTcModel(Create Command) -> Entity
-     * - modelKey: DB 자동 생성이므로 매핑 제외 (또는 Command에 없음)
-     * - createdAt, updatedAt: JPA 관리
-     * - modelName, modelVersion: 팩토리에서 초기화하지만, Command 값으로 덮어써도 무방함
-     */
-    @Mapping(target = "modelKey", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    void updateFromNew(NewTcModel command, @MappingTarget TcModelEntity entity);
-
-    /**
-     * UpdateTcModel(Update Command) -> Entity
+     * UpsertTcModel(Upsert Command) -> Entity
      * - modelKey: PK 변경 불가 (ignore)
      * - createdAt, updatedAt: JPA 관리
      */
     @Mapping(target = "modelKey", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void updateFromUpdate(UpsertTcModel command, @MappingTarget TcModelEntity entity);
+    @Mapping(target = "createdBy", ignore = true)
+    void updateFromUpsert(UpsertTcModel command, @MappingTarget TcModelEntity entity);
 }

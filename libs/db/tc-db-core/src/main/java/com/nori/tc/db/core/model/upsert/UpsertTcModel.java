@@ -4,23 +4,29 @@ import com.nori.tc.db.domain.common.ModelStatus;
 import com.nori.tc.db.domain.common.ProtocolType;
 
 /**
- * tc_model 갱신 입력(Command)
+ * tc_model upsert 입력(Command).
  *
- * - model_key로 대상 식별(대리키 기반)
- * - 변경 가능 필드만 포함합니다.
+ * <p>
+ * - model_key가 있으면 해당 PK 기반으로 갱신합니다.
+ * - model_key가 없으면 (model_name, model_version) 유니크 키 기준으로
+ * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
+ * </p>
  *
+ * <p>
  * 주의:
  * - created_at은 변경 대상이 아닙니다.
  * - updated_at은 DB(또는 구현체)에서 현재 시각으로 갱신되도록 처리하는 것을 권장합니다.
- * - created_by는 생성자 값이므로 변경하지 않습니다(업데이트 입력에서 제외).
+ * - created_by는 신규 생성 시에만 사용하고, 갱신 시에는 기존 값을 유지합니다.
+ * </p>
  */
 public record UpsertTcModel(
-        long modelKey,
+        Long modelKey,
         String modelName,
         String modelVersion,
         ProtocolType commInterface,
         ModelStatus status,
         String maker,
+        String createdBy,
         String updatedBy
 ) {
 }

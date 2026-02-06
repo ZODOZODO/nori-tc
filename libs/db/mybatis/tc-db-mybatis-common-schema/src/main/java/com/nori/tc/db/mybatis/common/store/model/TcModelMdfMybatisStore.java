@@ -11,8 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.exception.DbEntityNotFoundException;
-import com.nori.tc.db.core.model.NewTcModelMdf;
 import com.nori.tc.db.core.model.store.TcModelMdfStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
@@ -21,7 +19,7 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelMdfMapper;
 /**
  * tc_model_mdf MyBatis Store 구현체.
  *
- * 생성(create) 주의
+ * upsert 주의
  * - common-schema의 TcModelMdfMapper.xml은 벤더 중립성을 위해 "generated key 반환"을 하지 않는다.
  * - 따라서 insert 후 (model_key, mdf_name)으로 재조회하여 mdf_key를 확보한다.
  */
@@ -36,13 +34,15 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
 
     @Override
     @Transactional
-    public TcModelMdf create(NewTcModelMdf command) {
+    public TcModelMdf upsert(UpsertTcModelMdf command) {
+        final Long mdfKey = command.mdfKey();
         final long modelKey = command.modelKey();
         final String mdfName = command.mdfName();
 
-        // mdf_key/updated_at은 DB가 생성한다.
+        final long resolvedKey = resolveKey(mdfKey, modelKey, mdfName);
+
         final TcModelMdf row = new TcModelMdf(
-                0L,
+                resolvedKey,
                 modelKey,
                 mdfName,
                 command.mdfFile(),
@@ -50,52 +50,23 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
         );
 
         try {
-            int inserted = mapper.insert(row);
-            if (inserted != 1) {
-                throw new DbAccessException("tc_model_mdf insert affected rows != 1. affected=" + inserted);
-            }
-
-            // insert 후 유니크 키로 재조회하여 mdf_key 포함된 row 반환
-            return mapper.findByModelKeyAndName(modelKey, mdfName)
-                    .orElseThrow(() -> new DbAccessException("tc_model_mdf insert succeeded but row not found. modelKey/name=" + modelKey + "/" + mdfName));
-
-        } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_mdf duplicate (model_key, mdf_name). modelKey/name=" + modelKey + "/" + mdfName, e);
-        } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_mdf create failed. modelKey/name=" + modelKey + "/" + mdfName, e);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_mdf create failed (unexpected). modelKey/name=" + modelKey + "/" + mdfName, e);
-        }
-    }
-
-    @Override
-    @Transactional
-    public TcModelMdf update(UpsertTcModelMdf command) {
-        final long mdfKey = command.mdfKey();
-
-        final TcModelMdf row = new TcModelMdf(
-                mdfKey,
-                command.modelKey(),
-                command.mdfName(),
-                command.mdfFile(),
-                null
-        );
-
-        try {
             int updated = mapper.update(row);
             if (updated == 0) {
-                throw new DbEntityNotFoundException("tc_model_mdf not found for update. mdfKey=" + mdfKey);
+                int inserted = mapper.insert(row);
+                if (inserted != 1) {
+                    throw new DbAccessException("tc_model_mdf insert affected rows != 1. affected=" + inserted);
+                }
             }
 
-            return mapper.findByMdfKey(mdfKey)
-                    .orElseThrow(() -> new DbAccessException("tc_model_mdf update succeeded but row not found. mdfKey=" + mdfKey));
+            return mapper.findByModelKeyAndName(modelKey, mdfName)
+                    .orElseThrow(() -> new DbAccessException("tc_model_mdf upsert succeeded but row not found. modelKey/name=" + modelKey + "/" + mdfName));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_mdf update duplicate (model_key, mdf_name). mdfKey=" + mdfKey, e);
+            throw new DbDuplicateKeyException("tc_model_mdf upsert duplicate (model_key, mdf_name). modelKey/name=" + modelKey + "/" + mdfName, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_mdf update failed. mdfKey=" + mdfKey, e);
+            throw new DbAccessException("tc_model_mdf upsert failed. modelKey/name=" + modelKey + "/" + mdfName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_mdf update failed (unexpected). mdfKey=" + mdfKey, e);
+            throw new DbAccessException("tc_model_mdf upsert failed (unexpected). modelKey/name=" + modelKey + "/" + mdfName, e);
         }
     }
 
@@ -147,5 +118,18 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
         } catch (RuntimeException e) {
             throw new DbAccessException("tc_model_mdf deleteByMdfKey failed (unexpected). mdfKey=" + mdfKey, e);
         }
+    }
+
+    private long resolveKey(Long mdfKey, long modelKey, String mdfName) {
+        if (mdfKey != null) {
+            if (mdfKey <= 0) {
+                throw new IllegalArgumentException("mdfKey must be > 0 when provided");
+            }
+            return mdfKey;
+        }
+
+        return mapper.findByModelKeyAndName(modelKey, mdfName)
+                .map(TcModelMdf::mdfKey)
+                .orElse(0L);
     }
 }

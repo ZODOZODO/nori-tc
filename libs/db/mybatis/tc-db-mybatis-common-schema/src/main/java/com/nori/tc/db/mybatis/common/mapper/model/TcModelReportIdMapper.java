@@ -26,10 +26,8 @@ public interface TcModelReportIdMapper {
             @Param("reportId") String reportId
     );
 
-    List<TcModelReportId> findAll(
-            @Param("modelKey") Long modelKey,
-            @Param("reportId") String reportId,
-            @Param("enabled") Boolean enabled,
+    List<TcModelReportId> findAllByModelKey(
+            @Param("modelKey") long modelKey,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

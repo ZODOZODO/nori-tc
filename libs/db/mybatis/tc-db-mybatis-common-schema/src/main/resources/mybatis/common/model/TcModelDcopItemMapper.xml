@@ -1,57 +1,13 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelDcopItemMapper">
-
-    <resultMap id="TcModelDcopItemMap" type="com.nori.tc.db.domain.model.TcModelDcopItem">
-        <constructor>
-            <idArg column="dcop_item_key" javaType="java.lang.Long"/>
-            <arg column="model_key" javaType="long"/>
-            <arg column="dcop_item_name" javaType="java.lang.String"/>
-            <arg column="workflow_name" javaType="java.lang.String"/>
-            <arg column="event_id" javaType="java.lang.String"/>
-            <arg column="variable_id" javaType="java.lang.String"/>
-            <arg column="collection_rule"
-                 javaType="com.nori.tc.db.domain.common.DcopCollectionRule"
-                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
-            <arg column="calculation_rule"
-                 javaType="com.nori.tc.db.domain.common.DcopCalculationRule"
-                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
-            <arg column="order_rule" javaType="java.lang.Integer"/>
-            <arg column="updated_at"
-                 javaType="java.time.OffsetDateTime"
-                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
-        </constructor>
-    </resultMap>
-
-    <sql id="TcModelDcopItemColumns">
-        dcop_item_key,
-        model_key,
-        dcop_item_name,
-        workflow_name,
-        event_id,
-        variable_id,
-        collection_rule,
-        calculation_rule,
-        order_rule,
-        updated_at
-    </sql>
-
-    <insert id="insert">
-        INSERT INTO tc_model_dcop_item
-            (model_key, dcop_item_name, workflow_name, event_id, variable_id,
-             collection_rule, calculation_rule, order_rule)
-        VALUES
-            (#{i.modelKey},
-             #{i.dcopItemName},
-             #{i.workflowName},
-             #{i.eventId},
-             #{i.variableId},
-             #{i.collectionRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-             #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-             #{i.orderRule})
+<insert id="insert">
+        INSERT INTO tc_model_dcop_item (
+            model_key, dcop_item_name, dcop_item_desc, workflow_name, event_id, variable_id,
+            collection_rule, calculation_rule, order_rule, created_at, updated_at
+        ) VALUES (
+            #{i.modelKey}, #{i.dcopItemName}, #{i.dcopItemDesc}, #{i.workflowName}, #{i.eventId}, #{i.variableId},
+            #{i.collectionRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+            #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+            #{i.orderRule}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
     </insert>
 
     <update id="update">
@@ -63,8 +19,8 @@
                calculation_rule = #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
                order_rule       = #{i.orderRule},
                updated_at       = CURRENT_TIMESTAMP
-         WHERE model_key       = #{i.modelKey}
-           AND dcop_item_name  = #{i.dcopItemName}
+         WHERE model_key        = #{i.modelKey}
+           AND dcop_item_name   = #{i.dcopItemName}
     </update>
 
     <select id="findByModelKeyAndName" resultMap="TcModelDcopItemMap">
@@ -74,7 +30,7 @@
            AND dcop_item_name = #{dcopItemName}
     </select>
 
-    <select id="findAll" resultMap="TcModelDcopItemMap">
+    <select id="findAllByModelKey" resultMap="TcModelDcopItemMap">
         SELECT <include refid="TcModelDcopItemColumns"/>
           FROM tc_model_dcop_item
          WHERE model_key = #{modelKey}

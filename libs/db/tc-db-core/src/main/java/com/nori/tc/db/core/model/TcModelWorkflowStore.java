@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
 
 /**
@@ -16,18 +17,17 @@ import com.nori.tc.db.domain.model.TcModelWorkflow;
 public interface TcModelWorkflowStore {
 
     /**
-     * 워크플로 생성.
+     * 워크플로 upsert.
      *
-     * @return DB가 부여한 workflow_key 및 updated_at이 채워진 TcModelWorkflow
-     */
-    TcModelWorkflow create(NewTcModelWorkflow command);
-
-    /**
-     * 워크플로 갱신.
+     * <p>
+     * - workflow_key가 있으면 해당 PK 기반으로 갱신합니다.
+     * - workflow_key가 없으면 (model_key, workflow_name, message_name) 유니크 키 기준으로
+     * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
+     * </p>
      *
-     * @return 갱신 후 상태의 TcModelWorkflow
+     * @return upsert 후 상태의 TcModelWorkflow
      */
-    TcModelWorkflow update(UpdateTcModelWorkflow command);
+    TcModelWorkflow upsert(UpsertTcModelWorkflow command);
 
     Optional<TcModelWorkflow> findByWorkflowKey(long workflowKey);
 
@@ -38,9 +38,10 @@ public interface TcModelWorkflowStore {
     );
 
     /**
-     * 조건 검색 + 페이징
+     * 특정 모델(model_key)의 워크플로 목록 조회.
+     * - 페이징은 반드시 DB 레벨에서 처리해야 한다.
      */
-    List<TcModelWorkflow> findAll(TcModelWorkflowSearchCriteria criteria, PageRequest page);
+    List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page);
 
     void deleteByWorkflowKey(long workflowKey);
 }

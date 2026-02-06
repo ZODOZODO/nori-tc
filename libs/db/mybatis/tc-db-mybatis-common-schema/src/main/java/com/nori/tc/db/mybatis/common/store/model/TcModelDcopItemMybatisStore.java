@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.model.TcModelDcopItemSearchCriteria;
 import com.nori.tc.db.core.model.store.TcModelDcopItemStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelDcopItem;
 import com.nori.tc.db.domain.model.TcModelDcopItem;
@@ -38,49 +37,23 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
                 null,
                 command.modelKey(),
                 command.dcopItemName(),
-                command.workflowName(),
-                command.eventId(),
-                command.variableId(),
-                command.collectionRule(),
-                command.calculationRule(),
+                command.dcopItemDesc(),
                 command.orderRule(),
-                null
+                command.createdAt(),
+                command.updatedAt()
         );
 
         try {
             int updated = mapper.update(row);
             if (updated == 0) {
-                try {
-                    mapper.insert(row);
-                } catch (DuplicateKeyException dup) {
-                    mapper.update(row);
-                }
+                mapper.insert(row);
             }
-
             return mapper.findByModelKeyAndName(command.modelKey(), command.dcopItemName())
-                    .orElseThrow(() -> new DbAccessException(
-                            "tc_model_dcop_item upsert succeeded but row not found. modelKey="
-                                    + command.modelKey() + ", dcopItemName=" + command.dcopItemName()
-                    ));
-
+                    .orElseThrow(() -> new DbAccessException("Upsert success but find failed"));
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException(
-                    "tc_model_dcop_item upsert duplicate key. modelKey="
-                            + command.modelKey() + ", dcopItemName=" + command.dcopItemName(),
-                    e
-            );
+            throw new DbDuplicateKeyException("tc_model_dcop_item duplicate key", e);
         } catch (DataAccessException e) {
-            throw new DbAccessException(
-                    "tc_model_dcop_item upsert failed. modelKey="
-                            + command.modelKey() + ", dcopItemName=" + command.dcopItemName(),
-                    e
-            );
-        } catch (RuntimeException e) {
-            throw new DbAccessException(
-                    "tc_model_dcop_item upsert failed (unexpected). modelKey="
-                            + command.modelKey() + ", dcopItemName=" + command.dcopItemName(),
-                    e
-            );
+            throw new DbAccessException("tc_model_dcop_item upsert failed", e);
         }
     }
 
@@ -104,21 +77,18 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelDcopItem> findAll(TcModelDcopItemSearchCriteria criteria, PageRequest page) {
-        if (criteria == null) {
-            throw new IllegalArgumentException("criteria must not be null");
-        }
-        if (criteria.modelKey() <= 0) {
-            throw new IllegalArgumentException("criteria.modelKey must be > 0");
+    public List<TcModelDcopItem> findAllByModelKey(long modelKey, PageRequest page) {
+        if (modelKey <= 0) {
+            throw new IllegalArgumentException("modelKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAll(criteria.modelKey(), p.offset(), p.limit());
+            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_dcop_item findAll failed", e);
+            throw new DbAccessException("tc_model_dcop_item findAllByModelKey failed", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_dcop_item findAll failed (unexpected)", e);
+            throw new DbAccessException("tc_model_dcop_item findAllByModelKey failed (unexpected)", e);
         }
     }
 
@@ -145,9 +115,6 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
         if (command.dcopItemName() == null || command.dcopItemName().isBlank()) {
             throw new IllegalArgumentException("command.dcopItemName must not be null/blank");
-        }
-        if (command.orderRule() != null && command.orderRule() < 0) {
-            throw new IllegalArgumentException("command.orderRule must be >= 0");
         }
     }
 }

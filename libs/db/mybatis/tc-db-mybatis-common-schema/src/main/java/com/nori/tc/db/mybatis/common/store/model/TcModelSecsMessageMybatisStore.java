@@ -8,10 +8,9 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
-import com.nori.tc.db.core.exception.DbEntityNotFoundException;
-import com.nori.tc.db.core.model.NewTcModelSecsMessage;
 import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
@@ -20,7 +19,7 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelSecsMessageMapper;
 /**
  * tc_model_secs_message MyBatis Store 구현체.
  *
- * 생성(create) 주의
+ * upsert 주의
  * - common-schema의 TcModelSecsMessageMapper.xml은 벤더 중립성을 위해 "generated key 반환"을 하지 않는다.
  * - 따라서 insert 후 (model_key, secs_msg_name)으로 재조회하여 secs_msg_key를 확보한다.
  */
@@ -35,14 +34,17 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
 
     @Override
     @Transactional
-    public TcModelSecsMessage create(NewTcModelSecsMessage command) {
-        validateCreate(command);
+    public TcModelSecsMessage upsert(UpsertTcModelSecsMessage command) {
+        validateUpsert(command);
 
+        final Long secsMsgKey = command.secsMsgKey();
         final long modelKey = command.modelKey();
         final String secsMsgName = command.secsMsgName();
 
+        final long resolvedKey = resolveKey(secsMsgKey, modelKey, secsMsgName);
+
         final TcModelSecsMessage row = new TcModelSecsMessage(
-                0L,
+                resolvedKey,
                 modelKey,
                 secsMsgName,
                 command.description(),
@@ -51,54 +53,23 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
         );
 
         try {
-            int inserted = mapper.insert(row);
-            if (inserted != 1) {
-                throw new DbAccessException("tc_model_secs_message insert affected rows != 1. affected=" + inserted);
+            int updated = mapper.update(row);
+            if (updated == 0) {
+                int inserted = mapper.insert(row);
+                if (inserted != 1) {
+                    throw new DbAccessException("tc_model_secs_message insert affected rows != 1. affected=" + inserted);
+                }
             }
 
             return mapper.findByModelKeyAndName(modelKey, secsMsgName)
-                    .orElseThrow(() -> new DbAccessException("tc_model_secs_message insert succeeded but row not found. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName));
+                    .orElseThrow(() -> new DbAccessException("tc_model_secs_message upsert succeeded but row not found. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_secs_message duplicate (model_key, secs_msg_name). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbDuplicateKeyException("tc_model_secs_message upsert duplicate (model_key, secs_msg_name). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_secs_message create failed. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbAccessException("tc_model_secs_message upsert failed. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_secs_message create failed (unexpected). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
-        }
-    }
-
-    @Override
-    @Transactional
-    public TcModelSecsMessage update(UpsertTcModelSecsMessage command) {
-        validateUpdate(command);
-
-        final long secsMsgKey = command.secsMsgKey();
-
-        final TcModelSecsMessage row = new TcModelSecsMessage(
-                secsMsgKey,
-                command.modelKey(),
-                command.secsMsgName(),
-                command.description(),
-                command.dataIndex(),
-                null
-        );
-
-        try {
-            int updated = mapper.update(row);
-            if (updated == 0) {
-                throw new DbEntityNotFoundException("tc_model_secs_message not found for update. secsMsgKey=" + secsMsgKey);
-            }
-
-            return mapper.findBySecsMsgKey(secsMsgKey)
-                    .orElseThrow(() -> new DbAccessException("tc_model_secs_message update succeeded but row not found. secsMsgKey=" + secsMsgKey));
-
-        } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_secs_message update duplicate (model_key, secs_msg_name). secsMsgKey=" + secsMsgKey, e);
-        } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_secs_message update failed. secsMsgKey=" + secsMsgKey, e);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_secs_message update failed (unexpected). secsMsgKey=" + secsMsgKey, e);
+            throw new DbAccessException("tc_model_secs_message upsert failed (unexpected). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
         }
     }
 
@@ -128,13 +99,14 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelSecsMessage> findByModelKey(long modelKey) {
+    public List<TcModelSecsMessage> findAllByModelKey(long modelKey, PageRequest page) {
+        final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
         try {
-            return mapper.findByModelKey(modelKey);
+            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_secs_message findByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_secs_message findAllByModelKey failed. modelKey=" + modelKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_secs_message findByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_secs_message findAllByModelKey failed (unexpected). modelKey=" + modelKey, e);
         }
     }
 
@@ -150,9 +122,12 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
         }
     }
 
-    private void validateCreate(NewTcModelSecsMessage command) {
+    private void validateUpsert(UpsertTcModelSecsMessage command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
+        }
+        if (command.secsMsgKey() != null && command.secsMsgKey() <= 0) {
+            throw new IllegalArgumentException("command.secsMsgKey must be > 0 when provided");
         }
         if (command.modelKey() <= 0) {
             throw new IllegalArgumentException("command.modelKey must be > 0");
@@ -162,18 +137,16 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
         }
     }
 
-    private void validateUpdate(UpsertTcModelSecsMessage command) {
-        if (command == null) {
-            throw new IllegalArgumentException("command must not be null");
+    private long resolveKey(Long secsMsgKey, long modelKey, String secsMsgName) {
+        if (secsMsgKey != null) {
+            if (secsMsgKey <= 0) {
+                throw new IllegalArgumentException("secsMsgKey must be > 0 when provided");
+            }
+            return secsMsgKey;
         }
-        if (command.secsMsgKey() <= 0) {
-            throw new IllegalArgumentException("command.secsMsgKey must be > 0");
-        }
-        if (command.modelKey() <= 0) {
-            throw new IllegalArgumentException("command.modelKey must be > 0");
-        }
-        if (command.secsMsgName() == null || command.secsMsgName().isBlank()) {
-            throw new IllegalArgumentException("command.secsMsgName must not be null/blank");
-        }
+
+        return mapper.findByModelKeyAndName(modelKey, secsMsgName)
+                .map(TcModelSecsMessage::secsMsgKey)
+                .orElse(0L);
     }
 }

@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.store.model;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,7 +8,6 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,11 +19,9 @@ import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.exception.DbEntityNotFoundException;
-import com.nori.tc.db.core.model.NewTcModelWorkflow;
-import com.nori.tc.db.core.model.TcModelWorkflowSearchCriteria;
 import com.nori.tc.db.core.model.TcModelWorkflowStore;
-import com.nori.tc.db.core.model.UpdateTcModelWorkflow;
-import com.nori.tc.db.domain.model.TcModelWorkflow;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
+import com.nori.tc.domain.model.TcModelWorkflow;
 import com.nori.tc.db.jpa.common.entity.model.TcModelWorkflowEntity;
 import com.nori.tc.db.jpa.common.mapper.model.TcModelWorkflowEntityMapper;
 import com.nori.tc.db.jpa.common.repository.model.TcModelWorkflowJpaRepository;
@@ -36,8 +32,8 @@ import com.nori.tc.db.jpa.common.repository.model.TcModelWorkflowJpaRepository;
  * <p>
  * <b>주요 기능:</b>
  * <ul>
- * <li><b>Create/Update 분리:</b> 생성과 수정 Command가 분리되어 있으며, MapStruct로 매핑합니다.</li>
- * <li><b>동적 검색:</b> Criteria API로 modelKey/workflowName/messageName 조합 검색을 지원합니다.</li>
+ * <li><b>Upsert:</b> 워크플로 키 또는 유니크 키로 존재 여부를 확인한 뒤 생성/갱신을 수행합니다.</li>
+ * <li><b>목록 조회:</b> model_key 기준으로 최신 workflow_key DESC 정렬 + 페이징을 제공합니다.</li>
  * </ul>
  * </p>
  */
@@ -57,59 +53,23 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
 
     @Override
     @Transactional
-    public TcModelWorkflow create(NewTcModelWorkflow command) {
-        validateCreate(command);
+    public TcModelWorkflow upsert(UpsertTcModelWorkflow command) {
+        validateUpsert(command);
 
         try {
-            // 1. 필수 Business Key(modelKey, workflowName, messageName)로 초기 엔티티 생성
-            TcModelWorkflowEntity entity = TcModelWorkflowEntity.newEntity(
-                    command.modelKey(),
-                    command.workflowName(),
-                    command.messageName()
-            );
+            TcModelWorkflowEntity entity = resolveEntity(command);
 
-            // 2. 나머지 필드 자동 매핑
-            mapper.updateFromNew(command, entity);
+            mapper.updateFromUpsert(command, entity);
 
-            // 3. 저장 및 반환
-            TcModelWorkflowEntity saved = repository.save(entity);
-            return mapper.toDomain(saved);
-
-        } catch (DataIntegrityViolationException e) {
-            throw new DbDuplicateKeyException("[tc_model_workflow] create failed: integrity violation", e);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_workflow] create failed", e);
-        }
-    }
-
-    @Override
-    @Transactional
-    public TcModelWorkflow update(UpdateTcModelWorkflow command) {
-        validateUpdate(command);
-
-        try {
-            // 1. 조회 (없으면 예외)
-            TcModelWorkflowEntity entity = repository.findById(command.workflowKey())
-                    .orElseThrow(() -> new DbEntityNotFoundException(
-                            "[tc_model_workflow] not found: workflowKey=" + command.workflowKey()
-                    ));
-
-            // 2. Dirty Checking용 필드 업데이트
-            mapper.updateFromUpdate(command, entity);
-
-            // 3. 저장 및 반환
             TcModelWorkflowEntity saved = repository.save(entity);
             return mapper.toDomain(saved);
 
         } catch (DbEntityNotFoundException e) {
             throw e;
         } catch (DataIntegrityViolationException e) {
-            throw new DbDuplicateKeyException("[tc_model_workflow] update failed: integrity violation", e);
+            throw new DbDuplicateKeyException("[tc_model_workflow] upsert failed: integrity violation", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException(
-                    "[tc_model_workflow] update failed: workflowKey=" + command.workflowKey(),
-                    e
-            );
+            throw new DbAccessException("[tc_model_workflow] upsert failed", e);
         }
     }
 
@@ -147,8 +107,10 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelWorkflow> findAll(TcModelWorkflowSearchCriteria criteria, PageRequest page) {
-        final TcModelWorkflowSearchCriteria c = (criteria == null) ? TcModelWorkflowSearchCriteria.empty() : criteria;
+    public List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page) {
+        if (modelKey <= 0) {
+            throw new IllegalArgumentException("modelKey must be > 0");
+        }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
@@ -156,27 +118,8 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
             CriteriaQuery<TcModelWorkflowEntity> cq = cb.createQuery(TcModelWorkflowEntity.class);
             Root<TcModelWorkflowEntity> root = cq.from(TcModelWorkflowEntity.class);
 
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (c.modelKey() != null) {
-                predicates.add(cb.equal(root.get("modelKey"), c.modelKey()));
-            }
-            if (c.workflowNameLike() != null && !c.workflowNameLike().isBlank()) {
-                String keyword = c.workflowNameLike().trim().toLowerCase();
-                String pattern = "%" + escapeLike(keyword) + "%";
-                predicates.add(cb.like(cb.lower(root.get("workflowName")), pattern, '\\'));
-            }
-            if (c.messageNameLike() != null && !c.messageNameLike().isBlank()) {
-                String keyword = c.messageNameLike().trim().toLowerCase();
-                String pattern = "%" + escapeLike(keyword) + "%";
-                predicates.add(cb.like(cb.lower(root.get("messageName")), pattern, '\\'));
-            }
-
             cq.select(root);
-            if (!predicates.isEmpty()) {
-                cq.where(predicates.toArray(Predicate[]::new));
-            }
-
+            cq.where(cb.equal(root.get("modelKey"), modelKey));
             cq.orderBy(cb.desc(root.get("workflowKey")));
 
             TypedQuery<TcModelWorkflowEntity> query = em.createQuery(cq);
@@ -186,7 +129,7 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
             return query.getResultList().stream().map(mapper::toDomain).toList();
 
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_workflow] findAll failed", e);
+            throw new DbAccessException("[tc_model_workflow] findAllByModelKey failed", e);
         }
     }
 
@@ -205,8 +148,11 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
-    private void validateCreate(NewTcModelWorkflow command) {
+    private void validateUpsert(UpsertTcModelWorkflow command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
+        if (command.workflowKey() != null && command.workflowKey() <= 0) {
+            throw new IllegalArgumentException("command.workflowKey must be > 0 when provided");
+        }
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
         if (command.workflowName() == null || command.workflowName().isBlank()) {
             throw new IllegalArgumentException("command.workflowName must not be null/blank");
@@ -219,22 +165,23 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
-    private void validateUpdate(UpdateTcModelWorkflow command) {
-        if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.workflowKey() <= 0) throw new IllegalArgumentException("command.workflowKey must be > 0");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
-        if (command.workflowName() == null || command.workflowName().isBlank()) {
-            throw new IllegalArgumentException("command.workflowName must not be null/blank");
+    private TcModelWorkflowEntity resolveEntity(UpsertTcModelWorkflow command) {
+        if (command.workflowKey() != null) {
+            return repository.findById(command.workflowKey())
+                    .orElseThrow(() -> new DbEntityNotFoundException(
+                            "[tc_model_workflow] not found: workflowKey=" + command.workflowKey()
+                    ));
         }
-        if (command.messageName() == null || command.messageName().isBlank()) {
-            throw new IllegalArgumentException("command.messageName must not be null/blank");
-        }
-        if (command.actionName() == null || command.actionName().isBlank()) {
-            throw new IllegalArgumentException("command.actionName must not be null/blank");
-        }
-    }
 
-    private String escapeLike(String s) {
-        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return repository.findByModelKeyAndWorkflowNameAndMessageName(
+                        command.modelKey(),
+                        command.workflowName(),
+                        command.messageName()
+                )
+                .orElseGet(() -> TcModelWorkflowEntity.newEntity(
+                        command.modelKey(),
+                        command.workflowName(),
+                        command.messageName()
+                ));
     }
 }

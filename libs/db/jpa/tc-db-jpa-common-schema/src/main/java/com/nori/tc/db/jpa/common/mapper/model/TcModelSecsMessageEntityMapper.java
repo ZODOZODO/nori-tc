@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.mapper.model;
 
-import com.nori.tc.db.core.model.NewTcModelSecsMessage;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.jpa.common.entity.model.TcModelSecsMessageEntity;
@@ -19,20 +18,11 @@ public interface TcModelSecsMessageEntityMapper {
     TcModelSecsMessage toDomain(TcModelSecsMessageEntity entity);
 
     /**
-     * NewTcModelSecsMessage(Create Command) -> Entity
-     * - secsMsgKey: DB 자동 생성이므로 매핑 제외
-     * - updatedAt: JPA 관리
-     */
-    @Mapping(target = "secsMsgKey", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    void updateFromNew(NewTcModelSecsMessage command, @MappingTarget TcModelSecsMessageEntity entity);
-
-    /**
-     * UpdateTcModelSecsMessage(Update Command) -> Entity
+     * UpsertTcModelSecsMessage(Upsert Command) -> Entity
      * - secsMsgKey: PK 변경 불가 (ignore)
      * - updatedAt: JPA 관리
      */
     @Mapping(target = "secsMsgKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void updateFromUpdate(UpsertTcModelSecsMessage command, @MappingTarget TcModelSecsMessageEntity entity);
+    void updateFromUpsert(UpsertTcModelSecsMessage command, @MappingTarget TcModelSecsMessageEntity entity);
 }

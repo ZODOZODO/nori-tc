@@ -1,35 +1,9 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelReportIdMapper">
-
-    <resultMap id="TcModelReportIdMap" type="com.nori.tc.db.domain.model.TcModelReportId">
-        <constructor>
-            <idArg column="report_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
-            <arg column="report_id" javaType="java.lang.String"/>
-            <arg column="variable_id" javaType="java.lang.String"/>
-            <arg column="enabled" javaType="boolean"/>
-            <arg column="updated_at"
-                 javaType="java.time.OffsetDateTime"
-                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
-        </constructor>
-    </resultMap>
-
-    <sql id="TcModelReportIdColumns">
-        report_key, model_key, report_id, variable_id, enabled, updated_at
-    </sql>
-
-    <insert id="insert">
-        INSERT INTO tc_model_reportid
-            (model_key, report_id, variable_id, enabled)
-        VALUES
-            (#{r.modelKey},
-             #{r.reportId},
-             #{r.variableId},
-             #{r.enabled})
+<insert id="insert">
+        INSERT INTO tc_model_reportid (
+            model_key, report_id, variable_id, enabled
+        ) VALUES (
+            #{r.modelKey}, #{r.reportId}, #{r.variableId}, #{r.enabled}
+        )
     </insert>
 
     <update id="updateByUniqueKey">
@@ -54,21 +28,11 @@
            AND report_id = #{reportId}
     </select>
 
-    <select id="findAll" resultMap="TcModelReportIdMap">
+    <select id="findAllByModelKey" resultMap="TcModelReportIdMap">
         SELECT <include refid="TcModelReportIdColumns"/>
           FROM tc_model_reportid
-        <where>
-            <if test="modelKey != null">
-                AND model_key = #{modelKey}
-            </if>
-            <if test="reportId != null and reportId != ''">
-                AND report_id = #{reportId}
-            </if>
-            <if test="enabled != null">
-                AND enabled = #{enabled}
-            </if>
-        </where>
-        ORDER BY report_key ASC
+         WHERE model_key = #{modelKey}
+         ORDER BY report_key ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}
         </if>

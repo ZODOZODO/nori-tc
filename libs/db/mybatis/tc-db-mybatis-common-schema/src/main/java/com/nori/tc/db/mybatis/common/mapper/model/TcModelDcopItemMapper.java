@@ -24,7 +24,7 @@ public interface TcModelDcopItemMapper {
             @Param("dcopItemName") String dcopItemName
     );
 
-    List<TcModelDcopItem> findAll(
+    List<TcModelDcopItem> findAllByModelKey(
             @Param("modelKey") long modelKey,
             @Param("offset") int offset,
             @Param("limit") int limit

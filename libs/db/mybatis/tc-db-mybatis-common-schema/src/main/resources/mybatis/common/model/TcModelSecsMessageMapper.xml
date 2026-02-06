@@ -1,36 +1,9 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
-<!-- tc_model_secs_message Mapper XML (FIX) -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelSecsMessageMapper">
-
-    <resultMap id="Map" type="com.nori.tc.db.domain.model.TcModelSecsMessage">
-        <constructor>
-            <idArg column="secs_msg_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
-            <arg column="secs_msg_name" javaType="java.lang.String"/>
-            <arg column="description" javaType="java.lang.String"/>
-            <arg column="data_index" javaType="java.lang.String"/>
-            <arg column="updated_at"
-                 javaType="java.time.OffsetDateTime"
-                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
-        </constructor>
-    </resultMap>
-
-    <sql id="Columns">
-        secs_msg_key, model_key, secs_msg_name, description, data_index, updated_at
-    </sql>
-
-    <insert id="insert">
-        INSERT INTO tc_model_secs_message
-            (model_key, secs_msg_name, description, data_index)
-        VALUES
-            (#{m.modelKey},
-             #{m.secsMsgName},
-             #{m.description},
-             #{m.dataIndex})
+<insert id="insert">
+        INSERT INTO tc_model_secs_message (
+            model_key, secs_msg_name, description, data_index, created_at, updated_at
+        ) VALUES (
+            #{m.modelKey}, #{m.secsMsgName}, #{m.description}, #{m.dataIndex}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
     </insert>
 
     <update id="update">
@@ -56,11 +29,14 @@
            AND secs_msg_name = #{secsMsgName}
     </select>
 
-    <select id="findByModelKey" resultMap="Map">
+    <select id="findAllByModelKey" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_model_secs_message
          WHERE model_key = #{modelKey}
          ORDER BY secs_msg_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
     </select>
 
     <delete id="deleteBySecsMsgKey">

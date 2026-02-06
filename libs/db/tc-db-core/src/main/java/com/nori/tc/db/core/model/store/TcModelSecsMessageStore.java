@@ -3,7 +3,7 @@ package com.nori.tc.db.core.model.store;
 import java.util.List;
 import java.util.Optional;
 
-import com.nori.tc.db.core.model.NewTcModelSecsMessage;
+import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 
@@ -21,24 +21,27 @@ import com.nori.tc.db.domain.model.TcModelSecsMessage;
 public interface TcModelSecsMessageStore {
 
     /**
-     * SECS 메시지 생성.
+     * SECS 메시지 upsert.
      *
-     * @return DB가 부여한 secs_msg_key 및 timestamp가 채워진 TcModelSecsMessage
-     */
-    TcModelSecsMessage create(NewTcModelSecsMessage command);
-
-    /**
-     * SECS 메시지 갱신.
+     * <p>
+     * - secs_msg_key가 있으면 해당 PK 기반으로 갱신합니다.
+     * - secs_msg_key가 없으면 (model_key, secs_msg_name) 유니크 키 기준으로
+     * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
+     * </p>
      *
-     * @return 갱신 후 상태의 TcModelSecsMessage
+     * @return upsert 후 상태의 TcModelSecsMessage
      */
-    TcModelSecsMessage update(UpsertTcModelSecsMessage command);
+    TcModelSecsMessage upsert(UpsertTcModelSecsMessage command);
 
     Optional<TcModelSecsMessage> findBySecsMsgKey(long secsMsgKey);
 
     Optional<TcModelSecsMessage> findByModelKeyAndName(long modelKey, String secsMsgName);
 
-    List<TcModelSecsMessage> findByModelKey(long modelKey);
+    /**
+     * 특정 모델(model_key)의 SECS 메시지 목록 조회.
+     * - 페이징은 반드시 DB 레벨에서 처리해야 한다.
+     */
+    List<TcModelSecsMessage> findAllByModelKey(long modelKey, PageRequest page);
 
     void deleteBySecsMsgKey(long secsMsgKey);
 }

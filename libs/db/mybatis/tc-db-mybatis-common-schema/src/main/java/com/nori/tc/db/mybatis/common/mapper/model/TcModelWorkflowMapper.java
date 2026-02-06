@@ -28,14 +28,11 @@ public interface TcModelWorkflowMapper {
     );
 
     /**
-     * 간단 검색 (FIX: DB 페이징 적용)
-     * - modelKey: null이면 조건 미적용
-     * - workflowNameLike/messageNameLike: null이면 조건 미적용, 아니면 "%like%" 형태로 사용
+     * 특정 모델(model_key)의 워크플로 목록 조회.
+     * - DB 페이징 적용
      */
-    List<TcModelWorkflow> findAll(
-            @Param("modelKey") Long modelKey,
-            @Param("workflowNameLike") String workflowNameLike,
-            @Param("messageNameLike") String messageNameLike,
+    List<TcModelWorkflow> findAllByModelKey(
+            @Param("modelKey") long modelKey,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

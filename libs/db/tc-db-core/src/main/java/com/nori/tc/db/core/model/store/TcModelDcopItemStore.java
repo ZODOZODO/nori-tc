@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.model.TcModelDcopItemSearchCriteria;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelDcopItem;
 import com.nori.tc.db.domain.model.TcModelDcopItem;
 
@@ -19,7 +18,11 @@ public interface TcModelDcopItemStore {
 
     Optional<TcModelDcopItem> findByModelKeyAndName(long modelKey, String dcopItemName);
 
-    List<TcModelDcopItem> findAll(TcModelDcopItemSearchCriteria criteria, PageRequest page);
+    /**
+     * 특정 모델(model_key)의 DCOP 아이템 목록 조회.
+     * - 페이징은 반드시 DB 레벨에서 처리해야 한다.
+     */
+    List<TcModelDcopItem> findAllByModelKey(long modelKey, PageRequest page);
 
     void deleteByModelKeyAndName(long modelKey, String dcopItemName);
 }
