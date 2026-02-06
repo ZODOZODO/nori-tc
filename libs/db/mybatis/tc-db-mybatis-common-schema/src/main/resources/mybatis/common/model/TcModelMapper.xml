@@ -73,17 +73,6 @@
     <select id="findAll" resultMap="TcModelMap">
         SELECT <include refid="TcModelColumns"/>
           FROM tc_model
-        <where>
-            <if test="modelNameLike != null and modelNameLike != ''">
-                AND model_name LIKE CONCAT('%', #{modelNameLike}, '%')
-            </if>
-            <if test="commInterface != null">
-                AND comm_interface = #{commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
-            </if>
-            <if test="status != null">
-                AND status = #{status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
-            </if>
-        </where>
         ORDER BY model_key DESC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

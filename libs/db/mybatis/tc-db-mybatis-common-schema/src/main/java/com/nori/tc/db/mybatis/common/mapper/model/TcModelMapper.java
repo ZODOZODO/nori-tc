@@ -5,8 +5,6 @@ import java.util.Optional;
 
 import org.apache.ibatis.annotations.Param;
 
-import com.nori.tc.db.domain.common.model.ModelStatus;
-import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.model.TcModel;
 
 /**
@@ -15,7 +13,7 @@ import com.nori.tc.db.domain.model.TcModel;
  * - 이 모듈은 "보수적인 CRUD"만 제공한다.
  * - model_key 생성(IDENTITY) 처리 때문에 insert 후 key를 직접 반환하지 않는다.
  * → insert 후 findByNameVersion으로 재조회하는 방식(벤더 중립)을 권장한다.
- * - [2024-XX-XX FIX] 메모리 페이징 이슈 해결을 위해 findAll에 DB 페이징 파라미터 추가
+ * - [2024-XX-XX FIX] 메모리 페이징 이슈 해결을 위해 findAll에 DB 페징 파라미터 추가
  */
 public interface TcModelMapper {
 
@@ -31,14 +29,9 @@ public interface TcModelMapper {
     );
 
     /**
-     * 간단 검색 (FIX: DB 페이징 적용)
-     * - modelNameLike: null이면 조건 미적용, 아니면 "%like%" 형태로 사용
-     * - commInterface/status: null이면 조건 미적용
+     * 목록 조회 (FIX: DB 페이징 적용)
      */
     List<TcModel> findAll(
-            @Param("modelNameLike") String modelNameLike,
-            @Param("commInterface") ProtocolType commInterface,
-            @Param("status") ModelStatus status,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

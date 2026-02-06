@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.model.TcModelSearchCriteria;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.domain.model.TcModel;
 
@@ -39,9 +38,9 @@ public interface TcModelStore {
     Optional<TcModel> findByNameVersion(String modelName, String modelVersion);
 
     /**
-     * 조건 검색 + 페이징
+     * 목록 조회 + 페이징
      */
-    List<TcModel> findAll(TcModelSearchCriteria criteria, PageRequest page);
+    List<TcModel> findAll(PageRequest page);
 
     /**
      * 삭제. FK(tc_eqp.model_key)가 존재하므로, 운영 정책상 금지할 수도 있습니다.
