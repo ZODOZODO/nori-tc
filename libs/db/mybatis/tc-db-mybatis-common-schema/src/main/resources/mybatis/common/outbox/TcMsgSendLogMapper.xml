@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_msg_send_log Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.msg.TcMsgSendLogMapper">
+
+    <resultMap id="TcMsgSendLogMap" type="com.nori.tc.db.domain.msg.TcMsgSendLog">
+        <constructor>
+            <idArg column="send_log_key" javaType="long"/>
+            <arg column="msg_key" javaType="long"/>
+            <arg column="attempt_no" javaType="int"/>
+            <arg column="result"
+                 javaType="com.nori.tc.db.domain.common.msg.MsgSendResult"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="kafka_partition" javaType="java.lang.Integer"/>
+            <arg column="kafka_offset" javaType="java.lang.Long"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="sent_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        send_log_key, msg_key, attempt_no, result, kafka_partition,
+        kafka_offset, error_code, error_message, sent_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_msg_send_log
+            (msg_key, attempt_no, result, kafka_partition, kafka_offset, error_code, error_message, sent_at)
+        VALUES
+            (#{l.msgKey},
+             #{l.attemptNo},
+             #{l.result, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{l.kafkaPartition},
+             #{l.kafkaOffset},
+             #{l.errorCode},
+             #{l.errorMessage},
+             #{l.sentAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_msg_send_log
+           SET result          = #{l.result, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               kafka_partition = #{l.kafkaPartition},
+               kafka_offset    = #{l.kafkaOffset},
+               error_code      = #{l.errorCode},
+               error_message   = #{l.errorMessage},
+               sent_at         = #{l.sentAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler}
+         WHERE msg_key    = #{l.msgKey}
+           AND attempt_no = #{l.attemptNo}
+    </update>
+
+    <select id="findByMsgKeyAttemptNo" resultMap="TcMsgSendLogMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_msg_send_log
+         WHERE msg_key    = #{msgKey}
+           AND attempt_no = #{attemptNo}
+    </select>
+
+    <select id="findAllByMsgKey" resultMap="TcMsgSendLogMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_msg_send_log
+         WHERE msg_key = #{msgKey}
+         ORDER BY attempt_no ASC, send_log_key ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByMsgKeyAttemptNo">
+        DELETE FROM tc_msg_send_log
+         WHERE msg_key    = #{msgKey}
+           AND attempt_no = #{attemptNo}
+    </delete>
+
+</mapper>

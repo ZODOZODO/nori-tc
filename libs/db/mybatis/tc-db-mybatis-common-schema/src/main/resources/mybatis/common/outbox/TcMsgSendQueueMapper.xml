@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_msg_send_queue Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.msg.TcMsgSendQueueMapper">
+
+    <resultMap id="TcMsgSendQueueMap" type="com.nori.tc.db.domain.msg.TcMsgSendQueue">
+        <constructor>
+            <idArg column="msg_key" javaType="long"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="topic" javaType="java.lang.String"/>
+            <arg column="message_key" javaType="java.lang.String"/>
+            <arg column="headers_json" javaType="java.lang.String"/>
+            <arg column="payload_json" javaType="java.lang.String"/>
+            <arg column="status"
+                 javaType="com.nori.tc.db.domain.common.msg.TcMsgSendStatus"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="retry_count" javaType="int"/>
+            <arg column="next_retry_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="locked_by" javaType="java.lang.String"/>
+            <arg column="locked_until"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcMsgSendQueueColumns">
+        msg_key,
+        idempotency_key,
+        topic,
+        message_key,
+        headers_json,
+        payload_json,
+        status,
+        retry_count,
+        next_retry_at,
+        locked_by,
+        locked_until,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_msg_send_queue
+            (idempotency_key,
+             topic,
+             message_key,
+             headers_json,
+             payload_json,
+             status,
+             retry_count,
+             next_retry_at,
+             locked_by,
+             locked_until)
+        VALUES
+            (#{q.idempotencyKey},
+             #{q.topic},
+             #{q.messageKey},
+             #{q.headersJson},
+             #{q.payloadJson},
+             #{q.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{q.retryCount},
+             #{q.nextRetryAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{q.lockedBy},
+             #{q.lockedUntil, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_msg_send_queue
+           SET idempotency_key = #{q.idempotencyKey},
+               topic           = #{q.topic},
+               message_key     = #{q.messageKey},
+               headers_json    = #{q.headersJson},
+               payload_json    = #{q.payloadJson},
+               status          = #{q.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               retry_count     = #{q.retryCount},
+               next_retry_at   = #{q.nextRetryAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               locked_by       = #{q.lockedBy},
+               locked_until    = #{q.lockedUntil, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               updated_at      = CURRENT_TIMESTAMP
+         WHERE msg_key        = #{q.msgKey}
+    </update>
+
+    <select id="findByMsgKey" resultMap="TcMsgSendQueueMap">
+        SELECT <include refid="TcMsgSendQueueColumns"/>
+          FROM tc_msg_send_queue
+         WHERE msg_key = #{msgKey}
+    </select>
+
+    <select id="findByTopicAndIdempotencyKey" resultMap="TcMsgSendQueueMap">
+        SELECT <include refid="TcMsgSendQueueColumns"/>
+          FROM tc_msg_send_queue
+         WHERE topic = #{topic}
+           AND idempotency_key = #{idempotencyKey}
+    </select>
+
+    <select id="findAllByStatus" resultMap="TcMsgSendQueueMap">
+        SELECT <include refid="TcMsgSendQueueColumns"/>
+          FROM tc_msg_send_queue
+         WHERE status = #{status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
+         ORDER BY next_retry_at ASC, msg_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByMsgKey">
+        DELETE FROM tc_msg_send_queue WHERE msg_key = #{msgKey}
+    </delete>
+
+</mapper>
