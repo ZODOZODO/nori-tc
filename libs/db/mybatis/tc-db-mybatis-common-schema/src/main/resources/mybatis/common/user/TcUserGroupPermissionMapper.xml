@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_user_group_permission Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcUserGroupPermissionMapper">
+
+    <resultMap id="TcUserGroupPermissionMap" type="com.nori.tc.db.domain.user.TcUserGroupPermission">
+        <constructor>
+            <idArg column="ugp_key" javaType="long"/>
+            <arg column="group_id" javaType="long"/>
+            <arg column="perm_id" javaType="long"/>
+            <arg column="granted_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="granted_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        ugp_key, group_id, perm_id, granted_at, granted_by
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_user_group_permission
+            (group_id, perm_id, granted_by)
+        VALUES
+            (#{p.groupId},
+             #{p.permId},
+             #{p.grantedBy})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_user_group_permission
+           SET granted_at = CURRENT_TIMESTAMP,
+               granted_by = #{p.grantedBy}
+         WHERE group_id = #{p.groupId}
+           AND perm_id = #{p.permId}
+    </update>
+
+    <select id="findByGroupIdPermId" resultMap="TcUserGroupPermissionMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_user_group_permission
+         WHERE group_id = #{groupId}
+           AND perm_id = #{permId}
+    </select>
+
+    <select id="findAllByGroupId" resultMap="TcUserGroupPermissionMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_user_group_permission
+         WHERE group_id = #{groupId}
+         ORDER BY perm_id ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByGroupIdPermId">
+        DELETE FROM tc_user_group_permission
+         WHERE group_id = #{groupId}
+           AND perm_id = #{permId}
+    </delete>
+
+</mapper>

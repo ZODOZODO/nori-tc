@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_user_group_member Mapper -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcUserGroupMemberMapper">
+
+    <resultMap id="TcUserGroupMemberMap" type="com.nori.tc.db.domain.user.TcUserGroupMember">
+        <constructor>
+            <idArg column="ugm_key" javaType="long"/>
+            <arg column="user_pk" javaType="long"/>
+            <arg column="group_id" javaType="long"/>
+            <arg column="granted_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="granted_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcUserGroupMemberColumns">
+        ugm_key,
+        user_pk,
+        group_id,
+        granted_at,
+        granted_by
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_user_group_member
+            (user_pk,
+             group_id,
+             granted_at,
+             granted_by)
+        VALUES
+            (#{m.userPk},
+             #{m.groupId},
+             COALESCE(#{m.grantedAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler}, CURRENT_TIMESTAMP),
+             #{m.grantedBy})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_user_group_member
+           SET user_pk    = #{m.userPk},
+               group_id   = #{m.groupId},
+               granted_at = COALESCE(#{m.grantedAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler}, granted_at),
+               granted_by = #{m.grantedBy}
+         WHERE ugm_key    = #{m.ugmKey}
+    </update>
+
+    <select id="findByUgmKey" resultMap="TcUserGroupMemberMap">
+        SELECT <include refid="TcUserGroupMemberColumns"/>
+          FROM tc_user_group_member
+         WHERE ugm_key = #{ugmKey}
+    </select>
+
+    <select id="findByUserPkAndGroupId" resultMap="TcUserGroupMemberMap">
+        SELECT <include refid="TcUserGroupMemberColumns"/>
+          FROM tc_user_group_member
+         WHERE user_pk = #{userPk}
+           AND group_id = #{groupId}
+    </select>
+
+    <select id="findAllByUserPk" resultMap="TcUserGroupMemberMap">
+        SELECT <include refid="TcUserGroupMemberColumns"/>
+          FROM tc_user_group_member
+         WHERE user_pk = #{userPk}
+         ORDER BY group_id ASC, ugm_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <select id="findAllByGroupId" resultMap="TcUserGroupMemberMap">
+        SELECT <include refid="TcUserGroupMemberColumns"/>
+          FROM tc_user_group_member
+         WHERE group_id = #{groupId}
+         ORDER BY user_pk ASC, ugm_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByUgmKey">
+        DELETE FROM tc_user_group_member WHERE ugm_key = #{ugmKey}
+    </delete>
+
+    <delete id="deleteByUserPkAndGroupId">
+        DELETE FROM tc_user_group_member
+         WHERE user_pk = #{userPk}
+           AND group_id = #{groupId}
+    </delete>
+
+</mapper>

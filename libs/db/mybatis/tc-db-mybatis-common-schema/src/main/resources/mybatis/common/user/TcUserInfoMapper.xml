@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcUserInfoMapper">
+
+    <resultMap id="TcUserInfoMap" type="com.nori.tc.db.domain.user.TcUserInfo">
+        <constructor>
+            <idArg column="user_pk" javaType="java.lang.Long"/>
+            <arg column="company" javaType="java.lang.String"/>
+            <arg column="department" javaType="java.lang.String"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="user_id" javaType="java.lang.String"/>
+            <arg column="user_id_norm" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="status"
+                 javaType="com.nori.tc.db.domain.common.user.UserStatus"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcUserInfoColumns">
+        user_pk, company, department, user_name, user_id, user_id_norm, password_hash, email, status,
+        created_at, updated_at, created_by, updated_by
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_user_info
+            (company, department, user_name, user_id, user_id_norm, password_hash, email, status, created_by, updated_by)
+        VALUES
+            (#{u.company},
+             #{u.department},
+             #{u.userName},
+             #{u.userId},
+             #{u.userIdNorm},
+             #{u.passwordHash},
+             #{u.email},
+             COALESCE(#{u.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}, 'ACTIVE'),
+             COALESCE(#{u.createdBy}, 'SYSTEM'),
+             COALESCE(#{u.updatedBy}, 'SYSTEM'))
+    </insert>
+
+    <update id="updateByUserPk">
+        UPDATE tc_user_info
+           SET company       = #{u.company},
+               department    = #{u.department},
+               user_name     = #{u.userName},
+               user_id       = #{u.userId},
+               user_id_norm  = #{u.userIdNorm},
+               password_hash = #{u.passwordHash},
+               email         = #{u.email},
+               status        = COALESCE(#{u.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}, status),
+               updated_at    = CURRENT_TIMESTAMP,
+               updated_by    = COALESCE(#{u.updatedBy}, 'SYSTEM')
+         WHERE user_pk       = #{u.userPk}
+    </update>
+
+    <update id="updateByUserIdNorm">
+        UPDATE tc_user_info
+           SET company       = #{u.company},
+               department    = #{u.department},
+               user_name     = #{u.userName},
+               user_id       = #{u.userId},
+               user_id_norm  = #{u.userIdNorm},
+               password_hash = #{u.passwordHash},
+               email         = #{u.email},
+               status        = COALESCE(#{u.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler}, status),
+               updated_at    = CURRENT_TIMESTAMP,
+               updated_by    = COALESCE(#{u.updatedBy}, 'SYSTEM')
+         WHERE user_id_norm  = #{u.userIdNorm}
+    </update>
+
+    <select id="findByUserPk" resultMap="TcUserInfoMap">
+        SELECT <include refid="TcUserInfoColumns"/>
+          FROM tc_user_info
+         WHERE user_pk = #{userPk}
+    </select>
+
+    <select id="findByUserIdNorm" resultMap="TcUserInfoMap">
+        SELECT <include refid="TcUserInfoColumns"/>
+          FROM tc_user_info
+         WHERE user_id_norm = #{userIdNorm}
+    </select>
+
+    <select id="findByEmail" resultMap="TcUserInfoMap">
+        SELECT <include refid="TcUserInfoColumns"/>
+          FROM tc_user_info
+         WHERE email = #{email}
+    </select>
+
+    <select id="findAllByCompanyDepartment" resultMap="TcUserInfoMap">
+        SELECT <include refid="TcUserInfoColumns"/>
+          FROM tc_user_info
+         WHERE company = #{company}
+           AND department = #{department}
+        ORDER BY user_id_norm ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByUserPk">
+        DELETE FROM tc_user_info WHERE user_pk = #{userPk}
+    </delete>
+
+</mapper>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_ui_auth_session Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.ui.TcUiAuthSessionMapper">
+
+    <resultMap id="TcUiAuthSessionMap" type="com.nori.tc.db.domain.ui.TcUiAuthSession">
+        <constructor>
+            <idArg column="token" javaType="java.lang.String"/>
+            <arg column="user_pk" javaType="long"/>
+            <arg column="issued_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="expires_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="last_seen_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="revoked" javaType="boolean"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        token, user_pk, issued_at, expires_at, last_seen_at, revoked
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_ui_auth_session
+            (token, user_pk, issued_at, expires_at, last_seen_at, revoked)
+        VALUES
+            (#{s.token},
+             #{s.userPk},
+             #{s.issuedAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{s.expiresAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{s.lastSeenAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{s.revoked})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_ui_auth_session
+           SET user_pk      = #{s.userPk},
+               issued_at    = #{s.issuedAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               expires_at   = #{s.expiresAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               last_seen_at = #{s.lastSeenAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               revoked      = #{s.revoked}
+         WHERE token = #{s.token}
+    </update>
+
+    <select id="findByToken" resultMap="TcUiAuthSessionMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_ui_auth_session
+         WHERE token = #{token}
+    </select>
+
+    <select id="findAllByUserPk" resultMap="TcUiAuthSessionMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_ui_auth_session
+         WHERE user_pk = #{userPk}
+         ORDER BY issued_at DESC, token ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByToken">
+        DELETE FROM tc_ui_auth_session
+         WHERE token = #{token}
+    </delete>
+
+</mapper>

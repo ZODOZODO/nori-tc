@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_user_group Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.user.TcUserGroupMapper">
+
+    <resultMap id="TcUserGroupMap" type="com.nori.tc.db.domain.user.TcUserGroup">
+        <constructor>
+            <idArg column="group_id" javaType="long"/>
+            <arg column="group_code" javaType="java.lang.String"/>
+            <arg column="group_name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="is_active" javaType="boolean"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcUserGroupColumns">
+        group_id, group_code, group_name, description, is_active, created_at, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_user_group
+            (group_code, group_name, description, is_active)
+        VALUES
+            (#{g.groupCode},
+             #{g.groupName},
+             #{g.description},
+             #{g.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_user_group
+           SET group_code = #{g.groupCode},
+               group_name = #{g.groupName},
+               description = #{g.description},
+               is_active = #{g.isActive},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE group_id = #{g.groupId}
+    </update>
+
+    <select id="findByGroupId" resultMap="TcUserGroupMap">
+        SELECT <include refid="TcUserGroupColumns"/>
+          FROM tc_user_group
+         WHERE group_id = #{groupId}
+    </select>
+
+    <select id="findByGroupCode" resultMap="TcUserGroupMap">
+        SELECT <include refid="TcUserGroupColumns"/>
+          FROM tc_user_group
+         WHERE group_code = #{groupCode}
+    </select>
+
+    <select id="findAll" resultMap="TcUserGroupMap">
+        SELECT <include refid="TcUserGroupColumns"/>
+          FROM tc_user_group
+         ORDER BY updated_at DESC, group_code ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByGroupId">
+        DELETE FROM tc_user_group
+         WHERE group_id = #{groupId}
+    </delete>
+
+</mapper>

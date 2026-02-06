@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_ui_permission Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.ui.TcUiPermissionMapper">
+
+    <resultMap id="TcUiPermissionMap" type="com.nori.tc.db.domain.ui.TcUiPermission">
+        <constructor>
+            <idArg column="perm_id" javaType="long"/>
+            <arg column="perm_code" javaType="java.lang.String"/>
+            <arg column="perm_name" javaType="java.lang.String"/>
+            <arg column="resource_type"
+                 javaType="com.nori.tc.db.domain.common.ui.TcUiPermissionResourceType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="match_type"
+                 javaType="com.nori.tc.db.domain.common.ui.TcUiPermissionMatchType"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="resource" javaType="java.lang.String"/>
+            <arg column="http_method" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="is_active" javaType="boolean"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcUiPermissionColumns">
+        perm_id,
+        perm_code,
+        perm_name,
+        resource_type,
+        match_type,
+        resource,
+        http_method,
+        description,
+        is_active,
+        created_at,
+        updated_at,
+        created_by,
+        updated_by
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_ui_permission
+            (perm_code,
+             perm_name,
+             resource_type,
+             match_type,
+             resource,
+             http_method,
+             description,
+             is_active,
+             created_by,
+             updated_by)
+        VALUES
+            (#{p.permCode},
+             #{p.permName},
+             #{p.resourceType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{p.matchType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{p.resource},
+             #{p.httpMethod},
+             #{p.description},
+             #{p.isActive},
+             #{p.createdBy},
+             #{p.updatedBy})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_ui_permission
+           SET perm_code     = #{p.permCode},
+               perm_name     = #{p.permName},
+               resource_type = #{p.resourceType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               match_type    = #{p.matchType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               resource      = #{p.resource},
+               http_method   = #{p.httpMethod},
+               description   = #{p.description},
+               is_active     = #{p.isActive},
+               updated_at    = CURRENT_TIMESTAMP,
+               updated_by    = COALESCE(#{p.updatedBy}, 'SYSTEM')
+         WHERE perm_id       = #{p.permId}
+    </update>
+
+    <select id="findByPermId" resultMap="TcUiPermissionMap">
+        SELECT <include refid="TcUiPermissionColumns"/>
+          FROM tc_ui_permission
+         WHERE perm_id = #{permId}
+    </select>
+
+    <select id="findByPermCode" resultMap="TcUiPermissionMap">
+        SELECT <include refid="TcUiPermissionColumns"/>
+          FROM tc_ui_permission
+         WHERE perm_code = #{permCode}
+    </select>
+
+    <select id="findAll" resultMap="TcUiPermissionMap">
+        SELECT <include refid="TcUiPermissionColumns"/>
+          FROM tc_ui_permission
+        ORDER BY perm_id DESC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByPermId">
+        DELETE FROM tc_ui_permission WHERE perm_id = #{permId}
+    </delete>
+
+</mapper>
