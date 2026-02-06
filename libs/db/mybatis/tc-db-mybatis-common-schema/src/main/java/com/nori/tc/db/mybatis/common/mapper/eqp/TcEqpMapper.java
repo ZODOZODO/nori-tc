@@ -5,7 +5,6 @@ import java.util.Optional;
 
 import org.apache.ibatis.annotations.Param;
 
-import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 
 /**
@@ -28,14 +27,10 @@ public interface TcEqpMapper {
      * - 기존: 메모리로 다 가져와서 자름 (OOM 위험)
      * - 변경: DB에서 잘라오도록 offset/limit 추가
      *
-     * @param commInterface 통신 인터페이스 (nullable)
-     * @param enabled 사용 여부 (nullable)
      * @param offset 건너뛸 행 수
      * @param limit 가져올 행 수
      */
     List<TcEqp> findAll(
-            @Param("commInterface") ProtocolType commInterface,
-            @Param("enabled") Boolean enabled,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

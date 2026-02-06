@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.store.eqp;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,7 +8,6 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -18,7 +16,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.eqp.TcEqpSearchCriteria;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.core.exception.DbAccessException;
@@ -98,8 +95,7 @@ public class TcEqpJpaStore implements TcEqpStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcEqp> findAll(TcEqpSearchCriteria criteria, PageRequest page) {
-        final TcEqpSearchCriteria c = (criteria == null) ? TcEqpSearchCriteria.empty() : criteria;
+    public List<TcEqp> findAll(PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
@@ -107,20 +103,7 @@ public class TcEqpJpaStore implements TcEqpStore {
             CriteriaQuery<TcEqpEntity> cq = cb.createQuery(TcEqpEntity.class);
             Root<TcEqpEntity> root = cq.from(TcEqpEntity.class);
 
-            List<Predicate> predicates = new ArrayList<>();
-
-            // --- 동적 쿼리 조건 구성 ---
-            if (c.commInterface() != null) {
-                predicates.add(cb.equal(root.get("commInterface"), c.commInterface()));
-            }
-            if (c.enabled() != null) {
-                predicates.add(cb.equal(root.get("enabled"), c.enabled()));
-            }
-
             cq.select(root);
-            if (!predicates.isEmpty()) {
-                cq.where(predicates.toArray(Predicate[]::new));
-            }
 
             // --- 정렬 및 페이징 ---
             cq.orderBy(cb.asc(root.get("eqpId"))); // eqpId 오름차순 고정

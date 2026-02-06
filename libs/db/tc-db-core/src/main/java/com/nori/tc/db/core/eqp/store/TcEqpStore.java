@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.eqp.TcEqpSearchCriteria;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.domain.eqp.TcEqp;
 
@@ -20,7 +19,7 @@ public interface TcEqpStore {
 
     Optional<TcEqp> findByEqpId(String eqpId);
 
-    List<TcEqp> findAll(TcEqpSearchCriteria criteria, PageRequest page);
+    List<TcEqp> findAll(PageRequest page);
 
     void deleteByEqpId(String eqpId);
 }

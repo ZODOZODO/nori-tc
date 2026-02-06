@@ -66,14 +66,6 @@
     <select id="findAll" resultMap="TcEqpMap">
         SELECT <include refid="TcEqpColumns"/>
           FROM tc_eqp
-        <where>
-            <if test="commInterface != null">
-                AND comm_interface = #{commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
-            </if>
-            <if test="enabled != null">
-                AND enabled = #{enabled}
-            </if>
-        </where>
         ORDER BY eqp_id ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.nori.tc.db.core.common.PageRequest;
-import com.nori.tc.db.core.eqp.TcEqpSearchCriteria;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.core.exception.DbAccessException;
@@ -99,16 +98,12 @@ public class TcEqpMybatisStore implements TcEqpStore {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TcEqp> findAll(TcEqpSearchCriteria criteria, PageRequest page) {
-        // Null safe
-        final TcEqpSearchCriteria c = (criteria == null) ? TcEqpSearchCriteria.empty() : criteria;
+    public List<TcEqp> findAll(PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
             // FIX: DB 페이징 적용 (메모리 로딩 이슈 해결)
             return mapper.findAll(
-                    c.commInterface(),
-                    c.enabled(),
                     p.offset(),
                     p.limit()
             );
