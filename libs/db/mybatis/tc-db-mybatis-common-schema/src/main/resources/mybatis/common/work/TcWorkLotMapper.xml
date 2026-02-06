@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work_lot Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcWorkLotMapper">
+
+    <resultMap id="TcWorkLotMap" type="com.nori.tc.db.domain.work.TcWorkLot">
+        <constructor>
+            <idArg column="work_lot_key" javaType="long"/>
+            <arg column="work_key" javaType="long"/>
+            <arg column="carrier_id" javaType="java.lang.String"/>
+            <arg column="lot_id" javaType="java.lang.String"/>
+            <arg column="parent_lot_id" javaType="java.lang.String"/>
+            <arg column="chamber_id" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcWorkLotColumns">
+        work_lot_key, work_key, carrier_id, lot_id, parent_lot_id, chamber_id, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work_lot
+            (work_key, carrier_id, lot_id, parent_lot_id, chamber_id)
+        VALUES
+            (#{w.workKey},
+             #{w.carrierId},
+             #{w.lotId},
+             #{w.parentLotId},
+             #{w.chamberId})
+    </insert>
+
+    <update id="updateByUniqueKey">
+        UPDATE tc_work_lot
+           SET carrier_id    = #{w.carrierId},
+               parent_lot_id = #{w.parentLotId},
+               chamber_id    = #{w.chamberId},
+               updated_at    = CURRENT_TIMESTAMP
+         WHERE work_key = #{w.workKey}
+           AND lot_id = #{w.lotId}
+    </update>
+
+    <select id="findByWorkKeyAndLotId" resultMap="TcWorkLotMap">
+        SELECT <include refid="TcWorkLotColumns"/>
+          FROM tc_work_lot
+         WHERE work_key = #{workKey}
+           AND lot_id = #{lotId}
+    </select>
+
+    <select id="findAllByWorkKey" resultMap="TcWorkLotMap">
+        SELECT <include refid="TcWorkLotColumns"/>
+          FROM tc_work_lot
+         WHERE work_key = #{workKey}
+         ORDER BY work_lot_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByWorkLotKey">
+        DELETE FROM tc_work_lot WHERE work_lot_key = #{workLotKey}
+    </delete>
+
+</mapper>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.work.TcWorkMapper">
+
+    <resultMap id="TcWorkMap" type="com.nori.tc.db.domain.work.TcWork">
+        <constructor>
+            <idArg column="work_key" javaType="long"/>
+            <arg column="eqp_key" javaType="long"/>
+            <arg column="work_id" javaType="java.lang.String"/>
+            <arg column="operator_id" javaType="java.lang.String"/>
+            <arg column="step_seq" javaType="java.lang.Integer"/>
+            <arg column="work_state"
+                 javaType="com.nori.tc.db.domain.common.work.TcWorkState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="start_time"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="end_time"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="mes_message" javaType="java.lang.String"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcWorkColumns">
+        work_key,
+        eqp_key,
+        work_id,
+        operator_id,
+        step_seq,
+        work_state,
+        start_time,
+        end_time,
+        mes_message,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work
+            (eqp_key,
+             work_id,
+             operator_id,
+             step_seq,
+             work_state,
+             start_time,
+             end_time,
+             mes_message)
+        VALUES
+            (#{w.eqpKey},
+             #{w.workId},
+             #{w.operatorId},
+             #{w.stepSeq},
+             #{w.workState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{w.startTime, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{w.endTime, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+             #{w.mesMessage})
+    </insert>
+
+    <update id="updateByWorkKey">
+        UPDATE tc_work
+           SET eqp_key     = #{w.eqpKey},
+               work_id     = #{w.workId},
+               operator_id = #{w.operatorId},
+               step_seq    = #{w.stepSeq},
+               work_state  = #{w.workState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               start_time  = #{w.startTime, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               end_time    = #{w.endTime, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler},
+               mes_message = #{w.mesMessage},
+               updated_at  = CURRENT_TIMESTAMP
+         WHERE work_key    = #{w.workKey}
+    </update>
+
+    <select id="findByWorkKey" resultMap="TcWorkMap">
+        SELECT <include refid="TcWorkColumns"/>
+          FROM tc_work
+         WHERE work_key = #{workKey}
+    </select>
+
+    <select id="findByEqpKeyAndWorkId" resultMap="TcWorkMap">
+        SELECT <include refid="TcWorkColumns"/>
+          FROM tc_work
+         WHERE eqp_key = #{eqpKey}
+           AND work_id = #{workId}
+    </select>
+
+    <select id="findAllByEqpKey" resultMap="TcWorkMap">
+        SELECT <include refid="TcWorkColumns"/>
+          FROM tc_work
+         WHERE eqp_key = #{eqpKey}
+         ORDER BY work_key DESC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByWorkKey">
+        DELETE FROM tc_work WHERE work_key = #{workKey}
+    </delete>
+
+</mapper>

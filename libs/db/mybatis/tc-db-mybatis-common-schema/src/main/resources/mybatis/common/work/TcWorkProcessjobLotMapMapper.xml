@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work_processjob_lot_map Mapper XML -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.work.TcWorkProcessjobLotMapMapper">
+
+    <resultMap id="TcWorkProcessjobLotMapMap" type="com.nori.tc.db.domain.work.TcWorkProcessjobLotMap">
+        <constructor>
+            <idArg column="pj_lot_map_key" javaType="long"/>
+            <arg column="process_job_key" javaType="long"/>
+            <arg column="work_lot_key" javaType="long"/>
+            <arg column="map_role" javaType="java.lang.String"/>
+            <arg column="map_order"
+                 javaType="com.nori.tc.db.domain.common.work.TcWorkProcessjobLotMapOrder"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcWorkProcessjobLotMapColumns">
+        pj_lot_map_key,
+        process_job_key,
+        work_lot_key,
+        map_role,
+        map_order,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work_processjob_lot_map
+            (process_job_key,
+             work_lot_key,
+             map_role,
+             map_order)
+        VALUES
+            (#{m.processJobKey},
+             #{m.workLotKey},
+             #{m.mapRole},
+             #{m.mapOrder, typeHandler=org.apache.ibatis.type.EnumTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_work_processjob_lot_map
+           SET process_job_key = #{m.processJobKey},
+               work_lot_key    = #{m.workLotKey},
+               map_role        = #{m.mapRole},
+               map_order       = #{m.mapOrder, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               updated_at      = CURRENT_TIMESTAMP
+         WHERE pj_lot_map_key = #{m.pjLotMapKey}
+    </update>
+
+    <select id="findByPjLotMapKey" resultMap="TcWorkProcessjobLotMapMap">
+        SELECT <include refid="TcWorkProcessjobLotMapColumns"/>
+          FROM tc_work_processjob_lot_map
+         WHERE pj_lot_map_key = #{pjLotMapKey}
+    </select>
+
+    <select id="findByProcessJobKeyAndWorkLotKey" resultMap="TcWorkProcessjobLotMapMap">
+        SELECT <include refid="TcWorkProcessjobLotMapColumns"/>
+          FROM tc_work_processjob_lot_map
+         WHERE process_job_key = #{processJobKey}
+           AND work_lot_key = #{workLotKey}
+    </select>
+
+    <select id="findAllByProcessJobKey" resultMap="TcWorkProcessjobLotMapMap">
+        SELECT <include refid="TcWorkProcessjobLotMapColumns"/>
+          FROM tc_work_processjob_lot_map
+         WHERE process_job_key = #{processJobKey}
+         ORDER BY pj_lot_map_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByPjLotMapKey">
+        DELETE FROM tc_work_processjob_lot_map WHERE pj_lot_map_key = #{pjLotMapKey}
+    </delete>
+
+</mapper>

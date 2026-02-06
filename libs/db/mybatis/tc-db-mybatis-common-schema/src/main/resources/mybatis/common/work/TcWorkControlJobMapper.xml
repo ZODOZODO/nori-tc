@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work_controljob Mapper XML -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.work.TcWorkControlJobMapper">
+
+    <resultMap id="TcWorkControlJobMap" type="com.nori.tc.db.domain.work.TcWorkControlJob">
+        <constructor>
+            <idArg column="control_job_key" javaType="long"/>
+            <arg column="work_key" javaType="long"/>
+            <arg column="controljob_id" javaType="java.lang.String"/>
+            <arg column="controljob_state"
+                 javaType="com.nori.tc.db.domain.common.work.ControlJobState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcWorkControlJobColumns">
+        control_job_key,
+        work_key,
+        controljob_id,
+        controljob_state,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work_controljob
+            (work_key,
+             controljob_id,
+             controljob_state)
+        VALUES
+            (#{c.workKey},
+             #{c.controljobId},
+             #{c.controljobState, typeHandler=org.apache.ibatis.type.EnumTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_work_controljob
+           SET work_key         = #{c.workKey},
+               controljob_id    = #{c.controljobId},
+               controljob_state = #{c.controljobState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               updated_at       = CURRENT_TIMESTAMP
+         WHERE control_job_key  = #{c.controlJobKey}
+    </update>
+
+    <select id="findByControlJobKey" resultMap="TcWorkControlJobMap">
+        SELECT <include refid="TcWorkControlJobColumns"/>
+          FROM tc_work_controljob
+         WHERE control_job_key = #{controlJobKey}
+    </select>
+
+    <select id="findByWorkKeyAndControljobId" resultMap="TcWorkControlJobMap">
+        SELECT <include refid="TcWorkControlJobColumns"/>
+          FROM tc_work_controljob
+         WHERE work_key = #{workKey}
+           AND controljob_id = #{controljobId}
+    </select>
+
+    <select id="findAllByWorkKey" resultMap="TcWorkControlJobMap">
+        SELECT <include refid="TcWorkControlJobColumns"/>
+          FROM tc_work_controljob
+         WHERE work_key = #{workKey}
+         ORDER BY control_job_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByControlJobKey">
+        DELETE FROM tc_work_controljob WHERE control_job_key = #{controlJobKey}
+    </delete>
+
+</mapper>

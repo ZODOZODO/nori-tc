@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work_carrier_slot Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcWorkCarrierSlotMapper">
+
+    <resultMap id="TcWorkCarrierSlotMap" type="com.nori.tc.db.domain.work.TcWorkCarrierSlot">
+        <constructor>
+            <idArg column="carrier_slot_key" javaType="long"/>
+            <arg column="work_carrier_key" javaType="long"/>
+            <arg column="slot_no" javaType="int"/>
+            <arg column="slot_state" javaType="java.lang.String"/>
+            <arg column="lot_id" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        carrier_slot_key, work_carrier_key, slot_no, slot_state, lot_id, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work_carrier_slot
+            (work_carrier_key, slot_no, slot_state, lot_id)
+        VALUES
+            (#{s.workCarrierKey},
+             #{s.slotNo},
+             #{s.slotState},
+             #{s.lotId})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_work_carrier_slot
+           SET slot_state = #{s.slotState},
+               lot_id     = #{s.lotId},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE work_carrier_key = #{s.workCarrierKey}
+           AND slot_no = #{s.slotNo}
+    </update>
+
+    <select id="findByWorkCarrierKeySlotNo" resultMap="TcWorkCarrierSlotMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_work_carrier_slot
+         WHERE work_carrier_key = #{workCarrierKey}
+           AND slot_no = #{slotNo}
+    </select>
+
+    <select id="findAllByWorkCarrierKey" resultMap="TcWorkCarrierSlotMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_work_carrier_slot
+         WHERE work_carrier_key = #{workCarrierKey}
+         ORDER BY slot_no ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByWorkCarrierKeySlotNo">
+        DELETE FROM tc_work_carrier_slot
+         WHERE work_carrier_key = #{workCarrierKey}
+           AND slot_no = #{slotNo}
+    </delete>
+
+</mapper>

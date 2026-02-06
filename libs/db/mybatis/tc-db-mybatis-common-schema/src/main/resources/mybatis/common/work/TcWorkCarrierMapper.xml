@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work_carrier Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcWorkCarrierMapper">
+
+    <resultMap id="TcWorkCarrierMap" type="com.nori.tc.db.domain.work.TcWorkCarrier">
+        <constructor>
+            <idArg column="work_carrier_key" javaType="long"/>
+            <arg column="work_key" javaType="long"/>
+            <arg column="carrier_id" javaType="java.lang.String"/>
+            <arg column="port_id" javaType="java.lang.String"/>
+            <arg column="slot_map" javaType="java.lang.String"/>
+            <arg column="total_qty" javaType="java.lang.Integer"/>
+            <arg column="good_qty" javaType="java.lang.Integer"/>
+            <arg column="scrap_qty" javaType="java.lang.Integer"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        work_carrier_key, work_key, carrier_id, port_id, slot_map,
+        total_qty, good_qty, scrap_qty, updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work_carrier
+            (work_key, carrier_id, port_id, slot_map, total_qty, good_qty, scrap_qty)
+        VALUES
+            (#{c.workKey},
+             #{c.carrierId},
+             #{c.portId},
+             #{c.slotMap},
+             #{c.totalQty},
+             #{c.goodQty},
+             #{c.scrapQty})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_work_carrier
+           SET port_id   = #{c.portId},
+               slot_map  = #{c.slotMap},
+               total_qty = #{c.totalQty},
+               good_qty  = #{c.goodQty},
+               scrap_qty = #{c.scrapQty},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE work_key = #{c.workKey}
+           AND carrier_id = #{c.carrierId}
+    </update>
+
+    <select id="findByWorkKeyCarrierId" resultMap="TcWorkCarrierMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_work_carrier
+         WHERE work_key = #{workKey}
+           AND carrier_id = #{carrierId}
+    </select>
+
+    <select id="findAllByWorkKey" resultMap="TcWorkCarrierMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_work_carrier
+         WHERE work_key = #{workKey}
+         ORDER BY carrier_id ASC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <delete id="deleteByWorkKeyCarrierId">
+        DELETE FROM tc_work_carrier
+         WHERE work_key = #{workKey}
+           AND carrier_id = #{carrierId}
+    </delete>
+
+</mapper>

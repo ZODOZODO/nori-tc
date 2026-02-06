@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_work_processjob Mapper XML (FIX) -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.work.TcWorkProcessJobMapper">
+
+    <resultMap id="TcWorkProcessJobMap" type="com.nori.tc.db.domain.work.TcWorkProcessJob">
+        <constructor>
+            <idArg column="process_job_key" javaType="long"/>
+            <arg column="control_job_key" javaType="long"/>
+            <arg column="processjob_id" javaType="java.lang.String"/>
+            <arg column="processjob_state"
+                 javaType="com.nori.tc.db.domain.common.work.TcWorkProcessJobState"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="recipe_id" javaType="java.lang.String"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcWorkProcessJobColumns">
+        process_job_key,
+        control_job_key,
+        processjob_id,
+        processjob_state,
+        recipe_id,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_work_processjob
+            (control_job_key,
+             processjob_id,
+             processjob_state,
+             recipe_id)
+        VALUES
+            (#{p.controlJobKey},
+             #{p.processjobId},
+             #{p.processjobState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{p.recipeId})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_work_processjob
+           SET control_job_key  = #{p.controlJobKey},
+               processjob_id    = #{p.processjobId},
+               processjob_state = #{p.processjobState, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               recipe_id        = #{p.recipeId},
+               updated_at       = CURRENT_TIMESTAMP
+         WHERE process_job_key = #{p.processJobKey}
+    </update>
+
+    <select id="findByProcessJobKey" resultMap="TcWorkProcessJobMap">
+        SELECT <include refid="TcWorkProcessJobColumns"/>
+          FROM tc_work_processjob
+         WHERE process_job_key = #{processJobKey}
+    </select>
+
+    <select id="findByControlJobKeyAndProcessjobId" resultMap="TcWorkProcessJobMap">
+        SELECT <include refid="TcWorkProcessJobColumns"/>
+          FROM tc_work_processjob
+         WHERE control_job_key = #{controlJobKey}
+           AND processjob_id = #{processjobId}
+    </select>
+
+    <select id="findAllByControlJobKey" resultMap="TcWorkProcessJobMap">
+        SELECT <include refid="TcWorkProcessJobColumns"/>
+          FROM tc_work_processjob
+         WHERE control_job_key = #{controlJobKey}
+         ORDER BY process_job_key DESC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteByProcessJobKey">
+        DELETE FROM tc_work_processjob WHERE process_job_key = #{processJobKey}
+    </delete>
+
+</mapper>
