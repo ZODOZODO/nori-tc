@@ -33,14 +33,19 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
     public TcModelDcopItem upsert(UpsertTcModelDcopItem command) {
         validateUpsert(command);
 
+        // [FIX] Upsert 커맨드와 도메인 모델 필드 순서를 정확히 매핑한다.
+        // - 기존 구현은 존재하지 않는 dcopItemDesc/createdAt/updatedAt를 참조해 컴파일 오류가 발생했다.
         final TcModelDcopItem row = new TcModelDcopItem(
                 null,
                 command.modelKey(),
                 command.dcopItemName(),
-                command.dcopItemDesc(),
+                command.workflowName(),
+                command.eventId(),
+                command.variableId(),
+                command.collectionRule(),
+                command.calculationRule(),
                 command.orderRule(),
-                command.createdAt(),
-                command.updatedAt()
+                null
         );
 
         try {

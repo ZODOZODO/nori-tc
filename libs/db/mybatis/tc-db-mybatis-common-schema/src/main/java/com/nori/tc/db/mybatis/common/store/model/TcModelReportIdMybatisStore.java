@@ -31,16 +31,19 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
     @Override
     @Transactional
     public TcModelReportId upsert(UpsertTcModelReportId command) {
+        validateUpsert(command);
+
         final long modelKey = command.modelKey();
         final String reportId = command.reportId();
 
+        // [FIX] 도메인 모델 시그니처에 맞춰 variableId/updatedAt만 채운다.
+        // - 기존 구현은 reportName/createdAt/updatedAt 필드를 참조해 컴파일 오류가 발생했다.
         final TcModelReportId row = new TcModelReportId(
                 0L,
                 modelKey,
                 reportId,
-                command.reportName(),
+                command.variableId(),
                 command.enabled(),
-                null,
                 null
         );
 
@@ -115,6 +118,14 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
             throw new DbAccessException("tc_model_reportid deleteByReportKey failed. reportKey=" + reportKey, e);
         } catch (RuntimeException e) {
             throw new DbAccessException("tc_model_reportid deleteByReportKey failed (unexpected). reportKey=" + reportKey, e);
+        }
+    }
+
+    private void validateUpsert(UpsertTcModelReportId command) {
+        if (command == null) throw new IllegalArgumentException("command must not be null");
+        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.reportId() == null || command.reportId().isBlank()) {
+            throw new IllegalArgumentException("command.reportId must not be null/blank");
         }
     }
 }

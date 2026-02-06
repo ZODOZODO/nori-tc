@@ -37,7 +37,6 @@ public class TcModelMybatisStore implements TcModelStore {
     @Override
     @Transactional
     public TcModel upsert(UpsertTcModel command) {
-        final Long modelKey = command.modelKey();
         final String modelName = command.modelName();
         final String modelVersion = command.modelVersion();
 
@@ -117,8 +116,21 @@ public class TcModelMybatisStore implements TcModelStore {
     @Override
     @Transactional(readOnly = true)
     public List<TcModel> findAll(TcModelSearchCriteria criteria, PageRequest page) {
+        final TcModelSearchCriteria resolvedCriteria = (criteria == null)
+                ? TcModelSearchCriteria.empty()
+                : criteria;
+        final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
+
         try {
-            return mapper.findAll(criteria, page.offset(), page.limit());
+            // [FIX] Mapper 시그니처에 맞춰 개별 파라미터로 전달한다.
+            // - 기존 구현은 TcModelSearchCriteria를 직접 넘겨 컴파일 오류가 발생했다.
+            return mapper.findAll(
+                    resolvedCriteria.modelName(),
+                    resolvedCriteria.commInterface(),
+                    resolvedCriteria.status(),
+                    p.offset(),
+                    p.limit()
+            );
         } catch (DataAccessException e) {
             throw new DbAccessException("tc_model findAll failed.", e);
         } catch (RuntimeException e) {
