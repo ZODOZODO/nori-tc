@@ -162,7 +162,11 @@ public final class ReassemblyBuffer {
         // 우선 앞쪽 공간(head) 회수로 해결 가능한지 시도
         compactIfNeeded();
 
-        final int required = tail + additionalBytes;
+        int required = tail + additionalBytes;
+        if (required > buffer.length && head > 0) {
+            compact();
+            required = tail + additionalBytes;
+        }
         if (required <= buffer.length) {
             return;
         }
@@ -201,10 +205,18 @@ public final class ReassemblyBuffer {
             tail = 0;
             return;
         }
+        compact();
+    }
 
-        final byte[] newBuf = new byte[buffer.length];
-        System.arraycopy(buffer, head, newBuf, 0, currentSize);
-        buffer = newBuf;
+    private void compact() {
+        final int currentSize = readableBytes();
+        if (currentSize == 0) {
+            head = 0;
+            tail = 0;
+            return;
+        }
+
+        System.arraycopy(buffer, head, buffer, 0, currentSize);
         head = 0;
         tail = currentSize;
     }

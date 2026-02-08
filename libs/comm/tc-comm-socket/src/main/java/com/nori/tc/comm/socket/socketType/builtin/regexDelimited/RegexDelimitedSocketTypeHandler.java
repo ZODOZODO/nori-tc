@@ -82,6 +82,10 @@ public final class RegexDelimitedSocketTypeHandler implements SocketTypeHandler 
 
     @Override
     public SocketTypeDecodeResult decode(final byte[] frameBytes) {
+        if (frameBytes == null) {
+            throw new IllegalArgumentException("frameBytes is null");
+        }
+
         final String text = new String(frameBytes, charset).trim();
         if (text.isEmpty()) {
             throw new IllegalArgumentException("Empty regex frame");

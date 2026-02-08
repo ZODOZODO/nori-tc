@@ -20,10 +20,17 @@ public final class SocketTypeRegistry {
 
     public void register(final SocketTypeHandler handler) {
         Objects.requireNonNull(handler, "handler is null");
-        handlersByType.put(handler.socketType(), handler);
+        final String socketType = Objects.requireNonNull(handler.socketType(), "socketType is null");
+        if (socketType.isBlank()) {
+            throw new IllegalArgumentException("socketType is blank");
+        }
+        handlersByType.put(socketType, handler);
     }
 
     public SocketTypeHandler getRequired(final String socketType) {
+        if (socketType == null || socketType.isBlank()) {
+            throw new IllegalArgumentException("socketType is required");
+        }
         final SocketTypeHandler handler = handlersByType.get(socketType);
         if (handler == null) {
             throw new IllegalArgumentException("No SocketTypeHandler registered for socketType=" + socketType);
