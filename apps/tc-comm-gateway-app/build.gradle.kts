@@ -89,7 +89,23 @@ dependencies {
     // implementation(project(":libs:db:starter:tc-db-oracle-mybatis-starter"))
     
     // Redis (캐시/세션 등) - DB starter와 동일하게 한 줄만 추가해서 사용
-    // implementation(project(":libs:db:starter:tc-db-redis-starter"))
+    implementation(project(":libs:db:starter:tc-db-redis-starter"))
+
+    /*
+     * =========================
+     * Messaging (Kafka)
+     * =========================
+     */
+    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
+
+    /*
+     * =========================
+     * Communication Core (HSMS/SOCKET)
+     * =========================
+     */
+    implementation(project(":libs:comm:tc-comm-core"))
+    implementation(project(":libs:comm:tc-comm-hsms"))
+    implementation(project(":libs:comm:tc-comm-socket"))
 
     /*
      * =========================
