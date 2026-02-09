@@ -2,8 +2,16 @@ package com.nori.tc.db.starter.redis;
 
 import java.util.Optional;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.JdkSerializationRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
  * Redis Starter AutoConfiguration
@@ -36,12 +44,15 @@ public class TcDbRedisAutoConfiguration {
     @Bean(name = "tcRedisTemplate")
     @ConditionalOnBean(RedisConnectionFactory.class)
     @ConditionalOnMissingBean(name = "tcRedisTemplate")
-    public RedisTemplate<String, Object> tcRedisTemplate(RedisConnectionFactory connectionFactory, ObjectProvider<RedisSerializer<Object>> valueSerializerProvider) {
+    public RedisTemplate<String, Object> tcRedisTemplate(
+            RedisConnectionFactory connectionFactory,
+            ObjectProvider<RedisSerializer<Object>> valueSerializerProvider) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
         RedisSerializer<String> keySerializer = new StringRedisSerializer();
-        RedisSerializer<Object> valueSerializer = Optional.ofNullable(valueSerializerProvider.getIfAvailable()).orElseGet(JdkSerializationRedisSerializer::new);
+        RedisSerializer<Object> valueSerializer = Optional.ofNullable(valueSerializerProvider.getIfAvailable())
+                .orElseGet(JdkSerializationRedisSerializer::new);
 
         template.setKeySerializer(keySerializer);
         template.setHashKeySerializer(keySerializer);
