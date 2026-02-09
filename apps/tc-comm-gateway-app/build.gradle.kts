@@ -87,6 +87,9 @@ dependencies {
 
     // Oracle + MyBatis
     // implementation(project(":libs:db:starter:tc-db-oracle-mybatis-starter"))
+    
+    // Redis (캐시/세션 등) - DB starter와 동일하게 한 줄만 추가해서 사용
+    // implementation(project(":libs:db:starter:tc-db-redis-starter"))
 
     /*
      * =========================

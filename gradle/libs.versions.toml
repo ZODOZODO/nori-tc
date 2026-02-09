@@ -83,6 +83,9 @@ spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" 
 # ✅ JPA
 spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
 
+# ✅ Redis
+spring-boot-starter-data-redis = { module = "org.springframework.boot:spring-boot-starter-data-redis" }
+
 # ✅ Test
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 

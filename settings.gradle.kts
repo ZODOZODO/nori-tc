@@ -86,6 +86,8 @@ project(":libs:db:starter:tc-db-oracle-jpa-starter").projectDir = file("libs/db/
 include(":libs:db:starter:tc-db-oracle-mybatis-starter")
 project(":libs:db:starter:tc-db-oracle-mybatis-starter").projectDir = file("libs/db/starter/tc-db-oracle-mybatis-starter")
 
+include(":libs:db:starter:tc-db-redis-starter")
+project(":libs:db:starter:tc-db-redis-starter").projectDir = file("libs/db/starter/tc-db-redis-starter")
 
 /* ===================================================
  * 3. Messaging Modules (Middleware Layer)
