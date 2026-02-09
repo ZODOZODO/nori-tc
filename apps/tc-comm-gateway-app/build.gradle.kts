@@ -63,8 +63,6 @@ dependencies {
      * - 앱은 DB 접근 기술(JPA/MyBatis)과 벤더(Postgres/MySQL/...)를 몰라도 된다.
      * - 교체는 "starter 한 줄 변경"으로만 수행한다.
      */
-     
-    implementation(project(":libs:db:tc-db-core"))
 
     // DEFAULT(FIX): PostgreSQL + JPA
     implementation(project(":libs:db:starter:tc-db-postgres-jpa-starter"))
