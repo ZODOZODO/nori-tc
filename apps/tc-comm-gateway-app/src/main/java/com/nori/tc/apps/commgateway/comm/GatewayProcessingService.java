@@ -1,5 +1,6 @@
 package com.nori.tc.apps.commgateway.comm;
 
+import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
 import com.nori.tc.apps.commgateway.db.GatewayEquipmentService;
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.core.inbound.InboundChunk;
@@ -10,7 +11,6 @@ import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.domain.dlq.DlqMessage;
 import com.nori.tc.comm.domain.dlq.DlqReasonCode;
-import com.nori.tc.db.jpa.site.gateway.GatewayEquipmentEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -84,11 +84,11 @@ public class GatewayProcessingService {
     /**
      * eqp 컨텍스트를 미리 등록하고 싶을 때 사용합니다.
      */
-    public void register(final GatewayEquipmentEntity entity) {
-        if (entity == null || !entity.isEnabled()) {
+    public void register(final GatewayEquipmentInfo info) {
+        if (info == null || !info.enabled()) {
             return;
         }
-        contexts.put(entity.getEquipmentId(), contextFactory.create(entity));
+        contexts.put(info.equipmentId(), contextFactory.create(info));
     }
 
     private EquipmentRuntimeContext getOrCreateContext(final String equipmentId) {
@@ -97,8 +97,8 @@ public class GatewayProcessingService {
             return cached;
         }
 
-        final Optional<GatewayEquipmentEntity> entity = equipmentService.findById(equipmentId);
-        final GatewayEquipmentEntity resolved = entity.orElseThrow(
+        final Optional<GatewayEquipmentInfo> info = equipmentService.findById(equipmentId);
+        final GatewayEquipmentInfo resolved = info.orElseThrow(
                 () -> new IllegalArgumentException("No equipment found for eqpId=" + equipmentId)
         );
 

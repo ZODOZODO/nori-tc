@@ -13,7 +13,7 @@ import com.nori.tc.comm.hsms.config.HsmsSessionConfig;
 import com.nori.tc.comm.hsms.session.HsmsSessionStateMachine;
 import com.nori.tc.comm.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.socket.socketType.SocketTypeRegistry;
-import com.nori.tc.db.jpa.site.gateway.GatewayEquipmentEntity;
+import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -45,15 +45,15 @@ public class EquipmentContextFactory {
         this.socketTypeRegistry = Objects.requireNonNull(socketTypeRegistry, "socketTypeRegistry is null");
     }
 
-    public EquipmentRuntimeContext create(final GatewayEquipmentEntity entity) {
-        Objects.requireNonNull(entity, "entity is null");
+    public EquipmentRuntimeContext create(final GatewayEquipmentInfo info) {
+        Objects.requireNonNull(info, "info is null");
 
-        final EquipmentId equipmentId = new EquipmentId(entity.getEquipmentId());
-        final CommInterfaceType interfaceType = CommInterfaceType.fromText(entity.getCommInterfaceType());
+        final EquipmentId equipmentId = new EquipmentId(info.equipmentId());
+        final CommInterfaceType interfaceType = info.commInterfaceType();
 
-        final String socketType = (entity.getSocketType() == null || entity.getSocketType().isBlank())
+        final String socketType = (info.socketType() == null || info.socketType().isBlank())
                 ? socketProperties.getDefaultSocketType()
-                : entity.getSocketType();
+                : info.socketType();
 
         final EquipmentProfile profile = new EquipmentProfile(
                 equipmentId,
@@ -73,9 +73,9 @@ public class EquipmentContextFactory {
         );
 
         if (interfaceType == CommInterfaceType.HSMS) {
-            final int deviceId = (entity.getHsmsDeviceId() == null)
+            final int deviceId = (info.hsmsDeviceId() == null)
                     ? hsmsProperties.getDeviceId()
-                    : entity.getHsmsDeviceId();
+                    : info.hsmsDeviceId();
 
             final HsmsSessionConfig sessionConfig = hsmsProperties.toSessionConfig(deviceId);
             final HsmsSessionStateMachine sessionStateMachine = new HsmsSessionStateMachine(sessionConfig);

@@ -1,7 +1,7 @@
 package com.nori.tc.apps.commgateway.comm;
 
+import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
 import com.nori.tc.apps.commgateway.db.GatewayEquipmentService;
-import com.nori.tc.db.jpa.site.gateway.GatewayEquipmentEntity;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -31,9 +31,9 @@ public class GatewayBootstrapRunner implements ApplicationRunner {
 
     @Override
     public void run(final ApplicationArguments args) {
-        final List<GatewayEquipmentEntity> equipmentList = equipmentService.findAll();
+        final List<GatewayEquipmentInfo> equipmentList = equipmentService.findAll();
         equipmentList.stream()
-                .filter(GatewayEquipmentEntity::isEnabled)
+                .filter(GatewayEquipmentInfo::enabled)
                 .forEach(processingService::register);
     }
 }
