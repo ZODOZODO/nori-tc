@@ -1,5 +1,7 @@
 package com.nori.tc.db.starter.redis;
 
+import java.util.Optional;
+
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -29,5 +31,30 @@ public class TcDbRedisAutoConfiguration {
     @Bean(name = "tcDbStarterExclusiveLock")
     public Object tcDbStarterExclusiveLock() {
         return "tc-db-redis-starter";
+    }
+
+    @Bean(name = "tcRedisTemplate")
+    @ConditionalOnBean(RedisConnectionFactory.class)
+    @ConditionalOnMissingBean(name = "tcRedisTemplate")
+    public RedisTemplate<String, Object> tcRedisTemplate(RedisConnectionFactory connectionFactory, ObjectProvider<RedisSerializer<Object>> valueSerializerProvider) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        RedisSerializer<String> keySerializer = new StringRedisSerializer();
+        RedisSerializer<Object> valueSerializer = Optional.ofNullable(valueSerializerProvider.getIfAvailable()).orElseGet(JdkSerializationRedisSerializer::new);
+
+        template.setKeySerializer(keySerializer);
+        template.setHashKeySerializer(keySerializer);
+        template.setValueSerializer(valueSerializer);
+        template.setHashValueSerializer(valueSerializer);
+        template.afterPropertiesSet();
+        return template;
+    }
+
+    @Bean
+    @ConditionalOnBean(name = "tcRedisTemplate")
+    @ConditionalOnMissingBean
+    public TcRedisCrudRepository tcRedisCrudRepository(RedisTemplate<String, Object> tcRedisTemplate) {
+        return new TcRedisTemplateCrudRepository(tcRedisTemplate);
     }
 }
