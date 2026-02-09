@@ -23,8 +23,10 @@ dependencies {
     implementation(project(":libs:messaging:adapter:tc-messaging-kafka"))
 
     implementation(libs.spring.boot.starter)
-    implementation(libs.spring.kafka)
-    implementation(libs.kafka.clients)
+    // API exposure: app code uses KafkaListener/KafkaTemplate/ProducerRecord directly.
+    // Keep those on the consumer compile classpath via api.
+    api(libs.spring.kafka)
+    api(libs.kafka.clients)
 
     testImplementation(libs.spring.boot.starter.test)
 }

@@ -32,9 +32,11 @@ public class RedisDlqPublisher implements DlqPublisherPort {
     public void publish(final DlqMessage message) {
         Objects.requireNonNull(message, "message is null");
 
-        final Duration ttl = redisProperties.getDlqTtlSeconds() > 0
-                ? Duration.ofSeconds(redisProperties.getDlqTtlSeconds())
-                : null;
+        // TTL은 "Redis 만료"와 "Entry 내부 메타데이터" 둘 다에 사용된다.
+        // - Redis: Duration 필요
+        // - Entry: 초 단위(Long)로 저장
+        final long ttlSeconds = redisProperties.getDlqTtlSeconds();
+        final Duration ttl = ttlSeconds > 0 ? Duration.ofSeconds(ttlSeconds) : null;
 
         final RedisDlqEntry entry = new RedisDlqEntry(
                 message.dlqId(),
@@ -50,7 +52,7 @@ public class RedisDlqPublisher implements DlqPublisherPort {
                 message.rawLen(),
                 message.b64Len(),
                 message.tags(),
-                ttl
+                ttlSeconds > 0 ? ttlSeconds : null
         );
 
         final String key = DLQ_KEY_PREFIX + entry.getDlqId();

@@ -33,16 +33,16 @@ public class RedisQuarantineStore implements QuarantinePort {
     public void quarantine(final EquipmentId equipmentId, final String reasonCode, final String reasonMessage) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
 
-        final Duration ttl = redisProperties.getQuarantineTtlSeconds() > 0
-                ? Duration.ofSeconds(redisProperties.getQuarantineTtlSeconds())
-                : null;
+        // TTL은 Redis 만료(Duration) + Entry 메타데이터(Long seconds)에 모두 필요하다.
+        final long ttlSeconds = redisProperties.getQuarantineTtlSeconds();
+        final Duration ttl = ttlSeconds > 0 ? Duration.ofSeconds(ttlSeconds) : null;
 
         final RedisQuarantineEntry entry = new RedisQuarantineEntry(
                 equipmentId.value(),
                 reasonCode,
                 reasonMessage,
                 Instant.now(),
-                ttl
+                ttlSeconds > 0 ? ttlSeconds : null
         );
 
         final String key = QUARANTINE_KEY_PREFIX + equipmentId.value();

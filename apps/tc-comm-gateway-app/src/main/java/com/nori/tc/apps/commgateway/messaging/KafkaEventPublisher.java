@@ -49,7 +49,9 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
                 message.commInterfaceType().name(),
                 message.socketType(),
                 message.messageName().value(),
-                message.occurredAt(),
+                // ParsedMessage는 epoch millis 기반 시각을 제공한다.
+                // GatewayEventMessage에도 동일한 기준으로 전달해 시간 정합성을 유지한다.
+                message.occurredAtEpochMs(),
                 message.attributes(),
                 message.body()
         );

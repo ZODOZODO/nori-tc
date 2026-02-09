@@ -1,6 +1,5 @@
 package com.nori.tc.apps.commgateway.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
 import com.nori.tc.comm.core.port.impl.SystemClock;
@@ -20,7 +19,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * tc-comm-gateway 핵심 구성 빈
+ * tc-comm-gateway wiring configuration.
  */
 @Configuration
 @EnableConfigurationProperties({
@@ -49,8 +48,11 @@ public class GatewayCommConfiguration {
     }
 
     @Bean
-    public HsmsFrameExtractor hsmsFrameExtractor() {
-        return new HsmsFrameExtractor();
+    public HsmsFrameExtractor hsmsFrameExtractor(final GatewayHsmsProperties hsmsProperties) {
+        // HSMS 프레임 최대 크기는 runtime property에서 관리한다.
+        // - oversized frame 방지로 메모리/CPU 과부하를 차단
+        // - tc.comm.gateway.hsms.max-frame-bytes 로 운영 중 조절 가능
+        return new HsmsFrameExtractor(hsmsProperties.getMaxFrameBytes());
     }
 
     @Bean
@@ -80,17 +82,14 @@ public class GatewayCommConfiguration {
     public SocketTypeRegistry socketTypeRegistry(final GatewaySocketProperties socketProperties) {
         final SocketTypeRegistry registry = new SocketTypeRegistry();
 
-        // 기본 제공 핸들러 등록
+        // Built-in socket handlers
         registry.register(new LineDelimitedSocketTypeHandler());
         registry.register(new RegexDelimitedSocketTypeHandler(socketProperties.getRegexEndPattern()));
 
         return registry;
     }
 
-    @Bean
-    public ObjectMapper objectMapper() {
-        // Spring Boot 기본 ObjectMapper를 사용해도 되지만,
-        // 명시적으로 Bean을 노출해 모듈 간 주입 경로를 명확히 합니다.
-        return new ObjectMapper();
-    }
+    // ObjectMapper Bean은 의도적으로 제공하지 않는다.
+    // - 현재 앱에서 직접 사용하지 않음
+    // - jackson 의존성을 불필요하게 강제하지 않기 위해 필요 시에만 추가
 }

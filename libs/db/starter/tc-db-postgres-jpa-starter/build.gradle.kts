@@ -33,6 +33,11 @@ java {
 }
 
 dependencies {
+    // API exposure for apps that only depend on this starter.
+    // - tc-db-core: store interfaces, PageRequest, exceptions
+    // - tc-db-domain: domain records used by gateway app
+    api(project(":libs:db:tc-db-core"))
+    api(project(":libs:db:tc-db-domain"))
     // JPA 스키마(엔티티/리포지토리/Store 구현체)
     implementation(project(":libs:db:jpa:tc-db-jpa-common-schema"))
     implementation(project(":libs:db:jpa:tc-db-jpa-site-schema"))

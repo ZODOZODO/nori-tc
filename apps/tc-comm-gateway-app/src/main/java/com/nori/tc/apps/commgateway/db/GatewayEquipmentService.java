@@ -46,6 +46,8 @@ public class GatewayEquipmentService {
         int offset = 0;
 
         while (true) {
+            // Store는 공통 PageRequest를 받는다.
+            // - JPA/MyBatis 구현 차이를 감추기 위해 offset/limit 방식으로 통일
             final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
             if (page.isEmpty()) {
                 break;
@@ -71,6 +73,7 @@ public class GatewayEquipmentService {
             throw new IllegalArgumentException("eqp is null");
         }
 
+        // eqpKey는 하위 테이블(tc_eqp_hsms / tc_eqp_socket)의 PK/FK이므로 필수
         final Long eqpKey = eqp.eqpKey();
         if (eqpKey == null || eqpKey <= 0) {
             throw new IllegalStateException("Invalid eqpKey for eqpId=" + eqp.eqpId());
@@ -79,16 +82,19 @@ public class GatewayEquipmentService {
             throw new IllegalStateException("Invalid eqpId for eqpKey=" + eqpKey);
         }
 
+        // ProtocolType(db-domain) -> CommInterfaceType(comm-domain) 변환
         final CommInterfaceType commInterfaceType = toCommInterfaceType(eqp.commInterface());
 
         String socketType = null;
         Integer hsmsDeviceId = null;
 
         if (commInterfaceType == CommInterfaceType.SOCKET) {
+            // SOCKET은 tc_eqp_socket.socket_protocol_type을 socketType으로 사용
             socketType = socketStore.findByEqpKey(eqpKey)
                     .map(TcEqpSocket::socketProtocolType)
                     .orElse(null);
         } else if (commInterfaceType == CommInterfaceType.HSMS) {
+            // HSMS는 tc_eqp_hsms.device_id를 deviceId로 사용
             hsmsDeviceId = hsmsStore.findByEqpKey(eqpKey)
                     .map(TcEqpHsms::deviceId)
                     .orElse(null);

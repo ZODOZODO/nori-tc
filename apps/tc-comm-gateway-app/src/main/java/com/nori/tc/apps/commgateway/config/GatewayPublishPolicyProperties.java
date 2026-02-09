@@ -19,6 +19,13 @@ public class GatewayPublishPolicyProperties {
 
     private String version = "default";
 
+    /**
+     * PublishPolicySpec의 updatedAtEpochMs(필수 필드)
+     * - 운영에서 hot-reload 시점 비교에 사용
+     * - properties에 값이 없으면 toSpec()에서 "현재 시각"으로 채운다.
+     */
+    private long updatedAtEpochMs = 0L;
+
     private PublishMode defaultMode = PublishMode.OUTBOX;
 
     private List<Rule> rules = new ArrayList<>();
@@ -37,6 +44,14 @@ public class GatewayPublishPolicyProperties {
 
     public void setDefaultMode(final PublishMode defaultMode) {
         this.defaultMode = defaultMode;
+    }
+
+    public long getUpdatedAtEpochMs() {
+        return updatedAtEpochMs;
+    }
+
+    public void setUpdatedAtEpochMs(final long updatedAtEpochMs) {
+        this.updatedAtEpochMs = updatedAtEpochMs;
     }
 
     public List<Rule> getRules() {
@@ -59,8 +74,15 @@ public class GatewayPublishPolicyProperties {
                 ))
                 .toList();
 
+        // updatedAtEpochMs는 spec의 필수 값이므로 0/미지정이면 현재 시각으로 채운다.
+        // - config 파일에서 명시하면 그 값을 그대로 사용
+        final long resolvedUpdatedAt = updatedAtEpochMs > 0
+                ? updatedAtEpochMs
+                : System.currentTimeMillis();
+
         return new PublishPolicySpec(
                 version,
+                resolvedUpdatedAt,
                 defaultMode,
                 mappedRules
         );
