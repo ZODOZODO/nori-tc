@@ -1,10 +1,6 @@
 package com.nori.tc.apps.commgateway.redis;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.redis.core.RedisHash;
-import org.springframework.data.redis.core.TimeToLive;
-
-import java.time.Instant;
+import java.io.Serializable;
 import java.util.Map;
 
 /**
@@ -12,10 +8,10 @@ import java.util.Map;
  *
  * - DLQ 메시지를 Redis에 저장하여 운영자가 빠르게 조회할 수 있도록 합니다.
  */
-@RedisHash("tc-comm-dlq")
-public class RedisDlqEntry {
+public class RedisDlqEntry implements Serializable {
 
-    @Id
+    private static final long serialVersionUID = 1L;
+
     private String dlqId;
 
     private String equipmentId;
@@ -31,7 +27,6 @@ public class RedisDlqEntry {
     private long b64Len;
     private Map<String, String> tags;
 
-    @TimeToLive
     private Long ttlSeconds;
 
     protected RedisDlqEntry() {

@@ -1,9 +1,6 @@
 package com.nori.tc.apps.commgateway.redis;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.redis.core.RedisHash;
-import org.springframework.data.redis.core.TimeToLive;
-
+import java.io.Serializable;
 import java.time.Instant;
 
 /**
@@ -11,10 +8,10 @@ import java.time.Instant;
  *
  * - 통신 상태/최종 수신 시각 등을 캐시에 저장하여 빠른 조회를 지원합니다.
  */
-@RedisHash("tc-comm-eqp-runtime")
-public class RedisEquipmentRuntime {
+public class RedisEquipmentRuntime implements Serializable {
 
-    @Id
+    private static final long serialVersionUID = 1L;
+
     private String equipmentId;
 
     private String connectionState;
@@ -23,7 +20,6 @@ public class RedisEquipmentRuntime {
 
     private Instant lastCommandAt;
 
-    @TimeToLive
     private Long ttlSeconds;
 
     protected RedisEquipmentRuntime() {

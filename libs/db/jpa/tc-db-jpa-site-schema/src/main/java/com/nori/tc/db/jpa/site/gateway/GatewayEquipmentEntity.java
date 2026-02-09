@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.db;
+package com.nori.tc.db.jpa.site.gateway;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

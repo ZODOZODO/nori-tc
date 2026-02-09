@@ -1,6 +1,5 @@
 package com.nori.tc.apps.commgateway.comm;
 
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentEntity;
 import com.nori.tc.apps.commgateway.db.GatewayEquipmentService;
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.core.inbound.InboundChunk;
@@ -11,6 +10,7 @@ import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.domain.dlq.DlqMessage;
 import com.nori.tc.comm.domain.dlq.DlqReasonCode;
+import com.nori.tc.db.jpa.site.gateway.GatewayEquipmentEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;

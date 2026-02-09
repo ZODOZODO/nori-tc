@@ -1,7 +1,7 @@
 package com.nori.tc.apps.commgateway.comm;
 
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentEntity;
 import com.nori.tc.apps.commgateway.db.GatewayEquipmentService;
+import com.nori.tc.db.jpa.site.gateway.GatewayEquipmentEntity;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;

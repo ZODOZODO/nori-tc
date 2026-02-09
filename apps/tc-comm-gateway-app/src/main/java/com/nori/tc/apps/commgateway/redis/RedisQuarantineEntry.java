@@ -1,18 +1,15 @@
 package com.nori.tc.apps.commgateway.redis;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.redis.core.RedisHash;
-import org.springframework.data.redis.core.TimeToLive;
-
+import java.io.Serializable;
 import java.time.Instant;
 
 /**
  * Redis Quarantine 엔트리
  */
-@RedisHash("tc-comm-quarantine")
-public class RedisQuarantineEntry {
+public class RedisQuarantineEntry implements Serializable {
 
-    @Id
+    private static final long serialVersionUID = 1L;
+
     private String equipmentId;
 
     private String reasonCode;
@@ -21,7 +18,6 @@ public class RedisQuarantineEntry {
 
     private Instant quarantinedAt;
 
-    @TimeToLive
     private Long ttlSeconds;
 
     protected RedisQuarantineEntry() {

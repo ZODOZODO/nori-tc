@@ -4,7 +4,6 @@ import com.nori.tc.apps.commgateway.config.GatewayHsmsProperties;
 import com.nori.tc.apps.commgateway.config.GatewayPublishPolicyProperties;
 import com.nori.tc.apps.commgateway.config.GatewayRuntimeProperties;
 import com.nori.tc.apps.commgateway.config.GatewaySocketProperties;
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentEntity;
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.eqp.EquipmentProfile;
@@ -14,6 +13,7 @@ import com.nori.tc.comm.hsms.config.HsmsSessionConfig;
 import com.nori.tc.comm.hsms.session.HsmsSessionStateMachine;
 import com.nori.tc.comm.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.db.jpa.site.gateway.GatewayEquipmentEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
