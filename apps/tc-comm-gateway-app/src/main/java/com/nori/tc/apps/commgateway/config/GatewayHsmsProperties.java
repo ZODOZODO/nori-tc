@@ -5,10 +5,9 @@ import com.nori.tc.comm.hsms.config.HsmsTimerConfig;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * HSMS 기본 설정
+ * HSMS default configuration.
  *
- * 설비별로 다른 값이 필요한 경우
- * - DB/Redis에서 eqp별 설정을 가져와 이 값을 override 하십시오.
+ * - Equipment-specific overrides can be loaded from DB/Redis at runtime.
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.hsms")
 public class GatewayHsmsProperties {
@@ -70,8 +69,8 @@ public class GatewayHsmsProperties {
     }
 
     /**
-     * HSMS 세션 설정으로 변환합니다.
-     * - deviceId만 eqp별 override 가능하므로 파라미터로 받습니다.
+     * Build an HSMS session config for a specific equipment.
+     * - deviceId can be overridden per equipment at runtime.
      */
     public HsmsSessionConfig toSessionConfig(final int equipmentDeviceId) {
         final HsmsTimerConfig timerConfig = new HsmsTimerConfig(

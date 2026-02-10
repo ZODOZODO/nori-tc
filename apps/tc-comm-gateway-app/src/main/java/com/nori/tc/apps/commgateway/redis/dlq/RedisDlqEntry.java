@@ -1,12 +1,12 @@
-package com.nori.tc.apps.commgateway.redis;
+package com.nori.tc.apps.commgateway.redis.dlq;
 
 import java.io.Serializable;
 import java.util.Map;
 
 /**
- * Redis DLQ 엔트리
+ * Redis DLQ entry.
  *
- * - DLQ 메시지를 Redis에 저장하여 운영자가 빠르게 조회할 수 있도록 합니다.
+ * Stores DLQ metadata to support inspection and replay.
  */
 public class RedisDlqEntry implements Serializable {
 

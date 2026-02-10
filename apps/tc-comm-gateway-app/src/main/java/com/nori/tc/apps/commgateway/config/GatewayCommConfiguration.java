@@ -20,6 +20,10 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * tc-comm-gateway wiring configuration.
+ *
+ * - Registers only in-app beans.
+ * - Infrastructure is provided by starters, while app-specific adapters
+ *   live in this application module.
  */
 @Configuration
 @EnableConfigurationProperties({
@@ -49,9 +53,7 @@ public class GatewayCommConfiguration {
 
     @Bean
     public HsmsFrameExtractor hsmsFrameExtractor(final GatewayHsmsProperties hsmsProperties) {
-        // HSMS 프레임 최대 크기는 runtime property에서 관리한다.
-        // - oversized frame 방지로 메모리/CPU 과부하를 차단
-        // - tc.comm.gateway.hsms.max-frame-bytes 로 운영 중 조절 가능
+        // Enforce a max frame size from runtime properties to protect memory/CPU.
         return new HsmsFrameExtractor(hsmsProperties.getMaxFrameBytes());
     }
 
@@ -89,7 +91,5 @@ public class GatewayCommConfiguration {
         return registry;
     }
 
-    // ObjectMapper Bean은 의도적으로 제공하지 않는다.
-    // - 현재 앱에서 직접 사용하지 않음
-    // - jackson 의존성을 불필요하게 강제하지 않기 위해 필요 시에만 추가
+    // Intentionally no ObjectMapper bean here to avoid forcing Jackson into the app.
 }

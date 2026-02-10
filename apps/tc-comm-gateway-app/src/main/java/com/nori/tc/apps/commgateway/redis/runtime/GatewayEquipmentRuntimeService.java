@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.redis;
+package com.nori.tc.apps.commgateway.redis.runtime;
 
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;
 import org.springframework.stereotype.Service;
@@ -8,7 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Redis 기반 설비 런타임 CRUD 서비스
+ * Redis-based equipment runtime CRUD service.
+ *
+ * This service is app-specific and encapsulates key naming/TTL rules.
  */
 @Service
 public class GatewayEquipmentRuntimeService {

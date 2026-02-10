@@ -1,19 +1,33 @@
 package com.nori.tc.apps.commgateway.config;
 
+import com.nori.tc.messaging.kafka.starter.contract.KafkaTopicProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import jakarta.annotation.PostConstruct;
+
 /**
- * Kafka 토픽 매핑 설정
- * - tc-messaging.properties에서 값을 주입받습니다.
+ * Gateway Kafka topic properties.
+ *
+ * This class binds app-specific property sources to the shared
+ * KafkaTopicProperties contract provided by the kafka starter.
  */
 @ConfigurationProperties(prefix = "tc.messaging.kafka.topic")
-public class GatewayKafkaTopicProperties {
+public class GatewayKafkaTopicProperties implements KafkaTopicProperties {
 
-    private String eqpEvents = "tc.eqp.events";
-    private String uiEvents = "tc.ui.events";
-    private String eqpCommands = "tc.eqp.commands";
-    private String uiCommands = "tc.ui.commands";
+    private String eqpEvents;
+    private String uiEvents;
+    private String eqpCommands;
+    private String uiCommands;
 
+    @PostConstruct
+    public void validate() {
+        requireText("tc.messaging.kafka.topic.eqp-events", eqpEvents);
+        requireText("tc.messaging.kafka.topic.ui-events", uiEvents);
+        requireText("tc.messaging.kafka.topic.eqp-commands", eqpCommands);
+        requireText("tc.messaging.kafka.topic.ui-commands", uiCommands);
+    }
+
+    @Override
     public String getEqpEvents() {
         return eqpEvents;
     }
@@ -22,6 +36,7 @@ public class GatewayKafkaTopicProperties {
         this.eqpEvents = eqpEvents;
     }
 
+    @Override
     public String getUiEvents() {
         return uiEvents;
     }
@@ -30,6 +45,7 @@ public class GatewayKafkaTopicProperties {
         this.uiEvents = uiEvents;
     }
 
+    @Override
     public String getEqpCommands() {
         return eqpCommands;
     }
@@ -38,11 +54,18 @@ public class GatewayKafkaTopicProperties {
         this.eqpCommands = eqpCommands;
     }
 
+    @Override
     public String getUiCommands() {
         return uiCommands;
     }
 
     public void setUiCommands(final String uiCommands) {
         this.uiCommands = uiCommands;
+    }
+
+    private static void requireText(final String key, final String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("Missing Kafka topic property: " + key);
+        }
     }
 }

@@ -35,6 +35,7 @@ dependencies {
     // Redis 접근을 위한 Spring Data Redis Starter
     implementation(libs.spring.boot.starter.data.redis)
 
+
     testImplementation(libs.spring.boot.starter.test)
 }
 

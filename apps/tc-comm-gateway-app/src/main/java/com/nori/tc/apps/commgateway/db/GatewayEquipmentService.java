@@ -19,8 +19,8 @@ import java.util.Optional;
 /**
  * Gateway equipment lookup service.
  *
- * - Aggregates tc_eqp + tc_eqp_hsms/tc_eqp_socket for runtime use.
- * - Uses DB starter implementations via core store interfaces.
+ * This service is app-specific because the aggregation rules
+ * between tc_eqp and related tables can differ by application.
  */
 @Service
 public class GatewayEquipmentService {
@@ -46,8 +46,7 @@ public class GatewayEquipmentService {
         int offset = 0;
 
         while (true) {
-            // Store는 공통 PageRequest를 받는다.
-            // - JPA/MyBatis 구현 차이를 감추기 위해 offset/limit 방식으로 통일
+            // Offset/limit works for both JPA and MyBatis store implementations.
             final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
             if (page.isEmpty()) {
                 break;
@@ -73,7 +72,7 @@ public class GatewayEquipmentService {
             throw new IllegalArgumentException("eqp is null");
         }
 
-        // eqpKey는 하위 테이블(tc_eqp_hsms / tc_eqp_socket)의 PK/FK이므로 필수
+        // eqpKey is the PK used by tc_eqp_hsms and tc_eqp_socket.
         final Long eqpKey = eqp.eqpKey();
         if (eqpKey == null || eqpKey <= 0) {
             throw new IllegalStateException("Invalid eqpKey for eqpId=" + eqp.eqpId());
@@ -82,19 +81,19 @@ public class GatewayEquipmentService {
             throw new IllegalStateException("Invalid eqpId for eqpKey=" + eqpKey);
         }
 
-        // ProtocolType(db-domain) -> CommInterfaceType(comm-domain) 변환
+        // ProtocolType (db-domain) -> CommInterfaceType (comm-domain).
         final CommInterfaceType commInterfaceType = toCommInterfaceType(eqp.commInterface());
 
         String socketType = null;
         Integer hsmsDeviceId = null;
 
         if (commInterfaceType == CommInterfaceType.SOCKET) {
-            // SOCKET은 tc_eqp_socket.socket_protocol_type을 socketType으로 사용
+            // SOCKET uses tc_eqp_socket.socket_protocol_type as socketType.
             socketType = socketStore.findByEqpKey(eqpKey)
                     .map(TcEqpSocket::socketProtocolType)
                     .orElse(null);
         } else if (commInterfaceType == CommInterfaceType.HSMS) {
-            // HSMS는 tc_eqp_hsms.device_id를 deviceId로 사용
+            // HSMS uses tc_eqp_hsms.device_id as deviceId.
             hsmsDeviceId = hsmsStore.findByEqpKey(eqpKey)
                     .map(TcEqpHsms::deviceId)
                     .orElse(null);

@@ -10,6 +10,8 @@ import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
 import com.nori.tc.comm.domain.dlq.DlqMessage;
 import com.nori.tc.comm.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.domain.type.CommInterfaceType;
+import com.nori.tc.messaging.kafka.starter.contract.KafkaCommandDispatcher;
+import com.nori.tc.messaging.kafka.starter.contract.KafkaCommandMessage;
 import org.springframework.stereotype.Component;
 
 import java.util.Base64;
@@ -17,10 +19,16 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Kafka 커맨드를 실제 설비 전송으로 변환하는 디스패처
+ * Gateway inbound command dispatcher.
+ *
+ * Responsibilities
+ * - Decodes Base64 payload into raw bytes.
+ * - Validates equipmentId and commInterfaceType.
+ * - Builds OutboundRawFrame and sends it via OutboundSenderPort.
+ * - On failure, routes to DLQ and optionally quarantines the equipment.
  */
 @Component
-public class GatewayCommandDispatcher {
+public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
 
     private final OutboundSenderPort outboundSenderPort;
     private final ClockPort clockPort;
@@ -42,7 +50,8 @@ public class GatewayCommandDispatcher {
         this.quarantinePort = Objects.requireNonNull(quarantinePort, "quarantinePort is null");
     }
 
-    public void dispatch(final GatewayCommandMessage message) {
+    @Override
+    public void dispatch(final KafkaCommandMessage message) {
         Objects.requireNonNull(message, "message is null");
 
         final byte[] payload;
@@ -62,6 +71,7 @@ public class GatewayCommandDispatcher {
             publishDlq(message, DlqReasonCode.INVALID_INPUT, ex.getMessage());
             return;
         }
+
         final long now = clockPort.nowEpochMillis();
 
         final OutboundRawFrame frame = new OutboundRawFrame(
@@ -85,7 +95,7 @@ public class GatewayCommandDispatcher {
     }
 
     private void publishDlq(
-            final GatewayCommandMessage message,
+            final KafkaCommandMessage message,
             final DlqReasonCode reasonCode,
             final String reasonMessage
     ) {

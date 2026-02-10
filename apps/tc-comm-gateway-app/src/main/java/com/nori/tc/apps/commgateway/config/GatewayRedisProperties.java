@@ -3,19 +3,21 @@ package com.nori.tc.apps.commgateway.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Redis 기반 저장소 설정
- * - DLQ / Quarantine TTL 등 운영 정책을 외부 설정으로 제어합니다.
+ * Gateway Redis settings.
+ *
+ * This property holder is app-specific and controls DLQ and quarantine
+ * retention (TTL) without modifying the shared redis starter.
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.redis")
 public class GatewayRedisProperties {
 
     /**
-     * DLQ TTL(초) - 0이면 만료 없음
+     * DLQ TTL in seconds. 0 means no expiry.
      */
     private long dlqTtlSeconds = 0;
 
     /**
-     * Quarantine TTL(초) - 0이면 만료 없음
+     * Quarantine TTL in seconds. 0 means no expiry.
      */
     private long quarantineTtlSeconds = 0;
 

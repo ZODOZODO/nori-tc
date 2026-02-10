@@ -1,20 +1,21 @@
-package com.nori.tc.apps.commgateway.messaging;
+package com.nori.tc.messaging.kafka.starter.contract;
 
 import java.util.Map;
 
 /**
- * Kafka에서 수신하는 커맨드 메시지 모델
+ * Common Kafka command message contract for comm apps.
  *
- * - payloadBase64는 설비로 전송할 raw frame(bytes)를 Base64로 인코딩한 값입니다.
+ * This DTO defines the on-the-wire JSON structure that all comm apps
+ * are expected to publish/consume for command routing.
  */
-public record GatewayCommandMessage(
+public record KafkaCommandMessage(
         String equipmentId,
         String commInterfaceType,
         String socketType,
         String payloadBase64,
         Map<String, String> attributes
 ) {
-    public GatewayCommandMessage {
+    public KafkaCommandMessage {
         if (equipmentId == null || equipmentId.isBlank()) {
             throw new IllegalArgumentException("equipmentId is required");
         }

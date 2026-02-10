@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.redis;
+package com.nori.tc.apps.commgateway.redis.dlq;
 
 import com.nori.tc.apps.commgateway.config.GatewayRedisProperties;
 import com.nori.tc.comm.core.port.DlqPublisherPort;
@@ -10,7 +10,10 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * Redis 기반 DLQ Publisher
+ * Redis-based DLQ publisher.
+ *
+ * This is app-specific to keep message retention and key format
+ * under the application's control rather than the shared starter.
  */
 @Component
 public class RedisDlqPublisher implements DlqPublisherPort {
@@ -32,9 +35,7 @@ public class RedisDlqPublisher implements DlqPublisherPort {
     public void publish(final DlqMessage message) {
         Objects.requireNonNull(message, "message is null");
 
-        // TTL은 "Redis 만료"와 "Entry 내부 메타데이터" 둘 다에 사용된다.
-        // - Redis: Duration 필요
-        // - Entry: 초 단위(Long)로 저장
+        // TTL is used both for Redis expiry (Duration) and for entry metadata (seconds).
         final long ttlSeconds = redisProperties.getDlqTtlSeconds();
         final Duration ttl = ttlSeconds > 0 ? Duration.ofSeconds(ttlSeconds) : null;
 

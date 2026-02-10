@@ -1,11 +1,13 @@
-package com.nori.tc.apps.commgateway.messaging;
+package com.nori.tc.messaging.kafka.starter.contract;
 
 import java.util.Map;
 
 /**
- * Kafka로 발행하는 이벤트 메시지 모델
+ * Common Kafka event message contract for comm apps.
+ *
+ * This DTO defines the on-the-wire JSON structure used for outbound events.
  */
-public record GatewayEventMessage(
+public record KafkaEventMessage(
         String equipmentId,
         String traceNo,
         String commInterfaceType,
@@ -15,7 +17,7 @@ public record GatewayEventMessage(
         Map<String, String> attributes,
         Object body
 ) {
-    public GatewayEventMessage {
+    public KafkaEventMessage {
         if (equipmentId == null || equipmentId.isBlank()) {
             throw new IllegalArgumentException("equipmentId is required");
         }
@@ -28,27 +30,5 @@ public record GatewayEventMessage(
         if (messageName == null || messageName.isBlank()) {
             throw new IllegalArgumentException("messageName is required");
         }
-    }
-
-    public static GatewayEventMessage fromParsed(
-            final String equipmentId,
-            final String traceNo,
-            final String commInterfaceType,
-            final String socketType,
-            final String messageName,
-            final long occurredAt,
-            final Map<String, String> attributes,
-            final Object body
-    ) {
-        return new GatewayEventMessage(
-                equipmentId,
-                traceNo,
-                commInterfaceType,
-                socketType,
-                messageName,
-                occurredAt,
-                attributes,
-                body
-        );
     }
 }

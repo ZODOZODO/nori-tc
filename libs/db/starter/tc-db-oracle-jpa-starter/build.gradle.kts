@@ -23,6 +23,9 @@ java {
 }
 
 dependencies {
+    // API exposure: core/domain types are used directly by apps.
+    api(project(":libs:db:tc-db-core"))
+    api(project(":libs:db:tc-db-domain"))
     // JPA 스키마(엔티티/리포지토리/Store 구현체)
     implementation(project(":libs:db:jpa:tc-db-jpa-common-schema"))
     implementation(project(":libs:db:jpa:tc-db-jpa-site-schema"))

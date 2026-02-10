@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.redis;
+package com.nori.tc.apps.commgateway.redis.quarantine;
 
 import com.nori.tc.apps.commgateway.config.GatewayRedisProperties;
 import com.nori.tc.comm.core.eqp.EquipmentId;
@@ -11,7 +11,10 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Redis 기반 Quarantine 저장소
+ * Redis-based quarantine store.
+ *
+ * Keeps quarantine state in Redis to protect downstream systems
+ * from repeated failing equipment traffic.
  */
 @Component
 public class RedisQuarantineStore implements QuarantinePort {
@@ -33,7 +36,7 @@ public class RedisQuarantineStore implements QuarantinePort {
     public void quarantine(final EquipmentId equipmentId, final String reasonCode, final String reasonMessage) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
 
-        // TTL은 Redis 만료(Duration) + Entry 메타데이터(Long seconds)에 모두 필요하다.
+        // TTL is used both for Redis expiry (Duration) and for entry metadata (seconds).
         final long ttlSeconds = redisProperties.getQuarantineTtlSeconds();
         final Duration ttl = ttlSeconds > 0 ? Duration.ofSeconds(ttlSeconds) : null;
 

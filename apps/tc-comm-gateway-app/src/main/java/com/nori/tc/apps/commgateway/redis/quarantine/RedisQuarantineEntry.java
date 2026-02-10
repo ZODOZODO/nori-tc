@@ -1,10 +1,12 @@
-package com.nori.tc.apps.commgateway.redis;
+package com.nori.tc.apps.commgateway.redis.quarantine;
 
 import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * Redis Quarantine 엔트리
+ * Redis quarantine entry.
+ *
+ * Records why an equipment was quarantined and for how long.
  */
 public class RedisQuarantineEntry implements Serializable {
 

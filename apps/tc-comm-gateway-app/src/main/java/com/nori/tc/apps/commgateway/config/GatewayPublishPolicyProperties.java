@@ -11,8 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OUTBOX vs DIRECT_KAFKA 라우팅 정책 설정
- * - 운영에서 룰 변경이 잦으므로 properties 기반으로 주입합니다.
+ * Publish policy configuration for OUTBOX vs DIRECT_KAFKA.
+ *
+ * - Properties are mapped to a PublishPolicySpec used by the engine.
+ * - updatedAtEpochMs is required by the spec for hot-reload comparisons.
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.publish-policy")
 public class GatewayPublishPolicyProperties {
@@ -20,9 +22,8 @@ public class GatewayPublishPolicyProperties {
     private String version = "default";
 
     /**
-     * PublishPolicySpec의 updatedAtEpochMs(필수 필드)
-     * - 운영에서 hot-reload 시점 비교에 사용
-     * - properties에 값이 없으면 toSpec()에서 "현재 시각"으로 채운다.
+     * Timestamp used by PublishPolicySpec.
+     * - If not set, toSpec() fills it with the current time.
      */
     private long updatedAtEpochMs = 0L;
 
@@ -74,8 +75,6 @@ public class GatewayPublishPolicyProperties {
                 ))
                 .toList();
 
-        // updatedAtEpochMs는 spec의 필수 값이므로 0/미지정이면 현재 시각으로 채운다.
-        // - config 파일에서 명시하면 그 값을 그대로 사용
         final long resolvedUpdatedAt = updatedAtEpochMs > 0
                 ? updatedAtEpochMs
                 : System.currentTimeMillis();

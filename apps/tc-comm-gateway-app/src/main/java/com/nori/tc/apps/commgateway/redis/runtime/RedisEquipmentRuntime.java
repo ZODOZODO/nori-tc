@@ -1,12 +1,10 @@
-package com.nori.tc.apps.commgateway.redis;
+package com.nori.tc.apps.commgateway.redis.runtime;
 
 import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * Redis 기반 설비 런타임 상태
- *
- * - 통신 상태/최종 수신 시각 등을 캐시에 저장하여 빠른 조회를 지원합니다.
+ * Redis-based equipment runtime state snapshot.
  */
 public class RedisEquipmentRuntime implements Serializable {
 
