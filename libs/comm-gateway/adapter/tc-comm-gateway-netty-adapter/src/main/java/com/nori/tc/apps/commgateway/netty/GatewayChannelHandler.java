@@ -138,6 +138,10 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         }, nettyProperties.getBindTimeoutSeconds(), TimeUnit.SECONDS);
 
         NettyChannelAttributes.setBindTimeoutTask(channel, task);
+        if (log.isDebugEnabled()) {
+            log.debug("Bind timeout scheduled. seconds={}, remote={}",
+                    nettyProperties.getBindTimeoutSeconds(), channel.remoteAddress());
+        }
 
         sendInitializeIfNeeded(channel);
     }

@@ -78,6 +78,7 @@ public class AssignedKafkaCommandConsumer implements Runnable, org.springframewo
         workerThread = new Thread(this, "kafka-eqp-commands-consumer");
         workerThread.setDaemon(true);
         workerThread.start();
+        log.info("Assigned Kafka command consumer started. thread={}", workerThread.getName());
     }
 
     @Override
@@ -96,6 +97,7 @@ public class AssignedKafkaCommandConsumer implements Runnable, org.springframewo
         if (consumer != null) {
             consumer.close();
         }
+        log.info("Assigned Kafka command consumer stopped.");
     }
 
     @Override
@@ -111,6 +113,9 @@ public class AssignedKafkaCommandConsumer implements Runnable, org.springframewo
                 final ConsumerRecords<String, KafkaCommandMessage> records = consumer.poll(pollTimeout);
                 if (records.isEmpty()) {
                     continue;
+                }
+                if (log.isDebugEnabled()) {
+                    log.debug("Kafka commands polled. count={}", records.count());
                 }
 
                 records.forEach(record -> {
@@ -180,6 +185,9 @@ public class AssignedKafkaCommandConsumer implements Runnable, org.springframewo
         while (true) {
             try {
                 consumer.commitSync();
+                if (log.isDebugEnabled()) {
+                    log.debug("Kafka commit success (eqp.commands).");
+                }
                 return;
             } catch (Exception ex) {
                 metrics.incrementKafkaCommitFail();

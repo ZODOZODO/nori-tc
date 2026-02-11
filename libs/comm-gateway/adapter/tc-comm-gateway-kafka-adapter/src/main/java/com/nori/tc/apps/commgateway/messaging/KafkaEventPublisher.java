@@ -9,6 +9,8 @@ import com.nori.tc.messaging.kafka.starter.contract.KafkaEventMessage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaTopicProperties;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +26,8 @@ import java.util.Objects;
  */
 @Component
 public class KafkaEventPublisher implements KafkaPublisherPort {
+
+    private static final Logger log = LoggerFactory.getLogger(KafkaEventPublisher.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final KafkaTopicProperties topicProperties;
@@ -86,8 +90,16 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
         }
 
         try {
+            if (log.isDebugEnabled()) {
+                log.debug("Publishing eqp event to Kafka. topic={}, eqpId={}, traceId={}",
+                        topic, key, message.traceId());
+            }
             kafkaTemplate.send(record).get();
             metrics.incrementEventPublishSuccess();
+            if (log.isDebugEnabled()) {
+                log.debug("Kafka event publish success. topic={}, eqpId={}, traceId={}",
+                        topic, key, message.traceId());
+            }
         } catch (Exception ex) {
             metrics.incrementEventPublishFail();
             throw ex;

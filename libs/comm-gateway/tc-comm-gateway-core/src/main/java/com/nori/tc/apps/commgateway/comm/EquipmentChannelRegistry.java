@@ -1,6 +1,8 @@
 package com.nori.tc.apps.commgateway.comm;
 
 import com.nori.tc.comm.core.eqp.EquipmentId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Objects;
@@ -14,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class EquipmentChannelRegistry {
 
+    private static final Logger log = LoggerFactory.getLogger(EquipmentChannelRegistry.class);
     private final Map<String, EquipmentChannel> channels = new ConcurrentHashMap<>();
 
     /**
@@ -28,15 +31,23 @@ public final class EquipmentChannelRegistry {
 
         final EquipmentChannel existing = channels.putIfAbsent(eqpId, channel);
         if (existing == null) {
+            log.info("Channel bound. eqpId={}", eqpId);
             return true;
         }
 
         // If the existing channel is inactive, allow replacement.
         if (!existing.isActive()) {
             channels.remove(eqpId, existing);
-            return channels.putIfAbsent(eqpId, channel) == null;
+            final boolean rebound = channels.putIfAbsent(eqpId, channel) == null;
+            if (rebound) {
+                log.info("Channel rebound (previous inactive). eqpId={}", eqpId);
+            }
+            return rebound;
         }
 
+        if (log.isDebugEnabled()) {
+            log.debug("Duplicate channel bind rejected. eqpId={}", eqpId);
+        }
         return false;
     }
 
@@ -51,18 +62,24 @@ public final class EquipmentChannelRegistry {
     public boolean timeout(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         Objects.requireNonNull(channel, "channel is null");
-        return channels.remove(equipmentId.value(), channel);
+        final boolean removed = channels.remove(equipmentId.value(), channel);
+        if (removed) {
+            log.info("Channel timeout evicted. eqpId={}", equipmentId.value());
+        }
+        return removed;
     }
 
     public void unregister(final EquipmentId equipmentId) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         channels.remove(equipmentId.value());
+        log.info("Channel unregistered. eqpId={}", equipmentId.value());
     }
 
     public void unregister(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         Objects.requireNonNull(channel, "channel is null");
         channels.remove(equipmentId.value(), channel);
+        log.info("Channel unregistered (match). eqpId={}", equipmentId.value());
     }
 
     public EquipmentChannel get(final EquipmentId equipmentId) {

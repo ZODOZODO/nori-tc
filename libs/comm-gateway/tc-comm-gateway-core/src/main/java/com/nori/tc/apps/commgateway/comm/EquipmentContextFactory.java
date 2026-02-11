@@ -14,6 +14,8 @@ import com.nori.tc.comm.hsms.session.HsmsSessionStateMachine;
 import com.nori.tc.comm.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.socket.socketType.SocketTypeRegistry;
 import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -25,6 +27,7 @@ import java.util.Objects;
 @Component
 public class EquipmentContextFactory {
 
+    private static final Logger log = LoggerFactory.getLogger(EquipmentContextFactory.class);
     private final GatewayRuntimeProperties runtimeProperties;
     private final GatewayHsmsProperties hsmsProperties;
     private final GatewaySocketProperties socketProperties;
@@ -71,6 +74,11 @@ public class EquipmentContextFactory {
         final String socketType = (info.socketType() == null || info.socketType().isBlank())
                 ? socketProperties.getDefaultSocketType()
                 : info.socketType();
+
+        if (log.isDebugEnabled()) {
+            log.debug("Creating runtime context. eqpId={}, interfaceType={}, socketType={}",
+                    info.equipmentId(), interfaceType, socketType);
+        }
 
         final EquipmentProfile profile = new EquipmentProfile(
                 equipmentId,

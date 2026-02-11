@@ -75,6 +75,9 @@ public class GatewayProcessingService {
         final EqpMailbox mailbox = mailboxRegistry.get(equipmentId);
         if (mailbox == null) {
             // UNBOUND 또는 소유하지 않은 eqp -> drop
+            if (log.isDebugEnabled()) {
+                log.debug("Inbound drop (no mailbox). eqpId={}", equipmentId);
+            }
             return;
         }
 
@@ -113,6 +116,9 @@ public class GatewayProcessingService {
         final EqpMailbox mailbox = mailboxRegistry.get(eqpId);
         if (mailbox == null) {
             // 연결 없으면 drop
+            if (log.isDebugEnabled()) {
+                log.debug("Outbound drop (no mailbox). eqpId={}", eqpId);
+            }
             return;
         }
 
@@ -141,12 +147,18 @@ public class GatewayProcessingService {
         if (info == null || !info.enabled()) {
             throw new IllegalArgumentException("Invalid equipment info");
         }
+        if (log.isDebugEnabled()) {
+            log.debug("Binding mailbox. eqpId={}, interfaceType={}", info.equipmentId(), info.commInterfaceType());
+        }
         return mailboxRegistry.createAndBind(info, channel);
     }
 
     public void removeMailbox(final String equipmentId) {
         mailboxRegistry.remove(equipmentId);
         metrics.clearQueueDepth(equipmentId);
+        if (log.isDebugEnabled()) {
+            log.debug("Mailbox removed via processingService. eqpId={}", equipmentId);
+        }
     }
 
     public GatewayEquipmentInfo resolveEquipment(final String equipmentId) {

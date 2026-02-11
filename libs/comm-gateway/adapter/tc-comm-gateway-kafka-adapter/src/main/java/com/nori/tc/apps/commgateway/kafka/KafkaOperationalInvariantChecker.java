@@ -6,6 +6,8 @@ import com.nori.tc.apps.commgateway.config.GatewayKafkaTopicProperties;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -27,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class KafkaOperationalInvariantChecker {
 
+    private static final Logger log = LoggerFactory.getLogger(KafkaOperationalInvariantChecker.class);
+
     private final GatewayKafkaClientProperties kafkaClientProperties;
     private final GatewayKafkaShardProperties shardProperties;
     private final GatewayKafkaTopicProperties topicProperties;
@@ -45,6 +49,9 @@ public class KafkaOperationalInvariantChecker {
     public void verify() {
         final String topic = topicProperties.getEqpCommands();
         final Map<String, Object> adminProps = kafkaClientProperties.buildAdminProperties();
+
+        log.info("Verifying Kafka operational invariants. topic={}, expectedPartitions={}, ownedPartitions={}",
+                topic, shardProperties.getCommandsPartitionCount(), shardProperties.getOwnedPartitions());
 
         try (AdminClient admin = AdminClient.create(adminProps)) {
             final DescribeTopicsResult result = admin.describeTopics(List.of(topic));
@@ -75,7 +82,10 @@ public class KafkaOperationalInvariantChecker {
                     );
                 }
             }
+
+            log.info("Kafka invariants OK. topic={}, partitionCount={}", topic, actualCount);
         } catch (Exception ex) {
+            log.error("Kafka invariants check failed. topic={}", topic, ex);
             throw new IllegalStateException("Failed to verify Kafka invariants", ex);
         }
     }

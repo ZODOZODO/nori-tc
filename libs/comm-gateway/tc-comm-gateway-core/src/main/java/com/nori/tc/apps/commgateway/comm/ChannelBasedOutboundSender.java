@@ -3,6 +3,8 @@ package com.nori.tc.apps.commgateway.comm;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.core.port.OutboundSenderPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
@@ -14,6 +16,7 @@ import java.util.Objects;
  */
 public final class ChannelBasedOutboundSender implements OutboundSenderPort {
 
+    private static final Logger log = LoggerFactory.getLogger(ChannelBasedOutboundSender.class);
     private final EquipmentChannelRegistry registry;
 
     public ChannelBasedOutboundSender(final EquipmentChannelRegistry registry) {
@@ -28,9 +31,13 @@ public final class ChannelBasedOutboundSender implements OutboundSenderPort {
         final EquipmentChannel channel = registry.get(equipmentId);
 
         if (channel == null || !channel.isActive()) {
+            log.warn("Outbound send failed (no active channel). eqpId={}", equipmentId.value());
             throw new IllegalStateException("No channel registered for eqpId=" + equipmentId.value());
         }
 
+        if (log.isDebugEnabled()) {
+            log.debug("Outbound send to channel. eqpId={}, bytes={}", equipmentId.value(), frame.bytes().length);
+        }
         channel.send(frame);
     }
 }

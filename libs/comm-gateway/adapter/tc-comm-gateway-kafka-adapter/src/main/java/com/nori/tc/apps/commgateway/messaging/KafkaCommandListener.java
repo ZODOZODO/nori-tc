@@ -73,6 +73,8 @@ public class KafkaCommandListener implements Runnable, SmartLifecycle {
         workerThread = new Thread(this, "kafka-ui-commands-consumer");
         workerThread.setDaemon(true);
         workerThread.start();
+        log.info("Kafka UI command consumer started. topic={}, thread={}",
+                topicProperties.getUiCommands(), workerThread.getName());
     }
 
     @Override
@@ -91,6 +93,7 @@ public class KafkaCommandListener implements Runnable, SmartLifecycle {
         if (consumer != null) {
             consumer.close();
         }
+        log.info("Kafka UI command consumer stopped.");
     }
 
     @Override
@@ -111,6 +114,9 @@ public class KafkaCommandListener implements Runnable, SmartLifecycle {
                 final ConsumerRecords<String, KafkaCommandMessage> records = consumer.poll(pollTimeout);
                 if (records.isEmpty()) {
                     continue;
+                }
+                if (log.isDebugEnabled()) {
+                    log.debug("Kafka UI commands polled. count={}", records.count());
                 }
 
                 records.forEach(record -> {
@@ -171,6 +177,9 @@ public class KafkaCommandListener implements Runnable, SmartLifecycle {
         while (true) {
             try {
                 consumer.commitSync();
+                if (log.isDebugEnabled()) {
+                    log.debug("Kafka commit success (ui.commands).");
+                }
                 return;
             } catch (Exception ex) {
                 metrics.incrementKafkaCommitFail();

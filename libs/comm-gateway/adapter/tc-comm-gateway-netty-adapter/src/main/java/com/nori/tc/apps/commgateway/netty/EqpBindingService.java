@@ -8,6 +8,8 @@ import com.nori.tc.apps.commgateway.kafka.KafkaShardOwnership;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.domain.type.CommInterfaceType;
 import io.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
@@ -17,6 +19,8 @@ import java.util.Objects;
  */
 @Service
 public class EqpBindingService {
+
+    private static final Logger log = LoggerFactory.getLogger(EqpBindingService.class);
 
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayProcessingService processingService;
@@ -60,6 +64,7 @@ public class EqpBindingService {
 
         channelRegistry.unregister(new EquipmentId(eqpId));
         processingService.removeMailbox(eqpId);
+        log.info("Channel unbound. eqpId={}", eqpId);
     }
 
     private BindResult bindInternal(
@@ -70,6 +75,9 @@ public class EqpBindingService {
     ) {
         if (eqpId == null || eqpId.isBlank()) {
             return BindResult.INVALID_EQP_ID;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Bind attempt. eqpId={}, interfaceType={}, mode={}", eqpId, interfaceType, expectedMode);
         }
         // shard 소유 검증: PASSIVE 등록은 반드시 ownedPartitions에 속해야 합니다.
         // shard ownership check:
@@ -103,6 +111,7 @@ public class EqpBindingService {
         }
 
         processingService.bindMailbox(info, equipmentChannel);
+        log.info("Bind success. eqpId={}, interfaceType={}, mode={}", eqpId, interfaceType, expectedMode);
         return BindResult.OK;
     }
 

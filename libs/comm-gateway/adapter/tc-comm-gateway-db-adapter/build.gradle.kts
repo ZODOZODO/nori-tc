@@ -29,6 +29,7 @@ dependencies {
     // Spring 컴파일 의존 (@Service)
     compileOnly(libs.spring.boot)
     compileOnly(libs.spring.context)
+    compileOnly(libs.slf4j.api)
 }
 
 tasks.test {

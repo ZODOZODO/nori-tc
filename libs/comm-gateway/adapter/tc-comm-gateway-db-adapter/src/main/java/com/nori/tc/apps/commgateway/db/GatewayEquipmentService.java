@@ -12,6 +12,8 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpHsms;
 import com.nori.tc.db.domain.eqp.TcEqpSocket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,6 +30,8 @@ import java.util.Optional;
  */
 @Service
 public class GatewayEquipmentService implements EquipmentInfoProvider {
+
+    private static final Logger log = LoggerFactory.getLogger(GatewayEquipmentService.class);
 
     private static final int PAGE_LIMIT = PageRequest.defaultPage().limit();
 
@@ -47,6 +51,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider {
 
     @Override
     public List<GatewayEquipmentInfo> findAll() {
+        log.info("Loading equipment list from DB.");
         final List<GatewayEquipmentInfo> results = new ArrayList<>();
         int offset = 0;
 
@@ -55,6 +60,9 @@ public class GatewayEquipmentService implements EquipmentInfoProvider {
             final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
             if (page.isEmpty()) {
                 break;
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("Loaded equipment page. offset={}, size={}", offset, page.size());
             }
             for (TcEqp eqp : page) {
                 results.add(toInfo(eqp));
@@ -65,12 +73,16 @@ public class GatewayEquipmentService implements EquipmentInfoProvider {
             offset += PAGE_LIMIT;
         }
 
+        log.info("Equipment list loaded. count={}", results.size());
         return results;
     }
 
     @Override
     public Optional<GatewayEquipmentInfo> findById(final String equipmentId) {
         try (GatewayLogContext ignored = GatewayLogContext.withEqpId(equipmentId)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Loading equipment by eqpId={}", equipmentId);
+            }
             return eqpStore.findByEqpId(equipmentId).map(this::toInfo);
         }
     }

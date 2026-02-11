@@ -7,6 +7,8 @@ import com.nori.tc.comm.socket.frame.SocketFrame;
 import com.nori.tc.comm.socket.socketType.SocketTypeDecodeResult;
 import com.nori.tc.comm.socket.socketType.SocketTypeHandler;
 import com.nori.tc.comm.socket.socketType.SocketTypeRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -20,6 +22,8 @@ import java.util.Optional;
  * - Client -> "CMD=INITIALIZE_REP EQPID=TEST001"
  */
 public final class SocketEqpIdExtractor implements EqpIdExtractor {
+
+    private static final Logger log = LoggerFactory.getLogger(SocketEqpIdExtractor.class);
 
     private final GatewaySocketProperties socketProperties;
     private final GatewayNettyProperties nettyProperties;
@@ -68,6 +72,9 @@ public final class SocketEqpIdExtractor implements EqpIdExtractor {
 
             final Optional<String> eqpId = parseEqpId(candidate, nettyProperties.getSocketEqpIdKey());
             if (eqpId.isPresent()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("SOCKET eqpId extracted. eqpId={}", eqpId.get());
+                }
                 return eqpId;
             }
             // EQPID가 없으면 해당 프레임은 드롭하고 다음 프레임을 계속 탐색합니다.

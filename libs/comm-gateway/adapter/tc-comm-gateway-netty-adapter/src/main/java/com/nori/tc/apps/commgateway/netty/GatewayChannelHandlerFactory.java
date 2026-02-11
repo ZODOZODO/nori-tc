@@ -9,6 +9,8 @@ import com.nori.tc.comm.domain.type.CommInterfaceType;
 import com.nori.tc.comm.hsms.frame.HsmsFrameExtractor;
 import com.nori.tc.comm.hsms.secs.Secs2Decoder;
 import com.nori.tc.comm.socket.socketType.SocketTypeRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -18,6 +20,8 @@ import java.util.Objects;
  */
 @Component
 public class GatewayChannelHandlerFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(GatewayChannelHandlerFactory.class);
 
     private final GatewayNettyProperties nettyProperties;
     private final GatewayProcessingService processingService;
@@ -53,6 +57,9 @@ public class GatewayChannelHandlerFactory {
     }
 
     public GatewayChannelHandler newPassiveHandler(final CommInterfaceType interfaceType) {
+        if (log.isDebugEnabled()) {
+            log.debug("Create PASSIVE handler. interfaceType={}", interfaceType);
+        }
         return new GatewayChannelHandler(
                 interfaceType,
                 null,
@@ -68,6 +75,9 @@ public class GatewayChannelHandlerFactory {
     }
 
     public GatewayChannelHandler newActiveHandler(final CommInterfaceType interfaceType, final String eqpId) {
+        if (log.isDebugEnabled()) {
+            log.debug("Create ACTIVE handler. interfaceType={}, eqpId={}", interfaceType, eqpId);
+        }
         return new GatewayChannelHandler(
                 interfaceType,
                 eqpId,

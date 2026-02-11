@@ -3,6 +3,8 @@ package com.nori.tc.apps.commgateway.netty;
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.hsms.frame.HsmsFrameExtractor;
 import com.nori.tc.comm.hsms.secs.Secs2Decoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 
@@ -13,6 +15,8 @@ import java.util.Optional;
  * - S1F2 payload에서 eqpId를 추출
  */
 public final class HsmsEqpIdExtractor implements EqpIdExtractor {
+
+    private static final Logger log = LoggerFactory.getLogger(HsmsEqpIdExtractor.class);
 
     private final HsmsFrameExtractor frameExtractor;
     private final Secs2Decoder secs2Decoder;
@@ -34,6 +38,9 @@ public final class HsmsEqpIdExtractor implements EqpIdExtractor {
             final var frame = frameExtractor.tryExtractOne(buffer);
             if (frame == null) {
                 return Optional.empty();
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("HSMS UNBOUND frame consumed (eqpId extraction not implemented).");
             }
             // TODO: S1F2 판정 후 eqpId 추출 구현
             // 지금은 모든 프레임을 소비하여 UNBOUND 상태의 메시지를 드롭합니다.

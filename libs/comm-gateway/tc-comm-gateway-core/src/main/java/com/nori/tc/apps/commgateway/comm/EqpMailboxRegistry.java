@@ -3,6 +3,8 @@ package com.nori.tc.apps.commgateway.comm;
 import com.nori.tc.apps.commgateway.config.GatewayRuntimeProperties;
 import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class EqpMailboxRegistry {
 
+    private static final Logger log = LoggerFactory.getLogger(EqpMailboxRegistry.class);
     private final EquipmentContextFactory contextFactory;
     private final GatewayRuntimeProperties runtimeProperties;
     private final Map<String, EqpMailbox> mailboxes = new ConcurrentHashMap<>();
@@ -56,6 +59,7 @@ public final class EqpMailboxRegistry {
             throw new IllegalStateException("Mailbox already exists for eqpId=" + eqpId);
         }
 
+        log.info("Mailbox created and bound. eqpId={}, interfaceType={}", eqpId, info.commInterfaceType());
         return mailbox;
     }
 
@@ -64,5 +68,6 @@ public final class EqpMailboxRegistry {
             return;
         }
         mailboxes.remove(eqpId);
+        log.info("Mailbox removed. eqpId={}", eqpId);
     }
 }

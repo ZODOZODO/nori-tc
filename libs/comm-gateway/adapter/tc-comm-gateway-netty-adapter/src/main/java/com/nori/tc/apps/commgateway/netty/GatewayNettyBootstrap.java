@@ -84,6 +84,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         workerGroup = new NioEventLoopGroup(nettyProperties.getWorkerThreads());
         reconnectScheduler = Executors.newScheduledThreadPool(nettyProperties.getReconnectSchedulerThreads());
 
+        log.info("GatewayNettyBootstrap starting. bossThreads={}, workerThreads={}, reconnectSchedulerThreads={}",
+                nettyProperties.getBossThreads(),
+                nettyProperties.getWorkerThreads(),
+                nettyProperties.getReconnectSchedulerThreads());
+
         startServers();
         startActiveConnections();
     }
@@ -92,6 +97,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
     public void stop() {
         running = false;
 
+        log.info("GatewayNettyBootstrap stopping.");
         safeClose(hsmsServerChannel);
         safeClose(socketServerChannel);
 
@@ -104,6 +110,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         if (reconnectScheduler != null) {
             reconnectScheduler.shutdown();
         }
+        log.info("GatewayNettyBootstrap stopped.");
     }
 
     @Override
@@ -152,6 +159,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         // - connect only for owned eqpIds (shard ownership)
         // - bind immediately on channelActive (eqpId is known)
         final List<GatewayEquipmentInfo> equipmentList = equipmentInfoProvider.findAll();
+        log.info("Active connection bootstrap started. totalEquipments={}", equipmentList.size());
 
         for (GatewayEquipmentInfo info : equipmentList) {
             if (!info.enabled()) {
@@ -162,6 +170,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
             }
             if (info.connectionMode() == ConnectionMode.ACTIVE) {
                 if (!shardOwnership.isOwned(info.equipmentId())) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Active connect skipped (not owned). eqpId={}", info.equipmentId());
+                    }
                     continue;
                 }
                 connectActive(info);
@@ -192,6 +203,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
                     }
                 });
 
+        if (log.isDebugEnabled()) {
+            log.debug("Active connect attempt. eqpId={}, ip={}, port={}", eqpId, info.eqpIp(), info.eqpPort());
+        }
         bootstrap.connect(info.eqpIp(), info.eqpPort()).addListener((ChannelFuture f) -> {
             if (!f.isSuccess()) {
                 log.warn("Active connect failed. eqpId={}, {}", eqpId, f.cause() == null ? "" : f.cause().getMessage());
@@ -210,6 +224,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
             return;
         }
 
+        if (log.isDebugEnabled()) {
+            log.debug("Scheduling active reconnect. eqpId={}, delayMs={}", eqpId, nettyProperties.getActiveReconnectDelayMs());
+        }
         reconnectScheduler.schedule(() -> {
             try {
                 connectActive(info);

@@ -1,5 +1,7 @@
 package com.nori.tc.apps.commgateway.comm;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -22,6 +24,8 @@ import java.util.Objects;
 @Component
 public class GatewayBootstrapRunner implements ApplicationRunner {
 
+    private static final Logger log = LoggerFactory.getLogger(GatewayBootstrapRunner.class);
+
     @SuppressWarnings("unused")
     private final GatewayProcessingService processingService;
 
@@ -31,6 +35,11 @@ public class GatewayBootstrapRunner implements ApplicationRunner {
 
     @Override
     public void run(final ApplicationArguments args) {
-        // no-op
+        if (args == null) {
+            log.info("GatewayBootstrapRunner executed (no args).");
+            return;
+        }
+        log.info("GatewayBootstrapRunner executed. optionNames={}, nonOptionArgsCount={}",
+                args.getOptionNames(), args.getNonOptionArgs().size());
     }
 }

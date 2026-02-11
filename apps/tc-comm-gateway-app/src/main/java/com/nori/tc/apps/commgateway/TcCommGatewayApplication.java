@@ -1,5 +1,7 @@
 package com.nori.tc.apps.commgateway;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -13,7 +15,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class TcCommGatewayApplication {
 
+    private static final Logger log = LoggerFactory.getLogger(TcCommGatewayApplication.class);
+
     public static void main(String[] args) {
+        log.info("Starting tc-comm-gateway-app. argsCount={}", args == null ? 0 : args.length);
         SpringApplication.run(TcCommGatewayApplication.class, args);
     }
 }

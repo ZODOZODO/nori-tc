@@ -4,6 +4,8 @@ import com.nori.tc.apps.commgateway.config.GatewayRedisProperties;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -20,6 +22,7 @@ import java.util.Objects;
 public class RedisQuarantineStore implements QuarantinePort {
 
     private static final String QUARANTINE_KEY_PREFIX = "tc:comm:gateway:quarantine:";
+    private static final Logger log = LoggerFactory.getLogger(RedisQuarantineStore.class);
 
     private final TcRedisCrudRepository repository;
     private final GatewayRedisProperties redisProperties;
@@ -55,5 +58,7 @@ public class RedisQuarantineStore implements QuarantinePort {
         } else {
             repository.set(key, entry, ttl);
         }
+        log.info("Equipment quarantined. eqpId={}, reasonCode={}, ttlSeconds={}",
+                equipmentId.value(), reasonCode, ttlSeconds > 0 ? ttlSeconds : null);
     }
 }

@@ -123,6 +123,9 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
         try {
             // Queue-based outbound: worker thread will encode/write in-order.
             processingService.enqueueOutbound(frame);
+            if (log.isDebugEnabled()) {
+                log.debug("Command enqueued to outbound queue. eqpId={}, traceId={}", equipmentId.value(), traceId);
+            }
         } catch (Exception ex) {
             publishDlq(message, DlqReasonCode.PUBLISH_FAILED, ex.getMessage(), traceId);
             try {

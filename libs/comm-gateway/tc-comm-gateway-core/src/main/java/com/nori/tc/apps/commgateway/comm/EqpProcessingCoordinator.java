@@ -93,6 +93,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         if (retryScheduler != null) {
             retryScheduler.shutdown();
         }
+        log.info("EqpProcessingCoordinator stopped.");
     }
 
     @Override

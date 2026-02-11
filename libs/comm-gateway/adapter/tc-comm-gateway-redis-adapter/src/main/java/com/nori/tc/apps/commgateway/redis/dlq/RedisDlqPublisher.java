@@ -6,6 +6,8 @@ import com.nori.tc.comm.core.port.DlqPublisherPort;
 import com.nori.tc.comm.domain.dlq.DlqMessage;
 import com.nori.tc.comm.domain.dlq.DlqReasonCode;
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -21,6 +23,7 @@ import java.util.Objects;
 public class RedisDlqPublisher implements DlqPublisherPort {
 
     private static final String DLQ_KEY_PREFIX = "tc:comm:gateway:dlq:";
+    private static final Logger log = LoggerFactory.getLogger(RedisDlqPublisher.class);
 
     private final TcRedisCrudRepository repository;
     private final GatewayRedisProperties redisProperties;
@@ -72,6 +75,10 @@ public class RedisDlqPublisher implements DlqPublisherPort {
         metrics.incrementDlqPublish();
         if (message.reasonCode() == DlqReasonCode.PARSING_FAILED) {
             metrics.incrementDecodeFail();
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("DLQ published to Redis. key={}, eqpId={}, traceId={}, reason={}",
+                    key, message.eqpId(), message.traceId(), message.reasonCode());
         }
     }
 }

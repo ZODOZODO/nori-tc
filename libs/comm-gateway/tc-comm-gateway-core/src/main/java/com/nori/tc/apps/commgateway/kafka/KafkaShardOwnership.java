@@ -1,6 +1,8 @@
 package com.nori.tc.apps.commgateway.kafka;
 
 import com.nori.tc.apps.commgateway.config.GatewayKafkaShardProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -18,6 +20,7 @@ import java.util.Set;
 @Component
 public class KafkaShardOwnership {
 
+    private static final Logger log = LoggerFactory.getLogger(KafkaShardOwnership.class);
     private final GatewayKafkaShardProperties properties;
     private final Set<Integer> ownedPartitionSet;
 
@@ -32,6 +35,10 @@ public class KafkaShardOwnership {
 
     public boolean isOwned(final String eqpId) {
         final int p = partitionOf(eqpId);
-        return ownedPartitionSet.contains(p);
+        final boolean owned = ownedPartitionSet.contains(p);
+        if (log.isDebugEnabled()) {
+            log.debug("Shard ownership check. eqpId={}, partition={}, owned={}", eqpId, p, owned);
+        }
+        return owned;
     }
 }
