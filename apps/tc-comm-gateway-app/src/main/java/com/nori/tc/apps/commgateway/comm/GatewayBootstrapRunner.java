@@ -1,39 +1,36 @@
 package com.nori.tc.apps.commgateway.comm;
 
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentService;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
- * 애플리케이션 시작 시 설비 컨텍스트를 선로딩합니다.
+ * 애플리케이션 구동 직후 실행되는 훅.
  *
- * - 낮은 지연을 위해, 최초 메시지 수신 전에 컨텍스트를 준비합니다.
- * - 운영에서는 설비 수가 매우 많을 수 있으므로, 필요 시 lazy 로딩으로 전환 가능합니다.
+ * - 현재는 no-op 이지만, 필요 시 초기화/검증 로직을 넣을 수 있다
+ * - 코어 구성/어댑터 구성을 변경하지 않도록 앱 모듈에만 남긴다
+ */
+
+/**
+ * 애플리케이션 시작 시 사전 준비 작업.
+ *
+ * - mailbox는 BOUND 이후 생성됩니다.
+ * - active/passive 연결은 Netty bootstrap에서 수행됩니다.
  */
 @Component
 public class GatewayBootstrapRunner implements ApplicationRunner {
 
-    private final GatewayEquipmentService equipmentService;
+    @SuppressWarnings("unused")
     private final GatewayProcessingService processingService;
 
-    public GatewayBootstrapRunner(
-            final GatewayEquipmentService equipmentService,
-            final GatewayProcessingService processingService
-    ) {
-        this.equipmentService = Objects.requireNonNull(equipmentService, "equipmentService is null");
+    public GatewayBootstrapRunner(final GatewayProcessingService processingService) {
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
     }
 
     @Override
     public void run(final ApplicationArguments args) {
-        final List<GatewayEquipmentInfo> equipmentList = equipmentService.findAll();
-        equipmentList.stream()
-                .filter(GatewayEquipmentInfo::enabled)
-                .forEach(processingService::register);
+        // no-op
     }
 }

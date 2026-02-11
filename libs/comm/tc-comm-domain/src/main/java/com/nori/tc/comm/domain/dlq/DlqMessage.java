@@ -19,7 +19,7 @@ import java.util.Map;
  * 필드 설명(운영 관측 관점)
  * - dlqId             : DLQ 항목 식별자(권장: ULID)
  * - eqpId             : 설비 비즈니스 키
- * - traceNo           : 추적용 ULID (파이프라인 전체에서 전파 권장)
+ * - traceId           : 추적용 ULID (파이프라인 전체에서 전파 권장)
  * - commInterfaceType : HSMS|SOCKET
  * - socketType        : SOCKET인 경우에만 의미(예: socket_protocol_type 값)
  * - stage             : 어느 단계에서 실패했는지(예: "ENQUEUE", "REASSEMBLY", "FRAMING", "PARSING", "ROUTING", "PUBLISH")
@@ -37,7 +37,7 @@ import java.util.Map;
 public record DlqMessage(
         String dlqId,
         String eqpId,
-        String traceNo,
+        String traceId,
         CommInterfaceType commInterfaceType,
         String socketType,
         String stage,
@@ -59,8 +59,8 @@ public record DlqMessage(
         if (eqpId == null || eqpId.isBlank()) {
             throw new IllegalArgumentException("eqpId is required");
         }
-        if (traceNo == null || traceNo.isBlank()) {
-            throw new IllegalArgumentException("traceNo is required");
+        if (traceId == null || traceId.isBlank()) {
+            throw new IllegalArgumentException("traceId is required");
         }
         if (commInterfaceType == null) {
             throw new IllegalArgumentException("commInterfaceType is required");

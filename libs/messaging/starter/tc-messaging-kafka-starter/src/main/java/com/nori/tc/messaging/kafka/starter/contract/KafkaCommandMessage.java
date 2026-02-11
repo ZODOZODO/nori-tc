@@ -10,6 +10,7 @@ import java.util.Map;
  */
 public record KafkaCommandMessage(
         String equipmentId,
+        String traceId,
         String commInterfaceType,
         String socketType,
         String payloadBase64,
@@ -19,6 +20,7 @@ public record KafkaCommandMessage(
         if (equipmentId == null || equipmentId.isBlank()) {
             throw new IllegalArgumentException("equipmentId is required");
         }
+        // traceId는 상위 앱에서 전달하는 것을 권장하지만, 하위 호환을 위해 null 허용
         if (commInterfaceType == null || commInterfaceType.isBlank()) {
             throw new IllegalArgumentException("commInterfaceType is required");
         }

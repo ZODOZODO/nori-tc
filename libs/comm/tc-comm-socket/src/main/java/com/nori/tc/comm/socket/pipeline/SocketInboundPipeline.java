@@ -7,7 +7,7 @@ import com.nori.tc.comm.core.message.MessageName;
 import com.nori.tc.comm.core.message.ParsedMessage;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
-import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
+import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.domain.type.CommInterfaceType;
 import com.nori.tc.comm.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.socket.frame.SocketFrame;
@@ -38,14 +38,14 @@ import java.util.Objects;
 public final class SocketInboundPipeline implements InboundPipelinePort {
 
     private final ClockPort clockPort;
-    private final TraceNoGeneratorPort traceNoGeneratorPort;
+    private final TraceIdGeneratorPort traceIdGeneratorPort;
 
     public SocketInboundPipeline(
             final ClockPort clockPort,
-            final TraceNoGeneratorPort traceNoGeneratorPort
+            final TraceIdGeneratorPort traceIdGeneratorPort
     ) {
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
-        this.traceNoGeneratorPort = Objects.requireNonNull(traceNoGeneratorPort, "traceNoGeneratorPort is null");
+        this.traceIdGeneratorPort = Objects.requireNonNull(traceIdGeneratorPort, "traceIdGeneratorPort is null");
     }
 
     @Override
@@ -82,7 +82,7 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
 
             final SocketTypeDecodeResult decoded = handler.decode(frame.bytes());
 
-            final String traceNo = traceNoGeneratorPort.newTraceNo();
+            final String traceId = traceIdGeneratorPort.newTraceId();
 
             final Map<String, String> attributes = new HashMap<>();
             attributes.put("socketType", socketType);
@@ -90,7 +90,7 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
 
             parsedMessages.add(new ParsedMessage(
                     profile.equipmentId(),
-                    traceNo,
+                    traceId,
                     CommInterfaceType.SOCKET,
                     socketType,
                     new MessageName(decoded.messageName()),

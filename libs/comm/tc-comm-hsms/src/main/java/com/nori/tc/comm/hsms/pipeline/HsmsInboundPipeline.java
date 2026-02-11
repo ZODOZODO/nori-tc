@@ -8,7 +8,7 @@ import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.core.message.ParsedMessage;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
-import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
+import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.domain.type.CommInterfaceType;
 import com.nori.tc.comm.hsms.frame.HsmsFrame;
 import com.nori.tc.comm.hsms.frame.HsmsFrameEncoder;
@@ -41,7 +41,7 @@ import java.util.Objects;
 public final class HsmsInboundPipeline implements InboundPipelinePort {
 
     private final ClockPort clockPort;
-    private final TraceNoGeneratorPort traceNoGeneratorPort;
+    private final TraceIdGeneratorPort traceIdGeneratorPort;
 
     private final HsmsFrameExtractor frameExtractor;
     private final Secs2Decoder secs2Decoder;
@@ -56,12 +56,12 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
 
     public HsmsInboundPipeline(
             final ClockPort clockPort,
-            final TraceNoGeneratorPort traceNoGeneratorPort,
+            final TraceIdGeneratorPort traceIdGeneratorPort,
             final HsmsFrameExtractor frameExtractor,
             final Secs2Decoder secs2Decoder
     ) {
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
-        this.traceNoGeneratorPort = Objects.requireNonNull(traceNoGeneratorPort, "traceNoGeneratorPort is null");
+        this.traceIdGeneratorPort = Objects.requireNonNull(traceIdGeneratorPort, "traceIdGeneratorPort is null");
         this.frameExtractor = Objects.requireNonNull(frameExtractor, "frameExtractor is null");
         this.secs2Decoder = Objects.requireNonNull(secs2Decoder, "secs2Decoder is null");
     }
@@ -106,8 +106,8 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
             if (frame.isDataMessage() && sessionResult.allowDataProcessing()) {
                 final Secs2Message secs = secs2Decoder.decode(frame);
 
-                // traceNo: 메시지 단위로 신규 생성(운영 추적)
-                final String traceNo = traceNoGeneratorPort.newTraceNo();
+                // traceId: 메시지 단위로 신규 생성(운영 추적)
+                final String traceId = traceIdGeneratorPort.newTraceId();
 
                 // attributes: 운영/분석에 유용한 헤더 메타를 담습니다.
                 final Map<String, String> attributes = new HashMap<>();
@@ -121,7 +121,7 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
                 // 본문(body)은 우선 Secs2Message(최소 모델)를 넣습니다.
                 parsedMessages.add(new ParsedMessage(
                         profile.equipmentId(),
-                        traceNo,
+                        traceId,
                         CommInterfaceType.HSMS,
                         null,
                         new MessageName(secs.messageName()),

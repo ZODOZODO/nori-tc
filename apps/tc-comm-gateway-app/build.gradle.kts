@@ -44,6 +44,25 @@ dependencies {
 
     /*
      * =========================
+     * Log Starter
+     * =========================
+     *
+     * - 공통 로그 패턴/정책을 모든 앱에 동일 적용
+     */
+    implementation(project(":libs:log:starter:tc-log-starter"))
+
+    /*
+     * =========================
+     * Comm Gateway Starter
+     * =========================
+     *
+     * - 게이트웨이 코어 + Netty/Kafka/DB/Redis 어댑터를 한 번에 제공
+     * - 앱은 이 스타터만 의존하고 나머지 구성은 프로퍼티로 제어
+     */
+    implementation(project(":libs:comm-gateway:starter:tc-comm-gateway-starter"))
+
+    /*
+     * =========================
      * DB Starter (pick exactly one)
      * =========================
      *
@@ -75,27 +94,7 @@ dependencies {
     // Oracle + MyBatis
     // implementation(project(":libs:db:starter:tc-db-oracle-mybatis-starter"))
 
-    // Redis (cache/runtime state) uses the shared DB Redis starter.
-    implementation(project(":libs:db:starter:tc-db-redis-starter"))
-
-    /*
-     * =========================
-     * Messaging (Kafka)
-     * =========================
-     */
-    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
-    // App-level Kafka classes (KafkaListener/KafkaTemplate) require compile deps.
-    implementation(libs.spring.kafka)
-    implementation(libs.kafka.clients)
-
-    /*
-     * =========================
-     * Communication Core (HSMS/SOCKET)
-     * =========================
-     */
-    implementation(project(":libs:comm:tc-comm-core"))
-    implementation(project(":libs:comm:tc-comm-hsms"))
-    implementation(project(":libs:comm:tc-comm-socket"))
+    // Redis/Kafka/Netty/Comm 의존은 comm-gateway-starter가 전부 제공한다.
 
     /*
      * =========================

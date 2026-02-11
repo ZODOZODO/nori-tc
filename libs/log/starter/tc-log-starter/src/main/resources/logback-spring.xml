@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tc-log-starter 공통 로그 설정
+
+  목표:
+  - 모든 앱에서 동일한 로그 패턴/출력 정책 적용
+  - app 별로는 프로퍼티만 변경하여 동일한 포맷 유지
+-->
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- Spring Boot 프로퍼티를 읽어 표준 패턴을 구성한다 -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="tc-app"/>
+    <springProperty scope="context" name="LOG_LEVEL_ROOT" source="logging.level.root" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_LEVEL_APP" source="logging.level.com.nori.tc" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_PATTERN" source="tc.logging.pattern"
+                    defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] app=${APP_NAME} traceId=%X{traceId} eqpId=%X{eqpId} %logger{36} - %msg%n"/>
+    <springProperty scope="context" name="LOG_DIR" source="tc.logging.file-dir" defaultValue="logs"/>
+    <springProperty scope="context" name="APP_LOG_MAX_HISTORY" source="tc.logging.app.max-history" defaultValue="14"/>
+    <springProperty scope="context" name="APP_LOG_MAX_SIZE" source="tc.logging.app.max-size" defaultValue="100MB"/>
+    <springProperty scope="context" name="APP_LOG_TOTAL_SIZE_CAP" source="tc.logging.app.total-size-cap" defaultValue="5GB"/>
+    <springProperty scope="context" name="EQP_LOG_MAX_HISTORY" source="tc.logging.eqp.max-history" defaultValue="7"/>
+    <springProperty scope="context" name="EQP_LOG_MAX_SIZE" source="tc.logging.eqp.max-size" defaultValue="100MB"/>
+    <springProperty scope="context" name="EQP_LOG_TOTAL_SIZE_CAP" source="tc.logging.eqp.total-size-cap" defaultValue="2GB"/>
+
+    <!-- 콘솔 로그: 표준 패턴 적용 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 앱 구동/운영 로그 파일 (eqpId 유무와 무관하게 모두 기록, 파일명에 날짜 포함) -->
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/app/${APP_NAME}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>${APP_LOG_MAX_SIZE}</maxFileSize>
+            <maxHistory>${APP_LOG_MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${APP_LOG_TOTAL_SIZE_CAP}</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 설비별 로그 파일 (MDC eqpId 기반, 파일명에 날짜 포함) -->
+    <appender name="EQP_SIFT" class="ch.qos.logback.classic.sift.SiftingAppender">
+        <discriminator class="ch.qos.logback.classic.sift.MDCBasedDiscriminator">
+            <key>eqpId</key>
+            <defaultValue>unknown</defaultValue>
+        </discriminator>
+        <sift>
+            <appender name="EQP-${eqpId}" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <encoder>
+                    <pattern>${LOG_PATTERN}</pattern>
+                </encoder>
+                <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                    <fileNamePattern>${LOG_DIR}/eqp/gateway-${eqpId}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+                    <maxFileSize>${EQP_LOG_MAX_SIZE}</maxFileSize>
+                    <maxHistory>${EQP_LOG_MAX_HISTORY}</maxHistory>
+                    <totalSizeCap>${EQP_LOG_TOTAL_SIZE_CAP}</totalSizeCap>
+                </rollingPolicy>
+            </appender>
+        </sift>
+    </appender>
+
+    <!-- 패키지별 레벨 (기본값은 프로퍼티로 제어) -->
+    <logger name="com.nori.tc" level="${LOG_LEVEL_APP}"/>
+
+    <!-- 루트 레벨 -->
+    <root level="${LOG_LEVEL_ROOT}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="APP_FILE"/>
+        <appender-ref ref="EQP_SIFT"/>
+    </root>
+
+</configuration>

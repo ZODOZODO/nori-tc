@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * 필드
  * - equipmentId       : 설비 ID
- * - traceNo           : 추적 ULID
+ * - traceId           : 추적 ULID
  * - commInterfaceType : HSMS | SOCKET
  * - socketType        : SOCKET인 경우에만 의미(없으면 null 가능)
  * - messageName       : 라우팅의 키
@@ -28,7 +28,7 @@ import java.util.Map;
  */
 public record ParsedMessage(
         EquipmentId equipmentId,
-        String traceNo,
+        String traceId,
         CommInterfaceType commInterfaceType,
         String socketType,
         MessageName messageName,
@@ -38,7 +38,7 @@ public record ParsedMessage(
 ) {
     public ParsedMessage {
         if (equipmentId == null) throw new IllegalArgumentException("equipmentId is required");
-        if (traceNo == null || traceNo.isBlank()) throw new IllegalArgumentException("traceNo is required");
+        if (traceId == null || traceId.isBlank()) throw new IllegalArgumentException("traceId is required");
         if (commInterfaceType == null) throw new IllegalArgumentException("commInterfaceType is required");
         if (messageName == null) throw new IllegalArgumentException("messageName is required");
         if (attributes == null) attributes = Map.of();

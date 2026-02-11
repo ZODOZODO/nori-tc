@@ -11,7 +11,7 @@ import com.nori.tc.comm.core.port.DlqPublisherPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
 import com.nori.tc.comm.core.port.OutboundSenderPort;
 import com.nori.tc.comm.core.port.QuarantinePort;
-import com.nori.tc.comm.core.port.TraceNoGeneratorPort;
+import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.domain.dlq.DlqMessage;
 import com.nori.tc.comm.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.domain.type.CommInterfaceType;
@@ -44,7 +44,7 @@ import java.util.Objects;
 public final class EqpSequentialProcessor {
 
     private final ClockPort clockPort;
-    private final TraceNoGeneratorPort traceNoGeneratorPort;
+    private final TraceIdGeneratorPort traceIdGeneratorPort;
 
     private final InboundPipelinePort inboundPipelinePort;
     private final OutboundSenderPort outboundSenderPort;
@@ -61,7 +61,7 @@ public final class EqpSequentialProcessor {
 
     public EqpSequentialProcessor(
             final ClockPort clockPort,
-            final TraceNoGeneratorPort traceNoGeneratorPort,
+            final TraceIdGeneratorPort traceIdGeneratorPort,
             final InboundPipelinePort inboundPipelinePort,
             final OutboundSenderPort outboundSenderPort,
             final RouteAndPublishUseCase routeAndPublishUseCase,
@@ -70,7 +70,7 @@ public final class EqpSequentialProcessor {
             final int maxChunksPerDrain
     ) {
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
-        this.traceNoGeneratorPort = Objects.requireNonNull(traceNoGeneratorPort, "traceNoGeneratorPort is null");
+        this.traceIdGeneratorPort = Objects.requireNonNull(traceIdGeneratorPort, "traceIdGeneratorPort is null");
         this.inboundPipelinePort = Objects.requireNonNull(inboundPipelinePort, "inboundPipelinePort is null");
         this.outboundSenderPort = Objects.requireNonNull(outboundSenderPort, "outboundSenderPort is null");
         this.routeAndPublishUseCase = Objects.requireNonNull(routeAndPublishUseCase, "routeAndPublishUseCase is null");
@@ -136,7 +136,7 @@ public final class EqpSequentialProcessor {
         final long now = clockPort.nowEpochMillis();
         final EquipmentProfile profile = ctx.profile();
 
-        final String traceNo = traceNoGeneratorPort.newTraceNo();
+        final String traceId = traceIdGeneratorPort.newTraceId();
         final CommInterfaceType commInterfaceType = profile.commInterfaceType();
         final String socketType = profile.socketType();
 
@@ -145,9 +145,9 @@ public final class EqpSequentialProcessor {
         final DlqReasonCode reasonCode = DlqReasonCode.PARSING_FAILED;
 
         final DlqMessage dlqMessage = new DlqMessage(
-                traceNoGeneratorPort.newTraceNo(),          // dlqId
+                traceIdGeneratorPort.newTraceId(),          // dlqId
                 profile.equipmentId().value(),              // eqpId
-                traceNo,                                    // traceNo
+                traceId,                                    // traceId
                 commInterfaceType,                          // HSMS/SOCKET
                 socketType,                                 // socketType (SOCKET만 의미)
                 DlqMessage.STAGE_PARSING,                   // stage

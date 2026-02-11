@@ -6,7 +6,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * ULID 생성기(가벼운 구현) - Shared Kernel
  *
  * 사용 목적
- * - traceNo, dlqId 등 운영 추적용 식별자 생성
+ * - traceId, dlqId 등 운영 추적용 식별자 생성
  *
  * 구현 요약
  * - 48-bit timestamp(ms) + 80-bit randomness = 128-bit
@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * 성능/운영 고려
  * - SecureRandom은 강하지만 비용이 더 큽니다.
- * - traceNo는 보안 토큰이 아니라 추적/상관관계용이므로 ThreadLocalRandom 기반으로 저지연을 우선합니다.
+ * - traceId는 보안 토큰이 아니라 추적/상관관계용이므로 ThreadLocalRandom 기반으로 저지연을 우선합니다.
  *
  * 주의(중요)
  * - 이 구현은 "엄격한 단조 증가(monotonic ULID)"를 보장하지 않습니다.

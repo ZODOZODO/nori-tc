@@ -9,7 +9,7 @@ import java.util.Map;
  */
 public record KafkaEventMessage(
         String equipmentId,
-        String traceNo,
+        String traceId,
         String commInterfaceType,
         String socketType,
         String messageName,
@@ -21,8 +21,8 @@ public record KafkaEventMessage(
         if (equipmentId == null || equipmentId.isBlank()) {
             throw new IllegalArgumentException("equipmentId is required");
         }
-        if (traceNo == null || traceNo.isBlank()) {
-            throw new IllegalArgumentException("traceNo is required");
+        if (traceId == null || traceId.isBlank()) {
+            throw new IllegalArgumentException("traceId is required");
         }
         if (commInterfaceType == null || commInterfaceType.isBlank()) {
             throw new IllegalArgumentException("commInterfaceType is required");
