@@ -11,7 +11,8 @@ import java.util.Objects;
 /**
  * {@code EQP_DELETE} 이벤트 처리기입니다.
  *
- * <p>장비 삭제 시 runtime 자원(재연결/채널/mailbox) 정리를 수행합니다.</p>
+ * <p>DELETE는 STOP(ENDED) 상태에서만 허용되며,
+ * 메모리 컨텍스트와 런타임 자원을 정리합니다.</p>
  */
 @Component
 public class EqpDeleteUiTaskHandler implements GatewayUiTaskHandler {
@@ -21,23 +22,17 @@ public class EqpDeleteUiTaskHandler implements GatewayUiTaskHandler {
     private final GatewayUiRuntimeControlService runtimeControlService;
 
     /**
-     * DELETE 처리에 필요한 runtime 제어 서비스를 초기화합니다.
+     * DELETE 처리에 필요한 런타임 제어 서비스를 초기화합니다.
      */
     public EqpDeleteUiTaskHandler(final GatewayUiRuntimeControlService runtimeControlService) {
         this.runtimeControlService = Objects.requireNonNull(runtimeControlService, "runtimeControlService is null");
     }
 
-    /**
-     * 담당 이벤트 타입을 반환합니다.
-     */
     @Override
     public KafkaUiTaskEventType eventType() {
         return KafkaUiTaskEventType.EQP_DELETE;
     }
 
-    /**
-     * 장비 runtime 종료를 수행합니다.
-     */
     @Override
     public void handle(final KafkaUiTaskMessage message) {
         if (log.isDebugEnabled()) {
@@ -46,12 +41,21 @@ public class EqpDeleteUiTaskHandler implements GatewayUiTaskHandler {
                     message.metadata().traceId());
         }
         try {
-            runtimeControlService.stopRuntime(message.data().eqpId());
+            runtimeControlService.deleteRuntimeContext(
+                    message.data().eqpId(),
+                    message.data().interfaceType(),
+                    message.metadata().traceId()
+            );
             log.info("EQP_DELETE task success. eqpId={}, traceId={}",
                     message.data().eqpId(),
                     message.metadata().traceId());
+        } catch (GatewayUiTaskProcessingException ex) {
+            log.warn("EQP_DELETE task failed. eqpId={}, traceId={}, errorCode={}",
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    ex.errorCode());
         } catch (Exception ex) {
-            log.warn("EQP_DELETE task failed. eqpId={}, traceId={}",
+            log.error("EQP_DELETE task failed by unexpected error. eqpId={}, traceId={}",
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex);

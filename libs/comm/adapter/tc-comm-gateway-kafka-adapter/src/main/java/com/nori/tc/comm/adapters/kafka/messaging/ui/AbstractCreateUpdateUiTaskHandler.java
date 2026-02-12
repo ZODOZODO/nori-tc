@@ -11,8 +11,9 @@ import java.util.Objects;
 /**
  * EQP_CREATE/EQP_UPDATE 공통 처리 추상 핸들러입니다.
  *
- * <p>두 이벤트는 처리 흐름이 동일(장비 검증 + ACTIVE 시작)이므로
- * 실패 응답 이벤트 타입만 하위 클래스에서 분리합니다.</p>
+ * <p>공통 처리 규칙:</p>
+ * <p>- DB 최신 프로파일 조회 후 EquipmentContextRegistry에 upsert</p>
+ * <p>- 처리 실패 시 *_REP 이벤트로 FAIL 응답 발행</p>
  */
 public abstract class AbstractCreateUpdateUiTaskHandler implements GatewayUiTaskHandler {
 
@@ -33,9 +34,7 @@ public abstract class AbstractCreateUpdateUiTaskHandler implements GatewayUiTask
     }
 
     /**
-     * CREATE/UPDATE 공통 처리 본문입니다.
-     *
-     * <p>검증 실패 시 즉시 FAIL 응답을 발행합니다.</p>
+     * CREATE/UPDATE 공통 본문입니다.
      */
     @Override
     public void handle(final KafkaUiTaskMessage message) {
@@ -45,26 +44,33 @@ public abstract class AbstractCreateUpdateUiTaskHandler implements GatewayUiTask
                     message.data().eqpId(),
                     message.metadata().traceId());
         }
+
         try {
-            final GatewayEquipmentInfo equipmentInfo = runtimeControlService.resolveAndValidateEquipment(
+            final GatewayEquipmentInfo equipmentInfo = runtimeControlService.createOrUpdateContext(
                     message.data().eqpId(),
-                    message.data().interfaceType()
+                    message.data().interfaceType(),
+                    message.metadata().traceId(),
+                    eventType().name()
             );
-            runtimeControlService.startActiveIfNeeded(equipmentInfo);
-            log.info("UI {} task success. eqpId={}, traceId={}",
+
+            log.info("UI {} task success. eqpId={}, traceId={}, enabled={}",
                     eventType(),
-                    message.data().eqpId(),
-                    message.metadata().traceId());
+                    equipmentInfo.equipmentId(),
+                    message.metadata().traceId(),
+                    equipmentInfo.enabled());
         } catch (GatewayUiTaskProcessingException ex) {
-            log.warn("UI {} task validation failed. eqpId={}, traceId={}, errorCode={}",
+            log.warn("UI {} task failed. eqpId={}, traceId={}, errorCode={}",
                     eventType(),
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex.errorCode());
             replyPublisher.publishFailure(message, failReplyEventType(), ex.errorCode(), ex.getMessage());
         } catch (Exception ex) {
-            log.error("UI task failed. eventType={}, eqpId={}, traceId={}",
-                    eventType(), message.data().eqpId(), message.metadata().traceId(), ex);
+            log.error("UI {} task failed by unexpected error. eqpId={}, traceId={}",
+                    eventType(),
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    ex);
             replyPublisher.publishFailure(
                     message,
                     failReplyEventType(),
@@ -75,7 +81,7 @@ public abstract class AbstractCreateUpdateUiTaskHandler implements GatewayUiTask
     }
 
     /**
-     * 실패 응답 이벤트 타입(EQP_CREATE_REP/EQP_UPDATE_REP)을 반환합니다.
+     * 실패 응답 이벤트 타입을 반환합니다.
      */
     protected abstract String failReplyEventType();
 

@@ -4,19 +4,22 @@ import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 
 /**
- * 설비 런타임 정보 DTO.
+ * 게이트웨이 런타임에서 공통으로 사용하는 설비 핵심 정보 DTO입니다.
  *
- * - DB 어댑터가 tc_eqp* 테이블을 조회해 생성한다
- * - 코어/넷티/카프카 등 런타임 모듈이 공통으로 사용
- * - 앱별 필드/조합 규칙이 다를 수 있어 구조는 유지하되 구현은 어댑터가 담당
+ * <p>이 DTO는 tc_eqp + tc_eqp_hsms + tc_eqp_socket를 조합해서 만든 "핵심 조회 모델"입니다.</p>
+ * <p>핵심 원칙:</p>
+ * <p>- 통신 라우팅/연결 판단에 필요한 최소 정보는 이 DTO만으로 처리</p>
+ * <p>- 세부 설정(tc_eqp_log, tc_eqp_param, tc_eqp_state 등)은 EquipmentContextProfile로 확장</p>
  */
 public record GatewayEquipmentInfo(
+        Long eqpKey,
         String equipmentId,
         CommInterfaceType commInterfaceType,
         String socketType,
         Integer hsmsDeviceId,
         String eqpIp,
         Integer eqpPort,
+        Long modelKey,
         ConnectionMode connectionMode,
         boolean enabled
 ) {

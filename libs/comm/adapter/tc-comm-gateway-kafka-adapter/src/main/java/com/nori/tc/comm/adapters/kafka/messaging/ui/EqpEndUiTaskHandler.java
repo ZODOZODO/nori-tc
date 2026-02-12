@@ -11,7 +11,8 @@ import java.util.Objects;
 /**
  * {@code EQP_END} 이벤트 처리기입니다.
  *
- * <p>장비 통신 종료 요청에 따라 runtime 자원을 정리합니다.</p>
+ * <p>END는 컨텍스트 목표 상태를 ENDED로 전환하고,
+ * ACTIVE 재연결을 억제한 뒤 채널/메일박스를 정리합니다.</p>
  */
 @Component
 public class EqpEndUiTaskHandler implements GatewayUiTaskHandler {
@@ -21,23 +22,17 @@ public class EqpEndUiTaskHandler implements GatewayUiTaskHandler {
     private final GatewayUiRuntimeControlService runtimeControlService;
 
     /**
-     * END 처리에 필요한 runtime 제어 서비스를 초기화합니다.
+     * END 처리에 필요한 런타임 제어 서비스를 초기화합니다.
      */
     public EqpEndUiTaskHandler(final GatewayUiRuntimeControlService runtimeControlService) {
         this.runtimeControlService = Objects.requireNonNull(runtimeControlService, "runtimeControlService is null");
     }
 
-    /**
-     * 담당 이벤트 타입을 반환합니다.
-     */
     @Override
     public KafkaUiTaskEventType eventType() {
         return KafkaUiTaskEventType.EQP_END;
     }
 
-    /**
-     * END 요청을 처리해 장비 runtime을 종료합니다.
-     */
     @Override
     public void handle(final KafkaUiTaskMessage message) {
         if (log.isDebugEnabled()) {
@@ -46,12 +41,21 @@ public class EqpEndUiTaskHandler implements GatewayUiTaskHandler {
                     message.metadata().traceId());
         }
         try {
-            runtimeControlService.stopRuntime(message.data().eqpId());
+            runtimeControlService.endRuntime(
+                    message.data().eqpId(),
+                    message.data().interfaceType(),
+                    message.metadata().traceId()
+            );
             log.info("EQP_END task success. eqpId={}, traceId={}",
                     message.data().eqpId(),
                     message.metadata().traceId());
+        } catch (GatewayUiTaskProcessingException ex) {
+            log.warn("EQP_END task failed. eqpId={}, traceId={}, errorCode={}",
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    ex.errorCode());
         } catch (Exception ex) {
-            log.warn("EQP_END task failed. eqpId={}, traceId={}",
+            log.error("EQP_END task failed by unexpected error. eqpId={}, traceId={}",
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex);

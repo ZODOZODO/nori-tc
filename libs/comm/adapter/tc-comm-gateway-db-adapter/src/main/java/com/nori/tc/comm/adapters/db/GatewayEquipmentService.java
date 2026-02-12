@@ -2,84 +2,97 @@ package com.nori.tc.comm.adapters.db;
 
 import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
+import com.nori.tc.comm.gateway.context.EquipmentContextProfile;
+import com.nori.tc.comm.gateway.context.EquipmentContextProfileProvider;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
+import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpPortStatusStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketStore;
+import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpHsms;
+import com.nori.tc.db.domain.eqp.TcEqpLog;
+import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpPortStatus;
 import com.nori.tc.db.domain.eqp.TcEqpSocket;
+import com.nori.tc.db.domain.eqp.TcEqpState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 게이트웨이 설비 조회 서비스(DB 어댑터).
+ * 게이트웨이 설비 조회용 DB 어댑터입니다.
  *
- * - 코어의 EquipmentInfoProvider 포트를 구현
- * - tc_eqp / tc_eqp_hsms / tc_eqp_socket을 조합해 런타임용 정보를 만든다
- * - 앱별로 조회/조합 규칙이 달라질 수 있어 어댑터로 분리한다
+ * <p>역할:</p>
+ * <p>- EquipmentInfoProvider: 통신 라우팅/연결 판단에 필요한 핵심 정보 조회</p>
+ * <p>- EquipmentContextProfileProvider: EquipmentContextRegistry 초기화/갱신용 상세 프로파일 조회</p>
  */
 @Service
-public class GatewayEquipmentService implements EquipmentInfoProvider {
+public class GatewayEquipmentService implements EquipmentInfoProvider, EquipmentContextProfileProvider {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayEquipmentService.class);
 
+    /**
+     * 페이지 단위 조회 시 사용하는 공통 limit입니다.
+     * 큰 테이블을 한 번에 메모리로 올리지 않기 위해 고정합니다.
+     */
     private static final int PAGE_LIMIT = PageRequest.defaultPage().limit();
 
     private final TcEqpStore eqpStore;
     private final TcEqpHsmsStore hsmsStore;
     private final TcEqpSocketStore socketStore;
+    private final TcEqpStateStore stateStore;
+    private final TcEqpPortStatusStore portStatusStore;
+    private final TcEqpLogStore logStore;
+    private final TcEqpParamStore paramStore;
 
-    
     /**
-     * 게이트웨이 DB 어댑터 구성 요소를 초기화합니다.
-     *
-     * <p>설비 통신 정보 조회 규칙과 DB 도메인 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param eqpStore 게이트웨이 DB 어댑터 처리에 사용하는 입력 값
-     * @param hsmsStore 게이트웨이 DB 어댑터 처리에 사용하는 입력 값
-     * @param socketStore 통신 채널/세션 정보
+     * DB 조회에 필요한 Store 포트를 주입받습니다.
      */
     public GatewayEquipmentService(
             final TcEqpStore eqpStore,
             final TcEqpHsmsStore hsmsStore,
-            final TcEqpSocketStore socketStore
+            final TcEqpSocketStore socketStore,
+            final TcEqpStateStore stateStore,
+            final TcEqpPortStatusStore portStatusStore,
+            final TcEqpLogStore logStore,
+            final TcEqpParamStore paramStore
     ) {
         this.eqpStore = Objects.requireNonNull(eqpStore, "eqpStore is null");
         this.hsmsStore = Objects.requireNonNull(hsmsStore, "hsmsStore is null");
         this.socketStore = Objects.requireNonNull(socketStore, "socketStore is null");
+        this.stateStore = Objects.requireNonNull(stateStore, "stateStore is null");
+        this.portStatusStore = Objects.requireNonNull(portStatusStore, "portStatusStore is null");
+        this.logStore = Objects.requireNonNull(logStore, "logStore is null");
+        this.paramStore = Objects.requireNonNull(paramStore, "paramStore is null");
     }
 
-    
     /**
-     * 게이트웨이 DB 어댑터에서 필요한 데이터를 조회합니다.
-     *
-     * <p>설비 통신 정보 조회 규칙과 DB 도메인 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return 조회/처리 결과 목록
+     * 전체 설비의 핵심 정보 목록을 조회합니다.
      */
     @Override
     public List<GatewayEquipmentInfo> findAll() {
-        log.info("Loading equipment list from DB.");
+        log.info("Loading equipment info list from DB.");
+
         final List<GatewayEquipmentInfo> results = new ArrayList<>();
         int offset = 0;
-
         while (true) {
-            // Offset/limit works for both JPA and MyBatis store implementations.
             final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
             if (page.isEmpty()) {
                 break;
-            }
-            if (log.isDebugEnabled()) {
-                log.debug("Loaded equipment page. offset={}, size={}", offset, page.size());
             }
             for (TcEqp eqp : page) {
                 results.add(toInfo(eqp));
@@ -90,93 +103,268 @@ public class GatewayEquipmentService implements EquipmentInfoProvider {
             offset += PAGE_LIMIT;
         }
 
-        log.info("Equipment list loaded. count={}", results.size());
+        log.info("Equipment info list loaded. count={}", results.size());
         return results;
     }
 
-    
     /**
-     * 게이트웨이 DB 어댑터에서 필요한 데이터를 조회합니다.
-     *
-     * <p>설비 통신 정보 조회 규칙과 DB 도메인 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param equipmentId 설비 식별 정보
-     * @return 조회 결과(Optional)
+     * 단일 설비의 핵심 정보를 조회합니다.
      */
     @Override
     public Optional<GatewayEquipmentInfo> findById(final String equipmentId) {
         try (GatewayLogContext ignored = GatewayLogContext.withEqpId(equipmentId)) {
             if (log.isDebugEnabled()) {
-                log.debug("Loading equipment by eqpId={}", equipmentId);
+                log.debug("Loading equipment info by eqpId={}", equipmentId);
             }
             return eqpStore.findByEqpId(equipmentId).map(this::toInfo);
         }
     }
 
-    
     /**
-     * 게이트웨이 DB 어댑터 규약에 맞게 데이터를 변환/구성합니다.
-     *
-     * <p>설비 통신 정보 조회 규칙과 DB 도메인 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param eqp 설비 식별 정보
-     * @return 게이트웨이 DB 어댑터 처리 결과
+     * 전체 설비의 컨텍스트 프로파일 목록을 조회합니다.
+     */
+    @Override
+    public List<EquipmentContextProfile> findAllProfiles() {
+        log.info("Loading equipment context profiles from DB.");
+
+        final List<EquipmentContextProfile> results = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
+            if (page.isEmpty()) {
+                break;
+            }
+            for (TcEqp eqp : page) {
+                results.add(toProfile(eqp));
+            }
+            if (page.size() < PAGE_LIMIT) {
+                break;
+            }
+            offset += PAGE_LIMIT;
+        }
+
+        log.info("Equipment context profiles loaded. count={}", results.size());
+        return results;
+    }
+
+    /**
+     * 단일 설비의 컨텍스트 프로파일을 조회합니다.
+     */
+    @Override
+    public Optional<EquipmentContextProfile> findProfileById(final String eqpId) {
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Loading equipment context profile by eqpId={}", eqpId);
+            }
+            return eqpStore.findByEqpId(eqpId).map(this::toProfile);
+        }
+    }
+
+    /**
+     * tc_eqp + tc_eqp_hsms/tc_eqp_socket를 조합해서 GatewayEquipmentInfo를 구성합니다.
      */
     private GatewayEquipmentInfo toInfo(final TcEqp eqp) {
         if (eqp == null) {
             throw new IllegalArgumentException("eqp is null");
         }
 
-        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqp.eqpId())) {
-
-            // eqpKey is the PK used by tc_eqp_hsms and tc_eqp_socket.
-            final Long eqpKey = eqp.eqpKey();
-            if (eqpKey == null || eqpKey <= 0) {
-                throw new IllegalStateException("Invalid eqpKey for eqpId=" + eqp.eqpId());
-            }
-            if (eqp.eqpId() == null || eqp.eqpId().isBlank()) {
-                throw new IllegalStateException("Invalid eqpId for eqpKey=" + eqpKey);
-            }
-
-            // ProtocolType (db-domain) -> CommInterfaceType (comm-domain).
-            final CommInterfaceType commInterfaceType = toCommInterfaceType(eqp.commInterface());
-
-            String socketType = null;
-            Integer hsmsDeviceId = null;
-            ConnectionMode connectionMode = null;
-
-            if (commInterfaceType == CommInterfaceType.SOCKET) {
-                // SOCKET uses tc_eqp_socket.socket_protocol_type as socketType.
-                final TcEqpSocket socket = socketStore.findByEqpKey(eqpKey)
-                        .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_socket for eqpId=" + eqp.eqpId()));
-                socketType = socket.socketProtocolType();
-                connectionMode = ConnectionMode.fromText(socket.connectionMode());
-            } else if (commInterfaceType == CommInterfaceType.HSMS) {
-                // HSMS uses tc_eqp_hsms.device_id as deviceId.
-                final TcEqpHsms hsms = hsmsStore.findByEqpKey(eqpKey)
-                        .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_hsms for eqpId=" + eqp.eqpId()));
-                hsmsDeviceId = hsms.deviceId();
-                connectionMode = ConnectionMode.fromText(hsms.connectionMode());
-            }
-
-            return new GatewayEquipmentInfo(
-                    eqp.eqpId(),
-                    commInterfaceType,
-                    socketType,
-                    hsmsDeviceId,
-                    eqp.eqpIp(),
-                    eqp.eqpPort(),
-                    connectionMode,
-                    eqp.enabled()
-            );
+        final Long eqpKey = eqp.eqpKey();
+        if (eqpKey == null || eqpKey <= 0) {
+            throw new IllegalStateException("Invalid eqpKey for eqpId=" + eqp.eqpId());
         }
+        if (eqp.eqpId() == null || eqp.eqpId().isBlank()) {
+            throw new IllegalStateException("Invalid eqpId for eqpKey=" + eqpKey);
+        }
+
+        final CommInterfaceType commInterfaceType = toCommInterfaceType(eqp.commInterface());
+
+        String socketType = null;
+        Integer hsmsDeviceId = null;
+        ConnectionMode connectionMode = null;
+
+        if (commInterfaceType == CommInterfaceType.SOCKET) {
+            final TcEqpSocket socket = socketStore.findByEqpKey(eqpKey)
+                    .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_socket for eqpId=" + eqp.eqpId()));
+            socketType = socket.socketProtocolType();
+            connectionMode = ConnectionMode.fromText(socket.connectionMode());
+        } else if (commInterfaceType == CommInterfaceType.HSMS) {
+            final TcEqpHsms hsms = hsmsStore.findByEqpKey(eqpKey)
+                    .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_hsms for eqpId=" + eqp.eqpId()));
+            hsmsDeviceId = hsms.deviceId();
+            connectionMode = ConnectionMode.fromText(hsms.connectionMode());
+        }
+
+        return new GatewayEquipmentInfo(
+                eqpKey,
+                eqp.eqpId(),
+                commInterfaceType,
+                socketType,
+                hsmsDeviceId,
+                eqp.eqpIp(),
+                eqp.eqpPort(),
+                eqp.modelKey(),
+                connectionMode,
+                eqp.enabled()
+        );
     }
 
-    
     /**
-     * 게이트웨이 DB 어댑터 규약에 맞게 데이터를 변환/구성합니다.
-     *
-     * <p>설비 통신 정보 조회 규칙과 DB 도메인 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param protocolType 게이트웨이 DB 어댑터 처리에 사용하는 입력 값
-     * @return 게이트웨이 DB 어댑터 처리 결과
+     * tc_eqp 계열 테이블을 조합해서 EquipmentContextProfile을 구성합니다.
+     */
+    private EquipmentContextProfile toProfile(final TcEqp eqp) {
+        final GatewayEquipmentInfo info = toInfo(eqp);
+        final long eqpKey = info.eqpKey();
+
+        final EquipmentContextProfile.HsmsSettings hsmsSettings = hsmsStore.findByEqpKey(eqpKey)
+                .map(this::toHsmsSettings)
+                .orElse(null);
+        final EquipmentContextProfile.SocketSettings socketSettings = socketStore.findByEqpKey(eqpKey)
+                .map(this::toSocketSettings)
+                .orElse(null);
+        final EquipmentContextProfile.CurrentStateSnapshot currentStateSnapshot = stateStore.findByEqpKey(eqpKey)
+                .map(this::toCurrentStateSnapshot)
+                .orElse(null);
+        final EquipmentContextProfile.LogPolicy logPolicy = logStore.findByEqpKey(eqpKey)
+                .map(this::toLogPolicy)
+                .orElse(null);
+
+        final List<EquipmentContextProfile.PortStatusSnapshot> portStatuses = loadAllPortStatus(eqpKey);
+        final List<EquipmentContextProfile.ParamSnapshot> params = loadAllParams(eqpKey);
+
+        if (log.isDebugEnabled()) {
+            log.debug("Equipment context profile mapped. eqpId={}, portStatusCount={}, paramCount={}",
+                    info.equipmentId(),
+                    portStatuses.size(),
+                    params.size());
+        }
+
+        return new EquipmentContextProfile(
+                info,
+                hsmsSettings,
+                socketSettings,
+                currentStateSnapshot,
+                portStatuses,
+                logPolicy,
+                params,
+                OffsetDateTime.now()
+        );
+    }
+
+    /**
+     * tc_eqp_port_status를 페이지 단위로 전체 조회해 스냅샷 목록으로 변환합니다.
+     */
+    private List<EquipmentContextProfile.PortStatusSnapshot> loadAllPortStatus(final long eqpKey) {
+        final List<EquipmentContextProfile.PortStatusSnapshot> snapshots = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            final List<TcEqpPortStatus> page = portStatusStore.findAllByEqpKey(
+                    eqpKey,
+                    PageRequest.of(offset, PAGE_LIMIT)
+            );
+            if (page.isEmpty()) {
+                break;
+            }
+            for (TcEqpPortStatus status : page) {
+                snapshots.add(new EquipmentContextProfile.PortStatusSnapshot(
+                        status.portId(),
+                        status.portType() == null ? null : status.portType().name(),
+                        status.portState() == null ? null : status.portState().name(),
+                        status.carrierId(),
+                        status.carrierType() == null ? null : status.carrierType().name(),
+                        status.carrierState() == null ? null : status.carrierState().name(),
+                        status.updatedAt()
+                ));
+            }
+            if (page.size() < PAGE_LIMIT) {
+                break;
+            }
+            offset += PAGE_LIMIT;
+        }
+        return snapshots;
+    }
+
+    /**
+     * tc_eqp_param을 페이지 단위로 전체 조회해 스냅샷 목록으로 변환합니다.
+     */
+    private List<EquipmentContextProfile.ParamSnapshot> loadAllParams(final long eqpKey) {
+        final List<EquipmentContextProfile.ParamSnapshot> snapshots = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            final List<TcEqpParam> page = paramStore.findAllByEqpKey(
+                    eqpKey,
+                    PageRequest.of(offset, PAGE_LIMIT)
+            );
+            if (page.isEmpty()) {
+                break;
+            }
+            for (TcEqpParam param : page) {
+                snapshots.add(new EquipmentContextProfile.ParamSnapshot(
+                        param.eqpParamKey(),
+                        param.paramName(),
+                        param.paramVersion(),
+                        param.paramValue(),
+                        param.updatedAt()
+                ));
+            }
+            if (page.size() < PAGE_LIMIT) {
+                break;
+            }
+            offset += PAGE_LIMIT;
+        }
+        return snapshots;
+    }
+
+    private EquipmentContextProfile.HsmsSettings toHsmsSettings(final TcEqpHsms hsms) {
+        return new EquipmentContextProfile.HsmsSettings(
+                hsms.deviceId(),
+                hsms.connectionMode(),
+                hsms.t3Timeout(),
+                hsms.t5Timeout(),
+                hsms.t6Timeout(),
+                hsms.t7Timeout(),
+                hsms.t8Timeout(),
+                hsms.linkTestEnabled(),
+                hsms.linkTestInterval(),
+                hsms.maxMsgBytes()
+        );
+    }
+
+    private EquipmentContextProfile.SocketSettings toSocketSettings(final TcEqpSocket socket) {
+        return new EquipmentContextProfile.SocketSettings(
+                socket.socketProtocolType(),
+                socket.connectionMode(),
+                socket.charset(),
+                socket.heartbeatEnabled(),
+                socket.heartbeatInterval(),
+                socket.readTimeout(),
+                socket.writeTimeout(),
+                socket.maxFrameSizeBytes(),
+                socket.keepAliveEnabled()
+        );
+    }
+
+    private EquipmentContextProfile.CurrentStateSnapshot toCurrentStateSnapshot(final TcEqpState state) {
+        return new EquipmentContextProfile.CurrentStateSnapshot(
+                state.controlState() == null ? null : state.controlState().name(),
+                state.eqpState() == null ? null : state.eqpState().name(),
+                state.sinceAt(),
+                state.reasonCode(),
+                state.reasonDetail(),
+                state.updatedAt()
+        );
+    }
+
+    private EquipmentContextProfile.LogPolicy toLogPolicy(final TcEqpLog logConfig) {
+        return new EquipmentContextProfile.LogPolicy(
+                logConfig.logLevel() == null ? null : logConfig.logLevel().name(),
+                logConfig.logRetentionDays(),
+                logConfig.logPath(),
+                logConfig.updatedAt()
+        );
+    }
+
+    /**
+     * DB ProtocolType을 게이트웨이 도메인 CommInterfaceType으로 변환합니다.
      */
     private CommInterfaceType toCommInterfaceType(final ProtocolType protocolType) {
         if (protocolType == null) {
