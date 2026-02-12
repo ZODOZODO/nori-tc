@@ -18,10 +18,36 @@ import com.nori.tc.db.domain.model.TcModelVariableId;
  */
 public interface TcModelVariableIdStore {
 
+    
+    /**
+     * DB Core 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB Core 계층 처리 결과
+     */
     TcModelVariableId upsert(UpsertTcModelVariableId command);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param variableKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModelVariableId> findByVariableKey(long variableKey);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param variableIdType DB Core 계층 처리에 사용하는 입력 값
+     * @param variableId DB Core 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModelVariableId> findByModelKeyAndTypeAndVariableId(
             long modelKey,
             VariableIdType variableIdType,
@@ -34,5 +60,12 @@ public interface TcModelVariableIdStore {
      */
     List<TcModelVariableId> findAllByModelKey(long modelKey, PageRequest page);
 
+    
+    /**
+     * DB Core 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param variableKey 대상 키 값
+     */
     void deleteByVariableKey(long variableKey);
 }

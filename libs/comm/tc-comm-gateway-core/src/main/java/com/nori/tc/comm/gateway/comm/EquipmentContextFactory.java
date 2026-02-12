@@ -1,19 +1,20 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.apps.commgateway.config.GatewayHsmsProperties;
-import com.nori.tc.apps.commgateway.config.GatewayPublishPolicyProperties;
-import com.nori.tc.apps.commgateway.config.GatewayRuntimeProperties;
-import com.nori.tc.apps.commgateway.config.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.config.GatewayHsmsProperties;
+import com.nori.tc.comm.gateway.config.GatewayPublishPolicyProperties;
+import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
+import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.eqp.EquipmentProfile;
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
-import com.nori.tc.comm.domain.type.CommInterfaceType;
-import com.nori.tc.comm.hsms.config.HsmsSessionConfig;
-import com.nori.tc.comm.hsms.session.HsmsSessionStateMachine;
-import com.nori.tc.comm.socket.config.SocketTypeConfig;
-import com.nori.tc.comm.socket.socketType.SocketTypeRegistry;
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
+import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
+import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.hsms.config.HsmsSessionConfig;
+import com.nori.tc.comm.gateway.hsms.session.HsmsSessionStateMachine;
+import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
+import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,17 @@ public class EquipmentContextFactory {
     private final GatewayPublishPolicyProperties publishPolicyProperties;
     private final SocketTypeRegistry socketTypeRegistry;
 
+    
+    /**
+     * 게이트웨이 코어 모듈 구성 요소를 초기화합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param runtimeProperties 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param hsmsProperties 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param socketProperties 통신 채널/세션 정보
+     * @param publishPolicyProperties 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param socketTypeRegistry 통신 채널/세션 정보
+     */
     public EquipmentContextFactory(
             final GatewayRuntimeProperties runtimeProperties,
             final GatewayHsmsProperties hsmsProperties,
@@ -48,6 +60,14 @@ public class EquipmentContextFactory {
         this.socketTypeRegistry = Objects.requireNonNull(socketTypeRegistry, "socketTypeRegistry is null");
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param info 도메인 데이터 객체
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public EquipmentRuntimeContext create(final GatewayEquipmentInfo info) {
         Objects.requireNonNull(info, "info is null");
 

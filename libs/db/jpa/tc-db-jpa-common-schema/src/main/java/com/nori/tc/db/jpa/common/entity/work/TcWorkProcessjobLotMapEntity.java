@@ -118,42 +118,112 @@ public class TcWorkProcessjobLotMapEntity extends AbstractCreatedUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getPjLotMapKey() {
         return pjLotMapKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param pjLotMapKey 대상 키 값
+     */
     public void setPjLotMapKey(Long pjLotMapKey) {
         this.pjLotMapKey = pjLotMapKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getProcessJobKey() {
         return processJobKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param processJobKey 대상 키 값
+     */
     public void setProcessJobKey(Long processJobKey) {
         this.processJobKey = processJobKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getWorkLotKey() {
         return workLotKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workLotKey 대상 키 값
+     */
     public void setWorkLotKey(Long workLotKey) {
         this.workLotKey = workLotKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getMapRole() {
         return mapRole;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapRole DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setMapRole(String mapRole) {
         this.mapRole = mapRole;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public TcWorkProcessjobLotMapOrder getMapOrder() {
         return mapOrder;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapOrder DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setMapOrder(TcWorkProcessjobLotMapOrder mapOrder) {
         this.mapOrder = mapOrder;
     }

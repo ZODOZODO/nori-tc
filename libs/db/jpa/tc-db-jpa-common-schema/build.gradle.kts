@@ -1,25 +1,3 @@
-/*
- * tc-db-jpa-common-schema (FIX)
- *
- * 역할
- * - "공통 스키마"에 해당하는 테이블(현재: 7개)의 JPA Entity / Spring Data JPA Repository를 제공한다.
- * - (선택지 A 적용) 또한 tc-db-core(Store/Port)의 "JPA 구현체"를 이 모듈 안에서 함께 제공한다.
- *
- * 목표
- * - 하드코딩된 starter-test 좌표 제거 → Version Catalog로 일원화
- * - [ADD] MapStruct 도입: Entity <-> Domain 변환 로직 자동화 (유지보수성 향상)
- *
- * 포함
- * - jakarta.persistence 기반 Entity
- * - Spring Data JPA Repository
- * - tc-db-core(Store/Port) 구현체(JPA Adapter)
- * - 스캔 기준이 되는 Marker 클래스
- *
- * 제외(중요)
- * - AutoConfiguration(조립)은 starter 모듈에서 한다.
- * - DB 벤더(Postgres/Oracle 등) 선택은 starter + properties에서 한다.
- */
-
 plugins {
     `java-library`
     // BOM 적용을 위해 사용(루트 build.gradle.kts에서 이 플러그인 적용 모듈에 BOM import)

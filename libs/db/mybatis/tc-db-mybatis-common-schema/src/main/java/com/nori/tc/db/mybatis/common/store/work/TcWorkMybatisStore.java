@@ -28,13 +28,29 @@ public class TcWorkMybatisStore implements TcWorkStore {
 
     private final TcWorkMapper mapper;
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapper DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     public TcWorkMybatisStore(TcWorkMapper mapper) {
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcWork upsert(UpsertTcWork command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         final Long workKey = command.workKey();
         final long eqpKey = command.eqpKey();
         final String workId = command.workId();
@@ -87,6 +103,14 @@ public class TcWorkMybatisStore implements TcWorkStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcWork> findByWorkKey(long workKey) {
@@ -99,6 +123,15 @@ public class TcWorkMybatisStore implements TcWorkStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @param workId DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcWork> findByEqpKeyAndWorkId(long eqpKey, String workId) {
@@ -111,6 +144,15 @@ public class TcWorkMybatisStore implements TcWorkStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcWork> findAllByEqpKey(long eqpKey, PageRequest page) {
@@ -125,9 +167,17 @@ public class TcWorkMybatisStore implements TcWorkStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     */
     @Override
     @Transactional
     public void deleteByWorkKey(long workKey) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         try {
             mapper.deleteByWorkKey(workKey);
         } catch (DataAccessException e) {
@@ -137,6 +187,16 @@ public class TcWorkMybatisStore implements TcWorkStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @param eqpKey 설비 식별 정보
+     * @param workId DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     private long resolveKey(Long workKey, long eqpKey, String workId) {
         if (workKey != null) {
             if (workKey <= 0) {

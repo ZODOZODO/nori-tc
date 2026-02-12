@@ -30,13 +30,29 @@ public class TcWorkParamMybatisStore implements TcWorkParamStore {
 
     private final TcWorkParamMapper mapper;
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapper DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     public TcWorkParamMybatisStore(TcWorkParamMapper mapper) {
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcWorkParam upsert(UpsertTcWorkParam command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         final long workKey = command.workKey();
         final String paramName = command.paramName();
 
@@ -83,6 +99,15 @@ public class TcWorkParamMybatisStore implements TcWorkParamStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @param paramName DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcWorkParam> findByWorkKeyAndName(long workKey, String paramName) {
@@ -101,6 +126,15 @@ public class TcWorkParamMybatisStore implements TcWorkParamStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcWorkParam> findAllByWorkKey(long workKey, PageRequest page) {
@@ -115,9 +149,17 @@ public class TcWorkParamMybatisStore implements TcWorkParamStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workParamKey 대상 키 값
+     */
     @Override
     @Transactional
     public void deleteByWorkParamKey(long workParamKey) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         try {
             mapper.deleteByWorkParamKey(workParamKey);
         } catch (DataAccessException e) {

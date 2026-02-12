@@ -130,6 +130,15 @@ public class TcWorkEntity extends AbstractCreatedUpdatedEntity {
     // Static Factory
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @param workId DB JPA 계층 처리에 사용하는 입력 값
+     * @return DB JPA 계층 처리 결과
+     */
     public static TcWorkEntity newEntity(long eqpKey, String workId) {
         if (eqpKey <= 0) {
             throw new IllegalArgumentException("eqpKey must be > 0");
@@ -147,74 +156,200 @@ public class TcWorkEntity extends AbstractCreatedUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getWorkKey() {
         return workKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     */
     public void setWorkKey(Long workKey) {
         this.workKey = workKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getEqpKey() {
         return eqpKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     */
     public void setEqpKey(Long eqpKey) {
         this.eqpKey = eqpKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getWorkId() {
         return workId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setWorkId(String workId) {
         this.workId = workId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getOperatorId() {
         return operatorId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param operatorId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setOperatorId(String operatorId) {
         this.operatorId = operatorId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Integer getStepSeq() {
         return stepSeq;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param stepSeq DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setStepSeq(Integer stepSeq) {
         this.stepSeq = stepSeq;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public TcWorkState getWorkState() {
         return workState;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workState DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setWorkState(TcWorkState workState) {
         this.workState = workState;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getStartTime() {
         return startTime;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param startTime DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setStartTime(OffsetDateTime startTime) {
         this.startTime = startTime;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getEndTime() {
         return endTime;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param endTime DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setEndTime(OffsetDateTime endTime) {
         this.endTime = endTime;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getMesMessage() {
         return mesMessage;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mesMessage 처리할 원본 데이터
+     */
     public void setMesMessage(String mesMessage) {
         this.mesMessage = mesMessage;
     }

@@ -1,3 +1,5 @@
+
+
 # tc-db-mybatis-common-schema (Layer 2 / MyBatis) - FIX
 
 ## 목적

@@ -1,14 +1,3 @@
-/*
- * tc-db-mybatis-site-schema (FIX)
- *
- * 역할
- * - 사이트(현장) 확장 전용 MyBatis 스키마 모듈
- * - 현재는 비어있지만, 언제든 site 전용 Mapper/XML을 추가할 수 있도록 "연결"만 고정한다.
- *
- * 목표
- * - 하드코딩된 mybatis 버전을 제거하고 version catalog를 사용한다.
- */
-
 plugins {
     `java-library`
     alias(libs.plugins.spring.dependency.management)

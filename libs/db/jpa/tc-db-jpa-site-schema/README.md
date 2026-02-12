@@ -1,3 +1,5 @@
+
+
 # tc-db-jpa-site-schema (Layer 2 / JPA) - FIX
 
 ## 목적

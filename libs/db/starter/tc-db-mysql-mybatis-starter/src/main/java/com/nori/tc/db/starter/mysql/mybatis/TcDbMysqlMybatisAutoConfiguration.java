@@ -36,6 +36,13 @@ import org.springframework.context.annotation.ComponentScan;
 })
 public class TcDbMysqlMybatisAutoConfiguration {
 
+    
+    /**
+     * DB 스타터 구성 도메인 처리 로직을 수행합니다.
+     *
+     * <p>데이터소스 및 저장소 빈 자동 구성 조건을 기준으로 처리합니다.</p>
+     * @return DB 스타터 구성 처리 결과
+     */
     @Bean(name = "tcDbStarterExclusiveLock")
     public Object tcDbStarterExclusiveLock() {
         return "tc-db-mysql-mybatis-starter";

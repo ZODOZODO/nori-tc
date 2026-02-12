@@ -81,6 +81,15 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     // Static Factory
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param eventId 처리할 이벤트 정보
+     * @return DB JPA 계층 처리 결과
+     */
     public static TcModelEventIdEntity newEntity(Long modelKey, String eventId) {
         if (modelKey == null || modelKey <= 0) {
             throw new IllegalArgumentException("modelKey must be positive");
@@ -98,6 +107,12 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     // Lifecycle
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PrePersist
     private void applyDefaults() {
         if (this.enabled == null) {
@@ -109,42 +124,112 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getEventKey() {
         return eventKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eventKey 대상 키 값
+     */
     public void setEventKey(Long eventKey) {
         this.eventKey = eventKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getModelKey() {
         return modelKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     */
     public void setModelKey(Long modelKey) {
         this.modelKey = modelKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getEventId() {
         return eventId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eventId 처리할 이벤트 정보
+     */
     public void setEventId(String eventId) {
         this.eventId = eventId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getReportId() {
         return reportId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param reportId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setReportId(String reportId) {
         this.reportId = reportId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     public Boolean getEnabled() {
         return enabled;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param enabled DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
     }

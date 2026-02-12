@@ -125,50 +125,134 @@ public class TcUiAuthSessionEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getToken() {
         return token;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param token DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setToken(String token) {
         this.token = token;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getUserPk() {
         return userPk;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param userPk DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setUserPk(Long userPk) {
         this.userPk = userPk;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getIssuedAt() {
         return issuedAt;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param issuedAt DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setIssuedAt(OffsetDateTime issuedAt) {
         this.issuedAt = issuedAt;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getExpiresAt() {
         return expiresAt;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param expiresAt DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setExpiresAt(OffsetDateTime expiresAt) {
         this.expiresAt = expiresAt;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getLastSeenAt() {
         return lastSeenAt;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param lastSeenAt DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setLastSeenAt(OffsetDateTime lastSeenAt) {
         this.lastSeenAt = lastSeenAt;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     public Boolean getRevoked() {
         return revoked;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param revoked DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setRevoked(Boolean revoked) {
         this.revoked = revoked;
     }

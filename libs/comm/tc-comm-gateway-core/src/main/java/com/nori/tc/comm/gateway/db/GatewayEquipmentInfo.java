@@ -1,7 +1,7 @@
-package com.nori.tc.apps.commgateway.db;
+package com.nori.tc.comm.gateway.db;
 
-import com.nori.tc.apps.commgateway.comm.ConnectionMode;
-import com.nori.tc.comm.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.comm.ConnectionMode;
+import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 
 /**
  * 설비 런타임 정보 DTO.

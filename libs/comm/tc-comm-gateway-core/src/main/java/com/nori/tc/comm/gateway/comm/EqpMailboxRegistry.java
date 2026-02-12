@@ -1,7 +1,7 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.apps.commgateway.config.GatewayRuntimeProperties;
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
+import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
+import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +23,14 @@ public final class EqpMailboxRegistry {
     private final GatewayRuntimeProperties runtimeProperties;
     private final Map<String, EqpMailbox> mailboxes = new ConcurrentHashMap<>();
 
+    
+    /**
+     * 게이트웨이 코어 모듈 구성 요소를 초기화합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param contextFactory 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param runtimeProperties 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public EqpMailboxRegistry(
             final EquipmentContextFactory contextFactory,
             final GatewayRuntimeProperties runtimeProperties
@@ -31,10 +39,27 @@ public final class EqpMailboxRegistry {
         this.runtimeProperties = Objects.requireNonNull(runtimeProperties, "runtimeProperties is null");
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param eqpId 설비 식별 정보
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public EqpMailbox get(final String eqpId) {
         return mailboxes.get(eqpId);
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param info 도메인 데이터 객체
+     * @param channel 통신 채널/세션 정보
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public EqpMailbox createAndBind(final GatewayEquipmentInfo info, final EquipmentChannel channel) {
         Objects.requireNonNull(info, "info is null");
         Objects.requireNonNull(channel, "channel is null");
@@ -63,6 +88,13 @@ public final class EqpMailboxRegistry {
         return mailbox;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param eqpId 설비 식별 정보
+     */
     public void remove(final String eqpId) {
         if (eqpId == null) {
             return;

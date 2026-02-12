@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
 import com.nori.tc.comm.core.message.OutboundRawFrame;
 

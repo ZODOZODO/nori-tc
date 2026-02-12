@@ -89,6 +89,15 @@ public class TcModelSocketMessageEntity extends AbstractUpdatedEntity {
     // Static Factory
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param socketMsgName 통신 채널/세션 정보
+     * @return DB JPA 계층 처리 결과
+     */
     public static TcModelSocketMessageEntity newEntity(long modelKey, String socketMsgName) {
         if (modelKey <= 0) {
             throw new IllegalArgumentException("modelKey must be > 0");
@@ -106,42 +115,112 @@ public class TcModelSocketMessageEntity extends AbstractUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getSocketMsgKey() {
         return socketMsgKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param socketMsgKey 대상 키 값
+     */
     public void setSocketMsgKey(Long socketMsgKey) {
         this.socketMsgKey = socketMsgKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getModelKey() {
         return modelKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     */
     public void setModelKey(Long modelKey) {
         this.modelKey = modelKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getSocketMsgName() {
         return socketMsgName;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param socketMsgName 통신 채널/세션 정보
+     */
     public void setSocketMsgName(String socketMsgName) {
         this.socketMsgName = socketMsgName;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getDescription() {
         return description;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param description DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setDescription(String description) {
         this.description = description;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getDataIndex() {
         return dataIndex;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param dataIndex 처리할 원본 데이터
+     */
     public void setDataIndex(String dataIndex) {
         this.dataIndex = dataIndex;
     }

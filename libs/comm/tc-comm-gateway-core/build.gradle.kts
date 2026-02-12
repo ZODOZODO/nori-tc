@@ -1,16 +1,3 @@
-/*
- * tc-comm-gateway-core
- *
- * 역할
- * - 게이트웨이 런타임 코어 로직(큐/스케줄/처리/상태)
- * - Kafka 파티션 계산/샤드 소유 판단
- * - 공통 설정 프로퍼티(@ConfigurationProperties)
- *
- * 주의
- * - 인프라(Netty/Kafka Consumer/Redis/DB) 직접 구현은 포함하지 않음
- * - Spring Boot는 @Component/@ConfigurationProperties 컴파일을 위한 최소 의존만 둔다
- */
-
 plugins {
     `java-library`
     alias(libs.plugins.spring.dependency.management)
@@ -27,9 +14,8 @@ java {
 
 dependencies {
     /*
-     * =========================
-     * Core/Domain (공통 계약)
-     * =========================
+     * 코어/도메인 계약
+     * - 게이트웨이 핵심 로직이 의존하는 공통 모델과 파이프라인 계약
      */
     api(project(":libs:comm:tc-comm-core"))
     api(project(":libs:comm:tc-comm-domain"))
@@ -37,22 +23,23 @@ dependencies {
     api(project(":libs:comm:tc-comm-socket"))
 
     /*
-     * =========================
-     * Kafka Utils (파티션 계산)
-     * =========================
+     * 공통 로깅 스타터
+     */
+    implementation(project(":libs:log:starter:tc-log-starter"))
+
+    /*
+     * Kafka 유틸리티
+     * - 파티션/샤드 계산 및 메타데이터 조회 시 사용
      */
     implementation(libs.kafka.clients)
 
     /*
-     * =========================
-     * Spring 컴파일 의존
-     * =========================
-     * - @Component/@ConfigurationProperties 컴파일을 위한 최소 의존
-     * - 런타임은 앱(starter)에서 제공
+     * Spring 컴파일 의존성
+     * - @Component, @ConfigurationProperties, @PostConstruct 컴파일 목적
+     * - 실제 런타임 의존성은 상위 starter/app에서 제공합니다.
      */
     compileOnly(libs.spring.boot)
     compileOnly(libs.spring.context)
-    compileOnly(libs.slf4j.api)
     compileOnly(libs.jakarta.annotation.api)
     annotationProcessor(libs.spring.boot.configuration.processor)
 }

@@ -85,6 +85,12 @@ public class TcModelReportIdEntity extends AbstractUpdatedEntity {
     // Lifecycle
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 감사/상태 필드를 최신 값으로 갱신합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PrePersist
     protected void onCreate() {
         if (this.enabled == null) {
@@ -118,42 +124,112 @@ public class TcModelReportIdEntity extends AbstractUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getReportKey() {
         return reportKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param reportKey 대상 키 값
+     */
     public void setReportKey(Long reportKey) {
         this.reportKey = reportKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getModelKey() {
         return modelKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     */
     public void setModelKey(Long modelKey) {
         this.modelKey = modelKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getReportId() {
         return reportId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param reportId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setReportId(String reportId) {
         this.reportId = reportId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getVariableId() {
         return variableId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param variableId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setVariableId(String variableId) {
         this.variableId = variableId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     public Boolean getEnabled() {
         return enabled;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param enabled DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
     }

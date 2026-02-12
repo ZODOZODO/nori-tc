@@ -1,6 +1,6 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
+import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 
 import java.util.List;
 import java.util.Optional;

@@ -27,6 +27,12 @@ public abstract class AbstractCreatedUpdatedEntity {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    
+    /**
+     * DB JPA 계층 감사/상태 필드를 최신 값으로 갱신합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PrePersist
     protected void onCreate() {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -37,25 +43,59 @@ public abstract class AbstractCreatedUpdatedEntity {
         this.updatedAt = (this.updatedAt == null) ? now : this.updatedAt;
     }
 
+    
+    /**
+     * DB JPA 계층 감사/상태 필드를 최신 값으로 갱신합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PreUpdate
     protected void onUpdate() {
         // 갱신 시점에는 무조건 현재 시각으로 갱신하는 쪽이 일반적으로 안전합니다.
         this.updatedAt = OffsetDateTime.now();
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getUpdatedAt() {
         return updatedAt;
     }
 
     // 필요 시(특수 마이그레이션)만 setter를 열고, 일반 CRUD에서는 사용하지 않는 것을 권장합니다.
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param createdAt DB JPA 계층 처리에 사용하는 입력 값
+     */
     protected void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param updatedAt DB JPA 계층 처리에 사용하는 입력 값
+     */
     protected void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }

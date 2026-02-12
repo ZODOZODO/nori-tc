@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import org.slf4j.Logger;
@@ -69,12 +69,27 @@ public final class EquipmentChannelRegistry {
         return removed;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentId 설비 식별 정보
+     */
     public void unregister(final EquipmentId equipmentId) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         channels.remove(equipmentId.value());
         log.info("Channel unregistered. eqpId={}", equipmentId.value());
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentId 설비 식별 정보
+     * @param channel 통신 채널/세션 정보
+     */
     public void unregister(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         Objects.requireNonNull(channel, "channel is null");
@@ -82,6 +97,14 @@ public final class EquipmentChannelRegistry {
         log.info("Channel unregistered (match). eqpId={}", equipmentId.value());
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentId 설비 식별 정보
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public EquipmentChannel get(final EquipmentId equipmentId) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         return channels.get(equipmentId.value());

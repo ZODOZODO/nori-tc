@@ -25,6 +25,16 @@ import org.apache.ibatis.type.JdbcType;
  */
 public class OffsetDateTimeTypeHandler extends BaseTypeHandler<OffsetDateTime> {
 
+    
+    /**
+     * DB MyBatis 계층 설정 값을 반영합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param ps DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param i DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param parameter DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param jdbcType DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, OffsetDateTime parameter, JdbcType jdbcType)
             throws SQLException {
@@ -32,16 +42,43 @@ public class OffsetDateTimeTypeHandler extends BaseTypeHandler<OffsetDateTime> {
         ps.setObject(i, parameter);
     }
 
+    
+    /**
+     * DB MyBatis 계층의 현재 값을 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param rs DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param columnName DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     public OffsetDateTime getNullableResult(ResultSet rs, String columnName) throws SQLException {
         return rs.getObject(columnName, OffsetDateTime.class);
     }
 
+    
+    /**
+     * DB MyBatis 계층의 현재 값을 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param rs DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param columnIndex DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     public OffsetDateTime getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
         return rs.getObject(columnIndex, OffsetDateTime.class);
     }
 
+    
+    /**
+     * DB MyBatis 계층의 현재 값을 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param cs DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param columnIndex DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     public OffsetDateTime getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
         return cs.getObject(columnIndex, OffsetDateTime.class);

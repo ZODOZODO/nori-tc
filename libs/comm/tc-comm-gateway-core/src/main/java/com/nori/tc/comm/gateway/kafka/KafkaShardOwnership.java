@@ -1,6 +1,6 @@
-package com.nori.tc.apps.commgateway.kafka;
+package com.nori.tc.comm.gateway.kafka;
 
-import com.nori.tc.apps.commgateway.config.GatewayKafkaShardProperties;
+import com.nori.tc.comm.gateway.config.GatewayKafkaShardProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -24,15 +24,38 @@ public class KafkaShardOwnership {
     private final GatewayKafkaShardProperties properties;
     private final Set<Integer> ownedPartitionSet;
 
+    
+    /**
+     * 게이트웨이 Kafka 어댑터 구성 요소를 초기화합니다.
+     *
+     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
+     * @param properties 게이트웨이 Kafka 어댑터 처리에 사용하는 입력 값
+     */
     public KafkaShardOwnership(final GatewayKafkaShardProperties properties) {
         this.properties = Objects.requireNonNull(properties, "properties is null");
         this.ownedPartitionSet = new HashSet<>(properties.getOwnedPartitions());
     }
 
+    
+    /**
+     * 게이트웨이 Kafka 어댑터 도메인 처리 로직을 수행합니다.
+     *
+     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
+     * @param eqpId 설비 식별 정보
+     * @return 게이트웨이 Kafka 어댑터 처리 결과
+     */
     public int partitionOf(final String eqpId) {
         return KafkaPartitioner.partitionForKey(eqpId, properties.getCommandsPartitionCount());
     }
 
+    
+    /**
+     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
+     *
+     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
+     * @param eqpId 설비 식별 정보
+     * @return 처리 성공 여부
+     */
     public boolean isOwned(final String eqpId) {
         final int p = partitionOf(eqpId);
         final boolean owned = ownedPartitionSet.contains(p);

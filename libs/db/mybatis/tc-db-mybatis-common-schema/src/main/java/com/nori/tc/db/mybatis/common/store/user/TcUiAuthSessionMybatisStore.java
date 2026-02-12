@@ -31,13 +31,29 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
 
     private final TcUiAuthSessionMapper mapper;
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapper DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     public TcUiAuthSessionMybatisStore(TcUiAuthSessionMapper mapper) {
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcUiAuthSession upsert(UpsertTcUiAuthSession command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         UpsertTcUiAuthSession normalized = normalizeCommand(command);
         validateCommand(normalized);
 
@@ -75,6 +91,14 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param token DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcUiAuthSession> findByToken(String token) {
@@ -90,6 +114,15 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param userPk DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcUiAuthSession> findAllByUserPk(long userPk, PageRequest page) {
@@ -107,9 +140,17 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param token DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     @Override
     @Transactional
     public void deleteByToken(String token) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("token must not be null/blank");
         }
@@ -122,6 +163,13 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 입력/설정 유효성을 검증합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     */
     private void validateCommand(UpsertTcUiAuthSession command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
@@ -146,6 +194,14 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     private UpsertTcUiAuthSession normalizeCommand(UpsertTcUiAuthSession command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");

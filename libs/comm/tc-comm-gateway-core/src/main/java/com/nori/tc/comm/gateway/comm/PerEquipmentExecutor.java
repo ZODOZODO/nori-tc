@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
 import java.util.Map;
 import java.util.Objects;
@@ -22,6 +22,13 @@ public final class PerEquipmentExecutor {
     private final ExecutorService workerPool;
     private final Map<String, SerialExecutor> executors = new ConcurrentHashMap<>();
 
+    
+    /**
+     * 게이트웨이 코어 모듈 구성 요소를 초기화합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param workerThreads 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public PerEquipmentExecutor(final int workerThreads) {
         if (workerThreads <= 0) {
             throw new IllegalArgumentException("workerThreads must be > 0");
@@ -29,6 +36,14 @@ public final class PerEquipmentExecutor {
         this.workerPool = Executors.newFixedThreadPool(workerThreads);
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentId 설비 식별 정보
+     * @param task 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void execute(final String equipmentId, final Runnable task) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         Objects.requireNonNull(task, "task is null");
@@ -37,6 +52,12 @@ public final class PerEquipmentExecutor {
                 .execute(task);
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 리소스를 정리하고 종료합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     */
     public void shutdown() {
         workerPool.shutdown();
     }
@@ -49,24 +70,46 @@ public final class PerEquipmentExecutor {
         private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
         private final AtomicBoolean running = new AtomicBoolean(false);
 
+        
         private SerialExecutor(final ExecutorService backend) {
             this.backend = backend;
         }
 
+        
+        /**
+         * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+         *
+         * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+         * @param command 처리할 요청/명령 정보
+         */
         @Override
         public void execute(final Runnable command) {
             tasks.add(command);
             schedule();
         }
 
+        
+        /**
+         * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+         *
+         * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+         */
         private void schedule() {
+            // 연결 제어 단계: 상태 전이와 예외 케이스를 함께 관리합니다.
             if (!running.compareAndSet(false, true)) {
                 return;
             }
             backend.execute(this::runTasks);
         }
 
+        
+        /**
+         * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+         *
+         * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+         */
         private void runTasks() {
+            // 처리 단계: 분기 조건에 따라 흐름을 제어하고 후속 작업을 호출합니다.
             try {
                 while (true) {
                     final Runnable task = tasks.poll();

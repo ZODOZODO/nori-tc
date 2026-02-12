@@ -45,14 +45,31 @@ public class TcWorkCarrierJpaStore implements TcWorkCarrierStore {
     @PersistenceContext
     private EntityManager em;
 
+    
+    /**
+     * DB JPA 계층 구성 요소를 초기화합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param repository DB JPA 계층 처리에 사용하는 입력 값
+     * @param mapper DB JPA 계층 처리에 사용하는 입력 값
+     */
     public TcWorkCarrierJpaStore(TcWorkCarrierJpaRepository repository, TcWorkCarrierEntityMapper mapper) {
         this.repository = repository;
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB JPA 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB JPA 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcWorkCarrier upsert(UpsertTcWorkCarrier command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateCommand(command);
 
         try {
@@ -74,6 +91,15 @@ public class TcWorkCarrierJpaStore implements TcWorkCarrierStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @param carrierId DB JPA 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcWorkCarrier> findByWorkKeyCarrierId(long workKey, String carrierId) {
@@ -90,6 +116,15 @@ public class TcWorkCarrierJpaStore implements TcWorkCarrierStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcWorkCarrier> findAllByWorkKey(long workKey, PageRequest page) {
@@ -117,9 +152,18 @@ public class TcWorkCarrierJpaStore implements TcWorkCarrierStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @param carrierId DB JPA 계층 처리에 사용하는 입력 값
+     */
     @Override
     @Transactional
     public void deleteByWorkKeyCarrierId(long workKey, String carrierId) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         if (workKey <= 0) {
             throw new IllegalArgumentException("workKey must be > 0");
         }
@@ -133,6 +177,13 @@ public class TcWorkCarrierJpaStore implements TcWorkCarrierStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 입력/설정 유효성을 검증합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     */
     private void validateCommand(UpsertTcWorkCarrier command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.workKey() <= 0) throw new IllegalArgumentException("command.workKey must be > 0");

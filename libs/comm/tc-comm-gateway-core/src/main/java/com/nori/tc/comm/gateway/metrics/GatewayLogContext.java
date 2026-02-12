@@ -1,84 +1,52 @@
-package com.nori.tc.apps.commgateway.metrics;
+package com.nori.tc.comm.gateway.metrics;
 
-import org.slf4j.MDC;
-
-import java.util.Objects;
+import com.nori.tc.logging.TcLogContext;
+import com.nori.tc.logging.TcMdcTaskDecorator;
 
 /**
- * 로그 MDC 컨텍스트 헬퍼.
+ * Gateway-specific log context facade.
  *
- * - eqpId/traceId를 MDC에 설정하여 로그 라우팅(설비별 파일)과 패턴 출력에 사용한다
- * - try-with-resources로 사용하면 스레드 컨텍스트를 자동으로 원복한다
+ * This class keeps existing call-sites stable while delegating
+ * actual MDC handling to tc-log-starter shared utilities.
  */
 public final class GatewayLogContext implements AutoCloseable {
 
-    private final String prevEqpId;
-    private final String prevTraceId;
-    private final boolean eqpIdChanged;
-    private final boolean traceIdChanged;
+    private final TcLogContext delegate;
 
-    private GatewayLogContext(
-            final String prevEqpId,
-            final String prevTraceId,
-            final boolean eqpIdChanged,
-            final boolean traceIdChanged
-    ) {
-        this.prevEqpId = prevEqpId;
-        this.prevTraceId = prevTraceId;
-        this.eqpIdChanged = eqpIdChanged;
-        this.traceIdChanged = traceIdChanged;
+    
+    private GatewayLogContext(final TcLogContext delegate) {
+        this.delegate = delegate;
     }
 
     /**
-     * eqpId만 MDC에 설정한다.
+     * Set only eqpId in MDC for this scope.
      */
     public static GatewayLogContext withEqpId(final String eqpId) {
-        return with(eqpId, null);
+        return new GatewayLogContext(TcLogContext.withEqpId(eqpId));
     }
 
     /**
-     * eqpId/traceId를 MDC에 설정한다.
+     * Set eqpId and traceId in MDC for this scope.
      */
     public static GatewayLogContext withEqpAndTraceId(final String eqpId, final String traceId) {
-        return with(eqpId, traceId);
+        return new GatewayLogContext(TcLogContext.withEqpAndTraceId(eqpId, traceId));
     }
 
-    private static GatewayLogContext with(final String eqpId, final String traceId) {
-        final String prevEqp = MDC.get("eqpId");
-        final String prevTrace = MDC.get("traceId");
-
-        boolean eqpChanged = false;
-        boolean traceChanged = false;
-
-        if (eqpId != null && !eqpId.isBlank()) {
-            MDC.put("eqpId", eqpId);
-            eqpChanged = true;
-        }
-
-        if (traceId != null && !traceId.isBlank()) {
-            MDC.put("traceId", traceId);
-            traceChanged = true;
-        }
-
-        return new GatewayLogContext(prevEqp, prevTrace, eqpChanged, traceChanged);
+    /**
+     * Capture current MDC and restore it in async execution.
+     */
+    public static Runnable wrap(final Runnable task) {
+        return TcMdcTaskDecorator.wrap(task);
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 리소스를 정리하고 종료합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     */
     @Override
     public void close() {
-        if (eqpIdChanged) {
-            restore("eqpId", prevEqpId);
-        }
-        if (traceIdChanged) {
-            restore("traceId", prevTraceId);
-        }
-    }
-
-    private static void restore(final String key, final String value) {
-        Objects.requireNonNull(key, "key is null");
-        if (value == null) {
-            MDC.remove(key);
-        } else {
-            MDC.put(key, value);
-        }
+        delegate.close();
     }
 }

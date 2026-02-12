@@ -1,3 +1,5 @@
+
+
 ## 📚 Database Schema Change Guide (DB 변경 가이드)
 
 이 문서는 프로젝트의 **헥사고날 아키텍처(Hexagonal Architecture)** 구조 하에서 테이블이나 컬럼이 변경되었을 때, **Core(Domain)**와 **Adapter(JPA/MyBatis)** 계층을 어떻게 수정해야 하는지 설명합니다.

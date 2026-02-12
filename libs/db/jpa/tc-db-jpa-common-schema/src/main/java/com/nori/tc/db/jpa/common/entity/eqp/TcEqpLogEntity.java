@@ -70,6 +70,14 @@ public class TcEqpLogEntity extends AbstractUpdatedEntity {
     // Static Factory
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @return DB JPA 계층 처리 결과
+     */
     public static TcEqpLogEntity newEntity(Long eqpKey) {
         if (eqpKey == null) {
             throw new IllegalArgumentException("eqpKey must not be null");
@@ -101,34 +109,90 @@ public class TcEqpLogEntity extends AbstractUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getEqpKey() {
         return eqpKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     */
     public void setEqpKey(Long eqpKey) {
         this.eqpKey = eqpKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public LogLevel getLogLevel() {
         return logLevel;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param logLevel DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setLogLevel(LogLevel logLevel) {
         this.logLevel = logLevel;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Integer getLogRetentionDays() {
         return logRetentionDays;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param logRetentionDays DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setLogRetentionDays(Integer logRetentionDays) {
         this.logRetentionDays = logRetentionDays;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getLogPath() {
         return logPath;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param logPath DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setLogPath(String logPath) {
         this.logPath = logPath;
     }

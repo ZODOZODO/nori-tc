@@ -48,6 +48,13 @@ public final class LogCompressionScheduler implements SmartLifecycle {
     private ScheduledExecutorService scheduler;
     private volatile boolean running = false;
 
+    /**
+     * 로깅 모듈 구성 요소를 초기화합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param properties 모듈 설정 값 객체
+     * @param environment 런타임 환경 설정 정보
+     */
     public LogCompressionScheduler(
             final LogCompressionProperties properties,
             final Environment environment
@@ -69,6 +76,11 @@ public final class LogCompressionScheduler implements SmartLifecycle {
         this.eqpMaxHistoryDays = Math.max(1, resolvedEqpHistory);
     }
 
+    /**
+     * 로깅 모듈 실행 환경을 초기화하고 기동합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     */
     @Override
     public void start() {
         if (running) {
@@ -88,6 +100,11 @@ public final class LogCompressionScheduler implements SmartLifecycle {
                 afterDays, scanIntervalMinutes);
     }
 
+    /**
+     * 로깅 모듈 리소스를 정리하고 종료합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     */
     @Override
     public void stop() {
         running = false;
@@ -96,16 +113,33 @@ public final class LogCompressionScheduler implements SmartLifecycle {
         }
     }
 
+    /**
+     * 로깅 모듈 현재 상태를 확인합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     @Override
     public boolean isRunning() {
         return running;
     }
 
+    /**
+     * 로깅 모듈에서 필요한 값을 조회합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @return 로깅 모듈 처리 결과
+     */
     @Override
     public int getPhase() {
         return 0;
     }
 
+    /**
+     * 로깅 모듈 실행 흐름을 처리합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     */
     private void runSafely() {
         try {
             compressAndCleanup(appDir, appMaxHistoryDays);
@@ -115,6 +149,13 @@ public final class LogCompressionScheduler implements SmartLifecycle {
         }
     }
 
+    /**
+     * 로깅 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param dir 파일/디렉터리 경로 정보
+     * @param maxHistoryDays 로깅 모듈 처리에 사용하는 입력 값
+     */
     private void compressAndCleanup(final Path dir, final int maxHistoryDays) throws IOException {
         if (dir == null || !Files.exists(dir) || !Files.isDirectory(dir)) {
             return;
@@ -142,6 +183,14 @@ public final class LogCompressionScheduler implements SmartLifecycle {
         }
     }
 
+    /**
+     * 로깅 모듈 현재 상태를 확인합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param path 파일/디렉터리 경로 정보
+     * @param keepDays 로깅 모듈 처리에 사용하는 입력 값
+     * @return 처리 성공 여부
+     */
     private boolean isOlderThan(final Path path, final int keepDays) throws IOException {
         final LocalDate fileDate = extractDate(path);
         if (fileDate == null) {
@@ -152,6 +201,13 @@ public final class LogCompressionScheduler implements SmartLifecycle {
         return fileDate.isBefore(cutoff);
     }
 
+    /**
+     * 로깅 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param path 파일/디렉터리 경로 정보
+     * @return 로깅 모듈 처리 결과
+     */
     private LocalDate extractDate(final Path path) throws IOException {
         final String name = path.getFileName().toString();
         final Matcher matcher = DATED_LOG_PATTERN.matcher(name);
@@ -162,6 +218,12 @@ public final class LogCompressionScheduler implements SmartLifecycle {
         return LocalDate.ofInstant(lastModified, ZoneId.systemDefault());
     }
 
+    /**
+     * 로깅 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param logFile 파일/디렉터리 경로 정보
+     */
     private void compress(final Path logFile) throws IOException {
         final Path gzPath = Paths.get(logFile.toString() + ".gz");
         if (Files.exists(gzPath)) {

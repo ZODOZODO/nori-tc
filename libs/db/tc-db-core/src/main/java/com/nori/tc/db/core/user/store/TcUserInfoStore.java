@@ -30,10 +30,34 @@ public interface TcUserInfoStore {
      */
     TcUserInfo upsert(UpsertTcUserInfo command);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param userPk DB Core 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcUserInfo> findByUserPk(long userPk);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param userIdNorm DB Core 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcUserInfo> findByUserIdNorm(String userIdNorm);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param email DB Core 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcUserInfo> findByEmail(String email);
 
     /**
@@ -41,5 +65,12 @@ public interface TcUserInfoStore {
      */
     List<TcUserInfo> findAllByCompanyDepartment(String company, String department, PageRequest page);
 
+    
+    /**
+     * DB Core 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param userPk DB Core 계층 처리에 사용하는 입력 값
+     */
     void deleteByUserPk(long userPk);
 }

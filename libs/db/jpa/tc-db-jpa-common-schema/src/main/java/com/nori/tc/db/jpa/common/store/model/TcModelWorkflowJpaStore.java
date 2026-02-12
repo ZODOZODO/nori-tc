@@ -38,14 +38,31 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
     @PersistenceContext
     private EntityManager em;
 
+    
+    /**
+     * DB JPA 계층 구성 요소를 초기화합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param repository DB JPA 계층 처리에 사용하는 입력 값
+     * @param mapper DB JPA 계층 처리에 사용하는 입력 값
+     */
     public TcModelWorkflowJpaStore(TcModelWorkflowJpaRepository repository, TcModelWorkflowEntityMapper mapper) {
         this.repository = repository;
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB JPA 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB JPA 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcModelWorkflow upsert(UpsertTcModelWorkflow command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateUpsert(command);
 
         try {
@@ -66,6 +83,14 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcModelWorkflow> findByWorkflowKey(long workflowKey) {
@@ -79,6 +104,16 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param workflowName DB JPA 계층 처리에 사용하는 입력 값
+     * @param messageName 처리할 원본 데이터
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
@@ -91,6 +126,15 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page) {
@@ -118,9 +162,17 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     */
     @Override
     @Transactional
     public void deleteByWorkflowKey(long workflowKey) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         if (workflowKey <= 0) {
             throw new IllegalArgumentException("workflowKey must be > 0");
         }
@@ -133,6 +185,13 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 입력/설정 유효성을 검증합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     */
     private void validateUpsert(UpsertTcModelWorkflow command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
@@ -147,6 +206,14 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB JPA 계층 처리 결과
+     */
     private TcModelWorkflowEntity resolveEntity(UpsertTcModelWorkflow command) {
         if (command.workflowKey() != null) {
             return repository.findById(command.workflowKey())

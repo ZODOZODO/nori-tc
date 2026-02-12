@@ -1,10 +1,10 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.core.message.InboundProcessResult;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
-import com.nori.tc.comm.hsms.pipeline.HsmsInboundPipeline;
-import com.nori.tc.comm.socket.pipeline.SocketInboundPipeline;
+import com.nori.tc.comm.gateway.hsms.pipeline.HsmsInboundPipeline;
+import com.nori.tc.comm.gateway.socket.pipeline.SocketInboundPipeline;
 
 import java.util.Objects;
 
@@ -19,6 +19,14 @@ public final class GatewayInboundPipelineRouter implements InboundPipelinePort {
     private final HsmsInboundPipeline hsmsInboundPipeline;
     private final SocketInboundPipeline socketInboundPipeline;
 
+    
+    /**
+     * 게이트웨이 코어 모듈 구성 요소를 초기화합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param hsmsInboundPipeline 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param socketInboundPipeline 통신 채널/세션 정보
+     */
     public GatewayInboundPipelineRouter(
             final HsmsInboundPipeline hsmsInboundPipeline,
             final SocketInboundPipeline socketInboundPipeline
@@ -27,6 +35,14 @@ public final class GatewayInboundPipelineRouter implements InboundPipelinePort {
         this.socketInboundPipeline = Objects.requireNonNull(socketInboundPipeline, "socketInboundPipeline is null");
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param ctx 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     @Override
     public InboundProcessResult drain(final EquipmentRuntimeContext ctx) {
         Objects.requireNonNull(ctx, "ctx is null");

@@ -26,26 +26,62 @@ public class LogCompressionProperties {
      */
     private int scanIntervalMinutes = 60;
 
+    /**
+     * 로깅 모듈 현재 상태를 확인합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     public boolean isEnabled() {
         return enabled;
     }
 
+    /**
+     * 로깅 모듈 상태/설정 값을 반영합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param enabled 로깅 모듈 처리에 사용하는 입력 값
+     */
     public void setEnabled(final boolean enabled) {
         this.enabled = enabled;
     }
 
+    /**
+     * 로깅 모듈에서 필요한 값을 조회합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @return 로깅 모듈 처리 결과
+     */
     public int getAfterDays() {
         return afterDays;
     }
 
+    /**
+     * 로깅 모듈 상태/설정 값을 반영합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param afterDays 로깅 모듈 처리에 사용하는 입력 값
+     */
     public void setAfterDays(final int afterDays) {
         this.afterDays = afterDays;
     }
 
+    /**
+     * 로깅 모듈에서 필요한 값을 조회합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @return 로깅 모듈 처리 결과
+     */
     public int getScanIntervalMinutes() {
         return scanIntervalMinutes;
     }
 
+    /**
+     * 로깅 모듈 상태/설정 값을 반영합니다.
+     *
+     * <p>MDC 컨텍스트 전파, 로그 압축/보관 정책, 자동 구성 규칙을 기준으로 처리합니다.</p>
+     * @param scanIntervalMinutes 로깅 모듈 처리에 사용하는 입력 값
+     */
     public void setScanIntervalMinutes(final int scanIntervalMinutes) {
         this.scanIntervalMinutes = scanIntervalMinutes;
     }

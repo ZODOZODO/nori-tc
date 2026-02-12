@@ -33,14 +33,31 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
     private final TcEqpSocketJpaRepository repository;
     private final TcEqpSocketEntityMapper mapper;
 
+    
+    /**
+     * DB JPA 계층 구성 요소를 초기화합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param repository DB JPA 계층 처리에 사용하는 입력 값
+     * @param mapper DB JPA 계층 처리에 사용하는 입력 값
+     */
     public TcEqpSocketJpaStore(TcEqpSocketJpaRepository repository, TcEqpSocketEntityMapper mapper) {
         this.repository = repository;
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB JPA 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB JPA 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcEqpSocket upsert(UpsertTcEqpSocket command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateCommand(command);
 
         try {
@@ -69,6 +86,14 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcEqpSocket> findByEqpKey(long eqpKey) {
@@ -82,9 +107,17 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     */
     @Override
     @Transactional
     public void deleteByEqpKey(long eqpKey) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         if (eqpKey <= 0) {
             throw new IllegalArgumentException("eqpKey must be positive");
         }
@@ -97,6 +130,13 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 입력/설정 유효성을 검증합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     */
     private void validateCommand(UpsertTcEqpSocket command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.eqpKey() <= 0) throw new IllegalArgumentException("command.eqpKey must be positive");

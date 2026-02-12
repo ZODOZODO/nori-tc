@@ -1,16 +1,17 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.apps.commgateway.db.GatewayEquipmentInfo;
-import com.nori.tc.apps.commgateway.metrics.GatewayLogSampler;
-import com.nori.tc.apps.commgateway.metrics.GatewayMetrics;
+import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
+import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
+import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
+import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
+import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
 import com.nori.tc.comm.core.inbound.InboundChunk;
 import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.DlqPublisherPort;
 import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
-import com.nori.tc.comm.domain.dlq.DlqMessage;
-import com.nori.tc.comm.domain.dlq.DlqReasonCode;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,21 @@ public class GatewayProcessingService {
     private final DlqPublisherPort dlqPublisherPort;
     private final QuarantinePort quarantinePort;
 
+    
+    /**
+     * 게이트웨이 코어 모듈 구성 요소를 초기화합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentInfoProvider 도메인 데이터 객체
+     * @param mailboxRegistry 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param processingCoordinator 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param metrics 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param logSampler 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param clockPort 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param traceIdGeneratorPort 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param dlqPublisherPort 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param quarantinePort 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public GatewayProcessingService(
             final EquipmentInfoProvider equipmentInfoProvider,
             final EqpMailboxRegistry mailboxRegistry,
@@ -144,6 +160,7 @@ public class GatewayProcessingService {
      * BOUND 시점에서 mailbox를 생성/등록합니다.
      */
     public EqpMailbox bindMailbox(final GatewayEquipmentInfo info, final EquipmentChannel channel) {
+        // 연결 제어 단계: 상태 전이와 예외 케이스를 함께 관리합니다.
         if (info == null || !info.enabled()) {
             throw new IllegalArgumentException("Invalid equipment info");
         }
@@ -153,6 +170,13 @@ public class GatewayProcessingService {
         return mailboxRegistry.createAndBind(info, channel);
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentId 설비 식별 정보
+     */
     public void removeMailbox(final String equipmentId) {
         mailboxRegistry.remove(equipmentId);
         metrics.clearQueueDepth(equipmentId);
@@ -161,13 +185,30 @@ public class GatewayProcessingService {
         }
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param equipmentId 설비 식별 정보
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public GatewayEquipmentInfo resolveEquipment(final String equipmentId) {
         return equipmentInfoProvider.findById(equipmentId).orElseThrow(
                 () -> new IllegalArgumentException("No equipment found for eqpId=" + equipmentId)
         );
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 입력 이벤트/요청을 처리합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param payload 처리할 원본 데이터
+     */
     private void handleQueueOverflow(final EqpMailbox mailbox, final byte[] payload) {
+        // 처리 단계: 분기 조건에 따라 흐름을 제어하고 후속 작업을 호출합니다.
         final long now = clockPort.nowEpochMillis();
         final String traceId = traceIdGeneratorPort.newTraceId();
 
@@ -203,6 +244,14 @@ public class GatewayProcessingService {
         }
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param reason 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     private void safeQuarantine(final EqpMailbox mailbox, final String reason) {
         try {
             quarantinePort.quarantine(

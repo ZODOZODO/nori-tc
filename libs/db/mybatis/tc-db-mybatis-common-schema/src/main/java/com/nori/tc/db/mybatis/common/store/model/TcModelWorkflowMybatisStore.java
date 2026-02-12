@@ -28,13 +28,29 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
 
     private final TcModelWorkflowMapper mapper;
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapper DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     public TcModelWorkflowMybatisStore(TcModelWorkflowMapper mapper) {
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcModelWorkflow upsert(UpsertTcModelWorkflow command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         final Long workflowKey = command.workflowKey();
         final long modelKey = command.modelKey();
         final String workflowName = command.workflowName();
@@ -87,6 +103,14 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcModelWorkflow> findByWorkflowKey(long workflowKey) {
@@ -99,6 +123,16 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param workflowName DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param messageName 처리할 원본 데이터
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
@@ -115,6 +149,15 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page) {
@@ -133,9 +176,17 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     */
     @Override
     @Transactional
     public void deleteByWorkflowKey(long workflowKey) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         try {
             // 삭제는 멱등으로 둔다: 없어도 예외를 던지지 않는다.
             mapper.deleteByWorkflowKey(workflowKey);
@@ -146,6 +197,17 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     * @param modelKey 대상 키 값
+     * @param workflowName DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param messageName 처리할 원본 데이터
+     * @return DB MyBatis 계층 처리 결과
+     */
     private long resolveKey(Long workflowKey, long modelKey, String workflowName, String messageName) {
         if (workflowKey != null) {
             if (workflowKey <= 0) {

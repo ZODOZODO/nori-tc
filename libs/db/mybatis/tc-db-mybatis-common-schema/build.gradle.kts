@@ -1,22 +1,3 @@
-/*
- * tc-db-mybatis-common-schema (FIX)
- *
- * 역할
- * - 공통 스키마(현재 7개 테이블)의 MyBatis Mapper + XML + Store 구현체를 제공한다.
- *
- * 핵심 목표
- * - "버전/좌표 하드코딩"을 제거하고, gradle/libs.versions.toml(Version Catalog)로 일원화한다.
- *
- * 설계 원칙
- * - SQL/매핑 정의(Mapper/XML)는 이 모듈에 둔다.
- * - "조립"(@MapperScan, DataSource 등)은 starter 모듈에서 담당한다.
- *
- * 주의
- * - Store 구현체는 tc-db-core의 Port(Store 인터페이스)를 구현하므로 tc-db-core 의존성이 필요하다.
- * - Store는 스프링 빈(@Repository)으로 등록되므로 spring-context/tx가 컴파일 클래스패스에 필요하다.
- *   (런타임은 tc-db-*-mybatis-starter가 가져오는 의존성으로 충족)
- */
-
 plugins {
     `java-library`
 

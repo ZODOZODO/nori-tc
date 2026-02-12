@@ -12,6 +12,12 @@ package com.nori.tc.db.jpa.common;
  *   @EnableJpaRepositories(basePackageClasses = JpaCommonSchemaMarker.class)
  */
 public final class JpaCommonSchemaMarker {
+    
+    /**
+     * DB JPA 계층 구성 요소를 초기화합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     private JpaCommonSchemaMarker() {
         // 인스턴스화 방지용
     }

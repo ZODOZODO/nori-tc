@@ -30,13 +30,29 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
 
     private final TcMsgSendQueueMapper mapper;
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapper DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     public TcMsgSendQueueMybatisStore(TcMsgSendQueueMapper mapper) {
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcMsgSendQueue upsert(UpsertTcMsgSendQueue command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateCommand(command);
 
         final long resolvedKey = resolveKey(command);
@@ -89,6 +105,14 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param msgKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcMsgSendQueue> findByMsgKey(long msgKey) {
@@ -104,6 +128,15 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param topic Kafka 토픽 이름
+     * @param idempotencyKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcMsgSendQueue> findByTopicAndIdempotencyKey(String topic, String idempotencyKey) {
@@ -122,6 +155,15 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param status DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcMsgSendQueue> findAllByStatus(TcMsgSendStatus status, PageRequest page) {
@@ -139,9 +181,17 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param msgKey 대상 키 값
+     */
     @Override
     @Transactional
     public void deleteByMsgKey(long msgKey) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         if (msgKey <= 0) {
             throw new IllegalArgumentException("msgKey must be > 0");
         }
@@ -154,6 +204,13 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 입력/설정 유효성을 검증합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     */
     private void validateCommand(UpsertTcMsgSendQueue command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.msgKey() != null && command.msgKey() <= 0) {
@@ -176,6 +233,14 @@ public class TcMsgSendQueueMybatisStore implements TcMsgSendQueueStore {
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     private long resolveKey(UpsertTcMsgSendQueue command) {
         if (command.msgKey() != null) {
             return command.msgKey();

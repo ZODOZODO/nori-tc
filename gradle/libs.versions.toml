@@ -47,6 +47,7 @@ mapstruct = "1.6.3"
 kafkaClients = "4.1.0"
 tibrv = "8.5.0"
 netty = "4.1.100.Final"
+slf4j = "2.0.16"
 
 ################################################################################
 # JDBC Drivers
@@ -131,7 +132,7 @@ spring-context = { module = "org.springframework:spring-context" }
 spring-tx = { module = "org.springframework:spring-tx" }
 
 # Logging / Jakarta Annotations (compile-only in core modules)
-slf4j-api = { module = "org.slf4j:slf4j-api" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 jakarta-annotation-api = { module = "jakarta.annotation:jakarta.annotation-api" }
 
 ################################################################################

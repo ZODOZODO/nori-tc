@@ -15,12 +15,46 @@ import com.nori.tc.db.domain.model.TcModelWorkflow;
  */
 public interface TcModelWorkflowMapper {
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflow DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     int insert(@Param("w") TcModelWorkflow workflow);
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflow DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     int update(@Param("w") TcModelWorkflow workflow);
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModelWorkflow> findByWorkflowKey(@Param("workflowKey") long workflowKey);
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param workflowName DB MyBatis 계층 처리에 사용하는 입력 값
+     * @param messageName 처리할 원본 데이터
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
             @Param("modelKey") long modelKey,
             @Param("workflowName") String workflowName,
@@ -37,5 +71,13 @@ public interface TcModelWorkflowMapper {
             @Param("limit") int limit
     );
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workflowKey 대상 키 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     int deleteByWorkflowKey(@Param("workflowKey") long workflowKey);
 }

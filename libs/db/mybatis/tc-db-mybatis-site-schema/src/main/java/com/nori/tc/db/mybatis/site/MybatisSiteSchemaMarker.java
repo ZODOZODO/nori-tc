@@ -9,6 +9,12 @@ package com.nori.tc.db.mybatis.site;
  */
 public final class MybatisSiteSchemaMarker {
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     private MybatisSiteSchemaMarker() {
         // 인스턴스화 방지
     }

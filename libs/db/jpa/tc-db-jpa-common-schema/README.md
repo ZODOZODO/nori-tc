@@ -1,3 +1,5 @@
+
+
 # tc-db-jpa-common-schema (Layer 2 / JPA) - FIX
 
 ## 목적

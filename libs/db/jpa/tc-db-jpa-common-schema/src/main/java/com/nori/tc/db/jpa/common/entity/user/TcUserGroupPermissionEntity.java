@@ -88,6 +88,12 @@ public class TcUserGroupPermissionEntity {
     // Lifecycle hooks
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 감사/상태 필드를 최신 값으로 갱신합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PrePersist
     protected void onCreate() {
         if (this.grantedAt == null) {
@@ -95,6 +101,12 @@ public class TcUserGroupPermissionEntity {
         }
     }
 
+    
+    /**
+     * DB JPA 계층 감사/상태 필드를 최신 값으로 갱신합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PreUpdate
     protected void onUpdate() {
         this.grantedAt = OffsetDateTime.now();
@@ -104,6 +116,15 @@ public class TcUserGroupPermissionEntity {
     // Static Factory
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param groupId DB JPA 계층 처리에 사용하는 입력 값
+     * @param permId DB JPA 계층 처리에 사용하는 입력 값
+     * @return DB JPA 계층 처리 결과
+     */
     public static TcUserGroupPermissionEntity newEntity(long groupId, long permId) {
         if (groupId <= 0) {
             throw new IllegalArgumentException("groupId must be > 0");
@@ -121,42 +142,112 @@ public class TcUserGroupPermissionEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getUgpKey() {
         return ugpKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param ugpKey 대상 키 값
+     */
     public void setUgpKey(Long ugpKey) {
         this.ugpKey = ugpKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getGroupId() {
         return groupId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param groupId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setGroupId(Long groupId) {
         this.groupId = groupId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getPermId() {
         return permId;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param permId DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setPermId(Long permId) {
         this.permId = permId;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public OffsetDateTime getGrantedAt() {
         return grantedAt;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param grantedAt DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setGrantedAt(OffsetDateTime grantedAt) {
         this.grantedAt = grantedAt;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getGrantedBy() {
         return grantedBy;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param grantedBy DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setGrantedBy(String grantedBy) {
         this.grantedBy = grantedBy;
     }

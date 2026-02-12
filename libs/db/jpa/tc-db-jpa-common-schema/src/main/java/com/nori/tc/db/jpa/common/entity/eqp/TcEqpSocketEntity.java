@@ -109,6 +109,14 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
     // Static Factory & Lifecycle
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @return DB JPA 계층 처리 결과
+     */
     public static TcEqpSocketEntity newEntity(Long eqpKey) {
         if (eqpKey == null) {
             throw new IllegalArgumentException("eqpKey must not be null");
@@ -118,6 +126,12 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
         return e;
     }
 
+    
+    /**
+     * DB JPA 계층 도메인 처리 로직을 수행합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     */
     @PrePersist
     private void applyDefaults() {
         if (this.charset == null || this.charset.isBlank()) {
@@ -147,82 +161,222 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
     // Getters & Setters
     // =========================================================================
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Long getEqpKey() {
         return eqpKey;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     */
     public void setEqpKey(Long eqpKey) {
         this.eqpKey = eqpKey;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getSocketProtocolType() {
         return socketProtocolType;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param socketProtocolType 통신 채널/세션 정보
+     */
     public void setSocketProtocolType(String socketProtocolType) {
         this.socketProtocolType = socketProtocolType;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getConnectionMode() {
         return connectionMode;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param connectionMode 통신 채널/세션 정보
+     */
     public void setConnectionMode(String connectionMode) {
         this.connectionMode = connectionMode;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public String getCharset() {
         return charset;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param charset DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setCharset(String charset) {
         this.charset = charset;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     public Boolean getHeartbeatEnabled() {
         return heartbeatEnabled;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param heartbeatEnabled DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setHeartbeatEnabled(Boolean heartbeatEnabled) {
         this.heartbeatEnabled = heartbeatEnabled;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Integer getHeartbeatInterval() {
         return heartbeatInterval;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param heartbeatInterval 시간 관련 설정 값
+     */
     public void setHeartbeatInterval(Integer heartbeatInterval) {
         this.heartbeatInterval = heartbeatInterval;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Integer getReadTimeout() {
         return readTimeout;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param readTimeout 시간 관련 설정 값
+     */
     public void setReadTimeout(Integer readTimeout) {
         this.readTimeout = readTimeout;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Integer getWriteTimeout() {
         return writeTimeout;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param writeTimeout 시간 관련 설정 값
+     */
     public void setWriteTimeout(Integer writeTimeout) {
         this.writeTimeout = writeTimeout;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
     public Integer getMaxFrameSizeBytes() {
         return maxFrameSizeBytes;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param maxFrameSizeBytes 처리할 원본 데이터
+     */
     public void setMaxFrameSizeBytes(Integer maxFrameSizeBytes) {
         this.maxFrameSizeBytes = maxFrameSizeBytes;
     }
 
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return 처리 성공 여부
+     */
     public Boolean getKeepAliveEnabled() {
         return keepAliveEnabled;
     }
 
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param keepAliveEnabled DB JPA 계층 처리에 사용하는 입력 값
+     */
     public void setKeepAliveEnabled(Boolean keepAliveEnabled) {
         this.keepAliveEnabled = keepAliveEnabled;
     }

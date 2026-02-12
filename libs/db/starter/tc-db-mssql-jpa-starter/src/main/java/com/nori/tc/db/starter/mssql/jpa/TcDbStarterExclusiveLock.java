@@ -16,10 +16,24 @@ public final class TcDbStarterExclusiveLock {
 
     private final String starterId;
 
+    
+    /**
+     * DB 스타터 구성 구성 요소를 초기화합니다.
+     *
+     * <p>데이터소스 및 저장소 빈 자동 구성 조건을 기준으로 처리합니다.</p>
+     * @param starterId DB 스타터 구성 처리에 사용하는 입력 값
+     */
     public TcDbStarterExclusiveLock(String starterId) {
         this.starterId = starterId;
     }
 
+    
+    /**
+     * DB 스타터 구성의 현재 값을 조회합니다.
+     *
+     * <p>데이터소스 및 저장소 빈 자동 구성 조건을 기준으로 처리합니다.</p>
+     * @return DB 스타터 구성 처리 결과
+     */
     public String getStarterId() {
         return starterId;
     }

@@ -33,8 +33,25 @@ public interface TcModelSecsMessageStore {
      */
     TcModelSecsMessage upsert(UpsertTcModelSecsMessage command);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param secsMsgKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModelSecsMessage> findBySecsMsgKey(long secsMsgKey);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @param secsMsgName DB Core 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModelSecsMessage> findByModelKeyAndName(long modelKey, String secsMsgName);
 
     /**
@@ -43,5 +60,12 @@ public interface TcModelSecsMessageStore {
      */
     List<TcModelSecsMessage> findAllByModelKey(long modelKey, PageRequest page);
 
+    
+    /**
+     * DB Core 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param secsMsgKey 대상 키 값
+     */
     void deleteBySecsMsgKey(long secsMsgKey);
 }

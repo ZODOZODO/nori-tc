@@ -33,8 +33,25 @@ public interface TcModelStore {
      */
     TcModel upsert(UpsertTcModel command);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param modelKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModel> findByModelKey(long modelKey);
 
+    
+    /**
+     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
+     * @param modelName 도메인 데이터 객체
+     * @param modelVersion 도메인 데이터 객체
+     * @return 조회 결과(Optional)
+     */
     Optional<TcModel> findByNameVersion(String modelName, String modelVersion);
 
     /**

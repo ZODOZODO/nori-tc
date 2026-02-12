@@ -1,4 +1,4 @@
-package com.nori.tc.apps.commgateway.comm;
+package com.nori.tc.comm.gateway.comm;
 
 /**
  * Equipment connection mode (ACTIVE | PASSIVE).
@@ -18,6 +18,7 @@ public enum ConnectionMode {
      * @throws IllegalArgumentException when text is null/blank/unknown
      */
     public static ConnectionMode fromText(final String text) {
+        // 변환 단계: 입력 데이터를 현재 컨텍스트에 맞는 구조로 조합합니다.
         if (text == null) {
             throw new IllegalArgumentException("connectionMode is null");
         }

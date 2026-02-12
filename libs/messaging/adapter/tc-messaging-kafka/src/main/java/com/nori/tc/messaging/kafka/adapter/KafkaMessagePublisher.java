@@ -22,6 +22,13 @@ public final class KafkaMessagePublisher implements MessagePublisherPort {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final TcKafkaProperties properties;
 
+    /**
+     * 메시징 Kafka 어댑터 구성 요소를 초기화합니다.
+     *
+     * <p>Kafka 레코드 구성, 헤더 직렬화, 토픽 결정 규칙을 기준으로 처리합니다.</p>
+     * @param kafkaTemplate 메시징 Kafka 어댑터 처리에 사용하는 입력 값
+     * @param properties 모듈 설정 값 객체
+     */
     public KafkaMessagePublisher(
             final KafkaTemplate<String, Object> kafkaTemplate,
             final TcKafkaProperties properties
@@ -30,6 +37,12 @@ public final class KafkaMessagePublisher implements MessagePublisherPort {
         this.properties = Objects.requireNonNull(properties, "properties is null");
     }
 
+    /**
+     * 메시징 Kafka 어댑터 메시지 흐름을 처리합니다.
+     *
+     * <p>Kafka 레코드 구성, 헤더 직렬화, 토픽 결정 규칙을 기준으로 처리합니다.</p>
+     * @param request 처리할 요청/명령 객체
+     */
     @Override
     public void publish(final MessagePublishRequest request) throws Exception {
         Objects.requireNonNull(request, "request is null");
@@ -43,6 +56,13 @@ public final class KafkaMessagePublisher implements MessagePublisherPort {
         kafkaTemplate.send(record).get();
     }
 
+    /**
+     * 메시징 Kafka 어댑터 규약에 맞게 데이터를 변환/구성합니다.
+     *
+     * <p>Kafka 레코드 구성, 헤더 직렬화, 토픽 결정 규칙을 기준으로 처리합니다.</p>
+     * @param requestTopic Kafka 토픽 이름
+     * @return 메시징 Kafka 어댑터 처리 결과
+     */
     private String resolveTopic(final String requestTopic) {
         if (requestTopic != null && !requestTopic.isBlank()) {
             return requestTopic;
@@ -55,6 +75,13 @@ public final class KafkaMessagePublisher implements MessagePublisherPort {
         return fallback;
     }
 
+    /**
+     * 메시징 Kafka 어댑터 도메인 처리 로직을 수행합니다.
+     *
+     * <p>Kafka 레코드 구성, 헤더 직렬화, 토픽 결정 규칙을 기준으로 처리합니다.</p>
+     * @param headers 메시지 부가 헤더 정보
+     * @param values 메시징 Kafka 어댑터 처리에 사용하는 입력 값
+     */
     private static void writeHeaders(final Headers headers, final Map<String, String> values) {
         if (values == null || values.isEmpty()) {
             return;

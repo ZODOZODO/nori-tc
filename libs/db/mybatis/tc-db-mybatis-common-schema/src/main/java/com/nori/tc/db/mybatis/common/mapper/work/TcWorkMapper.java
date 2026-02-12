@@ -15,12 +15,45 @@ import com.nori.tc.db.domain.work.TcWork;
  */
 public interface TcWorkMapper {
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param work DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     int insert(@Param("w") TcWork work);
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param work DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     int updateByWorkKey(@Param("w") TcWork work);
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcWork> findByWorkKey(@Param("workKey") long workKey);
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param eqpKey 설비 식별 정보
+     * @param workId DB MyBatis 계층 처리에 사용하는 입력 값
+     * @return 조회 결과(Optional)
+     */
     Optional<TcWork> findByEqpKeyAndWorkId(
             @Param("eqpKey") long eqpKey,
             @Param("workId") String workId
@@ -36,5 +69,13 @@ public interface TcWorkMapper {
             @Param("limit") int limit
     );
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param workKey 대상 키 값
+     * @return DB MyBatis 계층 처리 결과
+     */
     int deleteByWorkKey(@Param("workKey") long workKey);
 }

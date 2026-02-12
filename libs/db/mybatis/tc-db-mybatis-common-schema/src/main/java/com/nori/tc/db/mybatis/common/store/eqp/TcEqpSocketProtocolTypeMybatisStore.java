@@ -24,13 +24,29 @@ public class TcEqpSocketProtocolTypeMybatisStore implements TcEqpSocketProtocolT
 
     private final TcEqpSocketProtocolTypeMapper mapper;
 
+    
+    /**
+     * DB MyBatis 계층 구성 요소를 초기화합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param mapper DB MyBatis 계층 처리에 사용하는 입력 값
+     */
     public TcEqpSocketProtocolTypeMybatisStore(TcEqpSocketProtocolTypeMapper mapper) {
         this.mapper = mapper;
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터의 저장/갱신을 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     * @return DB MyBatis 계층 처리 결과
+     */
     @Override
     @Transactional
     public TcEqpSocketProtocolType upsert(UpsertTcEqpSocketProtocolType command) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateCommand(command);
 
         final TcEqpSocketProtocolType row = new TcEqpSocketProtocolType(
@@ -64,6 +80,14 @@ public class TcEqpSocketProtocolTypeMybatisStore implements TcEqpSocketProtocolT
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param socketProtocolType 통신 채널/세션 정보
+     * @return 조회 결과(Optional)
+     */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcEqpSocketProtocolType> findBySocketProtocolType(String socketProtocolType) {
@@ -76,6 +100,14 @@ public class TcEqpSocketProtocolTypeMybatisStore implements TcEqpSocketProtocolT
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TcEqpSocketProtocolType> findAll(PageRequest page) {
@@ -90,9 +122,17 @@ public class TcEqpSocketProtocolTypeMybatisStore implements TcEqpSocketProtocolT
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param socketProtocolType 통신 채널/세션 정보
+     */
     @Override
     @Transactional
     public void deleteBySocketProtocolType(String socketProtocolType) {
+        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         try {
             mapper.deleteBySocketProtocolType(socketProtocolType);
         } catch (DataAccessException e) {
@@ -102,6 +142,13 @@ public class TcEqpSocketProtocolTypeMybatisStore implements TcEqpSocketProtocolT
         }
     }
 
+    
+    /**
+     * DB MyBatis 계층 입력/설정 유효성을 검증합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param command 처리할 요청/명령 정보
+     */
     private void validateCommand(UpsertTcEqpSocketProtocolType command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.socketProtocolType() == null || command.socketProtocolType().isBlank()) {

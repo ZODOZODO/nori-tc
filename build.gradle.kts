@@ -1,15 +1,14 @@
-/*
- * 루트 build.gradle.kts (FIX)
+﻿/*
+ * 猷⑦듃 build.gradle.kts (FIX)
  *
- * 핵심 Fix
- * - io.spring.dependency-management 플러그인을 적용한 모든 모듈에
- *   spring-boot-dependencies BOM을 import 해서
- *   Spring Boot starter들의 "버전 공백(:)" 문제를 제거한다.
+ * ?듭떖 Fix
+ * - io.spring.dependency-management ?뚮윭洹몄씤???곸슜??紐⑤뱺 紐⑤뱢?? *   spring-boot-dependencies BOM??import ?댁꽌
+ *   Spring Boot starter?ㅼ쓽 "踰꾩쟾 怨듬갚(:)" 臾몄젣瑜??쒓굅?쒕떎.
  *
- * 추가 Fix(권장)
- * - java-library는 내부적으로 java 플러그인을 포함하므로,
- *   java / java-library 블록을 둘 다 두면 설정이 중복 적용될 수 있다.
- *   -> java 블록만 두고 java-library 블록은 제거한다.
+ * 異붽? Fix(沅뚯옣)
+ * - java-library???대??곸쑝濡?java ?뚮윭洹몄씤???ы븿?섎?濡?
+ *   java / java-library 釉붾줉???????먮㈃ ?ㅼ젙??以묐났 ?곸슜?????덈떎.
+ *   -> java 釉붾줉留??먭퀬 java-library 釉붾줉? ?쒓굅?쒕떎.
  */
 
 import io.spring.gradle.dependencymanagement.dsl.DependencyManagementExtension
@@ -32,29 +31,45 @@ allprojects {
 
 subprojects {
     /**
-     * FIX: dependency-management 적용 모듈에 Spring Boot BOM 강제 import
-     * - 이걸 해야 org.springframework.boot:spring-boot-starter-xxx 들이 버전 없이도 resolve 됩니다.
+     * FIX: dependency-management ?곸슜 紐⑤뱢??Spring Boot BOM 媛뺤젣 import
+     * - ?닿구 ?댁빞 org.springframework.boot:spring-boot-starter-xxx ?ㅼ씠 踰꾩쟾 ?놁씠??resolve ?⑸땲??
      *
-     * 주의
-     * - 이 블록은 io.spring.dependency-management 플러그인을 "명시적으로" 적용한 모듈에만 동작합니다.
-     * - 만약 어떤 모듈이 스타터를 쓰는데도 dependency-management를 적용하지 않으면,
-     *   (또는 spring-boot 플러그인만 적용하고 이 플러그인을 적용하지 않으면)
-     *   버전 해석이 달라질 수 있으니 모듈별 플러그인 적용 정책을 통일하세요.
+     * 二쇱쓽
+     * - ??釉붾줉? io.spring.dependency-management ?뚮윭洹몄씤??"紐낆떆?곸쑝濡? ?곸슜??紐⑤뱢?먮쭔 ?숈옉?⑸땲??
+     * - 留뚯빟 ?대뼡 紐⑤뱢???ㅽ??곕? ?곕뒗?곕룄 dependency-management瑜??곸슜?섏? ?딆쑝硫?
+     *   (?먮뒗 spring-boot ?뚮윭洹몄씤留??곸슜?섍퀬 ???뚮윭洹몄씤???곸슜?섏? ?딆쑝硫?
+     *   踰꾩쟾 ?댁꽍???щ씪吏????덉쑝??紐⑤뱢蹂??뚮윭洹몄씤 ?곸슜 ?뺤콉???듭씪?섏꽭??
      */
     pluginManager.withPlugin("io.spring.dependency-management") {
         extensions.configure(DependencyManagementExtension::class.java) {
             imports {
-                // spring-boot 플러그인 버전(= libs.versions.springBoot)과 BOM 버전을 동일하게 고정
+                // spring-boot ?뚮윭洹몄씤 踰꾩쟾(= libs.versions.springBoot)怨?BOM 踰꾩쟾???숈씪?섍쾶 怨좎젙
                 mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}")
             }
         }
     }
 
+    // 공통 로깅 의존성
+    pluginManager.withPlugin("java") {
+        dependencies {
+            add("compileOnly", libs.slf4j.api)
+        }
+    }
+
+    // Spring Boot 앱에는 log-starter 자동 주입
+    pluginManager.withPlugin("org.springframework.boot") {
+        pluginManager.withPlugin("java") {
+            dependencies {
+                add("implementation", project(":libs:log:starter:tc-log-starter"))
+            }
+        }
+    }
+
     /**
-     * Java 공통
+     * Java 怨듯넻
      *
-     * - java-library도 java를 포함하므로 여기 한 번만 설정한다.
-     * - UTF-8 / -parameters / JUnit Platform 통일
+     * - java-library??java瑜??ы븿?섎?濡??ш린 ??踰덈쭔 ?ㅼ젙?쒕떎.
+     * - UTF-8 / -parameters / JUnit Platform ?듭씪
      */
     pluginManager.withPlugin("java") {
         extensions.configure(org.gradle.api.plugins.JavaPluginExtension::class.java) {
@@ -65,7 +80,7 @@ subprojects {
 
         tasks.withType(JavaCompile::class.java).configureEach {
             options.encoding = "UTF-8"
-            // 중복 추가 방지를 위해 존재 여부 체크 후 추가
+            // 以묐났 異붽? 諛⑹?瑜??꾪빐 議댁옱 ?щ? 泥댄겕 ??異붽?
             if (!options.compilerArgs.contains("-parameters")) {
                 options.compilerArgs.add("-parameters")
             }
@@ -76,3 +91,5 @@ subprojects {
         }
     }
 }
+
+

@@ -1,13 +1,3 @@
-/*
- * tc-db-mysql-jpa-starter (FIX)
- *
- * 역할
- * - MySQL + JPA 조합을 "조립"하는 Starter 모듈
- *
- * 목표
- * - data-jpa / driver / test 좌표의 하드코딩 제거 → Version Catalog로 일원화
- */
-
 plugins {
     `java-library`
     alias(libs.plugins.spring.dependency.management)

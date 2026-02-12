@@ -41,6 +41,15 @@ public class TcDbRedisAutoConfiguration {
         return "tc-db-redis-starter";
     }
 
+    
+    /**
+     * DB 스타터 구성 도메인 처리 로직을 수행합니다.
+     *
+     * <p>데이터소스 및 저장소 빈 자동 구성 조건을 기준으로 처리합니다.</p>
+     * @param connectionFactory 통신 채널/세션 정보
+     * @param valueSerializerProvider DB 스타터 구성 처리에 사용하는 입력 값
+     * @return DB 스타터 구성 처리 결과
+     */
     @Bean(name = "tcRedisTemplate")
     @ConditionalOnBean(RedisConnectionFactory.class)
     @ConditionalOnMissingBean(name = "tcRedisTemplate")
@@ -62,6 +71,14 @@ public class TcDbRedisAutoConfiguration {
         return template;
     }
 
+    
+    /**
+     * DB 스타터 구성 도메인 처리 로직을 수행합니다.
+     *
+     * <p>데이터소스 및 저장소 빈 자동 구성 조건을 기준으로 처리합니다.</p>
+     * @param tcRedisTemplate DB 스타터 구성 처리에 사용하는 입력 값
+     * @return DB 스타터 구성 처리 결과
+     */
     @Bean
     @ConditionalOnBean(name = "tcRedisTemplate")
     @ConditionalOnMissingBean

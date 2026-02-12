@@ -1,6 +1,8 @@
-package com.nori.tc.apps.commgateway.config;
+package com.nori.tc.comm.gateway.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.annotation.PostConstruct;
 
@@ -13,6 +15,8 @@ import jakarta.annotation.PostConstruct;
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.runtime")
 public class GatewayRuntimeProperties {
+
+    private static final Logger log = LoggerFactory.getLogger(GatewayRuntimeProperties.class);
 
     /**
      * eqp별 inbound 큐 용량 (bounded 필수)
@@ -64,6 +68,12 @@ public class GatewayRuntimeProperties {
      */
     private Integer outboundRetrySchedulerThreads;
 
+    
+    /**
+     * 게이트웨이 코어 모듈 입력/설정 유효성을 검증합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     */
     @PostConstruct
     public void validate() {
         if (inboundQueueCapacity == null || inboundQueueCapacity <= 0) {
@@ -99,84 +109,226 @@ public class GatewayRuntimeProperties {
         if (outboundRetrySchedulerThreads == null || outboundRetrySchedulerThreads <= 0) {
             throw new IllegalStateException("tc.comm.gateway.runtime.outbound-retry-scheduler-threads must be > 0");
         }
+        log.info("GatewayRuntimeProperties validated. inboundQueueCapacity={}, outboundQueueCapacity={}, workerThreads={}",
+                inboundQueueCapacity, outboundQueueCapacity, workerThreads);
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getInboundQueueCapacity() {
         return inboundQueueCapacity;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param inboundQueueCapacity 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setInboundQueueCapacity(final int inboundQueueCapacity) {
         this.inboundQueueCapacity = inboundQueueCapacity;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getReassemblyInitialBytes() {
         return reassemblyInitialBytes;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param reassemblyInitialBytes 처리할 원본 데이터
+     */
     public void setReassemblyInitialBytes(final int reassemblyInitialBytes) {
         this.reassemblyInitialBytes = reassemblyInitialBytes;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getReassemblyMaxBytes() {
         return reassemblyMaxBytes;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param reassemblyMaxBytes 처리할 원본 데이터
+     */
     public void setReassemblyMaxBytes(final int reassemblyMaxBytes) {
         this.reassemblyMaxBytes = reassemblyMaxBytes;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getMaxChunksPerDrain() {
         return maxChunksPerDrain;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param maxChunksPerDrain 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setMaxChunksPerDrain(final int maxChunksPerDrain) {
         this.maxChunksPerDrain = maxChunksPerDrain;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getWorkerThreads() {
         return workerThreads;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param workerThreads 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setWorkerThreads(final int workerThreads) {
         this.workerThreads = workerThreads;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getOutboundQueueCapacity() {
         return outboundQueueCapacity;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param outboundQueueCapacity 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setOutboundQueueCapacity(final int outboundQueueCapacity) {
         this.outboundQueueCapacity = outboundQueueCapacity;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getMaxOutboundPerDrain() {
         return maxOutboundPerDrain;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param maxOutboundPerDrain 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setMaxOutboundPerDrain(final int maxOutboundPerDrain) {
         this.maxOutboundPerDrain = maxOutboundPerDrain;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getOutboundRetryMax() {
         return outboundRetryMax;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param outboundRetryMax 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setOutboundRetryMax(final int outboundRetryMax) {
         this.outboundRetryMax = outboundRetryMax;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getOutboundRetryBackoffMs() {
         return outboundRetryBackoffMs;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param outboundRetryBackoffMs 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setOutboundRetryBackoffMs(final int outboundRetryBackoffMs) {
         this.outboundRetryBackoffMs = outboundRetryBackoffMs;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @return 게이트웨이 코어 모듈 처리 결과
+     */
     public int getOutboundRetrySchedulerThreads() {
         return outboundRetrySchedulerThreads;
     }
 
+    
+    /**
+     * 게이트웨이 코어 모듈 설정 값을 반영합니다.
+     *
+     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param outboundRetrySchedulerThreads 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     */
     public void setOutboundRetrySchedulerThreads(final int outboundRetrySchedulerThreads) {
         this.outboundRetrySchedulerThreads = outboundRetrySchedulerThreads;
     }
