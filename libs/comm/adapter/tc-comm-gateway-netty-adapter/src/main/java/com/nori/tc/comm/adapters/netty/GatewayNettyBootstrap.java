@@ -1,13 +1,13 @@
 package com.nori.tc.comm.adapters.netty;
 
-import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
+import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
+import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
-import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
-
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -27,28 +27,27 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Netty 부트스트랩 관리 컴포넌트(PASSIVE 서버 + ACTIVE 클라이언트).
+ * Gateway Netty 부트스트랩 관리자입니다.
  *
- * 동작 개요
- * - BossGroup: 서버 소켓 accept 전용 이벤트 루프
- * - WorkerGroup: 채널 read/write 및 핸들러 실행 이벤트 루프
- * - PASSIVE: 게이트웨이가 포트를 열고 장비 접속을 대기
- * - ACTIVE : DB(tc_eqp) 기준으로 게이트웨이가 장비로 직접 연결
+ * <p>역할:
+ * 1) PASSIVE 모드 수신 서버(HSMS/SOCKET) 기동
+ * 2) ACTIVE 모드 장비 대상 클라이언트 연결/재연결 관리
+ * 3) UI runtime 제어 요청에 따른 재연결 억제/재개/즉시 연결 제어</p>
  */
 @Component
-public class GatewayNettyBootstrap implements SmartLifecycle {
+public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionControlPort {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayNettyBootstrap.class);
 
     private final GatewayNettyProperties nettyProperties;
-    // 설비 목록/상세를 제공하는 포트(실구현은 DB 어댑터)
     private final EquipmentInfoProvider equipmentInfoProvider;
     private final GatewayChannelHandlerFactory handlerFactory;
     private final KafkaShardOwnership shardOwnership;
@@ -60,18 +59,12 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
     private ScheduledExecutorService reconnectScheduler;
 
     private final ConcurrentHashMap<String, AtomicBoolean> reconnecting = new ConcurrentHashMap<>();
+    private final Set<String> reconnectSuppressedEqpIds = ConcurrentHashMap.newKeySet();
 
     private volatile boolean running = false;
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 구성 요소를 초기화합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param nettyProperties 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param equipmentInfoProvider 도메인 데이터 객체
-     * @param handlerFactory 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param shardOwnership 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * Netty 서버/클라이언트 부트스트랩 구성요소를 초기화합니다.
      */
     public GatewayNettyBootstrap(
             final GatewayNettyProperties nettyProperties,
@@ -85,23 +78,19 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 실행 환경을 초기화하고 기동합니다.
+     * SmartLifecycle 시작 진입점입니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
+     * <p>이벤트루프/재연결 스케줄러를 초기화하고
+     * PASSIVE 서버 + ACTIVE 초기 연결을 순차적으로 시작합니다.</p>
      */
     @Override
     public void start() {
-        // 라이프사이클 단계: 자원 초기화/해제 순서를 보장합니다.
         if (running) {
             return;
         }
         running = true;
 
-        // Netty 4.2 기준 권장 방식:
-        // - NioEventLoopGroup은 deprecated
-        // - MultiThreadIoEventLoopGroup + NioIoHandlerFactory 조합 사용
         bossGroup = new MultiThreadIoEventLoopGroup(
                 nettyProperties.getBossThreads(),
                 NioIoHandler.newFactory()
@@ -121,15 +110,13 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         startActiveConnections();
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 리소스를 정리하고 종료합니다.
+     * SmartLifecycle 종료 진입점입니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
+     * <p>서버 채널을 닫고 이벤트루프/스케줄러를 정리합니다.</p>
      */
     @Override
     public void stop() {
-        // 라이프사이클 단계: 자원 초기화/해제 순서를 보장합니다.
         running = false;
 
         log.info("GatewayNettyBootstrap stopping.");
@@ -145,59 +132,104 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         if (reconnectScheduler != null) {
             reconnectScheduler.shutdown();
         }
+
         log.info("GatewayNettyBootstrap stopped.");
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @return 처리 성공 여부
+     * 현재 부트스트랩 실행 여부를 반환합니다.
      */
     @Override
     public boolean isRunning() {
         return running;
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @return 게이트웨이 Netty 어댑터 처리 결과
+     * 라이프사이클 phase를 반환합니다.
      */
     @Override
     public int getPhase() {
         return 0;
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 실행 환경을 초기화하고 기동합니다.
+     * ACTIVE 모드 장비에 대해 즉시 연결 시도를 수행합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
+     * <p>소유 shard, 장비 존재/활성 여부, connectionMode를 모두 통과할 때만 연결합니다.</p>
+     */
+    @Override
+    public void connectActiveIfPossible(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return;
+        }
+        if (!running) {
+            log.warn("Active connect skipped (gateway not running). eqpId={}", eqpId);
+            return;
+        }
+        if (!shardOwnership.isOwned(eqpId)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Active connect skipped (not owned). eqpId={}", eqpId);
+            }
+            return;
+        }
+
+        final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
+        if (info == null) {
+            log.warn("Active connect skipped (equipment not found). eqpId={}", eqpId);
+            return;
+        }
+        if (!info.enabled()) {
+            log.warn("Active connect skipped (equipment disabled). eqpId={}", eqpId);
+            return;
+        }
+        if (info.connectionMode() != ConnectionMode.ACTIVE) {
+            if (log.isDebugEnabled()) {
+                log.debug("Active connect skipped (not ACTIVE mode). eqpId={}, mode={}", eqpId, info.connectionMode());
+            }
+            return;
+        }
+
+        reconnectSuppressedEqpIds.remove(eqpId);
+        log.info("Active connect requested by runtime control. eqpId={}", eqpId);
+        connectActive(info);
+    }
+
+    /**
+     * 장비별 ACTIVE 재연결을 억제합니다.
+     */
+    @Override
+    public void suppressActiveReconnect(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return;
+        }
+        reconnectSuppressedEqpIds.add(eqpId);
+        log.info("Active reconnect suppressed. eqpId={}", eqpId);
+    }
+
+    /**
+     * 장비별 ACTIVE 재연결 억제를 해제합니다.
+     */
+    @Override
+    public void resumeActiveReconnect(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return;
+        }
+        reconnectSuppressedEqpIds.remove(eqpId);
+        log.info("Active reconnect resumed. eqpId={}", eqpId);
+    }
+
+    /**
+     * PASSIVE 수신 서버(HSMS/SOCKET)를 시작합니다.
      */
     private void startServers() {
-        // PASSIVE 서버 흐름:
-        // - 인터페이스별 포트 bind/listen
-        // - accept 즉시 GatewayChannelHandler(UNBOUND) 연결
-        // - 등록 메시지 수신 후 bind 및 mailbox 생성
         hsmsServerChannel = startServer(nettyProperties.getHsmsBindPort(), CommInterfaceType.HSMS);
         socketServerChannel = startServer(nettyProperties.getSocketBindPort(), CommInterfaceType.SOCKET);
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 실행 환경을 초기화하고 기동합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param port 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param interfaceType 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @return 게이트웨이 Netty 어댑터 처리 결과
+     * 단일 인터페이스 타입용 Netty 서버를 기동합니다.
      */
     private Channel startServer(final int port, final CommInterfaceType interfaceType) {
-        // 라이프사이클 단계: 자원 초기화/해제 순서를 보장합니다.
         try {
             final ServerBootstrap bootstrap = new ServerBootstrap();
             bootstrap.group(bossGroup, workerGroup)
@@ -218,48 +250,47 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         }
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 실행 환경을 초기화하고 기동합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
+     * ACTIVE 장비 목록을 조회해 초기 연결을 시도합니다.
      */
     private void startActiveConnections() {
-        // ACTIVE 연결 흐름:
-        // - 샤드 소유권이 있는 eqpId만 연결 시도
-        // - channelActive 시점에 eqpId를 이미 알고 있으므로 즉시 BOUND 처리
         final List<GatewayEquipmentInfo> equipmentList = equipmentInfoProvider.findAll();
         log.info("Active connection bootstrap started. totalEquipments={}", equipmentList.size());
 
         for (GatewayEquipmentInfo info : equipmentList) {
-            if (!info.enabled()) {
+            if (!info.enabled() || info.connectionMode() == null) {
                 continue;
             }
-            if (info.connectionMode() == null) {
+            if (info.connectionMode() != ConnectionMode.ACTIVE) {
                 continue;
             }
-            if (info.connectionMode() == ConnectionMode.ACTIVE) {
-                if (!shardOwnership.isOwned(info.equipmentId())) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Active connect skipped (not owned). eqpId={}", info.equipmentId());
-                    }
-                    continue;
+            if (!shardOwnership.isOwned(info.equipmentId())) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Active connect skipped (not owned). eqpId={}", info.equipmentId());
                 }
-                connectActive(info);
+                continue;
             }
+            if (reconnectSuppressedEqpIds.contains(info.equipmentId())) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Active connect skipped (suppressed). eqpId={}", info.equipmentId());
+                }
+                continue;
+            }
+            connectActive(info);
         }
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param info 도메인 데이터 객체
+     * ACTIVE 모드 단일 장비 연결을 수행합니다.
      */
     private void connectActive(final GatewayEquipmentInfo info) {
-        // 연결 제어 단계: 상태 전이와 예외 케이스를 함께 관리합니다.
         final String eqpId = info.equipmentId();
+        if (reconnectSuppressedEqpIds.contains(eqpId)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Active connect skipped (suppressed). eqpId={}", eqpId);
+            }
+            return;
+        }
         if (info.eqpIp() == null || info.eqpIp().isBlank()) {
             log.warn("Active connect skipped (missing eqpIp). eqpId={}", eqpId);
             return;
@@ -269,7 +300,6 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
             return;
         }
 
-        // ACTIVE 연결: 설비 IP/PORT로 GW가 connect
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(workerGroup)
                 .channel(NioSocketChannel.class)
@@ -284,35 +314,40 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         if (log.isDebugEnabled()) {
             log.debug("Active connect attempt. eqpId={}, ip={}, port={}", eqpId, info.eqpIp(), info.eqpPort());
         }
-        bootstrap.connect(info.eqpIp(), info.eqpPort()).addListener((ChannelFuture f) -> {
-            if (!f.isSuccess()) {
-                log.warn("Active connect failed. eqpId={}, {}", eqpId, f.cause() == null ? "" : f.cause().getMessage());
+        bootstrap.connect(info.eqpIp(), info.eqpPort()).addListener((ChannelFuture future) -> {
+            if (!future.isSuccess()) {
+                log.warn("Active connect failed. eqpId={}, {}", eqpId,
+                        future.cause() == null ? "" : future.cause().getMessage());
                 scheduleReconnect(info);
                 return;
             }
             log.info("Active connect success. eqpId={}", eqpId);
-            f.channel().closeFuture().addListener(cf -> scheduleReconnect(info));
+            future.channel().closeFuture().addListener(closeFuture -> scheduleReconnect(info));
         });
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param info 도메인 데이터 객체
+     * ACTIVE 연결 실패/종료 후 재연결을 예약합니다.
      */
     private void scheduleReconnect(final GatewayEquipmentInfo info) {
-        // 연결 제어 단계: 상태 전이와 예외 케이스를 함께 관리합니다.
         final String eqpId = info.equipmentId();
+        if (reconnectSuppressedEqpIds.contains(eqpId)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Active reconnect skipped (suppressed). eqpId={}", eqpId);
+            }
+            return;
+        }
+
         final AtomicBoolean flag = reconnecting.computeIfAbsent(eqpId, key -> new AtomicBoolean(false));
         if (!flag.compareAndSet(false, true)) {
             return;
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Scheduling active reconnect. eqpId={}, delayMs={}", eqpId, nettyProperties.getActiveReconnectDelayMs());
+            log.debug("Scheduling active reconnect. eqpId={}, delayMs={}",
+                    eqpId, nettyProperties.getActiveReconnectDelayMs());
         }
+
         reconnectScheduler.schedule(GatewayLogContext.wrap(() -> {
             try {
                 connectActive(info);
@@ -322,12 +357,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle {
         }), nettyProperties.getActiveReconnectDelayMs(), TimeUnit.MILLISECONDS);
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param channel 통신 채널/세션 정보
+     * 채널을 null-safe하게 닫습니다.
      */
     private void safeClose(final Channel channel) {
         if (channel != null) {

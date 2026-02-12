@@ -7,17 +7,16 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 
 /**
- * tc-comm-gateway 자동 구성.
+ * tc-comm-gateway starter 자동 구성 진입점입니다.
  *
- * - 앱 모듈은 이 스타터만 의존하면 된다
- * - 내부에서 핵심 Bean 구성 클래스들을 Import 한다
+ * <p>패키지 스캔 범위를 {@code com.nori.tc.comm}로 지정해
+ * gateway core + adapter 계층 컴포넌트가 함께 등록되도록 구성합니다.</p>
  */
 @AutoConfiguration
-@ComponentScan(basePackages = "com.nori.tc.comm.gateway")
+@ComponentScan(basePackages = "com.nori.tc.comm")
 @Import({
         GatewayCommConfiguration.class,
         GatewayProcessingConfiguration.class
 })
 public class TcCommGatewayAutoConfiguration {
-    // 자동 구성 전용 클래스 (내용 없음)
 }

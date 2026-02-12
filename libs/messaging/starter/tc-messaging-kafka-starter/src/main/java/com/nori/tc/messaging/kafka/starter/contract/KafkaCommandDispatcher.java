@@ -1,18 +1,10 @@
 package com.nori.tc.messaging.kafka.starter.contract;
 
 /**
- * Dispatcher contract for inbound Kafka command messages.
+ * 장비 제어용 커맨드 메시지 디스패처 계약입니다.
  *
- * Implementations live in each app so that app-specific validation
- * and routing rules can be applied without modifying the starter.
+ * <p>기존 {@link KafkaCommandMessage} 전용 디스패처를 유지하면서,
+ * 내부적으로는 제네릭 디스패처 계약({@link KafkaMessageDispatcher})을 재사용합니다.</p>
  */
-public interface KafkaCommandDispatcher {
-
-    /**
-     * 메시징 스타터 모듈 메시지 흐름을 처리합니다.
-     *
-     * <p>Spring Boot 자동 구성과 메시징 계약 인터페이스를 기준으로 처리합니다.</p>
-     * @param command 처리할 요청/명령 객체
-     */
-    void dispatch(KafkaCommandMessage command);
+public interface KafkaCommandDispatcher extends KafkaMessageDispatcher<KafkaCommandMessage> {
 }
