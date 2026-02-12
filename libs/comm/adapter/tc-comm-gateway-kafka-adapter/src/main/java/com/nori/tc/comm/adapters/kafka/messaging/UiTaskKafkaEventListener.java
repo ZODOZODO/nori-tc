@@ -9,13 +9,10 @@ import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaMessageDispatcher;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
-import com.nori.tc.messaging.kafka.starter.runtime.AbstractKafkaConsumerLifecycle;
 import com.nori.tc.messaging.kafka.starter.runtime.KafkaConsumerBindingMode;
+import com.nori.tc.messaging.kafka.starter.runtime.KafkaConsumerRuntimePolicy;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.TopicPartition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -24,23 +21,21 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * {@code tc.ui.events}를 subscribe 방식으로 수신하는 UI task consumer입니다.
+ * {@code tc.ui.events}를 subscribe 방식으로 소비하는 UI task consumer입니다.
  *
- * <p>정책:</p>
- * <p>- UI 요청은 반드시 REP 발행 후 커밋</p>
- * <p>- REP 발행 실패 시 레코드를 커밋하지 않고 동일 offset 재시도</p>
+ * <p>운영 규칙:
+ * 1) UI 메시지는 반드시 REP 발행 후 commit
+ * 2) 레코드 처리 실패 시 commit 하지 않고 동일 offset 재시도
+ * 3) 재시도 간격은 UI task 정책값으로 제어</p>
  */
 @Component
-public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<KafkaUiTaskMessage> {
-
-    private static final Logger log = LoggerFactory.getLogger(UiTaskKafkaEventListener.class);
+public class UiTaskKafkaEventListener extends AbstractGatewayKafkaConsumer<KafkaUiTaskMessage> {
 
     private final GatewayKafkaClientProperties kafkaClientProperties;
     private final GatewayKafkaTopicProperties topicProperties;
     private final GatewayKafkaShardProperties shardProperties;
     private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
     private final KafkaMessageDispatcher<KafkaUiTaskMessage> uiTaskDispatcher;
-    private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
 
     /**
@@ -55,17 +50,17 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler
     ) {
+        super(new GatewayShardRuntimePolicy(shardProperties), metrics, logSampler);
         this.kafkaClientProperties = Objects.requireNonNull(kafkaClientProperties, "kafkaClientProperties is null");
         this.topicProperties = Objects.requireNonNull(topicProperties, "topicProperties is null");
         this.shardProperties = Objects.requireNonNull(shardProperties, "shardProperties is null");
         this.uiTaskPolicyProperties = Objects.requireNonNull(uiTaskPolicyProperties, "uiTaskPolicyProperties is null");
         this.uiTaskDispatcher = Objects.requireNonNull(uiTaskDispatcher, "uiTaskDispatcher is null");
-        this.metrics = Objects.requireNonNull(metrics, "metrics is null");
         this.logSampler = Objects.requireNonNull(logSampler, "logSampler is null");
     }
 
     /**
-     * UI task 직렬화 타입이 반영된 consumer 프로퍼티를 구성합니다.
+     * UI task 직렬화 타입을 반영한 consumer properties를 구성합니다.
      */
     @Override
     protected Map<String, Object> consumerProperties() {
@@ -81,7 +76,7 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * 구독 토픽을 반환합니다.
+     * 구독 topic을 반환합니다.
      */
     @Override
     protected List<String> subscribeTopics() {
@@ -97,40 +92,23 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * worker thread 이름을 반환합니다.
+     * worker thread 이름입니다.
      */
     @Override
     protected String threadName() {
         return "kafka-ui-events-consumer";
     }
 
-    @Override
-    protected long shutdownWaitMs() {
-        return shardProperties.getConsumerShutdownWaitMs();
-    }
-
-    @Override
-    protected int commitRetryMax() {
-        return shardProperties.getCommitRetryMax();
-    }
-
-    @Override
-    protected long commitRetryBackoffMs() {
-        return shardProperties.getCommitRetryBackoffMs();
-    }
-
-    @Override
-    protected long lagSampleIntervalMs() {
-        return shardProperties.getLagSampleIntervalMs();
-    }
-
+    /**
+     * 메트릭/로그 구분용 consumer 이름입니다.
+     */
     @Override
     protected String consumerName() {
         return "ui.events.subscribed";
     }
 
     /**
-     * UI consumer는 레코드 실패 시 커밋을 진행하지 않습니다.
+     * UI consumer는 레코드 처리 실패 시 commit을 수행하지 않습니다.
      */
     @Override
     protected boolean commitOnRecordFailure() {
@@ -138,7 +116,7 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * UI consumer는 실패 레코드를 같은 offset에서 재시도합니다.
+     * 실패한 레코드를 동일 offset에서 재시도합니다.
      */
     @Override
     protected boolean retryFailedRecordFromCurrentOffset() {
@@ -146,7 +124,7 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * 동일 레코드 재시도 전 backoff(ms)를 반환합니다.
+     * 동일 레코드 재시도 backoff(ms)를 반환합니다.
      */
     @Override
     protected long failedRecordRetryBackoffMs() {
@@ -154,7 +132,7 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * 시작 로그를 출력합니다.
+     * 시작 로그를 info로 남깁니다.
      */
     @Override
     protected void afterStart(final KafkaConsumer<String, KafkaUiTaskMessage> startedConsumer) {
@@ -163,7 +141,7 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * 단건 레코드를 검증 후 dispatcher로 전달합니다.
+     * 수신 레코드를 검증 후 dispatcher로 전달합니다.
      */
     @Override
     protected void handleRecord(final ConsumerRecord<String, KafkaUiTaskMessage> record) {
@@ -181,7 +159,6 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
                 return;
             }
 
-            // key와 eqpId가 다르더라도 REP 보장을 위해 처리를 진행합니다.
             if (key == null || !key.equals(message.data().eqpId())) {
                 log.warn("UI task key mismatch detected. key={}, eqpId={}, traceId={}",
                         key, message.data().eqpId(), message.metadata().traceId());
@@ -201,27 +178,43 @@ public class UiTaskKafkaEventListener extends AbstractKafkaConsumerLifecycle<Kaf
     }
 
     /**
-     * commit 실패 카운트 및 로그를 기록합니다.
-     */
-    @Override
-    protected void onCommitFail(final Exception ex, final int attempt) {
-        metrics.incrementKafkaCommitFail();
-        if (logSampler.shouldLogCommitFail()) {
-            log.warn("Kafka commit failed (ui.events). attempt={}", attempt, ex);
-        }
-    }
-
-    @Override
-    protected void onLagSample(final TopicPartition topicPartition, final long lag) {
-        metrics.recordConsumerLag(topicPartition.topic(), topicPartition.partition(), lag);
-    }
-
-    /**
-     * 종료 시 상태 로그를 남깁니다.
+     * 종료 로그를 info로 남깁니다.
      */
     @Override
     public synchronized void stop() {
         super.stop();
         log.info("UI task consumer stopped.");
+    }
+
+    /**
+     * shard 설정을 starter 공통 정책 계약으로 변환하는 어댑터입니다.
+     */
+    private static final class GatewayShardRuntimePolicy implements KafkaConsumerRuntimePolicy {
+
+        private final GatewayKafkaShardProperties shardProperties;
+
+        private GatewayShardRuntimePolicy(final GatewayKafkaShardProperties shardProperties) {
+            this.shardProperties = Objects.requireNonNull(shardProperties, "shardProperties is null");
+        }
+
+        @Override
+        public long shutdownWaitMs() {
+            return shardProperties.getConsumerShutdownWaitMs();
+        }
+
+        @Override
+        public int commitRetryMax() {
+            return shardProperties.getCommitRetryMax();
+        }
+
+        @Override
+        public long commitRetryBackoffMs() {
+            return shardProperties.getCommitRetryBackoffMs();
+        }
+
+        @Override
+        public long lagSampleIntervalMs() {
+            return shardProperties.getLagSampleIntervalMs();
+        }
     }
 }

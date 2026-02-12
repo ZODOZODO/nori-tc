@@ -8,13 +8,11 @@ import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaCommandDispatcher;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaCommandMessage;
-import com.nori.tc.messaging.kafka.starter.runtime.AbstractKafkaConsumerLifecycle;
 import com.nori.tc.messaging.kafka.starter.runtime.KafkaConsumerBindingMode;
+import com.nori.tc.messaging.kafka.starter.runtime.KafkaConsumerRuntimePolicy;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -26,23 +24,22 @@ import java.util.Objects;
 /**
  * {@code tc.eqp.commands}를 고정 파티션(assign) 방식으로 소비하는 Consumer입니다.
  *
- * <p>gateway shard 소유 파티션만 읽도록 강제해, 리밸런싱에 의한 소유 변동 없이
- * 예측 가능한 장비 라우팅을 유지합니다.</p>
+ * <p>핵심 동작:
+ * 1) shard가 소유한 파티션만 직접 assign
+ * 2) key == equipmentId 정합성 검증
+ * 3) 유효한 command만 dispatcher로 전달</p>
  */
 @Component
-public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle<KafkaCommandMessage> {
-
-    private static final Logger log = LoggerFactory.getLogger(AssignedKafkaCommandConsumer.class);
+public class AssignedKafkaCommandConsumer extends AbstractGatewayKafkaConsumer<KafkaCommandMessage> {
 
     private final GatewayKafkaClientProperties kafkaClientProperties;
     private final GatewayKafkaShardProperties shardProperties;
     private final GatewayKafkaTopicProperties topicProperties;
     private final KafkaCommandDispatcher dispatcher;
-    private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
 
     /**
-     * 고정 assign consumer 생성에 필요한 의존성을 초기화합니다.
+     * 고정 파티션 command consumer를 초기화합니다.
      */
     public AssignedKafkaCommandConsumer(
             final GatewayKafkaClientProperties kafkaClientProperties,
@@ -52,16 +49,16 @@ public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler
     ) {
+        super(new GatewayShardRuntimePolicy(shardProperties), metrics, logSampler);
         this.kafkaClientProperties = Objects.requireNonNull(kafkaClientProperties, "kafkaClientProperties is null");
         this.shardProperties = Objects.requireNonNull(shardProperties, "shardProperties is null");
         this.topicProperties = Objects.requireNonNull(topicProperties, "topicProperties is null");
         this.dispatcher = Objects.requireNonNull(dispatcher, "dispatcher is null");
-        this.metrics = Objects.requireNonNull(metrics, "metrics is null");
         this.logSampler = Objects.requireNonNull(logSampler, "logSampler is null");
     }
 
     /**
-     * command 전용 역직렬화 타입을 포함한 consumer 프로퍼티를 생성합니다.
+     * command 직렬화 타입을 반영한 consumer properties를 생성합니다.
      */
     @Override
     protected Map<String, Object> consumerProperties() {
@@ -69,7 +66,7 @@ public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle
     }
 
     /**
-     * 이 consumer는 group subscribe가 아닌 assign 모드를 사용합니다.
+     * group subscribe 대신 assign 모드를 사용합니다.
      */
     @Override
     protected KafkaConsumerBindingMode bindingMode() {
@@ -77,7 +74,7 @@ public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle
     }
 
     /**
-     * 현재 gateway 인스턴스가 소유한 파티션 목록을 topic-partition으로 변환합니다.
+     * 현재 gateway 인스턴스가 소유한 파티션 목록을 계산합니다.
      */
     @Override
     protected List<TopicPartition> assignedPartitions() {
@@ -97,40 +94,23 @@ public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle
     }
 
     /**
-     * worker thread 이름을 반환합니다.
+     * worker thread 이름입니다.
      */
     @Override
     protected String threadName() {
         return "kafka-eqp-commands-consumer";
     }
 
-    @Override
-    protected long shutdownWaitMs() {
-        return shardProperties.getConsumerShutdownWaitMs();
-    }
-
-    @Override
-    protected int commitRetryMax() {
-        return shardProperties.getCommitRetryMax();
-    }
-
-    @Override
-    protected long commitRetryBackoffMs() {
-        return shardProperties.getCommitRetryBackoffMs();
-    }
-
-    @Override
-    protected long lagSampleIntervalMs() {
-        return shardProperties.getLagSampleIntervalMs();
-    }
-
+    /**
+     * 메트릭/로그 구분용 consumer 이름입니다.
+     */
     @Override
     protected String consumerName() {
         return "eqp.commands.assigned";
     }
 
     /**
-     * consumer 시작 후 토픽/파티션 정보를 info 로그로 남깁니다.
+     * 시작 완료 시 topic/partition 정보를 info 로그로 남깁니다.
      */
     @Override
     protected void afterStart(final KafkaConsumer<String, KafkaCommandMessage> startedConsumer) {
@@ -139,7 +119,7 @@ public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle
     }
 
     /**
-     * 수신 레코드 유효성 검사 후 command dispatcher로 전달합니다.
+     * 수신 레코드를 검증 후 command dispatcher로 전달합니다.
      *
      * <p>정합성 규칙:
      * key == message.equipmentId 이어야 합니다.</p>
@@ -182,27 +162,43 @@ public class AssignedKafkaCommandConsumer extends AbstractKafkaConsumerLifecycle
     }
 
     /**
-     * commit 실패 카운터/로그를 기록합니다.
-     */
-    @Override
-    protected void onCommitFail(final Exception ex, final int attempt) {
-        metrics.incrementKafkaCommitFail();
-        if (logSampler.shouldLogCommitFail()) {
-            log.warn("Kafka commit failed (eqp.commands). attempt={}", attempt, ex);
-        }
-    }
-
-    @Override
-    protected void onLagSample(final TopicPartition topicPartition, final long lag) {
-        metrics.recordConsumerLag(topicPartition.topic(), topicPartition.partition(), lag);
-    }
-
-    /**
-     * 종료 시 상위 공통 stop 이후 상태 로그를 남깁니다.
+     * 종료 로그를 info로 남깁니다.
      */
     @Override
     public synchronized void stop() {
         super.stop();
         log.info("Assigned Kafka command consumer stopped.");
+    }
+
+    /**
+     * shard 설정을 starter 공통 정책 계약으로 변환하는 어댑터입니다.
+     */
+    private static final class GatewayShardRuntimePolicy implements KafkaConsumerRuntimePolicy {
+
+        private final GatewayKafkaShardProperties shardProperties;
+
+        private GatewayShardRuntimePolicy(final GatewayKafkaShardProperties shardProperties) {
+            this.shardProperties = Objects.requireNonNull(shardProperties, "shardProperties is null");
+        }
+
+        @Override
+        public long shutdownWaitMs() {
+            return shardProperties.getConsumerShutdownWaitMs();
+        }
+
+        @Override
+        public int commitRetryMax() {
+            return shardProperties.getCommitRetryMax();
+        }
+
+        @Override
+        public long commitRetryBackoffMs() {
+            return shardProperties.getCommitRetryBackoffMs();
+        }
+
+        @Override
+        public long lagSampleIntervalMs() {
+            return shardProperties.getLagSampleIntervalMs();
+        }
     }
 }
