@@ -13,7 +13,7 @@ java {
 }
 
 dependencies {
-    api(project(":libs:comm-gateway:tc-comm-gateway-core"))
+    api(project(":libs:comm:tc-comm-gateway-core"))
 
     // Redis Starter (TcRedisCrudRepository 제공)
     implementation(project(":libs:db:starter:tc-db-redis-starter"))

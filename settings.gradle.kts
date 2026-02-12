@@ -147,29 +147,23 @@ project(":libs:comm:tc-comm-socket").projectDir = file("libs/comm/tc-comm-socket
  * - Core / Adapters / Starter
  * =================================================== */
 
-include(":libs:comm-gateway")
-project(":libs:comm-gateway").projectDir = file("libs/comm")
+include(":libs:comm:tc-comm-gateway-core")
+project(":libs:comm:tc-comm-gateway-core").projectDir = file("libs/comm/tc-comm-gateway-core")
 
-include(":libs:comm-gateway:tc-comm-gateway-core")
-project(":libs:comm-gateway:tc-comm-gateway-core").projectDir = file("libs/comm/tc-comm-gateway-core")
+include(":libs:comm:adapter:tc-comm-gateway-netty-adapter")
+project(":libs:comm:adapter:tc-comm-gateway-netty-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-netty-adapter")
 
-include(":libs:comm-gateway:adapter")
-project(":libs:comm-gateway:adapter").projectDir = file("libs/comm/adapter")
+include(":libs:comm:adapter:tc-comm-gateway-kafka-adapter")
+project(":libs:comm:adapter:tc-comm-gateway-kafka-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-kafka-adapter")
 
-include(":libs:comm-gateway:adapter:tc-comm-gateway-netty-adapter")
-project(":libs:comm-gateway:adapter:tc-comm-gateway-netty-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-netty-adapter")
+include(":libs:comm:adapter:tc-comm-gateway-db-adapter")
+project(":libs:comm:adapter:tc-comm-gateway-db-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-db-adapter")
 
-include(":libs:comm-gateway:adapter:tc-comm-gateway-kafka-adapter")
-project(":libs:comm-gateway:adapter:tc-comm-gateway-kafka-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-kafka-adapter")
+include(":libs:comm:adapter:tc-comm-gateway-redis-adapter")
+project(":libs:comm:adapter:tc-comm-gateway-redis-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-redis-adapter")
 
-include(":libs:comm-gateway:adapter:tc-comm-gateway-db-adapter")
-project(":libs:comm-gateway:adapter:tc-comm-gateway-db-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-db-adapter")
-
-include(":libs:comm-gateway:adapter:tc-comm-gateway-redis-adapter")
-project(":libs:comm-gateway:adapter:tc-comm-gateway-redis-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-redis-adapter")
-
-include(":libs:comm-gateway:starter:tc-comm-gateway-starter")
-project(":libs:comm-gateway:starter:tc-comm-gateway-starter").projectDir = file("libs/comm/starter/tc-comm-gateway-starter")
+include(":libs:comm:starter:tc-comm-gateway-starter")
+project(":libs:comm:starter:tc-comm-gateway-starter").projectDir = file("libs/comm/starter/tc-comm-gateway-starter")
 
 /* ===================================================
  * 6. Logging Modules

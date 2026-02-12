@@ -13,7 +13,7 @@ java {
 }
 
 dependencies {
-    api(project(":libs:comm-gateway:tc-comm-gateway-core"))
+    api(project(":libs:comm:tc-comm-gateway-core"))
 
     implementation(project(":libs:db:tc-db-core"))
     implementation(project(":libs:db:tc-db-domain"))

@@ -13,7 +13,7 @@ java {
 }
 
 dependencies {
-    api(project(":libs:comm-gateway:tc-comm-gateway-core"))
+    api(project(":libs:comm:tc-comm-gateway-core"))
 
     implementation(libs.netty.all)
 

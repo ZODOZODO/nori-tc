@@ -54,7 +54,7 @@ dependencies {
      * - 게이트웨이 코어 기능과 Netty/Kafka/DB/Redis 연동 구성을 함께 제공합니다.
      * - 앱 모듈은 해당 스타터를 조합하고 상세 동작은 properties/yaml로 제어합니다.
      */
-    implementation(project(":libs:comm-gateway:starter:tc-comm-gateway-starter"))
+    implementation(project(":libs:comm:starter:tc-comm-gateway-starter"))
 
     /*
      * DB 스타터 (정확히 1개 선택)

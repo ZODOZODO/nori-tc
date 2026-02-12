@@ -13,7 +13,7 @@ java {
 }
 
 dependencies {
-    api(project(":libs:comm-gateway:tc-comm-gateway-core"))
+    api(project(":libs:comm:tc-comm-gateway-core"))
 
     // Kafka adapter/contract
     implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
