@@ -1,5 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.messaging.ui;
 
+import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskEventType;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
@@ -13,57 +14,58 @@ import java.util.Objects;
 /**
  * {@code EQP_UPDATE_JARFILE} 이벤트 처리기입니다.
  *
- * <p>장비 검증 후 jarfile 처리 확장 포인트를 호출하고,
- * 결과를 {@code EQP_UPDATE_JARFILE_REP}로 회신합니다.</p>
+ * <p>JARFILE 처리 결과를 PASS/FAIL로 반환하고,
+ * 실제 REP 발행은 dispatcher 공통 흐름에서 처리합니다.</p>
  */
 @Component
 public class EqpUpdateJarfileUiTaskHandler implements GatewayUiTaskHandler {
 
     private static final Logger log = LoggerFactory.getLogger(EqpUpdateJarfileUiTaskHandler.class);
-    private static final String REPLY_EVENT_TYPE = "EQP_UPDATE_JARFILE_REP";
 
     private final GatewayUiRuntimeControlService runtimeControlService;
-    private final KafkaUiReplyPublisher replyPublisher;
+    private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
     private final GatewayUiJarfileTaskProcessor jarfileTaskProcessor;
 
     /**
-     * JARFILE 처리에 필요한 의존성을 초기화합니다.
+     * JARFILE 처리기를 초기화합니다.
      *
-     * <p>확장 처리기 구현체가 없으면 기본 FAIL 처리기로 대체됩니다.</p>
+     * <p>별도 구현이 없으면 기본 FAIL 프로세서로 동작합니다.</p>
      */
     public EqpUpdateJarfileUiTaskHandler(
             final GatewayUiRuntimeControlService runtimeControlService,
-            final KafkaUiReplyPublisher replyPublisher,
+            final GatewayUiTaskPolicyProperties uiTaskPolicyProperties,
             final ObjectProvider<GatewayUiJarfileTaskProcessor> jarfileTaskProcessorProvider
     ) {
         this.runtimeControlService = Objects.requireNonNull(runtimeControlService, "runtimeControlService is null");
-        this.replyPublisher = Objects.requireNonNull(replyPublisher, "replyPublisher is null");
+        this.uiTaskPolicyProperties = Objects.requireNonNull(uiTaskPolicyProperties, "uiTaskPolicyProperties is null");
         this.jarfileTaskProcessor = jarfileTaskProcessorProvider.getIfAvailable(
                 () -> (message, equipmentInfo) -> GatewayUiTaskResult.fail(
-                        "JARFILE_TASK_NOT_CONFIGURED",
+                        GatewayUiTaskErrorCode.JARFILE_TASK_NOT_CONFIGURED,
                         "Jarfile task processor is not configured"
                 )
         );
     }
 
-    /**
-     * 담당 이벤트 타입을 반환합니다.
-     */
     @Override
     public KafkaUiTaskEventType eventType() {
         return KafkaUiTaskEventType.EQP_UPDATE_JARFILE;
     }
 
-    /**
-     * JARFILE 업데이트 요청을 처리하고 결과를 UI로 회신합니다.
-     */
     @Override
-    public void handle(final KafkaUiTaskMessage message) {
+    public String replyEventType() {
+        return "EQP_UPDATE_JARFILE_REP";
+    }
+
+    @Override
+    public GatewayUiTaskResult handle(final KafkaUiTaskMessage message) {
+        final long timeoutMs = uiTaskPolicyProperties.getUpdateJarfileTimeoutMs();
         if (log.isDebugEnabled()) {
-            log.debug("EQP_UPDATE_JARFILE task start. eqpId={}, traceId={}",
+            log.debug("EQP_UPDATE_JARFILE task start. eqpId={}, traceId={}, timeoutMs={}",
                     message.data().eqpId(),
-                    message.metadata().traceId());
+                    message.metadata().traceId(),
+                    timeoutMs);
         }
+
         final GatewayEquipmentInfo equipmentInfo;
         try {
             equipmentInfo = runtimeControlService.resolveAndValidateEquipment(
@@ -75,34 +77,31 @@ public class EqpUpdateJarfileUiTaskHandler implements GatewayUiTaskHandler {
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex.errorCode());
-            replyPublisher.publishFailure(message, REPLY_EVENT_TYPE, ex.errorCode(), ex.getMessage());
-            return;
+            return GatewayUiTaskResult.fail(ex.errorCode(), ex.getMessage());
         }
 
-        final GatewayUiTaskResult result;
         try {
-            final GatewayUiTaskResult processed = jarfileTaskProcessor.process(message, equipmentInfo);
-            result = processed == null
-                    ? GatewayUiTaskResult.fail("JARFILE_TASK_FAILED", "Jarfile task returned null result")
-                    : processed;
+            final GatewayUiTaskResult result = jarfileTaskProcessor.process(message, equipmentInfo);
+            if (result == null) {
+                return GatewayUiTaskResult.fail(
+                        GatewayUiTaskErrorCode.JARFILE_TASK_FAILED,
+                        "Jarfile task returned null result"
+                );
+            }
+            log.info("EQP_UPDATE_JARFILE task finished. eqpId={}, traceId={}, status={}",
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    result.status());
+            return result;
         } catch (Exception ex) {
             log.error("EQP_UPDATE_JARFILE task failed. eqpId={}, traceId={}",
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex);
-            replyPublisher.publishFailure(
-                    message,
-                    REPLY_EVENT_TYPE,
-                    "JARFILE_TASK_FAILED",
+            return GatewayUiTaskResult.fail(
+                    GatewayUiTaskErrorCode.JARFILE_TASK_FAILED,
                     "Jarfile task execution failed"
             );
-            return;
         }
-
-        replyPublisher.publishResult(message, REPLY_EVENT_TYPE, result);
-        log.info("EQP_UPDATE_JARFILE task finished. eqpId={}, traceId={}, status={}",
-                message.data().eqpId(),
-                message.metadata().traceId(),
-                result.status());
     }
 }

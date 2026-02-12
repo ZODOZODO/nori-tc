@@ -15,6 +15,9 @@ public class GatewayUiTaskProcessingException extends RuntimeException {
      */
     public GatewayUiTaskProcessingException(final String errorCode, final String message) {
         super(message);
+        if (errorCode == null || errorCode.isBlank()) {
+            throw new IllegalArgumentException("errorCode is required");
+        }
         this.errorCode = errorCode;
     }
 

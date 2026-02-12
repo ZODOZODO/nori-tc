@@ -126,6 +126,32 @@ public abstract class AbstractKafkaConsumerLifecycle<T> implements Runnable, Sma
     }
 
     /**
+     * 레코드 처리 실패가 발생했을 때 해당 poll 배치를 커밋할지 여부를 반환합니다.
+     *
+     * <p>true면 기존 동작(실패가 있어도 commit 시도)을 유지하고,
+     * false면 해당 배치 commit을 건너뛰고 재처리 경로로 보냅니다.</p>
+     */
+    protected boolean commitOnRecordFailure() {
+        return true;
+    }
+
+    /**
+     * 레코드 실패 시 실패한 offset으로 seek 하여 재시도할지 여부를 반환합니다.
+     *
+     * <p>commitOnRecordFailure=false와 함께 사용해야 의미가 있습니다.</p>
+     */
+    protected boolean retryFailedRecordFromCurrentOffset() {
+        return false;
+    }
+
+    /**
+     * 실패 레코드 재시도 전 대기 시간(ms)을 반환합니다.
+     */
+    protected long failedRecordRetryBackoffMs() {
+        return 0L;
+    }
+
+    /**
      * Consumer 루프를 시작합니다.
      */
     @Override
@@ -214,12 +240,24 @@ public abstract class AbstractKafkaConsumerLifecycle<T> implements Runnable, Sma
                     log.debug("Kafka records polled. consumer={}, count={}", consumerName(), records.count());
                 }
 
+                boolean recordFailed = false;
+                ConsumerRecord<String, T> failedRecord = null;
                 for (ConsumerRecord<String, T> record : records) {
                     try {
                         handleRecord(record);
                     } catch (Exception ex) {
                         onRecordFail(record, ex);
+                        recordFailed = true;
+                        failedRecord = record;
+                        if (!commitOnRecordFailure()) {
+                            break;
+                        }
                     }
+                }
+
+                if (recordFailed && !commitOnRecordFailure()) {
+                    handleFailedRecordRetry(runningConsumer, failedRecord);
+                    continue;
                 }
 
                 commitWithRetry(runningConsumer);
@@ -320,6 +358,39 @@ public abstract class AbstractKafkaConsumerLifecycle<T> implements Runnable, Sma
             }
         } catch (Exception ignored) {
             // lag 샘플링 실패는 처리 흐름을 중단하지 않습니다.
+        }
+    }
+
+    /**
+     * 레코드 실패 시 재시도 전략(seek + backoff)을 수행합니다.
+     */
+    private void handleFailedRecordRetry(
+            final KafkaConsumer<String, T> runningConsumer,
+            final ConsumerRecord<String, T> failedRecord
+    ) {
+        if (failedRecord == null) {
+            return;
+        }
+
+        if (retryFailedRecordFromCurrentOffset()) {
+            final TopicPartition topicPartition = new TopicPartition(failedRecord.topic(), failedRecord.partition());
+            runningConsumer.seek(topicPartition, failedRecord.offset());
+            if (log.isDebugEnabled()) {
+                log.debug("Kafka consumer seek to failed record. consumer={}, topic={}, partition={}, offset={}",
+                        consumerName(),
+                        failedRecord.topic(),
+                        failedRecord.partition(),
+                        failedRecord.offset());
+            }
+        }
+
+        final long retryBackoffMs = failedRecordRetryBackoffMs();
+        if (retryBackoffMs > 0L) {
+            try {
+                Thread.sleep(retryBackoffMs);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

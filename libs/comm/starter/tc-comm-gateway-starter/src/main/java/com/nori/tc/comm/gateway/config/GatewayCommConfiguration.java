@@ -33,6 +33,7 @@ import org.springframework.context.annotation.Bean;
         GatewayKafkaTopicProperties.class,
         GatewayKafkaClientProperties.class,
         GatewayKafkaShardProperties.class,
+        GatewayUiTaskPolicyProperties.class,
         GatewayRedisProperties.class,
         GatewayPublishPolicyProperties.class,
         GatewayNettyProperties.class,
