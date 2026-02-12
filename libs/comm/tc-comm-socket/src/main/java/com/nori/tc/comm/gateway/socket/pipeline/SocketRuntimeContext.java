@@ -2,7 +2,7 @@ package com.nori.tc.comm.gateway.socket.pipeline;
 
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 
 /**
  * SOCKET 런타임 컨텍스트(확장 인터페이스)

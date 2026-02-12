@@ -8,7 +8,7 @@ import com.nori.tc.comm.gateway.hsms.frame.HsmsFrameExtractor;
 import com.nori.tc.comm.gateway.hsms.secs.Secs2Decoder;
 import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

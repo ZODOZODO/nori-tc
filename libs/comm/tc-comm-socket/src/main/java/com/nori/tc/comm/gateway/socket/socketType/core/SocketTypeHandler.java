@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.socket.socketType;
+package com.nori.tc.comm.gateway.socket.socketType.core;
 
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;

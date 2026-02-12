@@ -11,9 +11,9 @@ import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeDecodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeHandler;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 
 import java.util.ArrayList;
 import java.util.HashMap;

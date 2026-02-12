@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.socket.socketType;
+package com.nori.tc.comm.gateway.socket.socketType.core;
 
 /**
  * socketType encode 결과(표준)

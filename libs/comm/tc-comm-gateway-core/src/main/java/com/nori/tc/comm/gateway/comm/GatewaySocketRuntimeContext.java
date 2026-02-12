@@ -5,7 +5,7 @@ import com.nori.tc.comm.core.eqp.EquipmentProfile;
 import com.nori.tc.comm.core.inbound.InboundQueue;
 import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.gateway.socket.pipeline.SocketRuntimeContext;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 
 import java.util.Map;
 import java.util.Objects;

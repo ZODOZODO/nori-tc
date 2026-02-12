@@ -13,9 +13,9 @@ import com.nori.tc.comm.gateway.hsms.pipeline.HsmsInboundPipeline;
 import com.nori.tc.comm.gateway.hsms.secs.BasicSecs2Decoder;
 import com.nori.tc.comm.gateway.hsms.secs.Secs2Decoder;
 import com.nori.tc.comm.gateway.socket.pipeline.SocketInboundPipeline;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
-import com.nori.tc.comm.gateway.socket.socketType.builtin.lineDelimited.LineDelimitedSocketTypeHandler;
-import com.nori.tc.comm.gateway.socket.socketType.builtin.regexDelimited.RegexDelimitedSocketTypeHandler;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.types.lineDelimited.LineDelimitedSocketTypeHandler;
+import com.nori.tc.comm.gateway.socket.socketType.types.regexDelimited.RegexDelimitedSocketTypeHandler;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

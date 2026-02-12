@@ -13,7 +13,7 @@ import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.hsms.config.HsmsSessionConfig;
 import com.nori.tc.comm.gateway.hsms.session.HsmsSessionStateMachine;
 import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -3,9 +3,9 @@ package com.nori.tc.comm.adapters.netty;
 import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeDecodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeHandler;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeRegistry;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 
 import org.slf4j.Logger;

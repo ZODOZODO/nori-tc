@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.socket.socketType;
+package com.nori.tc.comm.gateway.socket.socketType.core;
 
 import java.util.Map;
 

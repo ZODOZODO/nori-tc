@@ -1,9 +1,9 @@
-package com.nori.tc.comm.gateway.socket.socketType.builtin.lineDelimited;
+package com.nori.tc.comm.gateway.socket.socketType.types.lineDelimited;
 
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeDecodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.SocketTypeHandler;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
