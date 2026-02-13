@@ -19,6 +19,9 @@ import com.nori.tc.comm.core.routing.PublishPolicy;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.core.usecase.RouteAndPublishUseCase;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -38,6 +41,11 @@ import org.springframework.context.annotation.Bean;
  * - 컴포넌트 스캔 대상이 아니므로 중복 등록을 방지한다
  */
 public class GatewayProcessingConfiguration {
+
+    /**
+     * Gateway 처리 구성 로그.
+     */
+    private static final Logger log = LoggerFactory.getLogger(GatewayProcessingConfiguration.class);
 
     
     /**
@@ -111,9 +119,25 @@ public class GatewayProcessingConfiguration {
     @Bean
     public RouteAndPublishUseCase routeAndPublishUseCase(
             final PublishPolicy publishPolicy,
-            final OutboxWriterPort outboxWriterPort,
+            final ObjectProvider<OutboxWriterPort> outboxWriterPortProvider,
             final KafkaPublisherPort kafkaPublisherPort
     ) {
+        /*
+         * 임시 TODO fallback:
+         * - 현재 운영 정책이 DIRECT_KAFKA만 사용하는 동안, OutboxWriterPort 구현체가 아직 없어도
+         *   애플리케이션이 기동되도록 fallback 포트를 주입한다.
+         * - 단, 정책/설정 오류로 OUTBOX 경로가 실행되면 즉시 실패시켜 잘못된 운영 상태를 빠르게 감지한다.
+         */
+        final OutboxWriterPort outboxWriterPort = outboxWriterPortProvider.getIfAvailable(() -> {
+            log.warn("OutboxWriterPort bean is missing. DIRECT_KAFKA-only temporary TODO fallback will be used.");
+            return (message, decision) -> {
+                throw new UnsupportedOperationException(
+                        "TODO: OutboxWriterPort is not implemented yet. "
+                                + "Set tc.comm.gateway.publish-policy.default-mode=DIRECT_KAFKA "
+                                + "or provide an OutboxWriterPort implementation."
+                );
+            };
+        });
         return new RouteAndPublishUseCase(publishPolicy, outboxWriterPort, kafkaPublisherPort);
     }
 
