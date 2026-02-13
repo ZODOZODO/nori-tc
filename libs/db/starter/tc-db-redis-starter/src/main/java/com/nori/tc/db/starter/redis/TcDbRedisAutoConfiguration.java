@@ -14,24 +14,24 @@ import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * Redis Starter 자동 구성입니다.
+ * Redis Starter ?먮룞 援ъ꽦?낅땲??
  *
- * <p>역할</p>
- * <p>1) Redis 관련 의존성을 starter 하나로 묶어서 애플리케이션에서 쉽게 선택하도록 합니다.</p>
- * <p>2) Redis starter 전용 배타 락 Bean을 등록합니다.</p>
- *
- * <p>참고</p>
- * <p>- RedisConnectionFactory, RedisTemplate 생성은 Spring Boot 기본 AutoConfiguration에 위임합니다.</p>
- * <p>- 설정은 {@code spring.data.redis.*} 프로퍼티를 사용합니다.</p>
+ * <p>??븷</p>
+ * <p>1) Redis 愿??湲곕낯 Bean(RedisConnectionFactory, RedisTemplate)? Spring Boot 湲곕낯 ?먮룞 援ъ꽦???꾩엫?⑸땲??</p>
+ * <p>2) 蹂?starter媛 怨듯넻?쇰줈 ?ъ슜??{@code tcRedisTemplate}, {@code TcRedisCrudRepository}瑜?異붽?濡?援ъ꽦?⑸땲??</p>
+ * <p>3) 愿怨꾪삎 DB starter? ?④퍡 ?ъ슜?????덈룄濡?Redis ?꾩슜 諛고? ??Bean???깅줉?⑸땲??</p>
  */
-@AutoConfiguration
+@AutoConfiguration(afterName = {
+        "org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration",
+        "org.springframework.boot.data.redis.autoconfigure.LettuceConnectionConfiguration"
+})
 public class TcDbRedisAutoConfiguration {
 
     /**
-     * Redis starter 전용 배타 락 Bean입니다.
+     * Redis starter ?꾩슜 諛고? ??Bean?낅땲??
      *
-     * <p>관계형 DB starter의 락 Bean({@code tcDbStarterExclusiveLock})과 이름을 분리해서,
-     * Redis starter와 관계형 DB starter를 함께 사용할 때 Bean 이름 충돌을 방지합니다.</p>
+     * <p>愿怨꾪삎 DB starter?먯꽌 ?ъ슜?섎뒗 ??Bean ?대쫫({@code tcDbStarterExclusiveLock})怨?遺꾨━?댁꽌,
+     * Redis starter? 愿怨꾪삎 DB starter瑜??④퍡 ?ъ슜????Bean ?대쫫 異⑸룎??諛⑹??⑸땲??</p>
      */
     @Bean(name = "tcDbRedisStarterExclusiveLock")
     public Object tcDbRedisStarterExclusiveLock() {
@@ -39,23 +39,27 @@ public class TcDbRedisAutoConfiguration {
     }
 
     /**
-     * 공통 RedisTemplate({@code tcRedisTemplate})을 등록합니다.
+     * 怨듯넻 RedisTemplate({@code tcRedisTemplate})???깅줉?⑸땲??
      *
-     * @param connectionFactory Redis 연결 팩토리
-     * @param valueSerializerProvider 값 직렬화기 제공자(없으면 JDK 직렬화기 사용)
-     * @return 공통 RedisTemplate
+     * <p>議곌굔</p>
+     * <p>- RedisConnectionFactory媛 議댁옱???뚮쭔 ?앹꽦?⑸땲??</p>
+     * <p>- ?숈씪 ?대쫫??Bean???대? ?덉쑝硫?以묐났 ?앹꽦?섏? ?딆뒿?덈떎.</p>
+     *
+     * @param connectionFactory Redis ?곌껐 ?⑺넗由?     * @param valueSerializerProvider 媛?吏곷젹?붽린 ?쒓났??誘몄?????JDK 吏곷젹?붽린 ?ъ슜)
+     * @return 怨듯넻 RedisTemplate
      */
     @Bean(name = "tcRedisTemplate")
     @ConditionalOnBean(RedisConnectionFactory.class)
     @ConditionalOnMissingBean(name = "tcRedisTemplate")
     public RedisTemplate<String, Object> tcRedisTemplate(
-            RedisConnectionFactory connectionFactory,
-            ObjectProvider<RedisSerializer<Object>> valueSerializerProvider) {
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
+            final RedisConnectionFactory connectionFactory,
+            final ObjectProvider<RedisSerializer<Object>> valueSerializerProvider
+    ) {
+        final RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        RedisSerializer<String> keySerializer = new StringRedisSerializer();
-        RedisSerializer<Object> valueSerializer = Optional.ofNullable(valueSerializerProvider.getIfAvailable())
+        final RedisSerializer<String> keySerializer = new StringRedisSerializer();
+        final RedisSerializer<Object> valueSerializer = Optional.ofNullable(valueSerializerProvider.getIfAvailable())
                 .orElseGet(JdkSerializationRedisSerializer::new);
 
         template.setKeySerializer(keySerializer);
@@ -67,15 +71,18 @@ public class TcDbRedisAutoConfiguration {
     }
 
     /**
-     * TcRedisCrudRepository 구현체를 등록합니다.
+     * TcRedisCrudRepository 援ы쁽泥대? ?깅줉?⑸땲??
      *
-     * @param tcRedisTemplate 공통 RedisTemplate
-     * @return Redis CRUD 저장소 구현체
-     */
+     * <p>議곌굔</p>
+     * <p>- {@code tcRedisTemplate} Bean??議댁옱???뚮쭔 ?앹꽦?⑸땲??</p>
+     * <p>- ?대? 援ы쁽泥닿? ?깅줉?섏뼱 ?덉쑝硫?以묐났 ?앹꽦?섏? ?딆뒿?덈떎.</p>
+     *
+     * @param tcRedisTemplate 怨듯넻 RedisTemplate
+     * @return Redis CRUD ??μ냼 援ы쁽泥?     */
     @Bean
     @ConditionalOnBean(name = "tcRedisTemplate")
     @ConditionalOnMissingBean
-    public TcRedisCrudRepository tcRedisCrudRepository(RedisTemplate<String, Object> tcRedisTemplate) {
+    public TcRedisCrudRepository tcRedisCrudRepository(final RedisTemplate<String, Object> tcRedisTemplate) {
         return new TcRedisTemplateCrudRepository(tcRedisTemplate);
     }
 }

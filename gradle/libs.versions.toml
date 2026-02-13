@@ -95,6 +95,7 @@ spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-star
 # ✅ RabbitMQ (New)
 # - Spring Boot가 공식 지원하므로 BOM 버전을 그대로 사용
 spring-boot-starter-amqp = { module = "org.springframework.boot:spring-boot-starter-amqp" }
+spring-boot-starter-kafka = { module = "org.springframework.boot:spring-boot-starter-kafka" }
 
 ################################################################################
 # Kafka (New)

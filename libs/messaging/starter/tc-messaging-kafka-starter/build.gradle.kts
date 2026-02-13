@@ -23,6 +23,8 @@ dependencies {
     implementation(project(":libs:messaging:adapter:tc-messaging-kafka"))
 
     implementation(libs.spring.boot.starter)
+    // KafkaTemplate, ProducerFactory, ConsumerFactory 등 Kafka 핵심 Bean 자동 구성을 활성화합니다.
+    implementation(libs.spring.boot.starter.kafka)
     // Implementation only: app에서는 Kafka 의존을 직접 사용하지 않도록 한다.
     implementation(libs.spring.kafka)
     implementation(libs.kafka.clients)
