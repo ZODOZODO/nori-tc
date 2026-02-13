@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- tc_jar_gateway Mapper XML -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.jar.TcJarGatewayMapper">
+
+    <resultMap id="Map" type="com.nori.tc.db.domain.jar.TcJarGateway">
+        <constructor>
+            <idArg column="eqp_key" javaType="long"/>
+            <arg column="jar_file_name" javaType="java.lang.String"/>
+            <arg column="jar_file" javaType="byte[]" typeHandler="org.apache.ibatis.type.ByteArrayTypeHandler"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="Columns">
+        eqp_key, jar_file_name, jar_file, created_at, updated_at, created_by, updated_by
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_jar_gateway
+            (eqp_key, jar_file_name, jar_file, created_by, updated_by)
+        VALUES
+            (#{j.eqpKey},
+             #{j.jarFileName},
+             #{j.jarFile, typeHandler=org.apache.ibatis.type.ByteArrayTypeHandler},
+             #{j.createdBy},
+             #{j.updatedBy})
+    </insert>
+
+    <update id="update">
+        UPDATE tc_jar_gateway
+           SET jar_file_name = #{j.jarFileName},
+               jar_file      = #{j.jarFile, typeHandler=org.apache.ibatis.type.ByteArrayTypeHandler},
+               updated_at    = CURRENT_TIMESTAMP,
+               updated_by    = #{j.updatedBy}
+         WHERE eqp_key       = #{j.eqpKey}
+    </update>
+
+    <select id="findByEqpKey" resultMap="Map">
+        SELECT <include refid="Columns"/>
+          FROM tc_jar_gateway
+         WHERE eqp_key = #{eqpKey}
+    </select>
+
+    <delete id="deleteByEqpKey">
+        DELETE FROM tc_jar_gateway WHERE eqp_key = #{eqpKey}
+    </delete>
+
+</mapper>
