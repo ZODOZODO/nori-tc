@@ -7,7 +7,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -26,7 +25,8 @@ import jakarta.persistence.UniqueConstraint;
  * 1. MapStruct 호환성:
  * - public 기본 생성자 + 전체 인자 생성자를 제공하여 Mapper가 객체를 생성할 수 있게 합니다.
  * 2. Binary 컬럼 처리:
- * - mdf_file은 bytea이므로 @Lob를 사용하여 바이너리 데이터 매핑을 명확히 합니다.
+ * - mdf_file은 PostgreSQL bytea 컬럼이므로 columnDefinition=bytea를 명시하여
+ *   Hibernate가 OID(BLOB) 대신 bytea(BINARY)로 해석하도록 고정합니다.
  */
 @Entity
 @Table(
@@ -48,8 +48,13 @@ public class TcModelMdfEntity extends AbstractUpdatedEntity {
     @Column(name = "mdf_name", length = 100, nullable = false)
     private String mdfName;
 
-    @Lob
-    @Column(name = "mdf_file", nullable = false)
+    /**
+     * PostgreSQL bytea 컬럼 매핑.
+     *
+     * <p>@Lob를 사용하면 Hibernate가 OID(BLOB)로 해석할 수 있으므로,
+     * DB 스키마(bytea)와 일치시키기 위해 columnDefinition을 명시합니다.</p>
+     */
+    @Column(name = "mdf_file", nullable = false, columnDefinition = "bytea")
     private byte[] mdfFile;
 
     // =========================================================================

@@ -5,7 +5,6 @@ import com.nori.tc.db.jpa.common.entity.base.AbstractCreatedUpdatedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -25,7 +24,8 @@ import jakarta.persistence.Table;
  * [설계 포인트]
  * - created_at/updated_at은 AbstractCreatedUpdatedEntity에서 공통 처리합니다.
  * - created_by/updated_by는 null/blank 방어를 위해 lifecycle 콜백에서 기본값을 보정합니다.
- * - jar_file은 bytea 컬럼이므로 @Lob 매핑을 명시합니다.
+ * - jar_file은 PostgreSQL bytea 컬럼이므로 columnDefinition=bytea를 명시하여
+ *   Hibernate가 OID(BLOB) 대신 bytea(BINARY)로 해석하도록 고정합니다.
  */
 @Entity
 @Table(name = "tc_jar_gateway")
@@ -38,8 +38,13 @@ public class TcJarGatewayEntity extends AbstractCreatedUpdatedEntity {
     @Column(name = "jar_file_name", length = 255, nullable = false)
     private String jarFileName;
 
-    @Lob
-    @Column(name = "jar_file", nullable = false)
+    /**
+     * PostgreSQL bytea 컬럼 매핑.
+     *
+     * <p>@Lob를 사용하면 Hibernate가 OID(BLOB)로 해석할 수 있으므로,
+     * DB 스키마(bytea)와 일치시키기 위해 columnDefinition을 명시합니다.</p>
+     */
+    @Column(name = "jar_file", nullable = false, columnDefinition = "bytea")
     private byte[] jarFile;
 
     @Column(name = "created_by", length = 50, nullable = false)
