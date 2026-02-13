@@ -147,7 +147,8 @@ public final class TemplateSocketTypeHandler implements SocketTypeHandler {
      * Encodes one command object into outbound bytes.
      *
      * <p>Template default:
-     * - Uses {@code command.toString()} and appends LF.</p>
+     * - Uses {@code command.toString()} as-is.
+     * - Does not append or remove delimiter characters.</p>
      *
      * @param command outbound command object
      * @return encode result
@@ -158,7 +159,7 @@ public final class TemplateSocketTypeHandler implements SocketTypeHandler {
             throw new IllegalArgumentException("command is null");
         }
 
-        final byte[] bytes = (command.toString() + "\n").getBytes(charset);
-        return new SocketTypeEncodeResult(bytes, "template outbound encoding");
+        final byte[] bytes = command.toString().getBytes(charset);
+        return new SocketTypeEncodeResult(bytes, "template outbound pass-through encoding");
     }
 }

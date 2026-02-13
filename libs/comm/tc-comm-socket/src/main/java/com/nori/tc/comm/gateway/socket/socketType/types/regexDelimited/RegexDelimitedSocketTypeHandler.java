@@ -3,6 +3,7 @@ package com.nori.tc.comm.gateway.socket.socketType.types.regexDelimited;
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
+import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeEncodeResult;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 
 import java.nio.charset.Charset;
@@ -141,5 +142,26 @@ public final class RegexDelimitedSocketTypeHandler implements SocketTypeHandler 
                 Map.of("rawText", text),
                 bodyText
         );
+    }
+
+    /**
+     * outbound 명령 문자열을 wire bytes로 인코딩합니다.
+     *
+     * <p>현재 정책:
+     * - rawMessage 원문을 그대로 bytes로 변환합니다.
+     * - 정규식 종단 패턴 보정/추가는 수행하지 않습니다.</p>
+     *
+     * @param command rawMessage 문자열(또는 문자열 변환 가능한 객체)
+     * @return socket 송신용 bytes 결과
+     */
+    @Override
+    public SocketTypeEncodeResult encode(final Object command) {
+        if (command == null) {
+            throw new IllegalArgumentException("command is null");
+        }
+
+        final String rawMessage = String.valueOf(command);
+        final byte[] encoded = rawMessage.getBytes(charset);
+        return new SocketTypeEncodeResult(encoded, "regex-delimited pass-through encoding");
     }
 }
