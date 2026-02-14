@@ -14,6 +14,8 @@ java {
 
 dependencies {
     api(project(":libs:comm:tc-comm-gateway-core"))
+    implementation(project(":libs:common:tc-common-ui-task-pipeline"))
+    implementation(project(":libs:common:tc-common-task-policy"))
 
     // Kafka adapter/contract
     implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))

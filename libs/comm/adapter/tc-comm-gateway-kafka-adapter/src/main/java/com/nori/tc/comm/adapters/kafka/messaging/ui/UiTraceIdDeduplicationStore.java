@@ -1,5 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.messaging.ui;
 
+import com.nori.tc.common.ui.task.pipeline.UiTaskDeduplicationStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>주의: 인메모리 저장소이므로 프로세스 재기동 시 이력은 초기화됩니다.</p>
  */
 @Component
-public class UiTraceIdDeduplicationStore {
+public class UiTraceIdDeduplicationStore implements UiTaskDeduplicationStore {
 
     private static final Logger log = LoggerFactory.getLogger(UiTraceIdDeduplicationStore.class);
 
@@ -34,6 +35,7 @@ public class UiTraceIdDeduplicationStore {
      * @param nowEpochMs 현재 시각(epoch ms)
      * @return true면 중복(이미 처리됨), false면 신규
      */
+    @Override
     public boolean isProcessed(final String traceId, final long nowEpochMs) {
         if (traceId == null || traceId.isBlank()) {
             return false;
@@ -50,6 +52,7 @@ public class UiTraceIdDeduplicationStore {
      * @param ttlMs 만료 TTL(ms)
      * @param nowEpochMs 현재 시각(epoch ms)
      */
+    @Override
     public void markProcessed(final String traceId, final long ttlMs, final long nowEpochMs) {
         Objects.requireNonNull(traceId, "traceId is null");
         if (traceId.isBlank()) {

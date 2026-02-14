@@ -1,5 +1,8 @@
 package com.nori.tc.messaging.kafka.starter.runtime;
 
+import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
+import com.nori.tc.common.kafka.processing.RetryDecision;
+import com.nori.tc.common.kafka.processing.RetryPolicy;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -18,6 +21,10 @@ import java.util.Map;
  *
  * <p>중복되는 실행 흐름(시작/종료, poll, commit retry, lag sampling)을
  * 한 곳에서 관리하고, 실제 레코드 처리만 하위 클래스가 구현하도록 설계했습니다.</p>
+ *
+ * <p>Step 통합 사항:</p>
+ * <p>- commit 재시도는 {@code tc-common-kafka-processing}의 {@link RetryPolicy}를 사용합니다.</p>
+ * <p>- 정책 계산과 실행 루프를 분리해 앱별 consumer에서 동일한 재시도 의미를 공유합니다.</p>
  *
  * @param <T> Consumer value 타입
  */
@@ -303,7 +310,9 @@ public abstract class AbstractKafkaConsumerLifecycle<T> implements Runnable, Sma
      * 배치 commit을 retry 정책에 따라 수행합니다.
      */
     private void commitWithRetry(final KafkaConsumer<String, T> runningConsumer) {
-        int attempt = 0;
+        final RetryPolicy retryPolicy = createCommitRetryPolicy();
+        int failedAttempt = 0;
+
         while (true) {
             try {
                 runningConsumer.commitSync();
@@ -312,19 +321,28 @@ public abstract class AbstractKafkaConsumerLifecycle<T> implements Runnable, Sma
                 }
                 return;
             } catch (Exception ex) {
-                onCommitFail(ex, attempt);
-                if (attempt >= commitRetryMax()) {
+                failedAttempt++;
+                onCommitFail(ex, failedAttempt);
+
+                final RetryDecision retryDecision = retryPolicy.evaluate(failedAttempt, ex);
+                if (!retryDecision.shouldRetry()) {
+                    if (log.isInfoEnabled()) {
+                        log.info("Kafka commit retry exhausted. consumer={}, failedAttempts={}",
+                                consumerName(),
+                                failedAttempt);
+                    }
                     return;
                 }
-                attempt++;
-                final long backoffMs = commitRetryBackoffMs();
-                if (backoffMs > 0) {
-                    try {
-                        Thread.sleep(backoffMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Kafka commit retry scheduled. consumer={}, nextAttempt={}, backoffMs={}",
+                            consumerName(),
+                            failedAttempt + 1,
+                            retryDecision.backoffMs());
+                }
+
+                if (!sleepBackoff(retryDecision.backoffMs(), "commit retry")) {
+                    return;
                 }
             }
         }
@@ -386,11 +404,47 @@ public abstract class AbstractKafkaConsumerLifecycle<T> implements Runnable, Sma
 
         final long retryBackoffMs = failedRecordRetryBackoffMs();
         if (retryBackoffMs > 0L) {
-            try {
-                Thread.sleep(retryBackoffMs);
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
+            sleepBackoff(retryBackoffMs, "failed record retry");
+        }
+    }
+
+    /**
+     * commit 재시도 정책을 생성합니다.
+     *
+     * <p>{@code commitRetryMax}는 "재시도 횟수" 의미이므로,
+     * 공통 정책의 {@code maxAttempts(총 시도 횟수)}에 맞추기 위해 +1 보정합니다.</p>
+     *
+     * @return 고정 백오프 commit 재시도 정책
+     */
+    private RetryPolicy createCommitRetryPolicy() {
+        final int maxAttempts = Math.max(1, commitRetryMax() + 1);
+        final long backoffMs = Math.max(0L, commitRetryBackoffMs());
+        return new FixedRetryPolicy(maxAttempts, backoffMs);
+    }
+
+    /**
+     * backoff 대기를 수행합니다.
+     *
+     * @param backoffMs 대기 시간(ms)
+     * @param reason 로그 출력용 대기 사유
+     * @return 인터럽트 없이 정상 대기 완료 시 true
+     */
+    private boolean sleepBackoff(final long backoffMs, final String reason) {
+        if (backoffMs <= 0L) {
+            return true;
+        }
+        try {
+            Thread.sleep(backoffMs);
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            if (log.isInfoEnabled()) {
+                log.info("Kafka consumer backoff wait interrupted. consumer={}, reason={}, backoffMs={}",
+                        consumerName(),
+                        reason,
+                        backoffMs);
             }
+            return false;
         }
     }
 

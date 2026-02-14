@@ -33,6 +33,9 @@ dependencyResolutionManagement {
 include(":apps:tc-comm-gateway-app")
 project(":apps:tc-comm-gateway-app").projectDir = file("apps/tc-comm-gateway-app")
 
+include(":apps:tc-business-core-app")
+project(":apps:tc-business-core-app").projectDir = file("apps/tc-business-core-app")
+
 
 /* ===================================================
  * 2. DB Modules (Persistence Layer)
@@ -162,6 +165,9 @@ project(":libs:comm:adapter:tc-comm-gateway-db-adapter").projectDir = file("libs
 include(":libs:comm:adapter:tc-comm-gateway-redis-adapter")
 project(":libs:comm:adapter:tc-comm-gateway-redis-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-redis-adapter")
 
+include(":libs:comm:adapter:tc-comm-gateway-plugin-adapter")
+project(":libs:comm:adapter:tc-comm-gateway-plugin-adapter").projectDir = file("libs/comm/adapter/tc-comm-gateway-plugin-adapter")
+
 include(":libs:comm:starter:tc-comm-gateway-starter")
 project(":libs:comm:starter:tc-comm-gateway-starter").projectDir = file("libs/comm/starter/tc-comm-gateway-starter")
 
@@ -171,3 +177,46 @@ project(":libs:comm:starter:tc-comm-gateway-starter").projectDir = file("libs/co
 
 include(":libs:log:starter:tc-log-starter")
 project(":libs:log:starter:tc-log-starter").projectDir = file("libs/log/starter/tc-log-starter")
+
+/* ===================================================
+ * 7. Common Modules
+ * - Cross-app reusable runtime/algorithm modules
+ * =================================================== */
+
+include(":libs:common:tc-common-mailbox")
+project(":libs:common:tc-common-mailbox").projectDir = file("libs/common/tc-common-mailbox")
+
+include(":libs:common:tc-common-kafka-processing")
+project(":libs:common:tc-common-kafka-processing").projectDir = file("libs/common/tc-common-kafka-processing")
+
+include(":libs:common:tc-common-task-policy")
+project(":libs:common:tc-common-task-policy").projectDir = file("libs/common/tc-common-task-policy")
+
+include(":libs:common:tc-common-ui-task-pipeline")
+project(":libs:common:tc-common-ui-task-pipeline").projectDir = file("libs/common/tc-common-ui-task-pipeline")
+
+/* ===================================================
+ * 8. Business Core Modules (App Composition Layer)
+ * - Domain / Core / Adapters / Starter
+ * =================================================== */
+
+include(":libs:business:tc-business-domain")
+project(":libs:business:tc-business-domain").projectDir = file("libs/business/tc-business-domain")
+
+include(":libs:business:tc-business-core")
+project(":libs:business:tc-business-core").projectDir = file("libs/business/tc-business-core")
+
+include(":libs:business:adapter:tc-business-db-adapter")
+project(":libs:business:adapter:tc-business-db-adapter").projectDir = file("libs/business/adapter/tc-business-db-adapter")
+
+include(":libs:business:adapter:tc-business-kafka-adapter")
+project(":libs:business:adapter:tc-business-kafka-adapter").projectDir = file("libs/business/adapter/tc-business-kafka-adapter")
+
+include(":libs:business:adapter:tc-business-plugin-adapter")
+project(":libs:business:adapter:tc-business-plugin-adapter").projectDir = file("libs/business/adapter/tc-business-plugin-adapter")
+
+include(":libs:business:adapter:tc-business-redis-adapter")
+project(":libs:business:adapter:tc-business-redis-adapter").projectDir = file("libs/business/adapter/tc-business-redis-adapter")
+
+include(":libs:business:starter:tc-business-core-starter")
+project(":libs:business:starter:tc-business-core-starter").projectDir = file("libs/business/starter/tc-business-core-starter")

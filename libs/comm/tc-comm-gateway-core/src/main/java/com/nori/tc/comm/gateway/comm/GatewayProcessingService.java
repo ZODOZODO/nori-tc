@@ -23,7 +23,7 @@ import java.util.Objects;
  *
  * 역할
  * - Netty 수신 raw bytes를 eqp별 inbound 큐에 적재합니다.
- * - eqp별 순차 처리(격리)를 위해 ReadyQueue/Worker에 스케줄링합니다.
+ * - eqp별 순차 처리(격리)를 위해 공통 MailboxScheduler 기반 worker에 스케줄링합니다.
  */
 @Service
 public class GatewayProcessingService {
@@ -179,6 +179,7 @@ public class GatewayProcessingService {
      */
     public void removeMailbox(final String equipmentId) {
         mailboxRegistry.remove(equipmentId);
+        processingCoordinator.clearSchedulingState(equipmentId);
         metrics.clearQueueDepth(equipmentId);
         if (log.isDebugEnabled()) {
             log.debug("Mailbox removed via processingService. eqpId={}", equipmentId);

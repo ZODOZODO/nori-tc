@@ -1,0 +1,190 @@
+package com.nori.tc.business.core.workflow;
+
+import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
+import com.nori.tc.business.domain.runtime.BusinessMessageType;
+import com.nori.tc.business.domain.modelcache.TcModelRuntime;
+import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
+import com.nori.tc.db.domain.common.model.ModelStatus;
+import com.nori.tc.db.domain.common.model.ProtocolType;
+import com.nori.tc.db.domain.model.TcModel;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * {@link BusinessWorkflowDispatchingActionExecutor} 단위 테스트입니다.
+ */
+class BusinessWorkflowDispatchingActionExecutorTest {
+
+    @Test
+    void shouldExecuteCoreActionWhenPluginActionIsNotPresent() {
+        final AtomicInteger coreExecutionCount = new AtomicInteger(0);
+        final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            @TcAction("SOCKET_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                coreExecutionCount.incrementAndGet();
+            }
+        };
+
+        final BusinessWorkflowCoreActionRegistry coreRegistry = new BusinessWorkflowCoreActionRegistry(
+                List.of(),
+                List.of(coreSocketExecutor),
+                List.of()
+        );
+        final BusinessWorkflowDispatchingActionExecutor dispatchingExecutor = new BusinessWorkflowDispatchingActionExecutor(
+                coreRegistry,
+                BusinessWorkflowPluginRuntimeProvider.noop()
+        );
+
+        final BusinessInboundRecord record = createRecord("EQP-CORE-01", "SOCKET_IN");
+        dispatchingExecutor.execute(
+                record,
+                createRuntime(ProtocolType.SOCKET),
+                createMatchResult(record, "SOCKET_ACT")
+        );
+
+        Assertions.assertEquals(1, coreExecutionCount.get(), "core action must run once");
+    }
+
+    @Test
+    void shouldPreferPluginActionWhenPluginAndCoreActionsAreBothRegistered() {
+        final AtomicInteger coreExecutionCount = new AtomicInteger(0);
+        final AtomicInteger pluginExecutionCount = new AtomicInteger(0);
+
+        final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            @TcAction("SOCKET_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                coreExecutionCount.incrementAndGet();
+            }
+        };
+        final SocketActionExecutor pluginSocketExecutor = new SocketActionExecutor() {
+            @TcAction("SOCKET_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                pluginExecutionCount.incrementAndGet();
+            }
+        };
+
+        final BusinessWorkflowActionRegistry pluginRegistry = new BusinessWorkflowActionRegistryBuilder()
+                .registerExecutor(pluginSocketExecutor, BusinessWorkflowActionMessageType.SOCKET)
+                .build();
+
+        final BusinessWorkflowCoreActionRegistry coreRegistry = new BusinessWorkflowCoreActionRegistry(
+                List.of(),
+                List.of(coreSocketExecutor),
+                List.of()
+        );
+        final BusinessWorkflowPluginRuntimeProvider pluginProvider = eqpId -> Optional.of(pluginRegistry);
+        final BusinessWorkflowDispatchingActionExecutor dispatchingExecutor = new BusinessWorkflowDispatchingActionExecutor(
+                coreRegistry,
+                pluginProvider
+        );
+
+        final BusinessInboundRecord record = createRecord("EQP-PLUGIN-01", "SOCKET_IN");
+        dispatchingExecutor.execute(
+                record,
+                createRuntime(ProtocolType.SOCKET),
+                createMatchResult(record, "SOCKET_ACT")
+        );
+
+        Assertions.assertEquals(0, coreExecutionCount.get(), "core action must be skipped when plugin action exists");
+        Assertions.assertEquals(1, pluginExecutionCount.get(), "plugin action must run once");
+    }
+
+    @Test
+    void shouldThrowWhenActionHandlerIsNotRegistered() {
+        final BusinessWorkflowCoreActionRegistry coreRegistry = new BusinessWorkflowCoreActionRegistry(
+                List.of(),
+                List.of(),
+                List.of()
+        );
+        final BusinessWorkflowDispatchingActionExecutor dispatchingExecutor = new BusinessWorkflowDispatchingActionExecutor(
+                coreRegistry,
+                BusinessWorkflowPluginRuntimeProvider.noop()
+        );
+        final BusinessInboundRecord record = createRecord("EQP-ERR-01", "SOCKET_IN");
+
+        Assertions.assertThrows(
+                BusinessWorkflowActionExecutionException.class,
+                () -> dispatchingExecutor.execute(
+                        record,
+                        createRuntime(ProtocolType.SOCKET),
+                        createMatchResult(record, "UNKNOWN_ACTION")
+                )
+        );
+    }
+
+    /**
+     * 테스트용 inbound record를 생성합니다.
+     */
+    private static BusinessInboundRecord createRecord(final String eqpId, final String messageName) {
+        return new BusinessInboundRecord(
+                "tc.eqp.events",
+                0,
+                1L,
+                eqpId,
+                BusinessMessageType.EQP,
+                messageName,
+                "payload://test/1",
+                "{\"raw\":\"sample\"}"
+        );
+    }
+
+    /**
+     * 테스트용 model runtime을 생성합니다.
+     */
+    private static TcModelRuntime createRuntime(final ProtocolType protocolType) {
+        final OffsetDateTime now = OffsetDateTime.now();
+        final TcModel model = new TcModel(
+                300L,
+                "MODEL-300",
+                "v1",
+                protocolType,
+                ModelStatus.ACTIVE,
+                "NORI",
+                now,
+                now,
+                "SYSTEM",
+                "SYSTEM"
+        );
+        return TcModelRuntime.from(
+                model,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()
+        );
+    }
+
+    /**
+     * 단일 workflow 매칭 결과를 생성합니다.
+     */
+    private static BusinessWorkflowMatchResult createMatchResult(
+            final BusinessInboundRecord record,
+            final String actionName
+    ) {
+        final WorkflowRuntimeEntry entry = new WorkflowRuntimeEntry(
+                700L,
+                "WF-700",
+                record.messageName(),
+                null,
+                null,
+                null,
+                actionName,
+                null,
+                0
+        );
+        final BusinessWorkflowFilterContext filterContext = new BusinessWorkflowFilterContext(
+                record,
+                Map.of(),
+                Map.of()
+        );
+        return new BusinessWorkflowMatchResult(List.of(entry), filterContext);
+    }
+}
+
+

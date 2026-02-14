@@ -1,56 +1,70 @@
 package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.port.OutboundSenderPort;
 import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
+import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.common.mailbox.Mailbox;
+import com.nori.tc.common.mailbox.MailboxScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * eqp 단위 ReadyQueue + worker 풀 처리.
+ * 설비(eqpId) 단위 순차 처리를 담당하는 코디네이터입니다.
  *
- * - inbound/outbound 처리를 동일 스레드에서 직렬 실행
- * - scheduled 플래그로 중복 enqueue 방지
- * - inFlight 플래그로 동시 처리 방지
+ * <p>핵심 역할:</p>
+ * <p>1) 공통 {@link MailboxScheduler}를 이용해 eqpId 단위 in-flight=1을 보장</p>
+ * <p>2) inbound/outbound를 동일 worker 흐름에서 순차 처리</p>
+ * <p>3) outbound 전송 실패 시 재시도/격리(quarantine) 정책 적용</p>
+ *
+ * <p>스케줄링 주의사항:</p>
+ * <p>- 본 클래스는 "스케줄 토큰"만 공통 mailbox에 적재합니다.</p>
+ * <p>- 실제 데이터(inbound/outbound)는 {@link EqpMailbox} 내부 큐에서 관리합니다.</p>
  */
 @Service
 public class EqpProcessingCoordinator implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(EqpProcessingCoordinator.class);
 
+    /**
+     * 스케줄 토큰 전용 mailbox 용량입니다.
+     *
+     * <p>동일 eqpId에 대해 "다음 처리 한 번"만 예약하면 충분하므로 1로 고정합니다.
+     * 중복 schedule 요청은 자연스럽게 흡수(dedup)됩니다.</p>
+     */
+    private static final int SCHEDULER_MAILBOX_CAPACITY = 1;
+
     private final EqpMailboxRegistry mailboxRegistry;
     private final EqpSequentialProcessor sequentialProcessor;
     private final OutboundSenderPort outboundSenderPort;
     private final QuarantinePort quarantinePort;
     private final GatewayRuntimeProperties runtimeProperties;
+    private final MailboxScheduler<EqpMailboxScheduleTask> mailboxScheduler =
+            new MailboxScheduler<>(SCHEDULER_MAILBOX_CAPACITY);
 
-    private final ReadyQueue readyQueue = new ReadyQueue();
     private ExecutorService workerPool;
     private ScheduledExecutorService retryScheduler;
 
     private volatile boolean running = false;
 
-    
     /**
-     * 게이트웨이 코어 모듈 구성 요소를 초기화합니다.
+     * 코디네이터 의존성을 초기화합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param mailboxRegistry 게이트웨이 코어 모듈 처리에 사용하는 입력 값
-     * @param sequentialProcessor 게이트웨이 코어 모듈 처리에 사용하는 입력 값
-     * @param outboundSenderPort 게이트웨이 코어 모듈 처리에 사용하는 입력 값
-     * @param quarantinePort 게이트웨이 코어 모듈 처리에 사용하는 입력 값
-     * @param runtimeProperties 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param mailboxRegistry eqpId별 mailbox 레지스트리
+     * @param sequentialProcessor inbound 순차 처리기
+     * @param outboundSenderPort outbound 송신 포트
+     * @param quarantinePort 설비 격리 포트
+     * @param runtimeProperties 게이트웨이 런타임 설정
      */
     public EqpProcessingCoordinator(
             final EqpMailboxRegistry mailboxRegistry,
@@ -67,28 +81,47 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     }
 
     /**
-     * ReadyQueue에 eqpId를 스케줄링합니다.
+     * 특정 설비 mailbox에 대해 처리 스케줄을 등록합니다.
+     *
+     * <p>중복 스케줄은 공통 mailbox 용량(1) 정책으로 자동 흡수됩니다.</p>
+     *
+     * @param mailbox 처리 대상 설비 mailbox
      */
     public void schedule(final EqpMailbox mailbox) {
-        // 연결 제어 단계: 상태 전이와 예외 케이스를 함께 관리합니다.
         if (mailbox == null) {
             return;
         }
-        if (!mailbox.scheduledFlag().compareAndSet(false, true)) {
-            return;
+
+        final long now = nowEpochMillis();
+        final boolean offered = mailboxScheduler.enqueue(
+                new EqpMailboxScheduleTask(mailbox.eqpId(), now),
+                now
+        );
+        if (!offered && log.isDebugEnabled()) {
+            log.debug("설비 스케줄 토큰이 이미 대기 중이라 추가 등록을 생략합니다. eqpId={}", mailbox.eqpId());
         }
-        readyQueue.offer(mailbox.eqpId());
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 실행 환경을 초기화하고 기동합니다.
+     * 설비 언바인드 시 스케줄러 내부 상태를 정리합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * @param eqpId 정리할 설비 ID
+     */
+    public void clearSchedulingState(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return;
+        }
+        mailboxScheduler.removeMailbox(eqpId);
+        if (log.isDebugEnabled()) {
+            log.debug("설비 스케줄링 상태를 정리했습니다. eqpId={}", eqpId);
+        }
+    }
+
+    /**
+     * worker/retry 스레드풀을 초기화하고 코디네이터를 기동합니다.
      */
     @Override
-    public void start() {
-        // 라이프사이클 단계: 자원 초기화/해제 순서를 보장합니다.
+    public synchronized void start() {
         if (running) {
             return;
         }
@@ -98,127 +131,132 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         retryScheduler = Executors.newScheduledThreadPool(runtimeProperties.getOutboundRetrySchedulerThreads());
 
         for (int i = 0; i < runtimeProperties.getWorkerThreads(); i++) {
-            // Preserve MDC when worker loops are started from lifecycle thread.
+            // lifecycle 스레드의 로그 컨텍스트를 worker loop까지 보존합니다.
             workerPool.execute(GatewayLogContext.wrap(this::runWorkerLoop));
         }
-        log.info("EqpProcessingCoordinator started with {} worker threads", runtimeProperties.getWorkerThreads());
+
+        log.info("EqpProcessingCoordinator started. workerThreads={}, retrySchedulerThreads={}, schedulerMailboxCapacity={}",
+                runtimeProperties.getWorkerThreads(),
+                runtimeProperties.getOutboundRetrySchedulerThreads(),
+                SCHEDULER_MAILBOX_CAPACITY);
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 리소스를 정리하고 종료합니다.
-     *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * 코디네이터를 중지하고 내부 스레드풀을 종료합니다.
      */
     @Override
-    public void stop() {
-        // 라이프사이클 단계: 자원 초기화/해제 순서를 보장합니다.
+    public synchronized void stop() {
         running = false;
+
         if (workerPool != null) {
-            workerPool.shutdown();
+            workerPool.shutdownNow();
+            workerPool = null;
         }
         if (retryScheduler != null) {
-            retryScheduler.shutdown();
+            retryScheduler.shutdownNow();
+            retryScheduler = null;
         }
+
         log.info("EqpProcessingCoordinator stopped.");
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     * 현재 실행 상태를 반환합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @return 처리 성공 여부
+     * @return 실행 중이면 true
      */
     @Override
     public boolean isRunning() {
         return running;
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     * Spring lifecycle phase를 반환합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 코어 모듈 처리 결과
+     * @return phase 값
      */
     @Override
     public int getPhase() {
         return 0;
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     * worker loop 본문입니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
+     * <p>공통 mailbox에서 ready eqpId를 꺼내 단건 처리하고,
+     * 처리 후 공통 scheduler에 release 신호를 반환합니다.</p>
      */
     private void runWorkerLoop() {
-        // 처리 단계: 분기 조건에 따라 흐름을 제어하고 후속 작업을 호출합니다.
         while (running) {
             try {
-                final String eqpId = readyQueue.take();
-                processOnce(eqpId);
-            } catch (InterruptedException ie) {
+                final String eqpId = mailboxScheduler.takeReadyKey();
+                final Mailbox<EqpMailboxScheduleTask> schedulingMailbox = mailboxScheduler.tryAcquire(eqpId);
+                if (schedulingMailbox == null) {
+                    continue;
+                }
+
+                final EqpMailboxScheduleTask scheduleTask = schedulingMailbox.poll();
+                if (scheduleTask == null) {
+                    mailboxScheduler.release(schedulingMailbox);
+                    continue;
+                }
+
+                try {
+                    processOnce(scheduleTask.eqpId());
+                } finally {
+                    mailboxScheduler.release(schedulingMailbox);
+                }
+            } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (Exception ex) {
-                log.warn("Worker loop error", ex);
+                log.warn("Worker loop error.", ex);
             }
         }
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 입력 이벤트/요청을 처리합니다.
+     * 단일 eqpId에 대한 한 번의 처리 사이클을 수행합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param eqpId 설비 식별 정보
+     * <p>처리 순서:</p>
+     * <p>1) inbound 파이프라인 drain</p>
+     * <p>2) outbound 큐 drain</p>
+     * <p>3) 잔여 데이터가 있으면 다음 사이클을 재스케줄</p>
+     *
+     * @param eqpId 처리 대상 설비 ID
      */
     private void processOnce(final String eqpId) {
-        // 처리 단계: 분기 조건에 따라 흐름을 제어하고 후속 작업을 호출합니다.
         if (eqpId == null || eqpId.isBlank()) {
             return;
         }
 
-        // 설비별 로그 파일 분기를 위해 MDC에 eqpId를 설정한다.
         try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
             final EqpMailbox mailbox = mailboxRegistry.get(eqpId);
             if (mailbox == null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("처리 대상 mailbox가 존재하지 않아 스킵합니다. eqpId={}", eqpId);
+                }
                 return;
             }
 
-            // allow re-schedule while processing
-            mailbox.scheduledFlag().set(false);
-
-            if (!mailbox.inFlightFlag().compareAndSet(false, true)) {
-                return;
-            }
-
-            try {
-                // Inbound pipeline (per-eqp, sequential):
-                // - reassembly -> decode -> publish events
-                sequentialProcessor.drain(mailbox.context());
-
-                // Outbound pipeline (queue-based):
-                // - drain outbound queue -> send in order
-                drainOutbound(mailbox);
-            } finally {
-                mailbox.inFlightFlag().set(false);
-            }
+            sequentialProcessor.drain(mailbox.context());
+            drainOutbound(mailbox);
 
             if (hasPending(mailbox)) {
                 schedule(mailbox);
+            } else if (log.isDebugEnabled()) {
+                log.debug("설비 큐 처리가 완료되었습니다. eqpId={}, inboundSize={}, outboundSize={}",
+                        eqpId,
+                        mailbox.inboundQueue().size(),
+                        mailbox.outboundQueue().size());
             }
         }
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     * outbound 큐를 최대 {@code maxOutboundPerDrain}만큼 순차 전송합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param mailbox 설비 mailbox
      */
     private void drainOutbound(final EqpMailbox mailbox) {
         int processed = 0;
@@ -231,7 +269,6 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
             }
 
             processed++;
-
             try {
                 outboundSenderPort.send(command.frame());
             } catch (Exception ex) {
@@ -241,52 +278,52 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         }
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 입력 이벤트/요청을 처리합니다.
+     * outbound 전송 실패 처리(재시도 또는 격리)를 수행합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
-     * @param command 처리할 요청/명령 정보
-     * @param ex 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param mailbox 설비 mailbox
+     * @param command 실패한 명령
+     * @param ex 실패 예외
      */
     private void handleOutboundFailure(
             final EqpMailbox mailbox,
             final OutboundCommand command,
             final Exception ex
     ) {
-        // 처리 단계: 분기 조건에 따라 흐름을 제어하고 후속 작업을 호출합니다.
         final int maxRetry = runtimeProperties.getOutboundRetryMax();
-
         if (command.attempt() < maxRetry) {
             final OutboundCommand retry = command.nextAttempt();
             final int delayMs = runtimeProperties.getOutboundRetryBackoffMs();
 
-            retryScheduler.schedule(GatewayLogContext.wrap(() -> {
-                final boolean offered = mailbox.outboundQueue().offer(retry);
-                if (!offered) {
-                    // queue overflow: close/quarantine
-                    log.warn("Outbound queue overflow on retry. eqpId={}", mailbox.eqpId());
-                    safeQuarantine(mailbox);
-                    safeClose(mailbox);
-                    return;
-                }
-                schedule(mailbox);
-            }), delayMs, TimeUnit.MILLISECONDS);
+            retryScheduler.schedule(
+                    GatewayLogContext.wrap(() -> {
+                        final boolean offered = mailbox.outboundQueue().offer(retry);
+                        if (!offered) {
+                            log.warn("재시도 명령 enqueue에 실패하여 설비를 격리합니다. eqpId={}", mailbox.eqpId());
+                            safeQuarantine(mailbox);
+                            safeClose(mailbox);
+                            return;
+                        }
+                        schedule(mailbox);
+                    }),
+                    delayMs,
+                    TimeUnit.MILLISECONDS
+            );
             return;
         }
 
-        log.warn("Outbound send failed (max retry exceeded). eqpId={}", mailbox.eqpId(), ex);
+        log.warn("outbound 전송이 재시도 한도를 초과했습니다. eqpId={}, attempts={}",
+                mailbox.eqpId(),
+                command.attempt() + 1,
+                ex);
         safeQuarantine(mailbox);
         safeClose(mailbox);
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     * 설비 채널을 안전하게 종료합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param mailbox 설비 mailbox
      */
     private void safeClose(final EqpMailbox mailbox) {
         final EquipmentChannel channel = mailbox.channel();
@@ -295,31 +332,40 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         }
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     * 설비를 quarantine 상태로 전환합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
+     * @param mailbox 설비 mailbox
      */
     private void safeQuarantine(final EqpMailbox mailbox) {
         try {
-            quarantinePort.quarantine(new EquipmentId(mailbox.eqpId()), "OUTBOUND_SEND_FAILED", "Outbound send failed");
+            quarantinePort.quarantine(
+                    new EquipmentId(mailbox.eqpId()),
+                    "OUTBOUND_SEND_FAILED",
+                    "Outbound send failed"
+            );
         } catch (Exception ignored) {
+            // quarantine 포트 장애는 상위 처리 흐름을 추가로 깨지 않도록 로그만 남깁니다.
+            log.debug("설비 quarantine 호출 중 예외가 발생했습니다. eqpId={}", mailbox.eqpId(), ignored);
         }
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     * inbound/outbound 큐에 잔여 데이터가 있는지 확인합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param mailbox 게이트웨이 코어 모듈 처리에 사용하는 입력 값
-     * @return 처리 성공 여부
+     * @param mailbox 설비 mailbox
+     * @return 잔여 데이터가 있으면 true
      */
     private boolean hasPending(final EqpMailbox mailbox) {
-        final int inboundSize = mailbox.inboundQueue().size();
-        final int outboundSize = mailbox.outboundQueue().size();
-        return inboundSize > 0 || outboundSize > 0;
+        return mailbox.inboundQueue().size() > 0 || mailbox.outboundQueue().size() > 0;
+    }
+
+    /**
+     * 현재 epoch millis를 반환합니다.
+     *
+     * @return 현재 시각(epoch millis)
+     */
+    private static long nowEpochMillis() {
+        return System.currentTimeMillis();
     }
 }

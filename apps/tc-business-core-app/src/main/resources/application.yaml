@@ -1,0 +1,21 @@
+﻿spring:
+  application:
+    name: tc-business-core-app
+
+  main:
+    web-application-type: none
+
+  # 외부 설정 파일을 우선적으로 로딩합니다.
+  # - optional 경로는 파일이 없어도 기동을 중단하지 않습니다.
+  config:
+    import:
+      - optional:file:../../config/tc-db.properties
+      - optional:file:config/tc-messaging.properties
+      - optional:file:config/tc-redis.properties
+      - optional:file:config/tc-business-core.properties
+      - optional:file:config/tc-log.properties
+
+logging:
+  level:
+    root: INFO
+    com.nori.tc: DEBUG

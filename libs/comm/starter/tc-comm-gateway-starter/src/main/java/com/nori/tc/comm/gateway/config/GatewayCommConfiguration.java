@@ -2,6 +2,7 @@ package com.nori.tc.comm.gateway.config;
 
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaClientProperties;
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
+import com.nori.tc.comm.adapters.plugin.socket.GatewaySocketPluginRuntimeProperties;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.core.port.impl.SystemClock;
@@ -13,10 +14,12 @@ import com.nori.tc.comm.gateway.hsms.pipeline.HsmsInboundPipeline;
 import com.nori.tc.comm.gateway.hsms.secs.BasicSecs2Decoder;
 import com.nori.tc.comm.gateway.hsms.secs.Secs2Decoder;
 import com.nori.tc.comm.gateway.socket.pipeline.SocketInboundPipeline;
+import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeProvider;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 import com.nori.tc.comm.gateway.socket.socketType.types.lineDelimited.LineDelimitedSocketTypeHandler;
 import com.nori.tc.comm.gateway.socket.socketType.types.regexDelimited.RegexDelimitedSocketTypeHandler;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -37,7 +40,8 @@ import org.springframework.context.annotation.Bean;
         GatewayRedisProperties.class,
         GatewayPublishPolicyProperties.class,
         GatewayNettyProperties.class,
-        GatewayObservabilityProperties.class
+        GatewayObservabilityProperties.class,
+        GatewaySocketPluginRuntimeProperties.class
 })
 public class GatewayCommConfiguration {
 
@@ -63,6 +67,20 @@ public class GatewayCommConfiguration {
     @Bean
     public TraceIdGeneratorPort traceIdGeneratorPort() {
         return new UlidTraceIdGenerator();
+    }
+
+    /**
+     * SOCKET 플러그인 런타임이 없는 환경을 위한 기본 no-op provider 입니다.
+     *
+     * <p>plugin-adapter 모듈이 포함되면 해당 모듈의 실제 구현체가 주입되고,
+     * 포함되지 않으면 이 기본 구현체가 fallback 으로 사용됩니다.</p>
+     *
+     * @return 항상 empty 를 반환하는 no-op provider
+     */
+    @Bean
+    @ConditionalOnMissingBean(GatewaySocketPluginRuntimeProvider.class)
+    public GatewaySocketPluginRuntimeProvider gatewaySocketPluginRuntimeProvider() {
+        return GatewaySocketPluginRuntimeProvider.noop();
     }
 
     
@@ -137,9 +155,10 @@ public class GatewayCommConfiguration {
     @Bean
     public SocketInboundPipeline socketInboundPipeline(
             final ClockPort clockPort,
-            final TraceIdGeneratorPort traceIdGeneratorPort
+            final TraceIdGeneratorPort traceIdGeneratorPort,
+            final GatewaySocketPluginRuntimeProvider pluginRuntimeProvider
     ) {
-        return new SocketInboundPipeline(clockPort, traceIdGeneratorPort);
+        return new SocketInboundPipeline(clockPort, traceIdGeneratorPort, pluginRuntimeProvider);
     }
 
     

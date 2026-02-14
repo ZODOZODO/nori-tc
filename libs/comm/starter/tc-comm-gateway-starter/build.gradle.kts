@@ -21,6 +21,7 @@ dependencies {
     api(project(":libs:comm:adapter:tc-comm-gateway-kafka-adapter"))
     api(project(":libs:comm:adapter:tc-comm-gateway-db-adapter"))
     api(project(":libs:comm:adapter:tc-comm-gateway-redis-adapter"))
+    api(project(":libs:comm:adapter:tc-comm-gateway-plugin-adapter"))
 
     // AutoConfiguration 컴파일 의존성
     compileOnly(libs.spring.boot)
