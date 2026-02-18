@@ -1,9 +1,9 @@
 package com.nori.tc.business.core.workflow;
 
-import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
-import com.nori.tc.business.domain.runtime.BusinessMessageType;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
+import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
+import com.nori.tc.business.domain.runtime.BusinessMessageType;
 import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.model.TcModel;
@@ -48,7 +48,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        Assertions.assertEquals(1, coreExecutionCount.get(), "core action must run once");
+        Assertions.assertEquals(1, coreExecutionCount.get(), "plugin이 없으면 core action이 1회 실행되어야 합니다.");
     }
 
     @Test
@@ -91,8 +91,50 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        Assertions.assertEquals(0, coreExecutionCount.get(), "core action must be skipped when plugin action exists");
-        Assertions.assertEquals(1, pluginExecutionCount.get(), "plugin action must run once");
+        Assertions.assertEquals(0, coreExecutionCount.get(), "plugin action이 있으면 core action은 실행되면 안 됩니다.");
+        Assertions.assertEquals(1, pluginExecutionCount.get(), "plugin action은 1회 실행되어야 합니다.");
+    }
+
+    @Test
+    void shouldFallbackToCoreWhenPluginRegistryExistsButActionIsMissing() {
+        final AtomicInteger coreExecutionCount = new AtomicInteger(0);
+        final AtomicInteger pluginExecutionCount = new AtomicInteger(0);
+
+        final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            @TcAction("SOCKET_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                coreExecutionCount.incrementAndGet();
+            }
+        };
+        final SocketActionExecutor pluginSocketExecutor = new SocketActionExecutor() {
+            @TcAction("PLUGIN_ONLY_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                pluginExecutionCount.incrementAndGet();
+            }
+        };
+
+        final BusinessWorkflowActionRegistry pluginRegistry = new BusinessWorkflowActionRegistryBuilder()
+                .registerExecutor(pluginSocketExecutor, BusinessWorkflowActionMessageType.SOCKET)
+                .build();
+        final BusinessWorkflowCoreActionRegistry coreRegistry = new BusinessWorkflowCoreActionRegistry(
+                List.of(),
+                List.of(coreSocketExecutor),
+                List.of()
+        );
+        final BusinessWorkflowDispatchingActionExecutor dispatchingExecutor = new BusinessWorkflowDispatchingActionExecutor(
+                coreRegistry,
+                eqpId -> Optional.of(pluginRegistry)
+        );
+
+        final BusinessInboundRecord record = createRecord("EQP-FALLBACK-01", "SOCKET_IN");
+        dispatchingExecutor.execute(
+                record,
+                createRuntime(ProtocolType.SOCKET),
+                createMatchResult(record, "SOCKET_ACT")
+        );
+
+        Assertions.assertEquals(1, coreExecutionCount.get(), "plugin key가 없으면 core fallback으로 실행되어야 합니다.");
+        Assertions.assertEquals(0, pluginExecutionCount.get(), "key가 다른 plugin action은 실행되면 안 됩니다.");
     }
 
     @Test
@@ -108,13 +150,18 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         );
         final BusinessInboundRecord record = createRecord("EQP-ERR-01", "SOCKET_IN");
 
-        Assertions.assertThrows(
+        final BusinessWorkflowActionExecutionException exception = Assertions.assertThrows(
                 BusinessWorkflowActionExecutionException.class,
                 () -> dispatchingExecutor.execute(
                         record,
                         createRuntime(ProtocolType.SOCKET),
                         createMatchResult(record, "UNKNOWN_ACTION")
                 )
+        );
+
+        Assertions.assertTrue(
+                exception.getMessage().contains("resolution="),
+                "미해결 예외에는 해석 trace 요약이 포함되어야 합니다."
         );
     }
 
@@ -186,5 +233,3 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         return new BusinessWorkflowMatchResult(List.of(entry), filterContext);
     }
 }
-
-

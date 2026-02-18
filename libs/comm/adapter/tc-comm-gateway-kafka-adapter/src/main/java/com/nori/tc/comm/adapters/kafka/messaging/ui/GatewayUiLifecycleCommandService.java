@@ -6,12 +6,14 @@ import com.nori.tc.comm.gateway.comm.EquipmentChannel;
 import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.context.EquipmentContext;
 import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.context.EquipmentDesiredState;
 import com.nori.tc.comm.gateway.context.EquipmentRuntimeState;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,13 +21,11 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 
 /**
- * UI 런타임 상태 전이(START/END/DELETE)를 전담하는 서비스입니다.
+ * UI ?고????곹깭 ?꾩씠(START/END/DELETE)瑜??대떦?섎뒗 ?쒕퉬?ㅼ엯?덈떎.
  *
- * <p>역할:
- * 1) desired/runtime 상태 전이 관리
- * 2) active reconnect 제어
- * 3) 실제 채널 연결/해제 완료 대기
- * 4) 상태 이력(tc_eqp_state, tc_eqp_state_hist) 반영</p>
+ * <p>Phase 2 ?댄썑 ?뺤콉:</p>
+ * <p>1) 湲곕낯 寃쎈줈??鍮꾨룞湲??곹깭癒몄떊(EqpLifecycleStateMachine)?쇰줈 泥섎━</p>
+ * <p>2) ?숆린 ?湲?寃쎈줈??feature flag濡?fallback ?좎?</p>
  */
 @Service
 public class GatewayUiLifecycleCommandService {
@@ -40,29 +40,34 @@ public class GatewayUiLifecycleCommandService {
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayConnectionControlPort connectionControlPort;
     private final GatewayProcessingService processingService;
+    private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
+    private final EqpLifecycleStateMachine lifecycleStateMachine;
 
     /**
-     * 상태 전이 제어 의존성을 초기화합니다.
+     * ?곹깭 ?꾩씠 ?쒖뼱 ?섏〈?깆쓣 珥덇린?뷀빀?덈떎.
      */
     public GatewayUiLifecycleCommandService(
             final GatewayUiContextCommandService contextCommandService,
             final EquipmentContextRegistry contextRegistry,
             final EquipmentChannelRegistry channelRegistry,
             final GatewayConnectionControlPort connectionControlPort,
-            final GatewayProcessingService processingService
+            final GatewayProcessingService processingService,
+            final GatewayUiTaskPolicyProperties uiTaskPolicyProperties,
+            final EqpLifecycleStateMachine lifecycleStateMachine
     ) {
         this.contextCommandService = Objects.requireNonNull(contextCommandService, "contextCommandService is null");
         this.contextRegistry = Objects.requireNonNull(contextRegistry, "contextRegistry is null");
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.connectionControlPort = Objects.requireNonNull(connectionControlPort, "connectionControlPort is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
+        this.uiTaskPolicyProperties = Objects.requireNonNull(uiTaskPolicyProperties, "uiTaskPolicyProperties is null");
+        this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
     }
 
     /**
-     * START 요청을 처리합니다.
+     * START ?붿껌??泥섎━?⑸땲??
      *
-     * <p>PASS 조건:
-     * timeout 내에 실제 채널이 active=true가 되는 경우</p>
+     * <p>syncWait=true(?숆린 fallback)???뚮쭔 timeout ???곌껐 ?꾨즺瑜?吏곸젒 ?湲고빀?덈떎.</p>
      */
     public void startRuntime(
             final String eqpId,
@@ -91,13 +96,41 @@ public class GatewayUiLifecycleCommandService {
             );
         }
 
+        if (log.isDebugEnabled()) {
+            log.debug("Runtime start lifecycle policy resolved. eqpId={}, syncWaitEnabled={}",
+                    normalizedEqpId,
+                    uiTaskPolicyProperties.isLifecycleSyncWaitEnabled());
+        }
+
+        // Phase 2 湲곕낯 寃쎈줈: ?곹깭癒몄떊???붿껌???깅줉?섍퀬 利됱떆 ACCEPT ?⑸땲??
+        if (!uiTaskPolicyProperties.isLifecycleSyncWaitEnabled()) {
+            lifecycleStateMachine.requestStart(normalizedEqpId, traceId, boundedTimeoutMs);
+
+            if (equipmentInfo.connectionMode() == ConnectionMode.ACTIVE) {
+                connectionControlPort.resumeActiveReconnect(normalizedEqpId);
+                connectionControlPort.connectActiveIfPossible(normalizedEqpId);
+                log.info("LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=START, mode=ACTIVE, traceId={}, timeoutMs={}",
+                        normalizedEqpId,
+                        traceId,
+                        boundedTimeoutMs);
+            } else {
+                log.info("LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=START, mode=PASSIVE, traceId={}, timeoutMs={}",
+                        normalizedEqpId,
+                        traceId,
+                        boundedTimeoutMs);
+            }
+            return;
+        }
+
+        // ?숆린 fallback 寃쎈줈: 湲곗〈 諛⑹떇 ?좎?
         context.updateDesiredState(EquipmentDesiredState.STARTED, "EQP_START", traceId);
 
         if (isChannelActive(normalizedEqpId)) {
             context.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "EQP_START", traceId);
             contextCommandService.recordStartState(normalizedEqpId, traceId, "UI start request already connected");
             log.info("Runtime start completed immediately (already connected). eqpId={}, traceId={}",
-                    normalizedEqpId, traceId);
+                    normalizedEqpId,
+                    traceId);
             return;
         }
 
@@ -109,7 +142,8 @@ public class GatewayUiLifecycleCommandService {
             connectionControlPort.connectActiveIfPossible(normalizedEqpId);
         } else {
             log.info("Passive runtime start requested. waiting for inbound connection. eqpId={}, traceId={}",
-                    normalizedEqpId, traceId);
+                    normalizedEqpId,
+                    traceId);
         }
 
         waitUntilConnected(normalizedEqpId, traceId, boundedTimeoutMs);
@@ -117,14 +151,15 @@ public class GatewayUiLifecycleCommandService {
         contextCommandService.recordStartState(normalizedEqpId, traceId, "UI start request processed");
 
         log.info("Runtime start completed. eqpId={}, traceId={}, timeoutMs={}",
-                normalizedEqpId, traceId, boundedTimeoutMs);
+                normalizedEqpId,
+                traceId,
+                boundedTimeoutMs);
     }
 
     /**
-     * END 요청을 처리합니다.
+     * END ?붿껌??泥섎━?⑸땲??
      *
-     * <p>PASS 조건:
-     * timeout 내에 실제 채널이 active=false가 되는 경우</p>
+     * <p>syncWait=true(?숆린 fallback)???뚮쭔 timeout ??梨꾨꼸 ?댁젣 ?꾨즺瑜?吏곸젒 ?湲고빀?덈떎.</p>
      */
     public void endRuntime(
             final String eqpId,
@@ -146,9 +181,39 @@ public class GatewayUiLifecycleCommandService {
                 "EQP_END"
         );
 
+        if (log.isDebugEnabled()) {
+            log.debug("Runtime end lifecycle policy resolved. eqpId={}, syncWaitEnabled={}",
+                    normalizedEqpId,
+                    uiTaskPolicyProperties.isLifecycleSyncWaitEnabled());
+        }
+
+        // Phase 2 湲곕낯 寃쎈줈: reconnect ?듭젣/梨꾨꼸 醫낅즺 ?붿껌 ???곹깭癒몄떊??END瑜??깅줉?⑸땲??
+        if (!uiTaskPolicyProperties.isLifecycleSyncWaitEnabled()) {
+            connectionControlPort.suppressActiveReconnect(normalizedEqpId);
+
+            final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
+            if (channel != null && channel.isActive()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Closing active channel by async runtime end. eqpId={}, traceId={}", normalizedEqpId, traceId);
+                }
+                channel.close();
+            }
+
+            lifecycleStateMachine.requestEnd(normalizedEqpId, traceId, boundedTimeoutMs);
+            log.info("LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=END, mode={}, traceId={}, timeoutMs={}",
+                    normalizedEqpId,
+                    equipmentInfo.connectionMode(),
+                    traceId,
+                    boundedTimeoutMs);
+            return;
+        }
+
+        // ?숆린 fallback 寃쎈줈: 湲곗〈 諛⑹떇 ?좎?
         context.updateDesiredState(EquipmentDesiredState.ENDED, "EQP_END", traceId);
         log.info("Runtime end requested. eqpId={}, traceId={}, mode={}",
-                normalizedEqpId, traceId, equipmentInfo.connectionMode());
+                normalizedEqpId,
+                traceId,
+                equipmentInfo.connectionMode());
 
         connectionControlPort.suppressActiveReconnect(normalizedEqpId);
 
@@ -167,14 +232,13 @@ public class GatewayUiLifecycleCommandService {
         contextCommandService.recordEndState(normalizedEqpId, traceId, "UI end request processed");
 
         log.info("Runtime end completed. eqpId={}, traceId={}, timeoutMs={}",
-                normalizedEqpId, traceId, boundedTimeoutMs);
+                normalizedEqpId,
+                traceId,
+                boundedTimeoutMs);
     }
 
     /**
-     * DELETE 요청을 처리합니다.
-     *
-     * <p>삭제 조건:
-     * desiredState=ENDED 이고 active 채널이 없어야 합니다.</p>
+     * DELETE ?붿껌??泥섎━?⑸땲??
      */
     public void deleteRuntimeContext(
             final String eqpId,
@@ -209,14 +273,15 @@ public class GatewayUiLifecycleCommandService {
     }
 
     /**
-     * legacy 경로 호환을 위해 ACTIVE 시작 제어를 별도 노출합니다.
+     * legacy 寃쎈줈 ?명솚???꾪븳 ACTIVE ?쒖옉 ?쒖뼱?낅땲??
      */
     public void startActiveIfNeeded(final GatewayEquipmentInfo equipmentInfo) {
         Objects.requireNonNull(equipmentInfo, "equipmentInfo is null");
         if (equipmentInfo.connectionMode() != ConnectionMode.ACTIVE) {
             if (log.isDebugEnabled()) {
                 log.debug("Active start skipped (not ACTIVE mode). eqpId={}, mode={}",
-                        equipmentInfo.equipmentId(), equipmentInfo.connectionMode());
+                        equipmentInfo.equipmentId(),
+                        equipmentInfo.connectionMode());
             }
             return;
         }
@@ -227,7 +292,7 @@ public class GatewayUiLifecycleCommandService {
     }
 
     /**
-     * 현재 채널 active 여부를 확인합니다.
+     * ?꾩옱 梨꾨꼸 active ?щ?瑜??뺤씤?⑸땲??
      */
     private boolean isChannelActive(final String eqpId) {
         final EquipmentChannel channel = channelRegistry.get(new EquipmentId(eqpId));
@@ -235,7 +300,7 @@ public class GatewayUiLifecycleCommandService {
     }
 
     /**
-     * timeout 내 채널 연결 완료를 대기합니다.
+     * timeout ??梨꾨꼸 ?곌껐 ?꾨즺瑜??湲고빀?덈떎.
      */
     private void waitUntilConnected(
             final String eqpId,
@@ -260,7 +325,7 @@ public class GatewayUiLifecycleCommandService {
     }
 
     /**
-     * timeout 내 채널 해제 완료를 대기합니다.
+     * timeout ??梨꾨꼸 ?댁젣 ?꾨즺瑜??湲고빀?덈떎.
      */
     private void waitUntilDisconnected(
             final String eqpId,
@@ -285,14 +350,14 @@ public class GatewayUiLifecycleCommandService {
     }
 
     /**
-     * timeout 입력값을 보정합니다.
+     * timeout ?낅젰媛믪쓣 蹂댁젙?⑸땲??
      */
     private long normalizeTimeoutMs(final long timeoutMs) {
         return timeoutMs <= 0L ? DEFAULT_TIMEOUT_MS : timeoutMs;
     }
 
     /**
-     * 짧은 대기 유틸입니다.
+     * 吏???쒓컙留뚰겮 ?湲고빀?덈떎.
      */
     private void sleepQuietly(final long ms) {
         if (ms <= 0L) {

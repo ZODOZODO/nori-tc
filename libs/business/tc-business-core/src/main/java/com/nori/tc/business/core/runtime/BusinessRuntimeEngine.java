@@ -33,6 +33,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
@@ -78,6 +79,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     private final BusinessDlqPublisherPort dlqPublisherPort;
     private final MailboxScheduler<BusinessMailboxTask> mailboxScheduler;
     private final DefaultTaskHandlingPolicy taskHandlingPolicy;
+    private final BusinessRuntimeDispositionMetrics dispositionMetrics;
 
     private final Map<String, TopicRuntime> topicRuntimes = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -96,6 +98,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
      * @param workflowMatcher non-UI workflow 매처
      * @param workflowActionExecutor non-UI action 실행기
      * @param dlqPublisherPort DLQ 발행 포트
+     * @param dispositionMetricsProvider disposition 집계기 provider
      */
     @Autowired
     public BusinessRuntimeEngine(
@@ -104,7 +107,42 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
             final BusinessUiTaskExecutor uiTaskExecutor,
             final BusinessWorkflowMatcher workflowMatcher,
             final BusinessWorkflowActionExecutor workflowActionExecutor,
-            final BusinessDlqPublisherPort dlqPublisherPort
+            final BusinessDlqPublisherPort dlqPublisherPort,
+            final ObjectProvider<BusinessRuntimeDispositionMetrics> dispositionMetricsProvider
+    ) {
+        this(
+                properties,
+                modelRuntimeProvider,
+                uiTaskExecutor,
+                workflowMatcher,
+                workflowActionExecutor,
+                dlqPublisherPort,
+                dispositionMetricsProvider.getIfAvailable(BusinessRuntimeDispositionMetrics::new)
+        );
+    }
+
+    /**
+     * 테스트/세부 제어용 생성자입니다.
+     *
+     * <p>DLQ 포트와 disposition 계측기를 명시적으로 주입해
+     * 실패/재시도/이관 시나리오를 정밀 검증할 때 사용합니다.</p>
+     *
+     * @param properties runtime 프로퍼티
+     * @param modelRuntimeProvider eqpId -> model runtime provider
+     * @param uiTaskExecutor UI task 실행기
+     * @param workflowMatcher non-UI workflow 매처
+     * @param workflowActionExecutor non-UI action 실행기
+     * @param dlqPublisherPort DLQ 발행 포트
+     * @param dispositionMetrics disposition 집계기
+     */
+    BusinessRuntimeEngine(
+            final BusinessCoreRuntimeProperties properties,
+            final BusinessModelRuntimeProvider modelRuntimeProvider,
+            final BusinessUiTaskExecutor uiTaskExecutor,
+            final BusinessWorkflowMatcher workflowMatcher,
+            final BusinessWorkflowActionExecutor workflowActionExecutor,
+            final BusinessDlqPublisherPort dlqPublisherPort,
+            final BusinessRuntimeDispositionMetrics dispositionMetrics
     ) {
         this.properties = Objects.requireNonNull(properties, "properties is null");
         this.modelRuntimeProvider = Objects.requireNonNull(modelRuntimeProvider, "modelRuntimeProvider is null");
@@ -112,6 +150,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
         this.workflowMatcher = Objects.requireNonNull(workflowMatcher, "workflowMatcher is null");
         this.workflowActionExecutor = Objects.requireNonNull(workflowActionExecutor, "workflowActionExecutor is null");
         this.dlqPublisherPort = Objects.requireNonNull(dlqPublisherPort, "dlqPublisherPort is null");
+        this.dispositionMetrics = Objects.requireNonNull(dispositionMetrics, "dispositionMetrics is null");
         this.mailboxScheduler = new MailboxScheduler<>(properties.getRuntime().getMailboxCapacity());
         this.taskHandlingPolicy = new DefaultTaskHandlingPolicy(
                 new FixedRetryPolicy(
@@ -147,7 +186,8 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 uiTaskExecutor,
                 workflowMatcher,
                 workflowActionExecutor,
-                BusinessDlqPublisherPort.noop()
+                BusinessDlqPublisherPort.noop(),
+                new BusinessRuntimeDispositionMetrics()
         );
     }
 
@@ -163,7 +203,8 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 BusinessUiTaskExecutor.noop(),
                 BusinessWorkflowMatcher.noop(),
                 BusinessWorkflowActionExecutor.noop(),
-                BusinessDlqPublisherPort.noop()
+                BusinessDlqPublisherPort.noop(),
+                new BusinessRuntimeDispositionMetrics()
         );
     }
 
@@ -251,17 +292,20 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     public boolean submit(final BusinessInboundRecord record) {
         Objects.requireNonNull(record, "record is null");
         if (!running) {
+            recordDisposition(record, BusinessRuntimeDisposition.REJECTED, "RUNTIME_NOT_RUNNING");
             log.warn("Business runtime is not running. topic={}, eqpId={}", record.topic(), record.eqpId());
             return false;
         }
 
         final TopicRuntime topicRuntime = topicRuntimes.get(record.topic());
         if (topicRuntime == null) {
+            recordDisposition(record, BusinessRuntimeDisposition.REJECTED, "UNKNOWN_TOPIC");
             throw new IllegalArgumentException("Unknown topic: " + record.topic());
         }
 
         final boolean offered = topicRuntime.inboundQueue().offer(record);
         if (!offered) {
+            recordDisposition(record, BusinessRuntimeDisposition.REJECTED, "TOPIC_QUEUE_OVERFLOW");
             log.error("Topic inbound queue overflow. topic={}, eqpId={}, partition={}, offset={}",
                     record.topic(), record.eqpId(), record.partition(), record.offset());
         }
@@ -356,6 +400,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 if (!offered) {
                     log.error("Mailbox enqueue overflow. topic={}, eqpId={}, partition={}, offset={}",
                             record.topic(), record.eqpId(), record.partition(), record.offset());
+                    recordDisposition(record, BusinessRuntimeDisposition.DLQ, "MAILBOX_ENQUEUE_OVERFLOW");
                     emitAck(record, AckStatus.DLQ);
                 }
             } catch (InterruptedException ex) {
@@ -417,6 +462,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                             task.record().partition(),
                             task.record().offset(),
                             rejected);
+                    recordDisposition(task.record(), BusinessRuntimeDisposition.DLQ, "WORKER_POOL_REJECTED");
                     emitAck(task.record(), AckStatus.DLQ);
                     mailboxScheduler.release(mailbox);
                 }
@@ -447,6 +493,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                         task.record().messageName(),
                         task.record().partition(),
                         task.record().offset());
+                recordDisposition(task.record(), BusinessRuntimeDisposition.ACCEPTED, "WORKFLOW_NOT_FOUND");
+            } else {
+                recordDisposition(task.record(), BusinessRuntimeDisposition.ACCEPTED, "PROCESSED");
             }
             emitAck(task.record(), AckStatus.SUCCESS);
         } catch (TaskTimeoutExceededException timeout) {
@@ -565,12 +614,14 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
         final TaskHandlingAction action = decision.action();
 
         if (action == TaskHandlingAction.RETRY) {
+            recordDisposition(record, BusinessRuntimeDisposition.RETRY, "RETRY_SCHEDULED_" + decision.finalCategory());
             emitAck(record, AckStatus.RETRY_SCHEDULED);
             scheduleRetry(task, decision.retryBackoffMs());
             return;
         }
 
         if (action == TaskHandlingAction.DLQ) {
+            recordDisposition(record, BusinessRuntimeDisposition.DLQ, "DLQ_" + decision.finalCategory());
             log.warn("Task moved to DLQ. topic={}, eqpId={}, partition={}, offset={}, category={}, payloadRef={}, reason={}",
                     record.topic(),
                     record.eqpId(),
@@ -585,10 +636,12 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
         }
 
         if (action == TaskHandlingAction.CONTINUE) {
+            recordDisposition(record, BusinessRuntimeDisposition.ACCEPTED, "POLICY_CONTINUE_" + decision.finalCategory());
             emitAck(record, AckStatus.SUCCESS);
             return;
         }
 
+        recordDisposition(record, BusinessRuntimeDisposition.REJECTED, "FAILED_" + decision.finalCategory());
         log.error("Task failed without retry/DLQ. topic={}, eqpId={}, partition={}, offset={}, category={}",
                 record.topic(),
                 record.eqpId(),
@@ -617,6 +670,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                             retryTask.record().partition(),
                             retryTask.record().offset(),
                             retryTask.attempt());
+                    recordDisposition(retryTask.record(), BusinessRuntimeDisposition.DLQ, "RETRY_ENQUEUE_OVERFLOW");
                     emitAck(retryTask.record(), AckStatus.DLQ);
                 }
             }, backoffMs, TimeUnit.MILLISECONDS);
@@ -628,6 +682,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                     task.record().offset(),
                     task.attempt(),
                     rejected);
+            recordDisposition(task.record(), BusinessRuntimeDisposition.REJECTED, "RETRY_SCHEDULE_REJECTED");
             emitAck(task.record(), AckStatus.FAILED);
         }
     }
@@ -737,6 +792,47 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 status,
                 now()
         ));
+    }
+
+    /**
+     * disposition 집계 및 운영 로그를 기록합니다.
+     *
+     * <p>로그 레벨 정책:</p>
+     * <p>1) ACCEPTED는 트래픽량이 높아 debug로 기록</p>
+     * <p>2) RETRY/DLQ/REJECTED는 운영 추적 핵심 이벤트이므로 info로 기록</p>
+     *
+     * @param record 대상 레코드
+     * @param disposition 표준 disposition
+     * @param reason 결과 사유 코드
+     */
+    private void recordDisposition(
+            final BusinessInboundRecord record,
+            final BusinessRuntimeDisposition disposition,
+            final String reason
+    ) {
+        dispositionMetrics.increment(disposition);
+        if (disposition == BusinessRuntimeDisposition.ACCEPTED) {
+            if (log.isDebugEnabled()) {
+                log.debug("BUSINESS_TASK_DISPOSITION. disposition={}, reason={}, topic={}, eqpId={}, partition={}, offset={}, messageName={}",
+                        disposition,
+                        reason,
+                        record.topic(),
+                        record.eqpId(),
+                        record.partition(),
+                        record.offset(),
+                        record.messageName());
+            }
+            return;
+        }
+
+        log.info("BUSINESS_TASK_DISPOSITION. disposition={}, reason={}, topic={}, eqpId={}, partition={}, offset={}, messageName={}",
+                disposition,
+                reason,
+                record.topic(),
+                record.eqpId(),
+                record.partition(),
+                record.offset(),
+                record.messageName());
     }
 
     private static long now() {

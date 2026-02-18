@@ -15,6 +15,8 @@ import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.metrics.GatewayDisposition;
+import com.nori.tc.comm.gateway.metrics.GatewayDispositionMetrics;
 import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
 import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeProvider;
@@ -96,11 +98,13 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
      * <p>현재 gateway command 경로는 즉시 DLQ 정책을 사용하므로 1로 고정합니다.</p>
      */
     private static final int COMMAND_FAILURE_MAX_ATTEMPTS = 1;
+    private static final String FLOW_COMMAND = "COMMAND";
 
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayProcessingService processingService;
     private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
+    private final GatewayDispositionMetrics dispositionMetrics;
     private final ClockPort clockPort;
     private final TraceIdGeneratorPort traceIdGeneratorPort;
     private final DlqPublisherPort dlqPublisherPort;
@@ -119,6 +123,7 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
             final GatewayProcessingService processingService,
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler,
+            final GatewayDispositionMetrics dispositionMetrics,
             final ClockPort clockPort,
             final TraceIdGeneratorPort traceIdGeneratorPort,
             final DlqPublisherPort dlqPublisherPort,
@@ -131,6 +136,7 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.metrics = Objects.requireNonNull(metrics, "metrics is null");
         this.logSampler = Objects.requireNonNull(logSampler, "logSampler is null");
+        this.dispositionMetrics = Objects.requireNonNull(dispositionMetrics, "dispositionMetrics is null");
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
         this.traceIdGeneratorPort = Objects.requireNonNull(traceIdGeneratorPort, "traceIdGeneratorPort is null");
         this.dlqPublisherPort = Objects.requireNonNull(dlqPublisherPort, "dlqPublisherPort is null");
@@ -177,6 +183,12 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
                     log.warn("Command drop (no connection). eqpId={}", equipmentId.value());
                 }
                 metrics.incrementCommandsDropNoConnection();
+                recordCommandDisposition(
+                        equipmentId.value(),
+                        traceId,
+                        GatewayDisposition.REJECTED,
+                        "NO_ACTIVE_CONNECTION"
+                );
                 return;
             }
 
@@ -199,6 +211,12 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
 
             try {
                 processingService.enqueueOutbound(frame);
+                recordCommandDisposition(
+                        equipmentId.value(),
+                        traceId,
+                        GatewayDisposition.ACCEPTED,
+                        "LEGACY_ENQUEUED"
+                );
                 if (log.isDebugEnabled()) {
                     log.debug("Legacy command enqueued. eqpId={}, traceId={}, payloadBytes={}",
                             equipmentId.value(), traceId, payload.length);
@@ -288,6 +306,12 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
                             message.metadata() == null ? null : message.metadata().eventType());
                 }
                 metrics.incrementCommandsDropNoConnection();
+                recordCommandDisposition(
+                        eqpId,
+                        traceId,
+                        GatewayDisposition.REJECTED,
+                        "NO_ACTIVE_CONNECTION"
+                );
                 return;
             }
 
@@ -403,6 +427,12 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
 
             try {
                 processingService.enqueueOutbound(frame);
+                recordCommandDisposition(
+                        eqpId,
+                        traceId,
+                        GatewayDisposition.ACCEPTED,
+                        "BUSINESS_SOCKET_ENQUEUED"
+                );
                 if (log.isDebugEnabled()) {
                     log.debug("Business SOCKET command enqueued. eqpId={}, traceId={}, socketType={}, rawLen={}, encodedBytes={}",
                             eqpId,
@@ -738,6 +768,12 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
         try {
             dlqPublisherPort.publish(dlqMessage);
             metrics.incrementDlqPublish();
+            recordCommandDisposition(
+                    dlqMessage.eqpId(),
+                    dlqMessage.traceId(),
+                    GatewayDisposition.DLQ,
+                    "DLQ_PUBLISHED_" + dlqMessage.reasonCode()
+            );
             if (log.isDebugEnabled()) {
                 log.debug("Command DLQ published. eqpId={}, traceId={}, stage={}, reasonCode={}",
                         dlqMessage.eqpId(),
@@ -746,6 +782,12 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
                         dlqMessage.reasonCode());
             }
         } catch (Exception ex) {
+            recordCommandDisposition(
+                    dlqMessage.eqpId(),
+                    dlqMessage.traceId(),
+                    GatewayDisposition.REJECTED,
+                    "DLQ_PUBLISH_FAILED_" + dlqMessage.reasonCode()
+            );
             log.error("Command DLQ publish failed. eqpId={}, traceId={}, stage={}, reasonCode={}",
                     dlqMessage.eqpId(),
                     dlqMessage.traceId(),
@@ -885,5 +927,56 @@ public class GatewayCommandDispatcher implements KafkaCommandDispatcher {
         } catch (Exception ignored) {
             // 격리 실패는 보조 처리이므로 본 흐름을 방해하지 않습니다.
         }
+    }
+
+    /**
+     * command 처리 disposition을 표준 로그/메트릭으로 기록합니다.
+     *
+     * <p>로그 레벨 정책:</p>
+     * <p>1) ACCEPTED는 고빈도 이벤트이므로 debug로 남깁니다.</p>
+     * <p>2) DLQ/REJECTED/RETRY는 운영 추적 핵심이므로 info로 남깁니다.</p>
+     *
+     * @param eqpId 설비 ID
+     * @param traceId 추적 ID
+     * @param disposition 표준 disposition
+     * @param reason 처리 사유
+     */
+    private void recordCommandDisposition(
+            final String eqpId,
+            final String traceId,
+            final GatewayDisposition disposition,
+            final String reason
+    ) {
+        dispositionMetrics.increment(FLOW_COMMAND, disposition);
+
+        if (disposition == GatewayDisposition.ACCEPTED) {
+            if (log.isDebugEnabled()) {
+                log.debug("GATEWAY_COMMAND_DISPOSITION. flow={}, disposition={}, reason={}, eqpId={}, traceId={}",
+                        FLOW_COMMAND,
+                        disposition,
+                        reason,
+                        normalizeEqpId(eqpId),
+                        safeTraceIdForLog(traceId));
+            }
+            return;
+        }
+
+        log.info("GATEWAY_COMMAND_DISPOSITION. flow={}, disposition={}, reason={}, eqpId={}, traceId={}",
+                FLOW_COMMAND,
+                disposition,
+                reason,
+                normalizeEqpId(eqpId),
+                safeTraceIdForLog(traceId));
+    }
+
+    /**
+     * 로그 출력용 traceId를 보정합니다.
+     *
+     * <p>관측 로그에서 traceId가 비어 있으면 고정값 N/A를 사용해
+     * 불필요한 신규 traceId 발급을 피합니다.</p>
+     */
+    private String safeTraceIdForLog(final String traceId) {
+        final String normalized = normalizeText(traceId);
+        return normalized == null ? "N/A" : normalized;
     }
 }

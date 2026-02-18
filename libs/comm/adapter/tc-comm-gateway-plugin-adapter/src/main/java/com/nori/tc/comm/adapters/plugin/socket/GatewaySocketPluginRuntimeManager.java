@@ -30,14 +30,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.regex.Pattern;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Gateway SOCKET 플러그인 런타임 관리자입니다.
@@ -66,6 +73,53 @@ public class GatewaySocketPluginRuntimeManager
             System.getProperty("java.io.tmpdir"),
             "nori-tc",
             "comm-gateway-plugin-runtime"
+    );
+
+    /**
+     * DB 파일명이 비어 있거나 유효하지 않을 때 사용할 기본 JAR 파일명입니다.
+     */
+    private static final String DEFAULT_PLUGIN_JAR_FILE_NAME = "gateway-socket-plugin.jar";
+
+    /**
+     * 임시 파일명 구성 시 비정상 토큰을 대체할 기본 문자열입니다.
+     */
+    private static final String DEFAULT_FILE_TOKEN = "plugin";
+
+    /**
+     * 임시 파일명 각 토큰의 최대 길이입니다.
+     */
+    private static final int MAX_SAFE_FILE_TOKEN_LENGTH = 80;
+
+    /**
+     * 파일명/토큰에서 허용하지 않는 문자를 치환하기 위한 패턴입니다.
+     */
+    private static final Pattern FILE_TOKEN_SANITIZE_PATTERN = Pattern.compile("[^a-zA-Z0-9._-]");
+
+    /**
+     * Phase 4 기준 플러그인 보안 TODO 우선순위 백로그입니다.
+     *
+     * <p>현 단계에서는 최소 보안(파일명 sanitize, 크기 제한, 해시 기록)까지만 적용하고,
+     * 고급 보안 항목은 우선순위를 명시해 운영/개발 백로그로 관리합니다.</p>
+     */
+    private static final List<SecurityTodoBacklogItem> SECURITY_TODO_BACKLOG = List.of(
+            new SecurityTodoBacklogItem(
+                    1,
+                    "PLUGIN_SIGNATURE_VERIFY",
+                    "플러그인 서명 검증",
+                    "운영 반영 전 JAR 무결성/발행자 신뢰를 강제합니다."
+            ),
+            new SecurityTodoBacklogItem(
+                    2,
+                    "TRUSTED_PUBLISHER_ALLOWLIST",
+                    "신뢰 발행자 allowlist",
+                    "허용된 발행자/인증서 체인만 배포 가능하도록 제한합니다."
+            ),
+            new SecurityTodoBacklogItem(
+                    3,
+                    "OUT_OF_PROCESS_SANDBOX",
+                    "외부 프로세스 격리 로딩",
+                    "인프로세스 로딩을 분리해 플러그인 장애/침해 전파를 최소화합니다."
+            )
     );
 
     /**
@@ -112,6 +166,9 @@ public class GatewaySocketPluginRuntimeManager
      */
     @PostConstruct
     public void initialize() {
+        // Phase 4: 최소 보안 이후 후속 과제를 우선순위로 명시해 운영 가시성을 확보합니다.
+        logSecurityTodoPriorities();
+
         if (!properties.isLoadOnStartup()) {
             log.info("Gateway socket plugin preload skipped. loadOnStartup=false");
             return;
@@ -185,6 +242,19 @@ public class GatewaySocketPluginRuntimeManager
 
         if (jarRow.jarFile() == null || jarRow.jarFile().length == 0) {
             throw new IllegalStateException("tc_jar_gateway.jar_file is empty. eqpId=" + normalizedEqpId);
+        }
+
+        final boolean hadPreviousRuntime = runtimeByEqpIdRef.get().containsKey(normalizedEqpId);
+        log.info(
+                "Gateway plugin runtime reload requested. eqpId={}, eqpKey={}, hadPreviousRuntime={}, jarFileName={}, jarSizeBytes={}",
+                normalizedEqpId,
+                eqp.eqpKey(),
+                hadPreviousRuntime,
+                jarRow.jarFileName(),
+                jarRow.jarFile().length
+        );
+        if (log.isDebugEnabled()) {
+            log.debug("Gateway plugin runtime reload will rebuild only target equipment runtime. eqpId={}", normalizedEqpId);
         }
 
         final PluginRuntime newRuntime = buildPluginRuntime(
@@ -364,7 +434,20 @@ public class GatewaySocketPluginRuntimeManager
             final String jarFileName,
             final byte[] jarBytes
     ) {
+        // 1) 크기 제한/빈 파일 검증을 가장 먼저 수행하여 과도한 리소스 사용을 방지합니다.
+        validateJarBytes(eqpId, jarBytes);
+
         final String normalizedJarFileName = normalizeJarFileName(jarFileName);
+        final String jarSha256 = computeSha256Hex(jarBytes);
+
+        log.info(
+                "Gateway plugin runtime build started. eqpId={}, jarFileName={}, jarSizeBytes={}, jarSha256={}",
+                eqpId,
+                normalizedJarFileName,
+                jarBytes.length,
+                jarSha256
+        );
+
         final Path jarPath = writePluginJarToTempFile(eqpId, normalizedJarFileName, jarBytes);
         URLClassLoader classLoader = null;
 
@@ -378,13 +461,22 @@ public class GatewaySocketPluginRuntimeManager
 
             final SocketTypeHandler handler = discoverSingleHandler(classLoader, classNames, eqpId);
 
-            log.info("Gateway plugin runtime validated. eqpId={}, jarFileName={}, socketType={}, handlerClass={}",
+            log.info("Gateway plugin runtime validated. eqpId={}, jarFileName={}, socketType={}, handlerClass={}, jarSha256={}",
                     eqpId,
                     normalizedJarFileName,
                     handler.socketType(),
-                    handler.getClass().getName());
+                    handler.getClass().getName(),
+                    jarSha256);
 
-            return new PluginRuntime(eqpId, normalizedJarFileName, jarPath, classLoader, handler);
+            return new PluginRuntime(
+                    eqpId,
+                    normalizedJarFileName,
+                    jarPath,
+                    classLoader,
+                    handler,
+                    jarSha256,
+                    jarBytes.length
+            );
         } catch (RuntimeException ex) {
             if (classLoader != null) {
                 try {
@@ -517,11 +609,19 @@ public class GatewaySocketPluginRuntimeManager
             final byte[] jarBytes
     ) {
         try {
-            final Path tempRoot = resolveTempRoot();
+            // 임시 저장 루트는 normalize 후 사용해 경로 비교 시 일관성을 확보합니다.
+            final Path tempRoot = resolveTempRoot().toAbsolutePath().normalize();
             Files.createDirectories(tempRoot);
 
-            final String safeFileName = eqpId + "-" + System.nanoTime() + "-" + jarFileName;
-            final Path jarPath = tempRoot.resolve(safeFileName);
+            final String safeEqpToken = sanitizeFileToken(eqpId, "eqp");
+            final String safeJarToken = sanitizeFileToken(stripJarExtension(jarFileName), DEFAULT_FILE_TOKEN);
+            final String safeFileName = safeEqpToken + "-" + System.nanoTime() + "-" + safeJarToken + ".jar";
+            final Path jarPath = tempRoot.resolve(safeFileName).normalize();
+
+            // sanitize가 누락되거나 우회되더라도 tempRoot 밖으로 빠져나가지 않도록 방어합니다.
+            if (!jarPath.startsWith(tempRoot)) {
+                throw new IllegalStateException("Resolved temp jar path escapes temp root. eqpId=" + eqpId);
+            }
 
             Files.write(
                     jarPath,
@@ -530,6 +630,12 @@ public class GatewaySocketPluginRuntimeManager
                     StandardOpenOption.TRUNCATE_EXISTING,
                     StandardOpenOption.WRITE
             );
+            if (log.isDebugEnabled()) {
+                log.debug("Gateway plugin temp jar written. eqpId={}, path={}, sizeBytes={}",
+                        eqpId,
+                        jarPath,
+                        jarBytes.length);
+            }
             return jarPath;
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to write gateway plugin jar to temp file. eqpId=" + eqpId, ex);
@@ -572,23 +678,47 @@ public class GatewaySocketPluginRuntimeManager
      */
     private void swapRuntime(final String eqpId, final PluginRuntime newRuntime) {
         PluginRuntime previousRuntime;
+        Map<String, PluginRuntime> committedCurrent;
+        Map<String, PluginRuntime> committedNext;
         while (true) {
             final Map<String, PluginRuntime> current = runtimeByEqpIdRef.get();
             final Map<String, PluginRuntime> next = new LinkedHashMap<>(current);
             previousRuntime = next.put(eqpId, newRuntime);
             if (runtimeByEqpIdRef.compareAndSet(current, Map.copyOf(next))) {
+                committedCurrent = current;
+                committedNext = next;
                 break;
             }
+        }
+
+        final List<String> unexpectedChanges = findUnexpectedChangesOutsideTarget(
+                eqpId,
+                committedCurrent,
+                committedNext
+        );
+        if (unexpectedChanges.isEmpty()) {
+            if (log.isDebugEnabled()) {
+                log.debug("Gateway plugin runtime swap guard passed. eqpId={}, unaffectedRuntimeCount={}",
+                        eqpId,
+                        Math.max(0, committedCurrent.size() - 1));
+            }
+        } else {
+            log.warn("Gateway plugin runtime swap touched non-target equipment unexpectedly. targetEqpId={}, changedEqpIds={}",
+                    eqpId,
+                    unexpectedChanges);
         }
 
         if (previousRuntime != null) {
             previousRuntime.closeQuietly();
         }
 
-        log.info("Gateway plugin runtime swapped. eqpId={}, jarFileName={}, handlerClass={}",
+        log.info("Gateway plugin runtime swapped. eqpId={}, jarFileName={}, handlerClass={}, previousJarSha256={}, newJarSha256={}, activeRuntimeCount={}",
                 eqpId,
                 newRuntime.jarFileName(),
-                newRuntime.handler().getClass().getName());
+                newRuntime.handler().getClass().getName(),
+                previousRuntime == null ? "N/A" : previousRuntime.jarSha256(),
+                newRuntime.jarSha256(),
+                runtimeByEqpIdRef.get().size());
     }
 
     /**
@@ -619,6 +749,47 @@ public class GatewaySocketPluginRuntimeManager
     }
 
     /**
+     * CAS 교체 이후 대상 EQP 외 엔트리에 변경이 없는지 점검합니다.
+     *
+     * <p>정상 동작이라면 targetEqpId 한 건만 변경되어야 하므로,
+     * 이 메서드는 운영 중 회귀를 빠르게 포착하기 위한 가드 로그 용도로 사용됩니다.</p>
+     *
+     * @param targetEqpId 교체 대상 EQP ID
+     * @param current 교체 전 맵
+     * @param next 교체 후 맵
+     * @return 비정상 변경이 감지된 EQP ID 목록
+     */
+    private static List<String> findUnexpectedChangesOutsideTarget(
+            final String targetEqpId,
+            final Map<String, PluginRuntime> current,
+            final Map<String, PluginRuntime> next
+    ) {
+        final Set<String> changedEqpIds = new LinkedHashSet<>();
+
+        for (Map.Entry<String, PluginRuntime> entry : current.entrySet()) {
+            final String eqpId = entry.getKey();
+            if (eqpId.equals(targetEqpId)) {
+                continue;
+            }
+            final PluginRuntime nextRuntime = next.get(eqpId);
+            if (nextRuntime != entry.getValue()) {
+                changedEqpIds.add(eqpId);
+            }
+        }
+
+        for (String eqpId : next.keySet()) {
+            if (eqpId.equals(targetEqpId)) {
+                continue;
+            }
+            if (!current.containsKey(eqpId)) {
+                changedEqpIds.add(eqpId);
+            }
+        }
+
+        return List.copyOf(changedEqpIds);
+    }
+
+    /**
      * eqpId 문자열을 trim/검증하여 정규화합니다.
      *
      * @param eqpId 원본 eqpId
@@ -640,9 +811,100 @@ public class GatewaySocketPluginRuntimeManager
      */
     private static String normalizeJarFileName(final String jarFileName) {
         if (jarFileName == null || jarFileName.trim().isEmpty()) {
-            return "gateway-socket-plugin.jar";
+            return DEFAULT_PLUGIN_JAR_FILE_NAME;
         }
-        return jarFileName.trim();
+
+        // 경로 포함 파일명("../../a.jar", "C:\\tmp\\a.jar")이 들어와도 파일명만 사용합니다.
+        final String normalizedPathToken = jarFileName.trim().replace('\\', '/');
+        final int lastSlashIndex = normalizedPathToken.lastIndexOf('/');
+        final String fileNameOnly = lastSlashIndex >= 0
+                ? normalizedPathToken.substring(lastSlashIndex + 1)
+                : normalizedPathToken;
+
+        String sanitized = sanitizeFileToken(fileNameOnly, DEFAULT_PLUGIN_JAR_FILE_NAME);
+        if (!sanitized.toLowerCase(Locale.ROOT).endsWith(".jar")) {
+            sanitized = sanitized + ".jar";
+        }
+        return sanitized;
+    }
+
+    /**
+     * JAR 바이트 배열의 최소/최대 유효성을 검증합니다.
+     *
+     * <p>DB 오염 또는 비정상 입력으로 인한 과대 로딩을 방지하기 위한 1차 방어 로직입니다.</p>
+     *
+     * @param eqpId 설비 ID
+     * @param jarBytes 검증 대상 JAR 바이트
+     */
+    private void validateJarBytes(final String eqpId, final byte[] jarBytes) {
+        if (jarBytes == null || jarBytes.length == 0) {
+            throw new IllegalStateException("Gateway plugin jar bytes are empty. eqpId=" + eqpId);
+        }
+        final long maxJarBytes = properties.getMaxJarBytes();
+        if (jarBytes.length > maxJarBytes) {
+            throw new IllegalStateException(
+                    "Gateway plugin jar size exceeds max. eqpId=" + eqpId
+                            + ", sizeBytes=" + jarBytes.length
+                            + ", maxJarBytes=" + maxJarBytes
+            );
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Gateway plugin jar bytes validated. eqpId={}, sizeBytes={}, maxJarBytes={}",
+                    eqpId,
+                    jarBytes.length,
+                    maxJarBytes);
+        }
+    }
+
+    /**
+     * 운영 추적을 위해 JAR 바이트의 SHA-256 해시를 계산합니다.
+     *
+     * @param bytes 해시 계산 대상 바이트
+     * @return 16진수 SHA-256 문자열
+     */
+    private static String computeSha256Hex(final byte[] bytes) {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(bytes));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", ex);
+        }
+    }
+
+    /**
+     * 파일명/토큰을 안전한 문자 집합으로 정규화합니다.
+     *
+     * <p>허용 문자: 영문 대소문자, 숫자, '.', '_', '-'</p>
+     *
+     * @param raw 원본 문자열
+     * @param fallback 결과가 비어 있을 때 사용할 기본값
+     * @return sanitize된 토큰
+     */
+    private static String sanitizeFileToken(final String raw, final String fallback) {
+        final String source = raw == null ? "" : raw.trim();
+        String sanitized = FILE_TOKEN_SANITIZE_PATTERN.matcher(source).replaceAll("_");
+        if (sanitized.isBlank()) {
+            sanitized = fallback;
+        }
+        if (sanitized.length() > MAX_SAFE_FILE_TOKEN_LENGTH) {
+            sanitized = sanitized.substring(0, MAX_SAFE_FILE_TOKEN_LENGTH);
+        }
+        return sanitized;
+    }
+
+    /**
+     * 파일명에서 마지막 확장자(".jar")를 제거한 토큰을 반환합니다.
+     *
+     * @param fileName 파일명
+     * @return 확장자 제거 결과
+     */
+    private static String stripJarExtension(final String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return DEFAULT_FILE_TOKEN;
+        }
+        return fileName.toLowerCase(Locale.ROOT).endsWith(".jar")
+                ? fileName.substring(0, fileName.length() - ".jar".length())
+                : fileName;
     }
 
     /**
@@ -675,6 +937,44 @@ public class GatewaySocketPluginRuntimeManager
     }
 
     /**
+     * Phase 4 보안 TODO 백로그를 우선순위와 함께 로그에 출력합니다.
+     *
+     * <p>운영자가 현재 보안 적용 범위와 후속 과제를 즉시 파악할 수 있도록
+     * startup 시점에 고정 포맷으로 기록합니다.</p>
+     */
+    private void logSecurityTodoPriorities() {
+        log.info("PLUGIN_SECURITY_TODO_PRIORITIES. total={}, currentApplied=minimal(fileNameSanitize,sizeLimit,sha256)",
+                SECURITY_TODO_BACKLOG.size());
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+
+        for (SecurityTodoBacklogItem item : SECURITY_TODO_BACKLOG) {
+            log.debug("PLUGIN_SECURITY_TODO_ITEM. priority={}, code={}, title={}, detail={}",
+                    item.priority(),
+                    item.code(),
+                    item.title(),
+                    item.detail());
+        }
+    }
+
+    /**
+     * 플러그인 보안 TODO 항목 모델입니다.
+     *
+     * @param priority 우선순위(숫자가 작을수록 높음)
+     * @param code 식별 코드
+     * @param title 항목 제목
+     * @param detail 상세 설명
+     */
+    private record SecurityTodoBacklogItem(
+            int priority,
+            String code,
+            String title,
+            String detail
+    ) {
+    }
+
+    /**
      * 로딩된 플러그인 런타임 단위입니다.
      *
      * @param eqpId 설비 ID
@@ -688,7 +988,9 @@ public class GatewaySocketPluginRuntimeManager
             String jarFileName,
             Path jarPath,
             URLClassLoader classLoader,
-            SocketTypeHandler handler
+            SocketTypeHandler handler,
+            String jarSha256,
+            int jarSizeBytes
     ) {
 
         /**
@@ -705,6 +1007,14 @@ public class GatewaySocketPluginRuntimeManager
                 Files.deleteIfExists(jarPath);
             } catch (IOException ex) {
                 log.warn("Gateway plugin temp jar delete failed. eqpId={}, path={}", eqpId, jarPath, ex);
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("Gateway plugin runtime resources released. eqpId={}, jarFileName={}, jarSha256={}, jarSizeBytes={}",
+                        eqpId,
+                        jarFileName,
+                        jarSha256,
+                        jarSizeBytes);
             }
         }
     }

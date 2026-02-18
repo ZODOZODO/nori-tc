@@ -4,11 +4,10 @@ import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
-import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
-import com.nori.tc.comm.gateway.context.EquipmentRuntimeState;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
+import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,12 +16,12 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 
 /**
- * eqpId 바인딩/해제 서비스입니다.
+ * eqpId 諛붿씤???댁젣 ?쒕퉬?ㅼ엯?덈떎.
  *
- * <p>역할:</p>
- * <p>- Netty 채널 바인딩 검증 및 등록</p>
- * <p>- mailbox 생성/정리 위임</p>
- * <p>- EquipmentContextRegistry 런타임 상태 동기화</p>
+ * <p>??븷:</p>
+ * <p>1) Netty 梨꾨꼸 諛붿씤??寃利?諛??깅줉</p>
+ * <p>2) mailbox ?앹꽦/?뺣━ ?꾩엫</p>
+ * <p>3) lifecycle ?곹깭癒몄떊?쇰줈 CONNECTED/DISCONNECTED ?대깽???꾨떖</p>
  */
 @Service
 public class EqpBindingService {
@@ -32,25 +31,25 @@ public class EqpBindingService {
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayProcessingService processingService;
     private final KafkaShardOwnership shardOwnership;
-    private final EquipmentContextRegistry contextRegistry;
+    private final EqpLifecycleStateMachine lifecycleStateMachine;
 
     /**
-     * 바인딩 처리 의존성을 초기화합니다.
+     * 諛붿씤??泥섎━ ?섏〈?깆쓣 珥덇린?뷀빀?덈떎.
      */
     public EqpBindingService(
             final EquipmentChannelRegistry channelRegistry,
             final GatewayProcessingService processingService,
             final KafkaShardOwnership shardOwnership,
-            final EquipmentContextRegistry contextRegistry
+            final EqpLifecycleStateMachine lifecycleStateMachine
     ) {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
-        this.contextRegistry = Objects.requireNonNull(contextRegistry, "contextRegistry is null");
+        this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
     }
 
     /**
-     * PASSIVE 바인딩을 처리합니다.
+     * PASSIVE 諛붿씤?⑹쓣 泥섎━?⑸땲??
      */
     public BindResult bindPassive(
             final String eqpId,
@@ -61,7 +60,7 @@ public class EqpBindingService {
     }
 
     /**
-     * ACTIVE 바인딩을 처리합니다.
+     * ACTIVE 諛붿씤?⑹쓣 泥섎━?⑸땲??
      */
     public BindResult bindActive(
             final String eqpId,
@@ -72,7 +71,7 @@ public class EqpBindingService {
     }
 
     /**
-     * 채널 해제 시 registry/mailbox/context 상태를 정리합니다.
+     * 梨꾨꼸 ?댁젣 ??registry/mailbox ?뺣━? lifecycle ?대깽???꾨떖???섑뻾?⑸땲??
      */
     public void unbind(final Channel channel) {
         if (channel == null) {
@@ -86,15 +85,13 @@ public class EqpBindingService {
 
         channelRegistry.unregister(new EquipmentId(eqpId));
         processingService.removeMailbox(eqpId);
-        contextRegistry.find(eqpId).ifPresent(ctx ->
-                ctx.updateRuntimeState(EquipmentRuntimeState.DISCONNECTED, "NETTY_UNBIND", "SYSTEM")
-        );
+        lifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND");
 
         log.info("Channel unbound. eqpId={}", eqpId);
     }
 
     /**
-     * 공통 바인딩 검증/등록 로직입니다.
+     * 怨듯넻 諛붿씤??寃利??깅줉 濡쒖쭅?낅땲??
      */
     private BindResult bindInternal(
             final String eqpId,
@@ -137,9 +134,7 @@ public class EqpBindingService {
         }
 
         processingService.bindMailbox(info, equipmentChannel);
-        contextRegistry.find(eqpId).ifPresent(ctx ->
-                ctx.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "NETTY_BIND", expectedMode.name())
-        );
+        lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
 
         log.info("Bind success. eqpId={}, interfaceType={}, mode={}", eqpId, interfaceType, expectedMode);
         return BindResult.OK;

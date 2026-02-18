@@ -6,83 +6,64 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * UI Task 처리 정책 설정입니다.
+ * Gateway UI Task 처리 정책 속성입니다.
  *
- * <p>다음 항목을 중앙에서 제어합니다.</p>
- * <p>- 이벤트별 처리 타임아웃(기본 30초)</p>
- * <p>- UI task 처리 재시도 정책</p>
- * <p>- UI reply 발행 재시도 정책</p>
- * <p>- traceId 중복 요청 스킵 정책(TTL)</p>
+ * <p>prefix: {@code tc.comm.gateway.ui-task}</p>
+ *
+ * <p>본 속성은 UI 명령 처리의 타임아웃/재시도/중복 방지/라이프사이클 동기대기 모드를 통합 제어합니다.</p>
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.ui-task")
 public class GatewayUiTaskPolicyProperties {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskPolicyProperties.class);
 
-    /**
-     * EQP_CREATE 처리 타임아웃(ms)
-     */
+    /** EQP_CREATE 처리 타임아웃(ms) */
     private Long createTimeoutMs = 30_000L;
 
-    /**
-     * EQP_UPDATE 처리 타임아웃(ms)
-     */
+    /** EQP_UPDATE 처리 타임아웃(ms) */
     private Long updateTimeoutMs = 30_000L;
 
-    /**
-     * EQP_DELETE 처리 타임아웃(ms)
-     */
+    /** EQP_DELETE 처리 타임아웃(ms) */
     private Long deleteTimeoutMs = 30_000L;
 
-    /**
-     * EQP_START 처리 타임아웃(ms)
-     */
+    /** EQP_START 처리 타임아웃(ms) */
     private Long startTimeoutMs = 30_000L;
 
-    /**
-     * EQP_END 처리 타임아웃(ms)
-     */
+    /** EQP_END 처리 타임아웃(ms) */
     private Long endTimeoutMs = 30_000L;
 
-    /**
-     * EQP_SEND_MESSAGE 처리 타임아웃(ms)
-     */
+    /** EQP_SEND_MESSAGE 처리 타임아웃(ms) */
     private Long sendMessageTimeoutMs = 30_000L;
 
-    /**
-     * EQP_UPDATE_JARFILE 처리 타임아웃(ms)
-     */
+    /** EQP_UPDATE_JARFILE 처리 타임아웃(ms) */
     private Long updateJarfileTimeoutMs = 30_000L;
 
     /**
-     * 처리 로직 재시도 최대 횟수
+     * UI lifecycle(START/END)에서 실제 연결/해제 완료까지 동기 대기할지 여부입니다.
+     *
+     * <p>Phase 2 기본값은 false(비동기 상태머신)이며, true로 설정하면 기존 동기 대기 경로를 사용합니다.</p>
      */
+    private boolean lifecycleSyncWaitEnabled = false;
+
+    /** UI task 처리 로직 최대 재시도 횟수 */
     private Integer taskRetryMax = 1;
 
-    /**
-     * 처리 로직 재시도 backoff(ms)
-     */
+    /** UI task 처리 로직 재시도 backoff(ms) */
     private Long taskRetryBackoffMs = 200L;
 
-    /**
-     * UI reply 발행 재시도 최대 횟수
-     */
+    /** UI reply 발행 최대 재시도 횟수 */
     private Integer replyPublishRetryMax = 3;
 
-    /**
-     * UI reply 발행 재시도 backoff(ms)
-     */
+    /** UI reply 발행 재시도 backoff(ms) */
     private Long replyPublishRetryBackoffMs = 200L;
 
-    /**
-     * 동일 traceId 중복 판단 TTL(ms)
-     */
+    /** 동일 traceId 중복 요청 차단 TTL(ms) */
     private Long duplicateTraceTtlMs = 600_000L;
 
     /**
-     * 레코드 실패 후 동일 레코드 재시도 전 backoff(ms)
+     * 레코드 처리 실패 후 동일 레코드 재시도 전 backoff(ms)입니다.
      *
-     * <p>REP 발행 실패 등으로 커밋을 보류한 경우, 같은 레코드를 즉시 재소비하지 않도록 완충을 둡니다.</p>
+     * <p>REP 발행 실패 등으로 커밋이 보류될 때, 같은 레코드를 즉시 재처리하지 않도록 완충 역할을 합니다.</p>
      */
     private Long failedRecordRetryBackoffMs = 500L;
 
@@ -107,25 +88,22 @@ public class GatewayUiTaskPolicyProperties {
         requireNonNegative("tc.comm.gateway.ui-task.failed-record-retry-backoff-ms", failedRecordRetryBackoffMs);
 
         log.info(
-                "GatewayUiTaskPolicyProperties validated. startTimeoutMs={}, endTimeoutMs={}, replyPublishRetryMax={}",
+                "GatewayUiTaskPolicyProperties validated. startTimeoutMs={}, endTimeoutMs={}, replyPublishRetryMax={}, lifecycleSyncWaitEnabled={}",
                 startTimeoutMs,
                 endTimeoutMs,
-                replyPublishRetryMax
+                replyPublishRetryMax,
+                lifecycleSyncWaitEnabled
         );
     }
 
-    /**
-     * 양수 값 검증 유틸입니다.
-     */
+    /** 양수 검증 유틸입니다. */
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
         }
     }
 
-    /**
-     * 0 이상 값 검증 유틸입니다.
-     */
+    /** 0 이상 검증 유틸입니다. */
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");
@@ -186,6 +164,14 @@ public class GatewayUiTaskPolicyProperties {
 
     public void setUpdateJarfileTimeoutMs(final long updateJarfileTimeoutMs) {
         this.updateJarfileTimeoutMs = updateJarfileTimeoutMs;
+    }
+
+    public boolean isLifecycleSyncWaitEnabled() {
+        return lifecycleSyncWaitEnabled;
+    }
+
+    public void setLifecycleSyncWaitEnabled(final boolean lifecycleSyncWaitEnabled) {
+        this.lifecycleSyncWaitEnabled = lifecycleSyncWaitEnabled;
     }
 
     public int getTaskRetryMax() {

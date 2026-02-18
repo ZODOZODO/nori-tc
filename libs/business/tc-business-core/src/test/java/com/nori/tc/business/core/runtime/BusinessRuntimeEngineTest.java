@@ -125,6 +125,113 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
+     * 런타임이 시작되지 않은 상태에서 submit 호출 시 REJECTED disposition이 누적되는지 검증합니다.
+     */
+    @Test
+    void shouldRecordRejectedDispositionWhenSubmitIsCalledBeforeStart() {
+        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
+        properties.validate();
+
+        final BusinessRuntimeDispositionMetrics dispositionMetrics = new BusinessRuntimeDispositionMetrics();
+        final BusinessRuntimeEngine runtimeEngine = new BusinessRuntimeEngine(
+                properties,
+                BusinessModelRuntimeProvider.noop(),
+                BusinessUiTaskExecutor.noop(),
+                BusinessWorkflowMatcher.noop(),
+                BusinessWorkflowActionExecutor.noop(),
+                com.nori.tc.business.core.dlq.BusinessDlqPublisherPort.noop(),
+                dispositionMetrics
+        );
+
+        final boolean accepted = runtimeEngine.submit(new BusinessInboundRecord(
+                "tc.ui.events",
+                0,
+                10L,
+                "EQP-TEST-REJECTED",
+                BusinessMessageType.UI,
+                "EQP_UPDATE",
+                "payload://ui/rejected",
+                "{\"sample\":false}"
+        ));
+
+        Assertions.assertFalse(accepted, "시작 전 submit은 거부되어야 합니다.");
+        Assertions.assertEquals(
+                1L,
+                dispositionMetrics.count(BusinessRuntimeDisposition.REJECTED),
+                "시작 전 submit은 REJECTED disposition 1건으로 집계되어야 합니다."
+        );
+    }
+
+    /**
+     * 정상 처리된 non-UI task가 ACCEPTED disposition으로 집계되는지 검증합니다.
+     */
+    @Test
+    void shouldRecordAcceptedDispositionWhenTaskIsProcessedSuccessfully() throws Exception {
+        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
+        properties.validate();
+
+        final TcModelRuntime modelRuntime = createRuntime(901L, ProtocolType.SOCKET);
+        final BusinessModelRuntimeProvider runtimeProvider = () -> BusinessModelRuntimeSnapshot.of(
+                Map.of("EQP-TEST-DISP-01", 901L),
+                Map.of(901L, modelRuntime)
+        );
+
+        final WorkflowRuntimeEntry matchedWorkflow = new WorkflowRuntimeEntry(
+                777L,
+                "WF-DISP-OK",
+                "SOCKET_IN",
+                null,
+                null,
+                null,
+                "ACT-DISP",
+                null,
+                0
+        );
+        final BusinessWorkflowMatcher workflowMatcher = (record, runtime) -> new BusinessWorkflowMatchResult(
+                List.of(matchedWorkflow),
+                new BusinessWorkflowFilterContext(record, Map.of(), Map.of())
+        );
+        final BusinessWorkflowActionExecutor actionExecutor = (record, runtime, matchResult) -> {
+            // 성공 시나리오 검증을 위해 no-op 실행기로 둡니다.
+        };
+
+        final BusinessRuntimeDispositionMetrics dispositionMetrics = new BusinessRuntimeDispositionMetrics();
+        final BusinessRuntimeEngine runtimeEngine = new BusinessRuntimeEngine(
+                properties,
+                runtimeProvider,
+                BusinessUiTaskExecutor.noop(),
+                workflowMatcher,
+                actionExecutor,
+                com.nori.tc.business.core.dlq.BusinessDlqPublisherPort.noop(),
+                dispositionMetrics
+        );
+
+        runtimeEngine.start();
+        try {
+            final boolean accepted = runtimeEngine.submit(new BusinessInboundRecord(
+                    "tc.eqp.events",
+                    0,
+                    11L,
+                    "EQP-TEST-DISP-01",
+                    BusinessMessageType.EQP,
+                    "SOCKET_IN",
+                    "payload://eqp/disp/1",
+                    "{\"message\":\"PING\"}"
+            ));
+            Assertions.assertTrue(accepted, "런타임 기동 중 submit은 수락되어야 합니다.");
+
+            awaitUntil(() -> dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED) > 0L, 2_000L);
+            Assertions.assertEquals(
+                    1L,
+                    dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED),
+                    "정상 처리된 task는 ACCEPTED disposition 1건으로 집계되어야 합니다."
+            );
+        } finally {
+            runtimeEngine.stop();
+        }
+    }
+
+    /**
      * 제한 시간 안에 조건이 만족될 때까지 대기합니다.
      */
     private static void awaitUntil(final BooleanSupplier condition, final long timeoutMs) throws InterruptedException {
