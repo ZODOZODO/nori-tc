@@ -162,10 +162,22 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
         }
     }
 
+    /**
+     * currentSnapshot 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     @Override
     public BusinessModelRuntimeSnapshot currentSnapshot() {
         return snapshotRef.get();
     }
+
+    /**
+     * loadEqpModelBindings 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     private Map<String, Long> loadEqpModelBindings() {
         final List<TcEqp> allEqps = loadAllEqps();
@@ -183,6 +195,12 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
         }
         return bindings;
     }
+
+    /**
+     * loadAllEqps 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     private List<TcEqp> loadAllEqps() {
         final List<TcEqp> results = new ArrayList<>();
@@ -202,6 +220,13 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
         }
         return results;
     }
+
+    /**
+     * normalizeEqpId 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null) {

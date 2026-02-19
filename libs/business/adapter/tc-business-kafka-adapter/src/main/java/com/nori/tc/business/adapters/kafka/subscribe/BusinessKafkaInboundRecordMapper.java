@@ -210,6 +210,14 @@ public class BusinessKafkaInboundRecordMapper {
         return node;
     }
 
+    /**
+     * firstText 기능을 수행합니다.
+     *
+     * @param node 입력 값
+     * @param fields 입력 값
+     * @return 처리 결과
+     */
+
     private static String firstText(final JsonNode node, final String... fields) {
         if (node == null || node.isNull() || node.isMissingNode()) {
             return null;
@@ -223,6 +231,13 @@ public class BusinessKafkaInboundRecordMapper {
         }
         return null;
     }
+
+    /**
+     * normalize 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalize(final String value) {
         if (value == null) {

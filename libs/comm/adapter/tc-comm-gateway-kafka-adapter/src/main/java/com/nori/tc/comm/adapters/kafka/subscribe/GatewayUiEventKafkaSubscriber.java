@@ -239,44 +239,98 @@ public class GatewayUiEventKafkaSubscriber extends AbstractGatewayKafkaSubscribe
 
         private final GatewayKafkaShardProperties shardProperties;
 
+        /**
+         * GatewayShardRuntimePolicy 생성자를 초기화합니다.
+         *
+         * @param shardProperties 입력 값
+         */
+
         private GatewayShardRuntimePolicy(final GatewayKafkaShardProperties shardProperties) {
             this.shardProperties = Objects.requireNonNull(shardProperties, "shardProperties is null");
         }
+
+        /**
+         * shutdownWaitMs 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
 
         @Override
         public long shutdownWaitMs() {
             return shardProperties.getConsumerShutdownWaitMs();
         }
 
+        /**
+         * commitRetryMax 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         @Override
         public int commitRetryMax() {
             return shardProperties.getCommitRetryMax();
         }
+
+        /**
+         * commitRetryBackoffMs 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
 
         @Override
         public long commitRetryBackoffMs() {
             return shardProperties.getCommitRetryBackoffMs();
         }
 
+        /**
+         * lagSampleIntervalMs 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         @Override
         public long lagSampleIntervalMs() {
             return shardProperties.getLagSampleIntervalMs();
         }
+
+        /**
+         * asyncRecordProcessingEnabled 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
 
         @Override
         public boolean asyncRecordProcessingEnabled() {
             return shardProperties.isAsyncRecordProcessingEnabled();
         }
 
+        /**
+         * recordWorkerThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         @Override
         public int recordWorkerThreads() {
             return shardProperties.getRecordWorkerThreads();
         }
 
+        /**
+         * ackDrainMaxBatch 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         @Override
         public int ackDrainMaxBatch() {
             return shardProperties.getAckDrainMaxBatch();
         }
+
+        /**
+         * maxInFlightRecords 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
 
         @Override
         public int maxInFlightRecords() {

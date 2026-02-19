@@ -6,7 +6,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * worker 스레드에서 consumer 스레드로 ack 이벤트를 전달하기 위한 스레드 안전 큐입니다.
+ * worker 스레드에서 consumer poll 루프로 ack 이벤트를 전달하는 스레드 안전 큐입니다.
+ *
+ * <p>설계 의도:</p>
+ * <p>1) 처리(worker)와 커밋(consumer) 실행 경계를 분리합니다.</p>
+ * <p>2) 큐 연산은 `offer/drainTo` 중심으로 수행해 락 경합을 최소화합니다.</p>
+ * <p>3) 커밋 루프는 배치 drain으로 ack를 수집해 오버헤드를 줄입니다.</p>
  */
 public final class AckQueue {
 

@@ -19,6 +19,7 @@ dependencies {
      * 게이트웨이 Kafka 처리 흐름은 공통 실행 모듈과 소비 런타임을 사용합니다.
      */
     implementation(project(":libs:common:tc-common-task-execution"))
+    implementation(project(":libs:common:tc-common-mailbox"))
     implementation(project(":libs:common:tc-common-kafka-consumer-runtime"))
 
     /*

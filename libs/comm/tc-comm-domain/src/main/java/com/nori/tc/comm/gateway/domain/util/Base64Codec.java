@@ -17,6 +17,11 @@ import java.util.Base64;
 public final class Base64Codec {
 
     
+    /**
+     * Base64Codec 생성자를 초기화합니다.
+     *
+     */
+
     private Base64Codec() {}
 
     /**

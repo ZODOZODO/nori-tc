@@ -8,7 +8,7 @@ import com.nori.tc.comm.gateway.comm.EquipmentChannel;
 import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
-import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
+import com.nori.tc.comm.gateway.config.GatewayLifecycleProperties;
 import com.nori.tc.comm.gateway.context.EquipmentContext;
 import com.nori.tc.comm.gateway.context.EquipmentContextProfile;
 import com.nori.tc.comm.gateway.context.EquipmentContextProfileProvider;
@@ -26,36 +26,32 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
-import java.util.function.BooleanSupplier;
 
 /**
- * UI Task로 들어오는 장비 제어 요청을 통합 처리하는 서비스입니다.
+ * UI 이벤트로 들어오는 설비 제어 요청을 처리하는 통합 서비스입니다.
  *
- * <p>주요 책임:</p>
- * <p>1) CREATE/UPDATE/DELETE/START/END/SEND_MESSAGE를 단일 서비스에서 처리합니다.</p>
- * <p>2) 장비 컨텍스트 조회/생성, 상태 전이, 채널 상태 검증을 수행합니다.</p>
- * <p>3) 정책에 따라 동기 대기 방식 또는 비동기 lifecycle 요청 방식으로 동작합니다.</p>
+ * <p>Phase 1 설계 기준으로 START/END 요청은 항상 비동기 상태머신으로 전달합니다.
+ * 즉, 이 서비스는 요청 수락과 사전 검증만 담당하고 완료 대기(동기 폴링)는 수행하지 않습니다.</p>
+ *
+ * <p>핵심 책임:</p>
+ * <p>1) CREATE/UPDATE/DELETE/START/END/SEND_MESSAGE 요청의 입력 검증</p>
+ * <p>2) 설비 컨텍스트 생성/갱신 및 기본 상태 반영</p>
+ * <p>3) 상태머신(EqpLifecycleStateMachine)으로 비동기 전이 요청 전달</p>
+ * <p>4) SEND_MESSAGE를 business command 경로로 변환하여 디스패치</p>
  */
 @Service
 public class GatewayUiRuntimeControlService {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayUiRuntimeControlService.class);
 
-    /** 요청 timeout이 비정상(0 이하)일 때 적용할 기본 timeout(ms)입니다. */
-    private static final long DEFAULT_RUNTIME_CONTROL_TIMEOUT_MS = 30_000L;
-
-    /** 상태 전이 대기 루프의 초기 poll 간격(ms)입니다. */
-    private static final long INITIAL_WAIT_POLL_INTERVAL_MS = 25L;
-
-    /** 상태 전이 대기 루프의 최대 poll 간격(ms)입니다. */
-    private static final long MAX_WAIT_POLL_INTERVAL_MS = 500L;
-
-    /** UI 발행자 식별 문자열입니다. */
+    /**
+     * UI 발행자 source 값입니다.
+     */
     private static final String UI_SOURCE = "TC-UI-BACKEND-APP";
 
-    /** SEND_MESSAGE 요청 시 command metadata에 기록할 이벤트 타입입니다. */
+    /**
+     * SEND_MESSAGE 요청을 business command로 변환할 때 사용할 eventType입니다.
+     */
     private static final String SEND_MESSAGE_EVENT_TYPE = "EQP_SEND_MESSAGE";
 
     private final EquipmentContextRegistry contextRegistry;
@@ -64,20 +60,20 @@ public class GatewayUiRuntimeControlService {
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayConnectionControlPort connectionControlPort;
     private final GatewayProcessingService processingService;
-    private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
+    private final GatewayLifecycleProperties lifecycleProperties;
     private final EqpLifecycleStateMachine lifecycleStateMachine;
     private final GatewayCommandDispatcher commandDispatcher;
 
     /**
-     * Runtime 제어 통합 서비스 의존성을 초기화합니다.
+     * Runtime 제어 서비스 의존성을 초기화합니다.
      *
-     * @param contextRegistry 장비 컨텍스트 저장소
-     * @param profileProvider 장비 프로필 조회 포트
+     * @param contextRegistry 설비 컨텍스트 저장소
+     * @param profileProvider 설비 프로파일 조회 포트
      * @param statePersistencePortProvider 상태 이력 저장 포트 Provider
-     * @param channelRegistry 장비 채널 레지스트리
+     * @param channelRegistry 설비 채널 레지스트리
      * @param connectionControlPort 연결 제어 포트
      * @param processingService 메시지 처리/메일박스 서비스
-     * @param uiTaskPolicyProperties UI Task 정책
+     * @param lifecycleProperties lifecycle 상태머신 운영 정책
      * @param lifecycleStateMachine 비동기 lifecycle 상태머신
      * @param commandDispatcher gateway command 디스패처
      */
@@ -88,7 +84,7 @@ public class GatewayUiRuntimeControlService {
             final EquipmentChannelRegistry channelRegistry,
             final GatewayConnectionControlPort connectionControlPort,
             final GatewayProcessingService processingService,
-            final GatewayUiTaskPolicyProperties uiTaskPolicyProperties,
+            final GatewayLifecycleProperties lifecycleProperties,
             final EqpLifecycleStateMachine lifecycleStateMachine,
             final GatewayCommandDispatcher commandDispatcher
     ) {
@@ -98,27 +94,30 @@ public class GatewayUiRuntimeControlService {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.connectionControlPort = Objects.requireNonNull(connectionControlPort, "connectionControlPort is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
-        this.uiTaskPolicyProperties = Objects.requireNonNull(uiTaskPolicyProperties, "uiTaskPolicyProperties is null");
+        this.lifecycleProperties = Objects.requireNonNull(lifecycleProperties, "lifecycleProperties is null");
         this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
         this.commandDispatcher = Objects.requireNonNull(commandDispatcher, "commandDispatcher is null");
-        log.info("Gateway UI runtime control service initialized.");
+        log.info(
+                "Gateway UI runtime control service initialized. mode=ASYNC_LIFECYCLE, defaultTimeoutMs={}",
+                lifecycleProperties.getDefaultTimeoutMs()
+        );
     }
 
     /**
-     * CREATE/UPDATE 요청을 처리하여 장비 컨텍스트를 생성하거나 갱신합니다.
+     * CREATE/UPDATE 요청을 처리하여 설비 컨텍스트를 생성 또는 갱신합니다.
      *
      * <p>처리 순서:</p>
      * <p>1) eqpId/interfaceType 유효성 검증</p>
-     * <p>2) 장비 프로필 조회 및 인터페이스 타입 일치 검증</p>
-     * <p>3) 기존 컨텍스트가 있으면 상태를 유지하고, 없으면 기본 상태로 생성</p>
+     * <p>2) 설비 프로파일 조회 및 interfaceType 일치 검증</p>
+     * <p>3) 기존 컨텍스트가 있으면 상태 유지, 없으면 기본 상태로 생성</p>
      * <p>4) 상태 이력 저장</p>
      *
-     * @param eqpId 장비 ID
-     * @param interfaceType 요청 인터페이스 타입
+     * @param eqpId 설비 ID
+     * @param interfaceType 요청 interfaceType
      * @param traceId 요청 traceId
      * @param eventType 원본 UI eventType
-     * @param timeoutMs 요청 timeout(ms)
-     * @return 검증된 장비 정보
+     * @param timeoutMs 요청 timeout(ms), 로깅 용도
+     * @return 검증된 설비 정보
      */
     public GatewayEquipmentInfo createOrUpdateContext(
             final String eqpId,
@@ -165,16 +164,14 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * START 요청을 처리합니다.
+     * START 요청을 비동기 lifecycle 상태머신으로 전달합니다.
      *
-     * <p>정책 분기:</p>
-     * <p>1) lifecycleSyncWaitEnabled=false: 상태머신에 START 요청만 등록하고 즉시 반환</p>
-     * <p>2) lifecycleSyncWaitEnabled=true: 연결 완료까지 동기 대기 후 성공/타임아웃 판정</p>
+     * <p>Phase 1 정책: 동기 대기 없이 즉시 요청 수락(accept)만 수행합니다.</p>
      *
-     * @param eqpId 장비 ID
-     * @param interfaceType 요청 인터페이스 타입
+     * @param eqpId 설비 ID
+     * @param interfaceType 요청 interfaceType
      * @param traceId 요청 traceId
-     * @param timeoutMs 요청 timeout(ms)
+     * @param timeoutMs timeout(ms)
      */
     public void startRuntime(
             final String eqpId,
@@ -196,60 +193,42 @@ public class GatewayUiRuntimeControlService {
             throw new ProcessingException(ErrorCode.EQP_DISABLED, "Equipment is disabled");
         }
 
-        if (!uiTaskPolicyProperties.isLifecycleSyncWaitEnabled()) {
-            lifecycleStateMachine.requestStart(normalizedEqpId, traceId, boundedTimeoutMs);
-            if (equipmentInfo.connectionMode() == ConnectionMode.ACTIVE) {
-                connectionControlPort.resumeActiveReconnect(normalizedEqpId);
-                connectionControlPort.connectActiveIfPossible(normalizedEqpId);
-            }
-            log.info(
-                    "LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=START, mode={}, traceId={}, timeoutMs={}",
-                    normalizedEqpId,
-                    equipmentInfo.connectionMode(),
-                    traceId,
-                    boundedTimeoutMs
-            );
-            return;
-        }
+        final EquipmentDesiredState desiredBefore = context.desiredState();
+        final EquipmentRuntimeState runtimeBefore = context.runtimeState();
+        lifecycleStateMachine.requestStart(normalizedEqpId, traceId, boundedTimeoutMs);
 
-        context.updateDesiredState(EquipmentDesiredState.STARTED, "EQP_START", traceId);
-        if (isChannelActive(normalizedEqpId)) {
-            context.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "EQP_START", traceId);
-            recordStartState(normalizedEqpId, traceId, "UI start request already connected");
-            log.info("Runtime start completed immediately (already connected). eqpId={}, traceId={}", normalizedEqpId, traceId);
-            return;
-        }
-
-        context.updateRuntimeState(EquipmentRuntimeState.CONNECTING, "EQP_START", traceId);
         if (equipmentInfo.connectionMode() == ConnectionMode.ACTIVE) {
             connectionControlPort.resumeActiveReconnect(normalizedEqpId);
             connectionControlPort.connectActiveIfPossible(normalizedEqpId);
-            log.info("Active runtime start requested. eqpId={}, traceId={}", normalizedEqpId, traceId);
-        } else {
-            log.info(
-                    "Passive runtime start requested. waiting for inbound connection. eqpId={}, traceId={}",
-                    normalizedEqpId,
-                    traceId
-            );
         }
 
-        waitUntilConnected(normalizedEqpId, traceId, boundedTimeoutMs);
-        context.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "EQP_START", traceId);
-        recordStartState(normalizedEqpId, traceId, "UI start request processed");
-        log.info("Runtime start completed. eqpId={}, traceId={}, timeoutMs={}", normalizedEqpId, traceId, boundedTimeoutMs);
+        log.info(
+                "LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=START, mode={}, traceId={}, timeoutMs={}",
+                normalizedEqpId,
+                equipmentInfo.connectionMode(),
+                traceId,
+                boundedTimeoutMs
+        );
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "START accepted detail. eqpId={}, desiredBefore={}, runtimeBefore={}, channelActive={}",
+                    normalizedEqpId,
+                    desiredBefore,
+                    runtimeBefore,
+                    isChannelActive(normalizedEqpId)
+            );
+        }
     }
 
     /**
-     * END 요청을 처리합니다.
+     * END 요청을 비동기 lifecycle 상태머신으로 전달합니다.
      *
-     * <p>정책 분기:</p>
-     * <p>1) lifecycleSyncWaitEnabled=false: 상태머신에 END 요청만 등록하고 즉시 반환</p>
-     * <p>2) lifecycleSyncWaitEnabled=true: 채널 종료 후 완전 단절 상태까지 동기 대기</p>
+     * <p>Phase 1 정책: 동기 대기 없이 즉시 요청 수락(accept)만 수행합니다.</p>
      *
-     * @param eqpId 장비 ID
-     * @param interfaceType 요청 인터페이스 타입
+     * @param eqpId 설비 ID
+     * @param interfaceType 요청 interfaceType
      * @param traceId 요청 traceId
-     * @param timeoutMs 요청 timeout(ms)
+     * @param timeoutMs timeout(ms)
      */
     public void endRuntime(
             final String eqpId,
@@ -267,36 +246,32 @@ public class GatewayUiRuntimeControlService {
         );
         final EquipmentContext context = resolveOrLoadContext(normalizedEqpId, traceId, "EQP_END");
 
-        if (!uiTaskPolicyProperties.isLifecycleSyncWaitEnabled()) {
-            connectionControlPort.suppressActiveReconnect(normalizedEqpId);
-            final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
-            if (channel != null && channel.isActive()) {
-                channel.close();
-            }
-            lifecycleStateMachine.requestEnd(normalizedEqpId, traceId, boundedTimeoutMs);
-            log.info(
-                    "LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=END, mode={}, traceId={}, timeoutMs={}",
-                    normalizedEqpId,
-                    equipmentInfo.connectionMode(),
-                    traceId,
-                    boundedTimeoutMs
-            );
-            return;
-        }
+        final EquipmentDesiredState desiredBefore = context.desiredState();
+        final EquipmentRuntimeState runtimeBefore = context.runtimeState();
 
-        context.updateDesiredState(EquipmentDesiredState.ENDED, "EQP_END", traceId);
         connectionControlPort.suppressActiveReconnect(normalizedEqpId);
-
         final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
         if (channel != null && channel.isActive()) {
             channel.close();
         }
 
-        waitUntilDisconnected(normalizedEqpId, traceId, boundedTimeoutMs);
-        context.updateRuntimeState(EquipmentRuntimeState.DISCONNECTED, "EQP_END", traceId);
-        processingService.removeMailbox(normalizedEqpId);
-        recordEndState(normalizedEqpId, traceId, "UI end request processed");
-        log.info("Runtime end completed. eqpId={}, traceId={}, timeoutMs={}", normalizedEqpId, traceId, boundedTimeoutMs);
+        lifecycleStateMachine.requestEnd(normalizedEqpId, traceId, boundedTimeoutMs);
+        log.info(
+                "LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=END, mode={}, traceId={}, timeoutMs={}",
+                normalizedEqpId,
+                equipmentInfo.connectionMode(),
+                traceId,
+                boundedTimeoutMs
+        );
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "END accepted detail. eqpId={}, desiredBefore={}, runtimeBefore={}, channelActiveAfterClose={}",
+                    normalizedEqpId,
+                    desiredBefore,
+                    runtimeBefore,
+                    isChannelActive(normalizedEqpId)
+            );
+        }
     }
 
     /**
@@ -307,8 +282,8 @@ public class GatewayUiRuntimeControlService {
      * <p>2) desiredState가 STARTED가 아니어야 함</p>
      * <p>3) 활성 채널이 없어야 함</p>
      *
-     * @param eqpId 장비 ID
-     * @param interfaceType 요청 인터페이스 타입
+     * @param eqpId 설비 ID
+     * @param interfaceType 요청 interfaceType
      * @param traceId 요청 traceId
      * @param timeoutMs 요청 timeout(ms), 로깅 용도
      */
@@ -333,7 +308,7 @@ public class GatewayUiRuntimeControlService {
         connectionControlPort.suppressActiveReconnect(normalizedEqpId);
         processingService.removeMailbox(normalizedEqpId);
         contextRegistry.remove(normalizedEqpId, "EQP_DELETE", traceId);
-        recordDeleteState(normalizedEqpId, traceId, "UI delete request processed");
+        statePersistencePort.recordDelete(normalizedEqpId, traceId, "UI delete request processed");
 
         if (log.isDebugEnabled()) {
             log.debug("Runtime delete detail. eqpId={}, traceId={}, timeoutMs={}", normalizedEqpId, traceId, timeoutMs);
@@ -342,16 +317,16 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * SEND_MESSAGE 요청을 처리합니다.
+     * SEND_MESSAGE 요청을 business command로 변환하여 처리합니다.
      *
      * <p>검증 조건:</p>
      * <p>1) uiMessage 필수</p>
-     * <p>2) 장비 enabled=true</p>
+     * <p>2) 설비 enabled=true</p>
      * <p>3) desiredState=STARTED</p>
-     * <p>4) 채널 active=true</p>
+     * <p>4) channel active=true</p>
      *
-     * @param eqpId 장비 ID
-     * @param interfaceType 요청 인터페이스 타입
+     * @param eqpId 설비 ID
+     * @param interfaceType 요청 interfaceType
      * @param traceId 요청 traceId
      * @param uiMessage 전송할 UI 메시지
      * @param timeoutMs 요청 timeout(ms), 로깅 용도
@@ -427,13 +402,13 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * 장비 정보를 조회하고 요청 interfaceType 일치 여부를 검증합니다.
+     * 설비 정보를 조회하고 요청 interfaceType 일치 여부를 검증합니다.
      *
-     * @param eqpId 장비 ID
-     * @param interfaceType 요청 인터페이스 타입
+     * @param eqpId 설비 ID
+     * @param interfaceType 요청 interfaceType
      * @param traceId 요청 traceId
-     * @param eventType 컨텍스트 생성 시 기록할 eventType
-     * @return 검증된 장비 정보
+     * @param eventType 컨텍스트 생성/로그 eventType
+     * @return 검증된 설비 정보
      */
     public GatewayEquipmentInfo resolveAndValidateEquipment(
             final String eqpId,
@@ -449,9 +424,9 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * ACTIVE 모드 장비에 대해 즉시 연결 재시도를 트리거합니다.
+     * ACTIVE 모드 설비에 대해 즉시 연결 재시도를 트리거합니다.
      *
-     * @param equipmentInfo 장비 정보
+     * @param equipmentInfo 설비 정보
      */
     public void startActiveIfNeeded(final GatewayEquipmentInfo equipmentInfo) {
         Objects.requireNonNull(equipmentInfo, "equipmentInfo is null");
@@ -464,21 +439,21 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * 외부 stop 요청을 END 흐름으로 위임합니다.
+     * 외부 stop 요청을 END 요청으로 위임합니다.
      *
-     * @param eqpId 장비 ID
+     * @param eqpId 설비 ID
      */
     public void stopRuntime(final String eqpId) {
         final String interfaceType = resolveInterfaceTypeName(eqpId);
-        endRuntime(eqpId, interfaceType, "RUNTIME_STOP", DEFAULT_RUNTIME_CONTROL_TIMEOUT_MS);
+        endRuntime(eqpId, interfaceType, "RUNTIME_STOP", lifecycleProperties.getDefaultTimeoutMs());
     }
 
     /**
-     * 장비 컨텍스트를 조회하고, 없으면 프로필 기반으로 즉시 생성합니다.
+     * 설비 컨텍스트를 조회하고, 없으면 프로파일 기반으로 즉시 생성합니다.
      *
-     * @param eqpId 장비 ID
+     * @param eqpId 설비 ID
      * @param traceId traceId
-     * @param eventType 기록용 eventType
+     * @param eventType 기록 eventType
      * @return 기존 또는 신규 컨텍스트
      */
     private EquipmentContext resolveOrLoadContext(final String eqpId, final String traceId, final String eventType) {
@@ -504,83 +479,14 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * 현재 장비 채널이 활성 상태인지 확인합니다.
+     * 현재 설비 채널이 활성 상태인지 확인합니다.
      *
-     * @param eqpId 장비 ID
+     * @param eqpId 설비 ID
      * @return 활성 상태면 true
      */
     private boolean isChannelActive(final String eqpId) {
         final EquipmentChannel channel = channelRegistry.get(new EquipmentId(eqpId));
         return channel != null && channel.isActive();
-    }
-
-    /**
-     * 연결 완료 상태가 될 때까지 대기합니다.
-     *
-     * @param eqpId 장비 ID
-     * @param traceId traceId
-     * @param timeoutMs timeout(ms)
-     */
-    private void waitUntilConnected(final String eqpId, final String traceId, final long timeoutMs) {
-        waitUntilCondition(eqpId, timeoutMs, () -> isChannelActive(eqpId));
-        if (isChannelActive(eqpId)) {
-            return;
-        }
-        contextRegistry.find(eqpId).ifPresent(context ->
-                context.updateRuntimeState(EquipmentRuntimeState.DISCONNECTED, "EQP_START_TIMEOUT", traceId)
-        );
-        log.warn("Runtime start timeout. eqpId={}, traceId={}, timeoutMs={}", eqpId, traceId, timeoutMs);
-        throw new ProcessingException(ErrorCode.EQP_START_TIMEOUT, "Timed out while waiting for equipment connection");
-    }
-
-    /**
-     * 연결 종료 상태가 될 때까지 대기합니다.
-     *
-     * @param eqpId 장비 ID
-     * @param traceId traceId
-     * @param timeoutMs timeout(ms)
-     */
-    private void waitUntilDisconnected(final String eqpId, final String traceId, final long timeoutMs) {
-        waitUntilCondition(eqpId, timeoutMs, () -> !isChannelActive(eqpId));
-        if (!isChannelActive(eqpId)) {
-            return;
-        }
-        contextRegistry.find(eqpId).ifPresent(context ->
-                context.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "EQP_END_TIMEOUT", traceId)
-        );
-        log.warn("Runtime end timeout. eqpId={}, traceId={}, timeoutMs={}", eqpId, traceId, timeoutMs);
-        throw new ProcessingException(ErrorCode.EQP_END_TIMEOUT, "Timed out while waiting for equipment disconnection");
-    }
-
-    /**
-     * 조건 충족 시까지 지수 백오프로 대기합니다.
-     *
-     * @param eqpId 장비 ID
-     * @param timeoutMs 최대 대기시간(ms)
-     * @param completionCondition 완료 조건
-     */
-    private void waitUntilCondition(final String eqpId, final long timeoutMs, final BooleanSupplier completionCondition) {
-        final long startMs = System.currentTimeMillis();
-        final long deadline = startMs + timeoutMs;
-        long pollIntervalMs = INITIAL_WAIT_POLL_INTERVAL_MS;
-
-        while (System.currentTimeMillis() <= deadline) {
-            if (completionCondition.getAsBoolean()) {
-                return;
-            }
-            final long remainingMs = deadline - System.currentTimeMillis();
-            if (remainingMs <= 0L) {
-                break;
-            }
-            final long waitMs = Math.min(pollIntervalMs, remainingMs);
-            parkQuietly(waitMs, eqpId);
-            pollIntervalMs = Math.min(MAX_WAIT_POLL_INTERVAL_MS, pollIntervalMs * 2L);
-        }
-
-        if (log.isDebugEnabled()) {
-            final long elapsedMs = Math.max(0L, System.currentTimeMillis() - startMs);
-            log.debug("Wait condition timeout. eqpId={}, timeoutMs={}, elapsedMs={}", eqpId, timeoutMs, elapsedMs);
-        }
     }
 
     /**
@@ -590,26 +496,7 @@ public class GatewayUiRuntimeControlService {
      * @return 보정된 timeout(ms)
      */
     private long normalizeTimeoutMs(final long timeoutMs) {
-        return timeoutMs <= 0L ? DEFAULT_RUNTIME_CONTROL_TIMEOUT_MS : timeoutMs;
-    }
-
-    /**
-     * 주어진 시간만큼 안전하게 park 대기합니다.
-     *
-     * @param waitMs 대기 시간(ms)
-     * @param eqpId 장비 ID
-     */
-    private void parkQuietly(final long waitMs, final String eqpId) {
-        if (waitMs <= 0L) {
-            return;
-        }
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(waitMs));
-        if (Thread.currentThread().isInterrupted()) {
-            throw new ProcessingException(
-                    ErrorCode.INTERNAL_ERROR,
-                    "Interrupted while waiting for runtime state transition. eqpId=" + eqpId
-            );
-        }
+        return timeoutMs <= 0L ? lifecycleProperties.getDefaultTimeoutMs() : timeoutMs;
     }
 
     /**
@@ -640,10 +527,10 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * 요청 인터페이스 타입과 장비 프로필 타입의 일치 여부를 검증합니다.
+     * 요청 interfaceType과 설비 프로파일 interfaceType 일치 여부를 검증합니다.
      *
-     * @param equipmentInfo 장비 정보
-     * @param requestedType 요청 인터페이스 타입
+     * @param equipmentInfo 설비 정보
+     * @param requestedType 요청 interfaceType
      */
     private void validateInterfaceType(final GatewayEquipmentInfo equipmentInfo, final CommInterfaceType requestedType) {
         if (equipmentInfo.commInterfaceType() != requestedType) {
@@ -655,30 +542,9 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * START 완료 이력을 저장합니다.
-     */
-    private void recordStartState(final String eqpId, final String traceId, final String detailMessage) {
-        statePersistencePort.recordStart(eqpId, traceId, detailMessage);
-    }
-
-    /**
-     * END 완료 이력을 저장합니다.
-     */
-    private void recordEndState(final String eqpId, final String traceId, final String detailMessage) {
-        statePersistencePort.recordEnd(eqpId, traceId, detailMessage);
-    }
-
-    /**
-     * DELETE 완료 이력을 저장합니다.
-     */
-    private void recordDeleteState(final String eqpId, final String traceId, final String detailMessage) {
-        statePersistencePort.recordDelete(eqpId, traceId, detailMessage);
-    }
-
-    /**
-     * 장비 컨텍스트에서 interfaceType 이름을 조회합니다.
+     * 설비 컨텍스트에서 interfaceType 이름을 조회합니다.
      *
-     * @param eqpId 장비 ID
+     * @param eqpId 설비 ID
      * @return interfaceType 이름
      */
     private String resolveInterfaceTypeName(final String eqpId) {
@@ -694,6 +560,11 @@ public class GatewayUiRuntimeControlService {
      * UI Task 처리 오류 코드를 정의합니다.
      */
     public static final class ErrorCode {
+        /**
+         * ErrorCode 생성자를 초기화합니다.
+         *
+         */
+
         private ErrorCode() {
         }
 
@@ -720,7 +591,7 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * UI Task 처리 중 발생한 비즈니스 예외를 표현합니다.
+     * UI Task 처리 중 발생하는 비즈니스 예외입니다.
      */
     public static class ProcessingException extends RuntimeException {
         private final String errorCode;

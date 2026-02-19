@@ -33,7 +33,6 @@ dependencies {
      * - eqpId 단위 순차 실행(in-flight=1) 알고리즘을 gateway/business-core가 함께 재사용합니다.
      */
     implementation(project(":libs:common:tc-common-mailbox"))
-    implementation(project(":libs:common:tc-common-task-execution"))
 
     /*
      * Kafka 유틸리티

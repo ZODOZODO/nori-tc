@@ -3,12 +3,12 @@ package com.nori.tc.business.starter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties;
 import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
-import com.nori.tc.common.kafka.task.pipeline.DefaultKafkaTaskPipeline;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDeduplicationStore;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskMessageAccessor;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorRegistry;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyPublisher;
+import com.nori.tc.common.task.execution.pipeline.runtime.KafkaTaskExecutionPipeline;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDeduplicationStore;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDlqReporter;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskMessageAccessor;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -16,17 +16,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Business UI task 공통 파이프라인 구성 클래스입니다.
+ * BusinessUiTaskPipelineConfiguration 클래스입니다.
+ *
+ * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+ * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
  */
 @Configuration
 @EnableConfigurationProperties(BusinessUiTaskPolicyProperties.class)
 public class BusinessUiTaskPipelineConfiguration {
 
     /**
-     * ObjectMapper 빈이 없는 환경에서도 UI payload 파싱이 가능하도록
-     * 최소 ObjectMapper를 제공합니다.
+     * businessUiObjectMapper 기능을 수행합니다.
      *
-     * @return ObjectMapper 빈
+     * @return 처리 결과
      */
     @Bean
     @ConditionalOnMissingBean(ObjectMapper.class)
@@ -35,18 +37,10 @@ public class BusinessUiTaskPipelineConfiguration {
     }
 
     /**
-     * {@link DefaultKafkaTaskPipeline} 빈을 구성합니다.
-     *
-     * @param accessor 메시지 필드 접근자
-     * @param registry eventType 처리기 레지스트리
-     * @param replyPublisher REP 발행기
-     * @param dlqReporter 파이프라인 DLQ 리포터
-     * @param deduplicationStore traceId dedup 저장소
-     * @param policyProperties UI task 정책 프로퍼티
-     * @return 공통 UI task 파이프라인
+     * UTF-8 형식으로 정리된 주석입니다.
      */
     @Bean
-    public DefaultKafkaTaskPipeline<KafkaUiTaskMessage> businessUiTaskPipeline(
+    public KafkaTaskExecutionPipeline<KafkaUiTaskMessage> businessUiTaskPipeline(
             final KafkaTaskMessageAccessor<KafkaUiTaskMessage> accessor,
             final KafkaTaskProcessorRegistry<KafkaUiTaskMessage> registry,
             final KafkaTaskReplyPublisher<KafkaUiTaskMessage> replyPublisher,
@@ -54,7 +48,7 @@ public class BusinessUiTaskPipelineConfiguration {
             final KafkaTaskDeduplicationStore deduplicationStore,
             final BusinessUiTaskPolicyProperties policyProperties
     ) {
-        return new DefaultKafkaTaskPipeline<>(
+        return new KafkaTaskExecutionPipeline<>(
                 accessor,
                 registry,
                 replyPublisher,
@@ -73,5 +67,6 @@ public class BusinessUiTaskPipelineConfiguration {
         );
     }
 }
+
 
 

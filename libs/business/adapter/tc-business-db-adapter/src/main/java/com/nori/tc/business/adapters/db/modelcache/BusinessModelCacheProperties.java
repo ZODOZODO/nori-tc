@@ -50,25 +50,61 @@ public class BusinessModelCacheProperties {
                 pageSize);
     }
 
+    /**
+     * isLoadOnStartup 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public boolean isLoadOnStartup() {
         return loadOnStartup;
     }
+
+    /**
+     * setLoadOnStartup 기능을 수행합니다.
+     *
+     * @param loadOnStartup 입력 값
+     */
 
     public void setLoadOnStartup(final boolean loadOnStartup) {
         this.loadOnStartup = loadOnStartup;
     }
 
+    /**
+     * isFailFastOnStartup 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public boolean isFailFastOnStartup() {
         return failFastOnStartup;
     }
+
+    /**
+     * setFailFastOnStartup 기능을 수행합니다.
+     *
+     * @param failFastOnStartup 입력 값
+     */
 
     public void setFailFastOnStartup(final boolean failFastOnStartup) {
         this.failFastOnStartup = failFastOnStartup;
     }
 
+    /**
+     * getPageSize 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int getPageSize() {
         return pageSize;
     }
+
+    /**
+     * setPageSize 기능을 수행합니다.
+     *
+     * @param pageSize 입력 값
+     */
 
     public void setPageSize(final int pageSize) {
         this.pageSize = pageSize;

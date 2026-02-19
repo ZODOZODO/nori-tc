@@ -3,9 +3,9 @@ package com.nori.tc.comm.adapters.kafka.ui;
 import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeMutationPort;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorRegistry;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorSpec;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskEventType;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
@@ -19,39 +19,39 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * UI Task eventType별 처리 스펙을 관리하는 레지스트리입니다.
+ * Gateway UI Task eventType별 처리기 레지스트리입니다.
  *
- * <p>주요 책임:</p>
- * <p>1) eventType -> processor 매핑을 등록/조회합니다.</p>
- * <p>2) Runtime 제어 처리 결과를 {@link KafkaTaskResult}로 표준화합니다.</p>
- * <p>3) EQP_UPDATE_JARFILE 요청을 플러그인 런타임 갱신 포트로 위임합니다.</p>
+ * <p>역할:</p>
+ * <p>1) eventType -> processor 매핑 등록/조회</p>
+ * <p>2) Runtime 제어 요청 실행 및 {@link KafkaTaskResult} 표준 변환</p>
+ * <p>3) EQP_UPDATE_JARFILE 요청 시 플러그인 런타임 리로드 위임</p>
  */
 @Component
 public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistry<KafkaUiTaskMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskProcessorRegistry.class);
 
-    /** eventType -> 처리 스펙 매핑입니다. */
+    /** eventType -> processor 매핑 저장소입니다. */
     private final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> specsByEventType;
 
-    /** EQP_UPDATE_JARFILE 처리용 플러그인 런타임 갱신 포트입니다. */
+    /** EQP_UPDATE_JARFILE 처리 시 사용할 플러그인 런타임 제어 포트입니다. */
     private final GatewaySocketPluginRuntimeMutationPort pluginRuntimeMutationPort;
 
-    /** 플러그인 런타임 갱신 포트가 실제 구현으로 연결되었는지 여부입니다. */
+    /** 플러그인 런타임 제어 포트가 실제로 구성되었는지 여부입니다. */
     private final boolean pluginRuntimeMutationConfigured;
 
-    /** UI Runtime 통합 제어 서비스입니다. */
+    /** UI Runtime 제어 서비스입니다. */
     private final GatewayUiRuntimeControlService runtimeControlService;
 
     /** UI Task 정책 설정입니다. */
     private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
 
     /**
-     * 레지스트리 의존성을 초기화합니다.
+     * 레지스트리를 초기화하고 eventType 매핑을 구성합니다.
      *
-     * @param runtimeControlService UI Runtime 통합 제어 서비스
+     * @param runtimeControlService UI Runtime 제어 서비스
      * @param uiTaskPolicyProperties UI Task 정책 설정
-     * @param pluginRuntimeMutationPortProvider 플러그인 런타임 포트 Provider
+     * @param pluginRuntimeMutationPortProvider 플러그인 런타임 제어 포트 Provider
      */
     public GatewayUiTaskProcessorRegistry(
             final GatewayUiRuntimeControlService runtimeControlService,
@@ -80,10 +80,10 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * eventType에 대응되는 처리 스펙을 조회합니다.
+     * eventType에 대응하는 처리기 스펙을 조회합니다.
      *
-     * @param eventType 조회할 eventType
-     * @return 처리 스펙(미존재 시 empty)
+     * @param eventType 조회 대상 eventType
+     * @return 처리기 스펙(없으면 empty)
      */
     @Override
     public Optional<KafkaTaskProcessorSpec<KafkaUiTaskMessage>> find(final String eventType) {
@@ -95,9 +95,9 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * 지원 eventType 목록에 대한 처리 스펙 맵을 생성합니다.
+     * 지원하는 eventType 처리기 스펙 맵을 생성합니다.
      *
-     * @return eventType별 처리 스펙 맵
+     * @return eventType별 처리기 스펙 맵
      */
     private Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> buildSpecs() {
         final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped = new LinkedHashMap<>();
@@ -224,12 +224,12 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * eventType 처리 스펙을 맵에 등록합니다.
+     * eventType 처리기 스펙을 맵에 등록합니다.
      *
      * @param mapped 대상 맵
      * @param eventType eventType
-     * @param replyEventType 대응 reply eventType
-     * @param processor 실행 processor
+     * @param replyEventType reply eventType
+     * @param processor 처리 로직
      */
     private void register(
             final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped,
@@ -249,13 +249,13 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * Runtime 제어 계열 Task를 실행하고 결과를 공통 형태로 변환합니다.
+     * Runtime 제어 작업을 실행하고 결과를 표준 응답으로 변환합니다.
      *
-     * @param eventType 현재 처리 이벤트 타입
+     * @param eventType 실행 대상 eventType
      * @param message 원본 메시지
      * @param timeoutMs 정책 timeout
-     * @param action 실제 실행 액션
-     * @param unexpectedErrorMessage 예기치 못한 오류 발생 시 반환 메시지
+     * @param action 실제 실행 작업
+     * @param unexpectedErrorMessage 예기치 못한 오류 시 반환할 메시지
      * @return 처리 결과
      */
     private KafkaTaskResult executeRuntimeTask(
@@ -309,7 +309,7 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * EQP_UPDATE_JARFILE 전용 처리 로직입니다.
+     * EQP_UPDATE_JARFILE 작업을 실행합니다.
      *
      * @param message 원본 메시지
      * @return 처리 결과
@@ -384,10 +384,10 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * 예외 메시지를 null-safe 문자열로 변환합니다.
+     * 예외 메시지를 null-safe하게 문자열로 변환합니다.
      *
      * @param throwable 예외 객체
-     * @return 메시지 문자열
+     * @return 안전한 메시지 문자열
      */
     private static String safeMessage(final Throwable throwable) {
         if (throwable == null) {
@@ -404,7 +404,7 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
      * eventType 문자열을 정규화합니다.
      *
      * @param value 원본 문자열
-     * @return trim + upper-case 결과, 유효하지 않으면 null
+     * @return trim + upper-case 결과(빈 문자열이면 null)
      */
     private static String normalize(final String value) {
         if (value == null) {
@@ -418,7 +418,7 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * UI Task 처리 함수형 인터페이스입니다.
+     * UI Task 단일 처리기 함수형 인터페이스입니다.
      */
     @FunctionalInterface
     private interface GatewayUiTaskProcessor {
@@ -426,10 +426,11 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     }
 
     /**
-     * Runtime 제어 액션 함수형 인터페이스입니다.
+     * Runtime 제어 작업 함수형 인터페이스입니다.
      */
     @FunctionalInterface
     private interface RuntimeControlAction {
         void run() throws Exception;
     }
 }
+

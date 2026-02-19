@@ -81,6 +81,14 @@ public class BusinessWorkflowFilterEvaluator {
         return true;
     }
 
+    /**
+     * resolveParsedFilter 기능을 수행합니다.
+     *
+     * @param filter 입력 값
+     * @param entry 입력 값
+     * @return 처리 결과
+     */
+
     private ParsedFilter resolveParsedFilter(final String filter, final WorkflowRuntimeEntry entry) {
         final ParsedFilterState state = parsedFilterCache.computeIfAbsent(filter, this::parseFilterState);
         if (state.isSuccess()) {
@@ -91,6 +99,13 @@ public class BusinessWorkflowFilterEvaluator {
                 "workflow_filter parsing failed. workflowKey=" + entry.workflowKey() + ", reason=" + state.errorMessage()
         );
     }
+
+    /**
+     * parseFilterState 기능을 수행합니다.
+     *
+     * @param filter 입력 값
+     * @return 처리 결과
+     */
 
     private ParsedFilterState parseFilterState(final String filter) {
         try {
@@ -103,6 +118,13 @@ public class BusinessWorkflowFilterEvaluator {
             return ParsedFilterState.failure(message);
         }
     }
+
+    /**
+     * parseRows 기능을 수행합니다.
+     *
+     * @param root 입력 값
+     * @return 처리 결과
+     */
 
     private List<FilterRow> parseRows(final JsonNode root) {
         final List<FilterRow> rows = new ArrayList<>();
@@ -135,6 +157,13 @@ public class BusinessWorkflowFilterEvaluator {
         return rows;
     }
 
+    /**
+     * parseRow 기능을 수행합니다.
+     *
+     * @param node 입력 값
+     * @return 처리 결과
+     */
+
     private FilterRow parseRow(final JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
@@ -161,6 +190,13 @@ public class BusinessWorkflowFilterEvaluator {
         final Object rightValue = jsonValue(rightNode);
         return new FilterRow(leftExpression, operatorType, rightValue);
     }
+
+    /**
+     * parseLeftExpression 기능을 수행합니다.
+     *
+     * @param expressionNode 입력 값
+     * @return 처리 결과
+     */
 
     private LeftExpression parseLeftExpression(final JsonNode expressionNode) {
         final JsonNode varNode = expressionNode.path("var");
@@ -191,6 +227,13 @@ public class BusinessWorkflowFilterEvaluator {
         );
     }
 
+    /**
+     * parseTransform 기능을 수행합니다.
+     *
+     * @param transformNode 입력 값
+     * @return 처리 결과
+     */
+
     private TransformSpec parseTransform(final JsonNode transformNode) {
         if (transformNode == null || transformNode.isNull()) {
             return null;
@@ -218,6 +261,14 @@ public class BusinessWorkflowFilterEvaluator {
         }
         return new TransformSpec(name.trim().toLowerCase(Locale.ROOT), List.copyOf(args));
     }
+
+    /**
+     * evaluateRow 기능을 수행합니다.
+     *
+     * @param row 입력 값
+     * @param context 입력 값
+     * @return 처리 결과
+     */
 
     private boolean evaluateRow(final FilterRow row, final BusinessWorkflowFilterContext context) {
         Object leftValue = resolveVariable(row.leftExpression().variableRef(), context);
@@ -248,6 +299,14 @@ public class BusinessWorkflowFilterEvaluator {
         }
     }
 
+    /**
+     * applyTransform 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @param transform 입력 값
+     * @return 처리 결과
+     */
+
     private Object applyTransform(final Object value, final TransformSpec transform) {
         return switch (transform.name()) {
             case "split" -> transformSplit(value, transform.args());
@@ -264,6 +323,14 @@ public class BusinessWorkflowFilterEvaluator {
         };
     }
 
+    /**
+     * transformSplit 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @param args 입력 값
+     * @return 처리 결과
+     */
+
     private Object transformSplit(final Object value, final List<Object> args) {
         if (value == null) {
             return null;
@@ -278,6 +345,14 @@ public class BusinessWorkflowFilterEvaluator {
         }
         return tokens[index];
     }
+
+    /**
+     * transformSubstring 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @param args 입력 값
+     * @return 처리 결과
+     */
 
     private Object transformSubstring(final Object value, final List<Object> args) {
         if (value == null) {
@@ -295,6 +370,15 @@ public class BusinessWorkflowFilterEvaluator {
         return source.substring(safeStart, safeEnd);
     }
 
+    /**
+     * transformAddSub 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @param args 입력 값
+     * @param add 입력 값
+     * @return 처리 결과
+     */
+
     private Object transformAddSub(final Object value, final List<Object> args, final boolean add) {
         if (value == null || args.isEmpty()) {
             return value;
@@ -307,6 +391,14 @@ public class BusinessWorkflowFilterEvaluator {
         }
         return add ? left.add(right) : left.subtract(right);
     }
+
+    /**
+     * resolveVariable 기능을 수행합니다.
+     *
+     * @param variableRef 입력 값
+     * @param context 입력 값
+     * @return 처리 결과
+     */
 
     private Object resolveVariable(final VariableRef variableRef, final BusinessWorkflowFilterContext context) {
         return switch (variableRef.sourceType()) {
@@ -321,6 +413,14 @@ public class BusinessWorkflowFilterEvaluator {
             }
         };
     }
+
+    /**
+     * lookupPath 기능을 수행합니다.
+     *
+     * @param source 입력 값
+     * @param path 입력 값
+     * @return 처리 결과
+     */
 
     @SuppressWarnings("unchecked")
     private static Object lookupPath(final Map<String, Object> source, final String path) {
@@ -344,6 +444,15 @@ public class BusinessWorkflowFilterEvaluator {
         return current;
     }
 
+    /**
+     * toIntOrDefault 기능을 수행합니다.
+     *
+     * @param args 입력 값
+     * @param index 입력 값
+     * @param defaultValue 입력 값
+     * @return 처리 결과
+     */
+
     private static int toIntOrDefault(final List<Object> args, final int index, final int defaultValue) {
         if (args == null || index < 0 || index >= args.size()) {
             return defaultValue;
@@ -354,6 +463,13 @@ public class BusinessWorkflowFilterEvaluator {
         }
         return number.intValue();
     }
+
+    /**
+     * toBigDecimal 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
 
     private static BigDecimal toBigDecimal(final Object value) {
         if (value == null) {
@@ -366,6 +482,14 @@ public class BusinessWorkflowFilterEvaluator {
         }
     }
 
+    /**
+     * firstArrayNode 기능을 수행합니다.
+     *
+     * @param root 입력 값
+     * @param names 입력 값
+     * @return 처리 결과
+     */
+
     private static JsonNode firstArrayNode(final JsonNode root, final String... names) {
         for (String name : names) {
             final JsonNode node = root.path(name);
@@ -376,6 +500,13 @@ public class BusinessWorkflowFilterEvaluator {
         return null;
     }
 
+    /**
+     * textOrNull 기능을 수행합니다.
+     *
+     * @param node 입력 값
+     * @return 처리 결과
+     */
+
     private static String textOrNull(final JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode()) {
             return null;
@@ -383,6 +514,13 @@ public class BusinessWorkflowFilterEvaluator {
         final String text = node.asText(null);
         return normalize(text);
     }
+
+    /**
+     * jsonValue 기능을 수행합니다.
+     *
+     * @param node 입력 값
+     * @return 처리 결과
+     */
 
     private static Object jsonValue(final JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode()) {
@@ -415,6 +553,13 @@ public class BusinessWorkflowFilterEvaluator {
         return node.asText();
     }
 
+    /**
+     * normalize 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalize(final String value) {
         if (value == null) {
             return null;
@@ -425,6 +570,13 @@ public class BusinessWorkflowFilterEvaluator {
         }
         return normalized;
     }
+
+    /**
+     * normalizeExceptionMessage 기능을 수행합니다.
+     *
+     * @param message 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalizeExceptionMessage(final String message) {
         final String normalized = normalize(message);
@@ -447,13 +599,33 @@ public class BusinessWorkflowFilterEvaluator {
             ParsedFilter parsedFilter,
             String errorMessage
     ) {
+        /**
+         * success 기능을 수행합니다.
+         *
+         * @param parsedFilter 입력 값
+         * @return 처리 결과
+         */
+
         private static ParsedFilterState success(final ParsedFilter parsedFilter) {
             return new ParsedFilterState(parsedFilter, null);
         }
 
+        /**
+         * failure 기능을 수행합니다.
+         *
+         * @param errorMessage 입력 값
+         * @return 처리 결과
+         */
+
         private static ParsedFilterState failure(final String errorMessage) {
             return new ParsedFilterState(null, errorMessage);
         }
+
+        /**
+         * isSuccess 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
 
         private boolean isSuccess() {
             return parsedFilter != null;
@@ -495,6 +667,13 @@ public class BusinessWorkflowFilterEvaluator {
             String name,
             List<Object> args
     ) {
+        /**
+         * fromCompactText 기능을 수행합니다.
+         *
+         * @param compactText 입력 값
+         * @return 처리 결과
+         */
+
         private static TransformSpec fromCompactText(final String compactText) {
             final String normalized = compactText.trim();
             final int openIndex = normalized.indexOf('(');
@@ -524,6 +703,13 @@ public class BusinessWorkflowFilterEvaluator {
             return new TransformSpec(name, List.copyOf(args));
         }
 
+        /**
+         * stripQuotes 기능을 수행합니다.
+         *
+         * @param value 입력 값
+         * @return 처리 결과
+         */
+
         private static String stripQuotes(final String value) {
             if (value == null || value.length() < 2) {
                 return value;
@@ -543,6 +729,13 @@ public class BusinessWorkflowFilterEvaluator {
         MSG,
         CTX,
         AUTO;
+
+        /**
+         * fromText 기능을 수행합니다.
+         *
+         * @param text 입력 값
+         * @return 처리 결과
+         */
 
         private static SourceType fromText(final String text) {
             final String normalized = normalize(text);
@@ -570,6 +763,13 @@ public class BusinessWorkflowFilterEvaluator {
         CONTAINS,
         IN;
 
+        /**
+         * fromText 기능을 수행합니다.
+         *
+         * @param text 입력 값
+         * @return 처리 결과
+         */
+
         private static OperatorType fromText(final String text) {
             final String normalized = normalize(text);
             if (normalized == null) {
@@ -587,6 +787,14 @@ public class BusinessWorkflowFilterEvaluator {
                 default -> EQ;
             };
         }
+
+        /**
+         * evaluate 기능을 수행합니다.
+         *
+         * @param leftValue 입력 값
+         * @param rightValue 입력 값
+         * @return 처리 결과
+         */
 
         private boolean evaluate(final Object leftValue, final Object rightValue) {
             return switch (this) {
@@ -614,6 +822,14 @@ public class BusinessWorkflowFilterEvaluator {
             };
         }
 
+        /**
+         * compare 기능을 수행합니다.
+         *
+         * @param leftValue 입력 값
+         * @param rightValue 입력 값
+         * @return 처리 결과
+         */
+
         private static int compare(final Object leftValue, final Object rightValue) {
             final BigDecimal leftNumber = toBigDecimal(leftValue);
             final BigDecimal rightNumber = toBigDecimal(rightValue);
@@ -634,6 +850,13 @@ public class BusinessWorkflowFilterEvaluator {
             }
             return leftText.compareTo(rightText);
         }
+
+        /**
+         * normalizeComparable 기능을 수행합니다.
+         *
+         * @param value 입력 값
+         * @return 처리 결과
+         */
 
         private static Object normalizeComparable(final Object value) {
             if (value instanceof BigDecimal decimal) {

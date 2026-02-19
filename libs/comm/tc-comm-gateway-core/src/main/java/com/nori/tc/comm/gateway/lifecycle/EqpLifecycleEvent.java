@@ -162,12 +162,26 @@ public record EqpLifecycleEvent(
         );
     }
 
+    /**
+     * normalizeEqpId 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null || eqpId.isBlank()) {
             throw new IllegalArgumentException("eqpId is required");
         }
         return eqpId.trim();
     }
+
+    /**
+     * normalizeTraceId 기능을 수행합니다.
+     *
+     * @param traceId 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalizeTraceId(final String traceId) {
         if (traceId == null || traceId.isBlank()) {

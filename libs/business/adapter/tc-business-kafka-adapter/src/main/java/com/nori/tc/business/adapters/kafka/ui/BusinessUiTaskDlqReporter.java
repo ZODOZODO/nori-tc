@@ -3,8 +3,8 @@ package com.nori.tc.business.adapters.kafka.ui;
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskPipelineStage;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDlqReporter;
+import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineStage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,12 +16,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * UI 파이프라인 DLQ 리포터입니다.
+ * Business UI Task 실패를 DLQ로 전환하는 리포터입니다.
  *
- * <p>역할:
- * 1) 공통 UI 파이프라인에서 전달된 실패 정보를 DLQ 표준 메시지로 변환합니다.
- * 2) DLQ 발행 포트로 위임하여 저장소 구현(예: Redis)과 분리합니다.
- * 3) DLQ 발행 실패 시에도 파이프라인을 중단하지 않고 로그로 기록합니다.</p>
+ * <p>역할:</p>
+ * <p>1) 파이프라인 실패 정보를 Business DLQ 계약으로 변환</p>
+ * <p>2) DLQ 발행 포트를 통해 영속 저장소(현재 Redis)로 전달</p>
+ * <p>3) 성공/실패 로그를 표준 키로 기록</p>
  */
 @Component
 public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTaskMessage> {
@@ -34,10 +34,10 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     private final BusinessCoreRuntimeProperties runtimeProperties;
 
     /**
-     * DLQ 리포터 의존성을 주입받습니다.
+     * DLQ 리포터 의존성을 초기화합니다.
      *
      * @param dlqPublisherPort DLQ 발행 포트
-     * @param runtimeProperties Business 런타임 토픽 프로퍼티
+     * @param runtimeProperties Business 런타임 설정
      */
     public BusinessUiTaskDlqReporter(
             final BusinessDlqPublisherPort dlqPublisherPort,
@@ -47,6 +47,15 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
         this.runtimeProperties = Objects.requireNonNull(runtimeProperties, "runtimeProperties is null");
     }
 
+    /**
+     * 파이프라인 실패 정보를 DLQ로 변환해 발행합니다.
+     *
+     * @param request 원본 UI Task 메시지
+     * @param stage 실패 단계
+     * @param reasonCode 실패 코드
+     * @param reasonMessage 실패 메시지
+     * @param replyEventType 응답 이벤트 타입
+     */
     @Override
     public void report(
             final KafkaUiTaskMessage request,
@@ -68,7 +77,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
             putIfHasText(tags, "timestamp", request.metadata().timestamp());
         }
 
-        // 9) 하드코딩 토픽 문자열을 런타임 프로퍼티 기반으로 치환합니다.
+        // 토픽 문자열은 하드코딩하지 않고 런타임 설정값을 사용합니다.
         final String uiEventsTopic = runtimeProperties.getKafka().getUiEventsTopic();
         final BusinessDlqMessage dlqMessage = new BusinessDlqMessage(
                 UUID.randomUUID().toString(),
@@ -112,7 +121,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * 메시지 이벤트명을 DLQ messageName 필드로 보정합니다.
+     * DLQ messageName 값을 보정합니다.
      */
     private static String normalizeMessageName(final String eventType) {
         if (eventType == null || eventType.isBlank()) {
@@ -122,7 +131,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ reasonCode를 빈 값 없이 보정합니다.
+     * DLQ reasonCode 값을 보정합니다.
      */
     private static String normalizeReasonCode(final String reasonCode) {
         if (reasonCode == null || reasonCode.isBlank()) {
@@ -132,7 +141,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ reasonMessage를 빈 값 없이 보정합니다.
+     * DLQ reasonMessage 값을 보정합니다.
      */
     private static String normalizeReasonMessage(final String reasonMessage) {
         if (reasonMessage == null || reasonMessage.isBlank()) {
@@ -142,7 +151,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ eqpId를 빈 값 없이 보정합니다.
+     * DLQ eqpId 값을 보정합니다.
      */
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null || eqpId.isBlank()) {
@@ -152,7 +161,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ traceId를 빈 값 없이 보정합니다.
+     * DLQ traceId 값을 보정합니다.
      */
     private static String normalizeTraceId(final String traceId) {
         if (traceId == null || traceId.isBlank()) {
@@ -162,14 +171,14 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * payloadRef를 추적 가능한 문자열로 생성합니다.
+     * payload 참조 문자열(payloadRef)을 생성합니다.
      */
     private static String buildPayloadRef(final String traceId, final String eventType) {
         return "payload://ui/" + normalizeTraceId(traceId) + "/event/" + normalizeMessageName(eventType);
     }
 
     /**
-     * 텍스트 값이 있는 경우에만 태그 맵에 값을 추가합니다.
+     * 빈 문자열이 아닌 태그만 map에 추가합니다.
      */
     private static void putIfHasText(final Map<String, String> tags, final String key, final String value) {
         if (value == null || value.isBlank()) {
@@ -178,3 +187,4 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
         tags.put(key, value.trim());
     }
 }
+

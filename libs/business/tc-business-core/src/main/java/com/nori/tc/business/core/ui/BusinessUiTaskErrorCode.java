@@ -35,6 +35,11 @@ public final class BusinessUiTaskErrorCode {
      */
     public static final String WORKFLOW_PLUGIN_RELOAD_FAILED = "WORKFLOW_PLUGIN_RELOAD_FAILED";
 
+    /**
+     * BusinessUiTaskErrorCode 생성자를 초기화합니다.
+     *
+     */
+
     private BusinessUiTaskErrorCode() {
         throw new IllegalStateException("BusinessUiTaskErrorCode cannot be instantiated");
     }

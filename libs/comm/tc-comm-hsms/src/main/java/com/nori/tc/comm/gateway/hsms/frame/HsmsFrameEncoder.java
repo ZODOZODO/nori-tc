@@ -10,6 +10,11 @@ package com.nori.tc.comm.gateway.hsms.frame;
 public final class HsmsFrameEncoder {
 
     
+    /**
+     * HsmsFrameEncoder 생성자를 초기화합니다.
+     *
+     */
+
     private HsmsFrameEncoder() {}
 
     

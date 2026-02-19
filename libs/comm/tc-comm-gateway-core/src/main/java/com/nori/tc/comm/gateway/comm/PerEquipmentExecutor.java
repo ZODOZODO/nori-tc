@@ -71,6 +71,12 @@ public final class PerEquipmentExecutor {
         private final AtomicBoolean running = new AtomicBoolean(false);
 
         
+        /**
+         * SerialExecutor 생성자를 초기화합니다.
+         *
+         * @param backend 입력 값
+         */
+
         private SerialExecutor(final ExecutorService backend) {
             this.backend = backend;
         }

@@ -64,6 +64,11 @@ public interface BusinessModelRuntimeProvider {
     final class NoopHolder {
         private static final BusinessModelRuntimeProvider INSTANCE = BusinessModelRuntimeSnapshot::empty;
 
+        /**
+         * NoopHolder 생성자를 초기화합니다.
+         *
+         */
+
         private NoopHolder() {
             throw new IllegalStateException("NoopHolder cannot be instantiated");
         }

@@ -25,6 +25,11 @@ public final class UlidGenerator {
     private static final char[] CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray();
 
     
+    /**
+     * UlidGenerator 생성자를 초기화합니다.
+     *
+     */
+
     private UlidGenerator() {}
 
     /**

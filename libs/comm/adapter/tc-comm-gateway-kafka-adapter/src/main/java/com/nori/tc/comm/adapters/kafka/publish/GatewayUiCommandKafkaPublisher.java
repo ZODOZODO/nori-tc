@@ -3,8 +3,8 @@ package com.nori.tc.comm.adapters.kafka.publish;
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
 import com.nori.tc.comm.adapters.kafka.contract.GatewayKafkaContractSupport;
 import com.nori.tc.comm.core.port.ClockPort;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyPublisher;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaHeaderSupport;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskReplyMessage;
@@ -20,8 +20,12 @@ import java.util.Objects;
 /**
  * Gateway -> UI 응답 메시지 발행기입니다.
  *
- * <p>공통 UI 파이프라인이 계산한 처리 결과를
- * {@code tc.ui.commands}로 발행합니다.</p>
+ * <p>UI task 처리 결과를 {@code tc.ui.commands} 토픽으로 발행합니다.</p>
+ *
+ * <p>운영 원칙:</p>
+ * <p>1) reply 발행은 비동기로 수행하여 worker 스레드 블로킹을 방지합니다.</p>
+ * <p>2) payload 계약 검증 실패는 즉시 예외로 처리합니다.</p>
+ * <p>3) Kafka 브로커 응답 성공/실패는 콜백에서 로그로 남깁니다.</p>
  */
 @Component
 public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<KafkaUiTaskMessage> {
@@ -35,12 +39,12 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
     private final ClockPort clockPort;
 
     /**
-     * UI 응답 발행에 필요한 의존성을 초기화합니다.
+     * UI reply 발행기에 필요한 의존성을 주입합니다.
      *
-     * @param kafkaTemplate Kafka template
-     * @param topicProperties topic 설정
+     * @param kafkaTemplate KafkaTemplate
+     * @param topicProperties Kafka topic 프로퍼티
      * @param contractSupport Kafka 계약 검증 지원기
-     * @param clockPort 시간 포트
+     * @param clockPort 시각 공급 포트
      */
     public GatewayUiCommandKafkaPublisher(
             final KafkaTemplate<String, Object> kafkaTemplate,
@@ -55,12 +59,12 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
     }
 
     /**
-     * 실패 결과를 간단히 발행하는 헬퍼 메서드입니다.
+     * 실패 응답을 만들어 발행합니다.
      *
      * @param request 원본 UI 요청
      * @param replyEventType 응답 eventType
-     * @param errorCode 에러 코드
-     * @param errorMessage 에러 메시지
+     * @param errorCode 오류 코드
+     * @param errorMessage 오류 메시지
      */
     public void publishFailure(
             final KafkaUiTaskMessage request,
@@ -68,15 +72,11 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
             final String errorCode,
             final String errorMessage
     ) {
-        publishResult(
-                request,
-                replyEventType,
-                KafkaTaskResult.fail(errorCode, errorMessage)
-        );
+        publishResult(request, replyEventType, KafkaTaskResult.fail(errorCode, errorMessage));
     }
 
     /**
-     * UI 처리 결과를 응답 메시지로 생성해 Kafka에 발행합니다.
+     * UI task 처리 결과를 비동기로 발행합니다.
      *
      * @param request 원본 UI 요청
      * @param replyEventType 응답 eventType
@@ -93,7 +93,7 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
 
         final String timestamp = Instant.ofEpochMilli(clockPort.nowEpochMillis()).toString();
         final KafkaUiTaskMessage.KafkaUiTaskMetadata metadata = new KafkaUiTaskMessage.KafkaUiTaskMetadata(
-                replyEventType,
+                normalizeRequired(replyEventType, "replyEventType"),
                 timestamp,
                 GATEWAY_SOURCE,
                 request.metadata().traceId()
@@ -114,8 +114,14 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
         try {
             contractSupport.validateUiTaskCommandRecord(topic, key, payload);
         } catch (IllegalArgumentException ex) {
-            log.error("UI reply publish blocked by contract validation. topic={}, eqpId={}, traceId={}, eventType={}",
-                    topic, key, request.metadata().traceId(), replyEventType, ex);
+            log.error(
+                    "UI reply publish blocked by contract validation. topic={}, eqpId={}, traceId={}, eventType={}",
+                    topic,
+                    key,
+                    request.metadata().traceId(),
+                    replyEventType,
+                    ex
+            );
             throw new IllegalStateException("UI reply payload validation failed", ex);
         }
 
@@ -128,40 +134,77 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
         );
 
         if (log.isDebugEnabled()) {
-            log.debug("Publishing UI reply. topic={}, eqpId={}, traceId={}, eventType={}, status={}",
+            log.debug(
+                    "UI reply publish requested. topic={}, eqpId={}, traceId={}, eventType={}, status={}",
                     topic,
                     key,
                     request.metadata().traceId(),
                     replyEventType,
-                    result.status());
+                    result.status()
+            );
         }
 
         try {
-            kafkaTemplate.send(record).get();
-            if (log.isDebugEnabled()) {
-                log.debug("UI reply published. topic={}, eqpId={}, traceId={}, eventType={}, status={}",
-                        topic,
-                        key,
-                        request.metadata().traceId(),
-                        replyEventType,
-                        result.status());
-            }
+            kafkaTemplate.send(record).whenComplete((sendResult, ex) -> {
+                if (ex != null) {
+                    log.error(
+                            "UI reply publish failed asynchronously. topic={}, eqpId={}, traceId={}, eventType={}",
+                            topic,
+                            key,
+                            request.metadata().traceId(),
+                            replyEventType,
+                            ex
+                    );
+                    return;
+                }
+
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "UI reply published asynchronously. topic={}, eqpId={}, traceId={}, eventType={}, status={}",
+                            topic,
+                            key,
+                            request.metadata().traceId(),
+                            replyEventType,
+                            result.status()
+                    );
+                }
+            });
         } catch (Exception ex) {
-            log.error("UI reply publish failed. topic={}, eqpId={}, traceId={}, eventType={}",
-                    topic, key, request.metadata().traceId(), replyEventType, ex);
-            throw new IllegalStateException("Failed to publish UI reply", ex);
+            log.error(
+                    "UI reply publish scheduling failed. topic={}, eqpId={}, traceId={}, eventType={}",
+                    topic,
+                    key,
+                    request.metadata().traceId(),
+                    replyEventType,
+                    ex
+            );
+            throw new IllegalStateException("Failed to schedule UI reply publish", ex);
         }
     }
 
     /**
-     * 공백 문자열은 null로 정규화합니다.
+     * null/blank 값을 null로 정규화합니다.
      *
-     * @param value 원본 문자열
+     * @param value 입력 문자열
      * @return 정규화 문자열
      */
-    private String normalizeNullable(final String value) {
+    private static String normalizeNullable(final String value) {
         if (value == null || value.isBlank()) {
             return null;
+        }
+        return value.trim();
+    }
+
+    /**
+     * 필수 문자열을 검증합니다.
+     *
+     * @param value 입력 문자열
+     * @param fieldName 필드명
+     * @return 정규화 문자열
+     */
+    private static String normalizeRequired(final String value, final String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
         }
         return value.trim();
     }

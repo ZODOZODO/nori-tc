@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,11 +16,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * UI 이벤트 기반 model runtime 제어 서비스입니다.
+ * UI 명령 이벤트로 model runtime을 갱신하는 서비스입니다.
  *
- * <p>지원 시나리오:
- * - EQP_CREATE / EQP_UPDATE: eqpId -> modelKey 바인딩 갱신
- * - EQP_UPDATE_JARFILE: eqpId에 연결된 modelKey runtime 재조립</p>
+ * <p>지원 시나리오:</p>
+ * <p>- EQP_CREATE / EQP_UPDATE: eqpId -> modelKey 바인딩 갱신</p>
+ * <p>- EQP_UPDATE_JARFILE: model runtime 리로드 + workflow plugin runtime 리로드</p>
  */
 @Service
 public class BusinessUiModelRuntimeCommandService {
@@ -28,7 +28,7 @@ public class BusinessUiModelRuntimeCommandService {
     private static final Logger log = LoggerFactory.getLogger(BusinessUiModelRuntimeCommandService.class);
 
     /**
-     * "modelKey=123" 형태를 파싱하기 위한 정규식입니다.
+     * "modelKey=123" 형태 텍스트를 파싱하기 위한 패턴입니다.
      */
     private static final Pattern MODEL_KEY_KV_PATTERN = Pattern.compile("(?i)\\bmodelKey\\s*=\\s*([0-9]+)\\b");
 
@@ -37,7 +37,11 @@ public class BusinessUiModelRuntimeCommandService {
     private final ObjectMapper objectMapper;
 
     /**
-     * 서비스 의존성을 주입받습니다.
+     * 서비스 의존성을 초기화합니다.
+     *
+     * @param runtimeMutationPort model runtime 변경 포트
+     * @param pluginRuntimeMutationPort workflow plugin runtime 변경 포트
+     * @param objectMapper JSON 파서
      */
     public BusinessUiModelRuntimeCommandService(
             final BusinessModelRuntimeMutationPort runtimeMutationPort,
@@ -52,7 +56,7 @@ public class BusinessUiModelRuntimeCommandService {
     /**
      * EQP_CREATE / EQP_UPDATE를 처리합니다.
      *
-     * <p>uiMessage에서 modelKey를 추출하여 eqp 바인딩을 원자적으로 갱신합니다.</p>
+     * <p>uiMessage에서 modelKey를 추출해 eqp 바인딩을 갱신합니다.</p>
      *
      * @param request UI 요청 메시지
      * @return 처리 결과
@@ -82,7 +86,7 @@ public class BusinessUiModelRuntimeCommandService {
                     ex);
             return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
-                    "eqpId-modelKey 바인딩 갱신 중 예외가 발생했습니다."
+                    "eqpId-modelKey 바인딩 갱신에 실패했습니다."
             );
         }
 
@@ -93,8 +97,8 @@ public class BusinessUiModelRuntimeCommandService {
     /**
      * EQP_UPDATE_JARFILE를 처리합니다.
      *
-     * <p>uiMessage에 modelKey가 있으면 해당 modelKey를 사용하고,
-     * 없으면 현재 eqpId 바인딩에서 modelKey를 조회하여 runtime을 재조립합니다.</p>
+     * <p>uiMessage의 modelKey를 우선 사용하고, 없으면 eqpId 바인딩에서 조회한
+     * modelKey로 runtime을 리로드합니다.</p>
      *
      * @param request UI 요청 메시지
      * @return 처리 결과
@@ -111,7 +115,7 @@ public class BusinessUiModelRuntimeCommandService {
             log.warn("UI EQP_UPDATE_JARFILE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
             return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
-                    "eqpId에 연결된 modelKey를 찾을 수 없습니다."
+                    "eqpId에 매핑된 modelKey를 찾을 수 없습니다."
             );
         }
 
@@ -125,13 +129,13 @@ public class BusinessUiModelRuntimeCommandService {
                     ex);
             return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
-                    "model runtime 재조립 중 예외가 발생했습니다."
+                    "model runtime 리로드에 실패했습니다."
             );
         }
 
         /*
-         * model runtime 리로드가 성공한 뒤 plugin runtime 스왑을 수행합니다.
-         * 실패 시에는 기존 plugin runtime을 유지하고 FAIL REP를 반환합니다.
+         * model runtime 리로드 성공 후 plugin runtime 리로드를 순차 수행합니다.
+         * 이 단계가 실패하면 전체 요청을 실패로 처리합니다.
          */
         try {
             pluginRuntimeMutationPort.reloadByEqpId(eqpId);
@@ -143,7 +147,7 @@ public class BusinessUiModelRuntimeCommandService {
                     ex);
             return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED,
-                    "workflow plugin runtime 리로드 중 예외가 발생했습니다."
+                    "workflow plugin runtime 리로드에 실패했습니다."
             );
         }
 
@@ -154,11 +158,11 @@ public class BusinessUiModelRuntimeCommandService {
     /**
      * uiMessage에서 modelKey를 추출합니다.
      *
-     * <p>지원 형식:
-     * 1) JSON 객체: {"modelKey":123}
-     * 2) JSON 중첩: {"data":{"modelKey":123}}
-     * 3) 숫자 문자열: "123"
-     * 4) key=value 문자열: "modelKey=123"</p>
+     * <p>지원 포맷:</p>
+     * <p>1) JSON: {"modelKey":123}</p>
+     * <p>2) JSON 중첩: {"data":{"modelKey":123}}</p>
+     * <p>3) 숫자 문자열: "123"</p>
+     * <p>4) key=value 문자열: "modelKey=123"</p>
      *
      * @param uiMessage UI 메시지 본문
      * @return modelKey(없으면 null)
@@ -170,8 +174,8 @@ public class BusinessUiModelRuntimeCommandService {
         }
 
         /*
-         * 먼저 JSON으로 해석을 시도합니다.
-         * 운영 중 UI payload가 JSON으로 확장될 가능성이 높기 때문에 우선순위를 높게 둡니다.
+         * 1차: JSON 파싱으로 modelKey를 탐색합니다.
+         * JSON 파싱 실패 시 예외를 전파하지 않고 다음 포맷 파싱으로 진행합니다.
          */
         try {
             final JsonNode root = objectMapper.readTree(normalized);
@@ -183,7 +187,7 @@ public class BusinessUiModelRuntimeCommandService {
                 return fromJson;
             }
         } catch (Exception ignored) {
-            // JSON이 아니면 아래 plain text 경로로 계속 시도합니다.
+            // JSON이 아니면 plain text 경로로 계속 처리합니다.
         }
 
         final Long plainNumber = parsePositiveLong(normalized);
@@ -208,6 +212,12 @@ public class BusinessUiModelRuntimeCommandService {
         return null;
     }
 
+    /**
+     * JSON 루트/중첩 경로에서 modelKey를 추출합니다.
+     *
+     * @param root JSON 루트 노드
+     * @return modelKey(없으면 null)
+     */
     private Long extractModelKeyFromJson(final JsonNode root) {
         if (root == null || root.isNull()) {
             return null;
@@ -228,6 +238,12 @@ public class BusinessUiModelRuntimeCommandService {
         return null;
     }
 
+    /**
+     * 양수 long 문자열을 파싱합니다.
+     *
+     * @param text 파싱 대상 문자열
+     * @return 양수 long 값(실패 시 null)
+     */
     private static Long parsePositiveLong(final String text) {
         final String normalized = normalize(text);
         if (normalized == null) {
@@ -244,6 +260,12 @@ public class BusinessUiModelRuntimeCommandService {
         }
     }
 
+    /**
+     * 문자열을 null-safe하게 정규화합니다.
+     *
+     * @param value 원본 문자열
+     * @return trim 결과(빈 문자열이면 null)
+     */
     private static String normalize(final String value) {
         if (value == null) {
             return null;
@@ -255,6 +277,7 @@ public class BusinessUiModelRuntimeCommandService {
         return normalized;
     }
 }
+
 
 
 

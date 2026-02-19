@@ -4,6 +4,7 @@ import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.gateway.comm.EquipmentChannel;
 import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.config.GatewayLifecycleProperties;
 import com.nori.tc.comm.gateway.context.EquipmentContext;
 import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.context.EquipmentDesiredState;
@@ -40,25 +41,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(EqpLifecycleStateMachine.class);
 
-    /**
-     * eqpId별 lifecycle 이벤트 mailbox 용량입니다.
-     *
-     * <p>폭주 상황에서도 이벤트 드롭 없이 버퍼링하기 위해 데이터 plane보다 넉넉하게 둡니다.</p>
-     */
-    private static final int EVENT_MAILBOX_CAPACITY = 256;
-
-    /**
-     * lifecycle 이벤트 worker 스레드 개수입니다.
-     *
-     * <p>eqpId별 직렬성은 MailboxScheduler가 보장하므로 worker는 여러 개여도 안전합니다.</p>
-     */
-    private static final int WORKER_THREADS = 2;
-
-    /**
-     * timeout 값이 비정상(<=0)으로 들어올 때 사용할 기본값(ms)입니다.
-     */
-    private static final long DEFAULT_TIMEOUT_MS = 30_000L;
-
+    private final GatewayLifecycleProperties lifecycleProperties;
     private final EquipmentContextRegistry contextRegistry;
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayProcessingService processingService;
@@ -67,7 +50,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     /**
      * eqpId별 이벤트 직렬 처리를 위한 공용 스케줄러입니다.
      */
-    private final MailboxScheduler<EqpLifecycleEvent> eventScheduler = new MailboxScheduler<>(EVENT_MAILBOX_CAPACITY);
+    private final MailboxScheduler<EqpLifecycleEvent> eventScheduler;
 
     /**
      * eqpId별 stateVersion 시퀀스입니다.
@@ -94,15 +77,18 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
      * 상태머신 의존성을 초기화합니다.
      */
     public EqpLifecycleStateMachine(
+            final GatewayLifecycleProperties lifecycleProperties,
             final EquipmentContextRegistry contextRegistry,
             final EquipmentChannelRegistry channelRegistry,
             final GatewayProcessingService processingService,
             final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider
     ) {
+        this.lifecycleProperties = Objects.requireNonNull(lifecycleProperties, "lifecycleProperties is null");
         this.contextRegistry = Objects.requireNonNull(contextRegistry, "contextRegistry is null");
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.statePersistencePort = statePersistencePortProvider.getIfAvailable(() -> EquipmentStatePersistencePort.NO_OP);
+        this.eventScheduler = new MailboxScheduler<>(lifecycleProperties.getEventMailboxCapacity());
     }
 
     /**
@@ -165,16 +151,22 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
         }
         running = true;
 
-        workerPool = Executors.newFixedThreadPool(WORKER_THREADS);
-        timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
+        final int workerThreads = lifecycleProperties.getWorkerThreads();
+        final int timeoutSchedulerThreads = lifecycleProperties.getTimeoutSchedulerThreads();
+        workerPool = Executors.newFixedThreadPool(workerThreads);
+        timeoutScheduler = Executors.newScheduledThreadPool(timeoutSchedulerThreads);
 
-        for (int i = 0; i < WORKER_THREADS; i++) {
+        for (int i = 0; i < workerThreads; i++) {
             workerPool.execute(this::runWorkerLoop);
         }
 
-        log.info("EqpLifecycleStateMachine started. workerThreads={}, mailboxCapacity={}",
-                WORKER_THREADS,
-                EVENT_MAILBOX_CAPACITY);
+        log.info(
+                "EqpLifecycleStateMachine started. workerThreads={}, timeoutSchedulerThreads={}, mailboxCapacity={}, defaultTimeoutMs={}",
+                workerThreads,
+                timeoutSchedulerThreads,
+                lifecycleProperties.getEventMailboxCapacity(),
+                lifecycleProperties.getDefaultTimeoutMs()
+        );
     }
 
     /**
@@ -195,6 +187,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
 
         log.info("EqpLifecycleStateMachine stopped.");
     }
+
+    /**
+     * isRunning 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     @Override
     public boolean isRunning() {
@@ -678,8 +676,8 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     /**
      * timeout 입력값을 보정합니다.
      */
-    private static long normalizeTimeoutMs(final long timeoutMs) {
-        return timeoutMs <= 0L ? DEFAULT_TIMEOUT_MS : timeoutMs;
+    private long normalizeTimeoutMs(final long timeoutMs) {
+        return timeoutMs <= 0L ? lifecycleProperties.getDefaultTimeoutMs() : timeoutMs;
     }
 
     /**

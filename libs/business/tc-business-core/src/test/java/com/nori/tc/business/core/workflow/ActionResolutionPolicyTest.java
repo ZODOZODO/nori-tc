@@ -89,6 +89,12 @@ class ActionResolutionPolicyTest {
      * plugin/core 충돌 테스트에서 plugin 쪽 동일 액션을 제공합니다.
      */
     private static final class PluginSocketExecutor extends SocketActionExecutor {
+        /**
+         * pluginSocketAct 기능을 수행합니다.
+         *
+         * @param context 입력 값
+         */
+
         @TcAction("SOCKET_ACT")
         public void pluginSocketAct(final BusinessWorkflowActionContext context) {
             // no-op
@@ -99,6 +105,12 @@ class ActionResolutionPolicyTest {
      * plugin에는 존재하지만 fallback 대상 key와는 다른 액션을 제공합니다.
      */
     private static final class PluginOnlyActionExecutor extends SocketActionExecutor {
+        /**
+         * pluginOnlyAction 기능을 수행합니다.
+         *
+         * @param context 입력 값
+         */
+
         @TcAction("PLUGIN_ONLY_ACTION")
         public void pluginOnlyAction(final BusinessWorkflowActionContext context) {
             // no-op
@@ -109,6 +121,12 @@ class ActionResolutionPolicyTest {
      * core fallback 테스트에서 core 쪽 동일 액션을 제공합니다.
      */
     private static final class CoreSocketExecutor extends SocketActionExecutor {
+        /**
+         * coreSocketAct 기능을 수행합니다.
+         *
+         * @param context 입력 값
+         */
+
         @TcAction("SOCKET_ACT")
         public void coreSocketAct(final BusinessWorkflowActionContext context) {
             // no-op

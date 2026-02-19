@@ -1,7 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorRegistry;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorSpec;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,9 +13,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Business UI task processor 레지스트리입니다.
+ * BusinessUiTaskProcessorRegistry 클래스입니다.
  *
- * <p>eventType별 처리기와 replyEventType 매핑을 관리합니다.</p>
+ * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+ * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
  */
 @Component
 public class BusinessUiTaskProcessorRegistry implements KafkaTaskProcessorRegistry<KafkaUiTaskMessage> {
@@ -25,9 +26,9 @@ public class BusinessUiTaskProcessorRegistry implements KafkaTaskProcessorRegist
     private final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> specsByEventType;
 
     /**
-     * 레지스트리를 초기화합니다.
+     * BusinessUiTaskProcessorRegistry 생성자를 초기화합니다.
      *
-     * @param commandService model runtime 제어 서비스
+     * @param commandService 입력 값
      */
     public BusinessUiTaskProcessorRegistry(final BusinessUiModelRuntimeCommandService commandService) {
         Objects.requireNonNull(commandService, "commandService is null");
@@ -64,6 +65,13 @@ public class BusinessUiTaskProcessorRegistry implements KafkaTaskProcessorRegist
                 specsByEventType.keySet());
     }
 
+    /**
+     * find 기능을 수행합니다.
+     *
+     * @param eventType 입력 값
+     * @return 처리 결과
+     */
+
     @Override
     public Optional<KafkaTaskProcessorSpec<KafkaUiTaskMessage>> find(final String eventType) {
         final String normalizedEventType = normalize(eventType);
@@ -86,6 +94,13 @@ public class BusinessUiTaskProcessorRegistry implements KafkaTaskProcessorRegist
         }
     }
 
+    /**
+     * normalize 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalize(final String value) {
         if (value == null) {
             return null;
@@ -97,5 +112,6 @@ public class BusinessUiTaskProcessorRegistry implements KafkaTaskProcessorRegist
         return normalized.toUpperCase();
     }
 }
+
 
 

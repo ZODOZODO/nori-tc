@@ -69,12 +69,27 @@ public record WorkflowRuntimeEntry(
         return eventId != null || transactionId != null;
     }
 
+    /**
+     * normalizeRequired 기능을 수행합니다.
+     *
+     * @param fieldName 입력 값
+     * @param value 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalizeRequired(final String fieldName, final String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " is required");
         }
         return value.trim();
     }
+
+    /**
+     * normalizeNullable 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalizeNullable(final String value) {
         if (value == null) {

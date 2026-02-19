@@ -235,6 +235,12 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             bootstrap.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
+                        /**
+                         * initChannel 기능을 수행합니다.
+                         *
+                         * @param ch 입력 값
+                         */
+
                         @Override
                         protected void initChannel(final SocketChannel ch) {
                             ch.pipeline().addLast(handlerFactory.newPassiveHandler(interfaceType));
@@ -305,6 +311,12 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, nettyProperties.getConnectTimeoutMillis())
                 .handler(new ChannelInitializer<SocketChannel>() {
+                    /**
+                     * initChannel 기능을 수행합니다.
+                     *
+                     * @param ch 입력 값
+                     */
+
                     @Override
                     protected void initChannel(final SocketChannel ch) {
                         ch.pipeline().addLast(handlerFactory.newActiveHandler(info.commInterfaceType(), eqpId));

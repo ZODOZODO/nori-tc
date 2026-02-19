@@ -20,5 +20,12 @@ import org.springframework.context.annotation.Import;
         BusinessCoreRuntimeConfiguration.class,
         BusinessUiTaskPipelineConfiguration.class
 })
+/**
+ * TcBusinessCoreAutoConfiguration 클래스입니다.
+ *
+ * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+ * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ */
+
 public class TcBusinessCoreAutoConfiguration {
 }

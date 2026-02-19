@@ -146,6 +146,13 @@ public class BusinessWorkflowPluginRuntimeManager
                 previous.size());
     }
 
+    /**
+     * findRegistryByEqpId 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     * @return 처리 결과
+     */
+
     @Override
     public Optional<BusinessWorkflowActionRegistry> findRegistryByEqpId(final String eqpId) {
         final String normalizedEqpId = normalizeEqpId(eqpId);
@@ -158,6 +165,12 @@ public class BusinessWorkflowPluginRuntimeManager
         }
         return Optional.of(runtime.registry());
     }
+
+    /**
+     * reloadByEqpId 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     */
 
     @Override
     public void reloadByEqpId(final String eqpId) {
@@ -289,6 +302,12 @@ public class BusinessWorkflowPluginRuntimeManager
             throw ex;
         }
     }
+
+    /**
+     * loadAllEqps 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     private List<TcEqp> loadAllEqps() {
         final List<TcEqp> results = new ArrayList<>();
@@ -436,6 +455,14 @@ public class BusinessWorkflowPluginRuntimeManager
         return new DiscoveredExecutors(secsExecutor, socketExecutor, mesExecutor);
     }
 
+    /**
+     * instantiateExecutor 기능을 수행합니다.
+     *
+     * @param rawClass 입력 값
+     * @param expectedType 입력 값
+     * @return 처리 결과
+     */
+
     private <T> T instantiateExecutor(final Class<?> rawClass, final Class<T> expectedType) {
         try {
             final Constructor<?> constructor = rawClass.getDeclaredConstructor();
@@ -446,6 +473,13 @@ public class BusinessWorkflowPluginRuntimeManager
             throw new IllegalStateException("Failed to instantiate plugin executor class: " + rawClass.getName(), ex);
         }
     }
+
+    /**
+     * swapRuntime 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     * @param newRuntime 입력 값
+     */
 
     private void swapRuntime(final String eqpId, final PluginRuntime newRuntime) {
         PluginRuntime previousRuntime;
@@ -498,10 +532,22 @@ public class BusinessWorkflowPluginRuntimeManager
         );
     }
 
+    /**
+     * replaceAllRuntimes 기능을 수행합니다.
+     *
+     * @param nextRuntimeMap 입력 값
+     */
+
     private void replaceAllRuntimes(final Map<String, PluginRuntime> nextRuntimeMap) {
         final Map<String, PluginRuntime> previous = runtimeByEqpIdRef.getAndSet(Map.copyOf(nextRuntimeMap));
         closeRuntimeMapQuietly(previous);
     }
+
+    /**
+     * closeRuntimeMapQuietly 기능을 수행합니다.
+     *
+     * @param runtimeMap 입력 값
+     */
 
     private static void closeRuntimeMapQuietly(final Map<String, PluginRuntime> runtimeMap) {
         if (runtimeMap == null || runtimeMap.isEmpty()) {
@@ -513,6 +559,13 @@ public class BusinessWorkflowPluginRuntimeManager
             }
         }
     }
+
+    /**
+     * extractClassNames 기능을 수행합니다.
+     *
+     * @param jarBytes 입력 값
+     * @return 처리 결과
+     */
 
     private static List<String> extractClassNames(final byte[] jarBytes) {
         final List<String> classNames = new ArrayList<>();
@@ -557,6 +610,13 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 
+    /**
+     * createClassLoader 기능을 수행합니다.
+     *
+     * @param jarPath 입력 값
+     * @return 처리 결과
+     */
+
     private static URLClassLoader createClassLoader(final Path jarPath) {
         try {
             final URL[] urls = new URL[]{jarPath.toUri().toURL()};
@@ -566,6 +626,13 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 
+    /**
+     * normalizeEqpId 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null) {
             return null;
@@ -574,12 +641,26 @@ public class BusinessWorkflowPluginRuntimeManager
         return normalized.isEmpty() ? null : normalized;
     }
 
+    /**
+     * normalizeJarFileName 기능을 수행합니다.
+     *
+     * @param jarFileName 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalizeJarFileName(final String jarFileName) {
         if (jarFileName == null || jarFileName.isBlank()) {
             return DEFAULT_PLUGIN_JAR_FILE_NAME;
         }
         return jarFileName.trim();
     }
+
+    /**
+     * sanitizeFileToken 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
 
     private static String sanitizeFileToken(final String value) {
         return value.replaceAll("[^a-zA-Z0-9._-]", "_");
@@ -596,6 +677,12 @@ public class BusinessWorkflowPluginRuntimeManager
             log.warn("Plugin classloader close failed. eqpId={}, jarFileName={}", eqpId, jarFileName, ex);
         }
     }
+
+    /**
+     * deleteTempJarQuietly 기능을 수행합니다.
+     *
+     * @param jarPath 입력 값
+     */
 
     private static void deleteTempJarQuietly(final Path jarPath) {
         try {

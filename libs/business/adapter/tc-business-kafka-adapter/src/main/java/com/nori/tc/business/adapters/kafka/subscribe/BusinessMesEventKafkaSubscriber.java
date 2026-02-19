@@ -53,6 +53,12 @@ public class BusinessMesEventKafkaSubscriber {
                     "value.deserializer=org.apache.kafka.common.serialization.StringDeserializer"
             }
     )
+    /**
+     * onMessage 기능을 수행합니다.
+     *
+     * @param record 입력 값
+     */
+
     public void onMessage(final ConsumerRecord<String, String> record) throws Exception {
         final BusinessInboundRecord inboundRecord = recordMapper.map(record, BusinessMessageType.MES);
         final boolean accepted = ingressPort.submit(inboundRecord);

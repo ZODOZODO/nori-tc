@@ -25,6 +25,13 @@ import java.util.Objects;
         name = "tc.business.core.ui-task.kafka-listener-enabled",
         havingValue = "true"
 )
+/**
+ * BusinessUiEventKafkaSubscriber 클래스입니다.
+ *
+ * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+ * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ */
+
 public class BusinessUiEventKafkaSubscriber {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessUiEventKafkaSubscriber.class);
@@ -59,6 +66,12 @@ public class BusinessUiEventKafkaSubscriber {
                     "value.deserializer=org.apache.kafka.common.serialization.StringDeserializer"
             }
     )
+    /**
+     * onMessage 기능을 수행합니다.
+     *
+     * @param record 입력 값
+     */
+
     public void onMessage(final ConsumerRecord<String, String> record) throws Exception {
         final BusinessInboundRecord inboundRecord = recordMapper.map(record, BusinessMessageType.UI);
         final boolean accepted = ingressPort.submit(inboundRecord);

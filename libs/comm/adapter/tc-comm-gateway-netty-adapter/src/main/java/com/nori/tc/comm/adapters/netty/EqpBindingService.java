@@ -16,12 +16,10 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 
 /**
- * eqpId 諛붿씤???댁젣 ?쒕퉬?ㅼ엯?덈떎.
+ * EqpBindingService 클래스입니다.
  *
- * <p>??븷:</p>
- * <p>1) Netty 梨꾨꼸 諛붿씤??寃利?諛??깅줉</p>
- * <p>2) mailbox ?앹꽦/?뺣━ ?꾩엫</p>
- * <p>3) lifecycle ?곹깭癒몄떊?쇰줈 CONNECTED/DISCONNECTED ?대깽???꾨떖</p>
+ * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+ * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
  */
 @Service
 public class EqpBindingService {
@@ -34,7 +32,7 @@ public class EqpBindingService {
     private final EqpLifecycleStateMachine lifecycleStateMachine;
 
     /**
-     * 諛붿씤??泥섎━ ?섏〈?깆쓣 珥덇린?뷀빀?덈떎.
+     * UTF-8 형식으로 정리된 주석입니다.
      */
     public EqpBindingService(
             final EquipmentChannelRegistry channelRegistry,
@@ -49,7 +47,7 @@ public class EqpBindingService {
     }
 
     /**
-     * PASSIVE 諛붿씤?⑹쓣 泥섎━?⑸땲??
+     * UTF-8 형식으로 정리된 주석입니다.
      */
     public BindResult bindPassive(
             final String eqpId,
@@ -60,7 +58,7 @@ public class EqpBindingService {
     }
 
     /**
-     * ACTIVE 諛붿씤?⑹쓣 泥섎━?⑸땲??
+     * UTF-8 형식으로 정리된 주석입니다.
      */
     public BindResult bindActive(
             final String eqpId,
@@ -71,7 +69,9 @@ public class EqpBindingService {
     }
 
     /**
-     * 梨꾨꼸 ?댁젣 ??registry/mailbox ?뺣━? lifecycle ?대깽???꾨떖???섑뻾?⑸땲??
+     * unbind 기능을 수행합니다.
+     *
+     * @param channel 입력 값
      */
     public void unbind(final Channel channel) {
         if (channel == null) {
@@ -91,7 +91,7 @@ public class EqpBindingService {
     }
 
     /**
-     * 怨듯넻 諛붿씤??寃利??깅줉 濡쒖쭅?낅땲??
+     * UTF-8 형식으로 정리된 주석입니다.
      */
     private BindResult bindInternal(
             final String eqpId,
@@ -139,6 +139,13 @@ public class EqpBindingService {
         log.info("Bind success. eqpId={}, interfaceType={}, mode={}", eqpId, interfaceType, expectedMode);
         return BindResult.OK;
     }
+
+    /**
+     * BindResult 열거형입니다.
+     *
+     * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+     * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+     */
 
     public enum BindResult {
         OK,

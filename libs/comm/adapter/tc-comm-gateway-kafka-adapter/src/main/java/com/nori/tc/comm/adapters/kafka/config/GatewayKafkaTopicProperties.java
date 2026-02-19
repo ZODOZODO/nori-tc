@@ -69,55 +69,127 @@ public class GatewayKafkaTopicProperties implements KafkaTopicProperties {
         }
     }
 
+    /**
+     * getEqpEvents 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     @Override
     public String getEqpEvents() {
         return eqpEvents;
     }
 
+    /**
+     * setEqpEvents 기능을 수행합니다.
+     *
+     * @param eqpEvents 입력 값
+     */
+
     public void setEqpEvents(final String eqpEvents) {
         this.eqpEvents = eqpEvents;
     }
+
+    /**
+     * getUiEvents 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     @Override
     public String getUiEvents() {
         return uiEvents;
     }
 
+    /**
+     * setUiEvents 기능을 수행합니다.
+     *
+     * @param uiEvents 입력 값
+     */
+
     public void setUiEvents(final String uiEvents) {
         this.uiEvents = uiEvents;
     }
+
+    /**
+     * getMesEvents 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     @Override
     public String getMesEvents() {
         return mesEvents;
     }
 
+    /**
+     * setMesEvents 기능을 수행합니다.
+     *
+     * @param mesEvents 입력 값
+     */
+
     public void setMesEvents(final String mesEvents) {
         this.mesEvents = mesEvents;
     }
+
+    /**
+     * getEqpCommands 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     @Override
     public String getEqpCommands() {
         return eqpCommands;
     }
 
+    /**
+     * setEqpCommands 기능을 수행합니다.
+     *
+     * @param eqpCommands 입력 값
+     */
+
     public void setEqpCommands(final String eqpCommands) {
         this.eqpCommands = eqpCommands;
     }
+
+    /**
+     * getMesCommands 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     @Override
     public String getMesCommands() {
         return mesCommands;
     }
 
+    /**
+     * setMesCommands 기능을 수행합니다.
+     *
+     * @param mesCommands 입력 값
+     */
+
     public void setMesCommands(final String mesCommands) {
         this.mesCommands = mesCommands;
     }
+
+    /**
+     * getUiCommands 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     @Override
     public String getUiCommands() {
         return uiCommands;
     }
+
+    /**
+     * setUiCommands 기능을 수행합니다.
+     *
+     * @param uiCommands 입력 값
+     */
 
     public void setUiCommands(final String uiCommands) {
         this.uiCommands = uiCommands;

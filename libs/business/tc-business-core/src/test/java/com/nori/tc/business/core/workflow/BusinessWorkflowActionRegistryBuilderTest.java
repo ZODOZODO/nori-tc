@@ -24,6 +24,12 @@ class BusinessWorkflowActionRegistryBuilderTest {
     void shouldRegisterAndInvokeAnnotatedActionMethod() {
         final AtomicInteger counter = new AtomicInteger(0);
         final SocketActionExecutor executor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_TEST_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
                 counter.incrementAndGet();
@@ -45,12 +51,24 @@ class BusinessWorkflowActionRegistryBuilderTest {
     @Test
     void shouldThrowWhenDuplicateActionKeyIsRegistered() {
         final SocketActionExecutor first = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("DUP_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
                 // no-op
             }
         };
         final SocketActionExecutor second = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("DUP_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
                 // no-op
@@ -69,6 +87,12 @@ class BusinessWorkflowActionRegistryBuilderTest {
     @Test
     void shouldThrowWhenTcActionMethodSignatureIsInvalid() {
         final SocketActionExecutor invalidExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @return 처리 결과
+             */
+
             @TcAction("INVALID_SIG")
             public String execute() {
                 return "invalid";

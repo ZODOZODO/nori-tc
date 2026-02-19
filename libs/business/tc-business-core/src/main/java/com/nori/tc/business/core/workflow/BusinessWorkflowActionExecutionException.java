@@ -8,9 +8,22 @@ package com.nori.tc.business.core.workflow;
  */
 public class BusinessWorkflowActionExecutionException extends RuntimeException {
 
+    /**
+     * BusinessWorkflowActionExecutionException 생성자를 초기화합니다.
+     *
+     * @param message 입력 값
+     */
+
     public BusinessWorkflowActionExecutionException(final String message) {
         super(message);
     }
+
+    /**
+     * BusinessWorkflowActionExecutionException 생성자를 초기화합니다.
+     *
+     * @param message 입력 값
+     * @param cause 입력 값
+     */
 
     public BusinessWorkflowActionExecutionException(final String message, final Throwable cause) {
         super(message, cause);

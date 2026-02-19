@@ -138,17 +138,41 @@ public class GatewayKafkaClientProperties {
         return props;
     }
 
+    /**
+     * getBootstrapServers 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getBootstrapServers() {
         return bootstrapServers;
     }
+
+    /**
+     * setBootstrapServers 기능을 수행합니다.
+     *
+     * @param bootstrapServers 입력 값
+     */
 
     public void setBootstrapServers(final String bootstrapServers) {
         this.bootstrapServers = bootstrapServers;
     }
 
+    /**
+     * getConsumer 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Consumer getConsumer() {
         return consumer;
     }
+
+    /**
+     * getAdmin 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Admin getAdmin() {
         return admin;
@@ -165,49 +189,121 @@ public class GatewayKafkaClientProperties {
         private String valueDeserializer;
         private Map<String, String> properties;
 
+        /**
+         * getGroupId 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getGroupId() {
             return groupId;
         }
+
+        /**
+         * setGroupId 기능을 수행합니다.
+         *
+         * @param groupId 입력 값
+         */
 
         public void setGroupId(final String groupId) {
             this.groupId = groupId;
         }
 
+        /**
+         * getAutoOffsetReset 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getAutoOffsetReset() {
             return autoOffsetReset;
         }
+
+        /**
+         * setAutoOffsetReset 기능을 수행합니다.
+         *
+         * @param autoOffsetReset 입력 값
+         */
 
         public void setAutoOffsetReset(final String autoOffsetReset) {
             this.autoOffsetReset = autoOffsetReset;
         }
 
+        /**
+         * getEnableAutoCommit 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public Boolean getEnableAutoCommit() {
             return enableAutoCommit;
         }
+
+        /**
+         * setEnableAutoCommit 기능을 수행합니다.
+         *
+         * @param enableAutoCommit 입력 값
+         */
 
         public void setEnableAutoCommit(final Boolean enableAutoCommit) {
             this.enableAutoCommit = enableAutoCommit;
         }
 
+        /**
+         * getKeyDeserializer 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getKeyDeserializer() {
             return keyDeserializer;
         }
+
+        /**
+         * setKeyDeserializer 기능을 수행합니다.
+         *
+         * @param keyDeserializer 입력 값
+         */
 
         public void setKeyDeserializer(final String keyDeserializer) {
             this.keyDeserializer = keyDeserializer;
         }
 
+        /**
+         * getValueDeserializer 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getValueDeserializer() {
             return valueDeserializer;
         }
+
+        /**
+         * setValueDeserializer 기능을 수행합니다.
+         *
+         * @param valueDeserializer 입력 값
+         */
 
         public void setValueDeserializer(final String valueDeserializer) {
             this.valueDeserializer = valueDeserializer;
         }
 
+        /**
+         * getProperties 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public Map<String, String> getProperties() {
             return properties;
         }
+
+        /**
+         * setProperties 기능을 수행합니다.
+         *
+         * @param properties 입력 값
+         */
 
         public void setProperties(final Map<String, String> properties) {
             this.properties = properties;
@@ -220,9 +316,21 @@ public class GatewayKafkaClientProperties {
     public static final class Admin {
         private Map<String, String> properties;
 
+        /**
+         * getProperties 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public Map<String, String> getProperties() {
             return properties;
         }
+
+        /**
+         * setProperties 기능을 수행합니다.
+         *
+         * @param properties 입력 값
+         */
 
         public void setProperties(final Map<String, String> properties) {
             this.properties = properties;

@@ -138,37 +138,91 @@ public final class TcModelRuntime {
         );
     }
 
+    /**
+     * modelKey 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long modelKey() {
         return modelKey;
     }
+
+    /**
+     * modelName 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public String modelName() {
         return modelName;
     }
 
+    /**
+     * modelVersion 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String modelVersion() {
         return modelVersion;
     }
+
+    /**
+     * protocolType 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public ProtocolType protocolType() {
         return protocolType;
     }
 
+    /**
+     * workflowsByMessageName 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Map<String, List<WorkflowRuntimeEntry>> workflowsByMessageName() {
         return workflowsByMessageName;
     }
+
+    /**
+     * secsWorkflowsByKey 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Map<SecsWorkflowKey, List<WorkflowRuntimeEntry>> secsWorkflowsByKey() {
         return secsWorkflowsByKey;
     }
 
+    /**
+     * secsMessagesByName 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Map<String, TcModelSecsMessage> secsMessagesByName() {
         return secsMessagesByName;
     }
 
+    /**
+     * socketMessagesByName 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Map<String, TcModelSocketMessage> socketMessagesByName() {
         return socketMessagesByName;
     }
+
+    /**
+     * variableIds 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Map<VariableRuntimeKey, TcModelVariableId> variableIds() {
         return variableIds;

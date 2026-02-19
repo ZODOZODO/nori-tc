@@ -33,9 +33,21 @@ public class BusinessRedisProperties {
         log.info("BusinessRedisProperties validated. dlqTtlSeconds={}", dlqTtlSeconds);
     }
 
+    /**
+     * getDlqTtlSeconds 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getDlqTtlSeconds() {
         return dlqTtlSeconds;
     }
+
+    /**
+     * setDlqTtlSeconds 기능을 수행합니다.
+     *
+     * @param dlqTtlSeconds 입력 값
+     */
 
     public void setDlqTtlSeconds(final long dlqTtlSeconds) {
         this.dlqTtlSeconds = dlqTtlSeconds;

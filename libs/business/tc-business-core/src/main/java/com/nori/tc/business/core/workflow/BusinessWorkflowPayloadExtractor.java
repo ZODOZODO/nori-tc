@@ -116,6 +116,14 @@ public class BusinessWorkflowPayloadExtractor {
         return Map.copyOf(context);
     }
 
+    /**
+     * extractPathText 기능을 수행합니다.
+     *
+     * @param payload 입력 값
+     * @param paths 입력 값
+     * @return 처리 결과
+     */
+
     private String extractPathText(final String payload, final String... paths) {
         final String normalizedPayload = normalize(payload);
         if (normalizedPayload == null) {
@@ -140,6 +148,14 @@ public class BusinessWorkflowPayloadExtractor {
         return null;
     }
 
+    /**
+     * pathText 기능을 수행합니다.
+     *
+     * @param root 입력 값
+     * @param path 입력 값
+     * @return 처리 결과
+     */
+
     private static String pathText(final JsonNode root, final String path) {
         JsonNode cursor = root;
         for (String segment : path.split("\\.")) {
@@ -153,6 +169,13 @@ public class BusinessWorkflowPayloadExtractor {
         }
         return normalize(cursor.asText(null));
     }
+
+    /**
+     * toValue 기능을 수행합니다.
+     *
+     * @param node 입력 값
+     * @return 처리 결과
+     */
 
     private static Object toValue(final JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode()) {
@@ -184,6 +207,13 @@ public class BusinessWorkflowPayloadExtractor {
         }
         return node.asText();
     }
+
+    /**
+     * normalize 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalize(final String value) {
         if (value == null) {

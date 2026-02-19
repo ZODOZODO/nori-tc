@@ -379,6 +379,13 @@ public class GatewayKafkaContractSupport {
         return allowlist;
     }
 
+    /**
+     * normalizeSchemaVersion 기능을 수행합니다.
+     *
+     * @param schemaVersion 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalizeSchemaVersion(final String schemaVersion) {
         final String normalized = normalizeNullable(schemaVersion);
         if (normalized == null) {
@@ -387,6 +394,14 @@ public class GatewayKafkaContractSupport {
         return normalized;
     }
 
+    /**
+     * normalizeRequired 기능을 수행합니다.
+     *
+     * @param field 입력 값
+     * @param value 입력 값
+     * @return 처리 결과
+     */
+
     private static String normalizeRequired(final String field, final String value) {
         final String normalized = normalizeNullable(value);
         if (normalized == null) {
@@ -394,6 +409,13 @@ public class GatewayKafkaContractSupport {
         }
         return normalized;
     }
+
+    /**
+     * normalizeNullable 기능을 수행합니다.
+     *
+     * @param value 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalizeNullable(final String value) {
         if (value == null) {

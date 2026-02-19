@@ -110,6 +110,11 @@ public class EquipmentContextRegistry {
      * JDK 21 환경에서 간단한 불변 컬렉션 래핑 유틸입니다.
      */
     private static final class ListCopy {
+        /**
+         * ListCopy 생성자를 초기화합니다.
+         *
+         */
+
         private ListCopy() {
         }
 

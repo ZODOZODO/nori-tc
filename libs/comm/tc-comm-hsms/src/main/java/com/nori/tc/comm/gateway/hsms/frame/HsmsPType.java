@@ -12,6 +12,11 @@ package com.nori.tc.comm.gateway.hsms.frame;
  */
 public final class HsmsPType {
     
+    /**
+     * HsmsPType 생성자를 초기화합니다.
+     *
+     */
+
     private HsmsPType() {}
 
     public static final int SECS_II = 0x00;

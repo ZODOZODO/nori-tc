@@ -1,17 +1,24 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskMessageAccessor;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskMessageAccessor;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.springframework.stereotype.Component;
 
 /**
- * {@link KafkaUiTaskMessage} 전용 필드 접근자입니다.
+ * BusinessUiTaskMessageAccessor 클래스입니다.
  *
- * <p>공통 UI 파이프라인이 요구하는 eventType/traceId/eqpId를
- * 메시지 구조에서 안전하게 추출합니다.</p>
+ * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
+ * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
  */
 @Component
 public class BusinessUiTaskMessageAccessor implements KafkaTaskMessageAccessor<KafkaUiTaskMessage> {
+
+    /**
+     * eventType 기능을 수행합니다.
+     *
+     * @param request 입력 값
+     * @return 처리 결과
+     */
 
     @Override
     public String eventType(final KafkaUiTaskMessage request) {
@@ -21,6 +28,13 @@ public class BusinessUiTaskMessageAccessor implements KafkaTaskMessageAccessor<K
         return request.metadata().eventType();
     }
 
+    /**
+     * traceId 기능을 수행합니다.
+     *
+     * @param request 입력 값
+     * @return 처리 결과
+     */
+
     @Override
     public String traceId(final KafkaUiTaskMessage request) {
         if (request == null || request.metadata() == null) {
@@ -28,6 +42,13 @@ public class BusinessUiTaskMessageAccessor implements KafkaTaskMessageAccessor<K
         }
         return request.metadata().traceId();
     }
+
+    /**
+     * eqpId 기능을 수행합니다.
+     *
+     * @param request 입력 값
+     * @return 처리 결과
+     */
 
     @Override
     public String eqpId(final KafkaUiTaskMessage request) {
@@ -37,5 +58,6 @@ public class BusinessUiTaskMessageAccessor implements KafkaTaskMessageAccessor<K
         return request.data().eqpId();
     }
 }
+
 
 

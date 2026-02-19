@@ -50,9 +50,21 @@ public final class BusinessModelRuntimeSnapshot {
         return EMPTY;
     }
 
+    /**
+     * eqpModelBindings 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Map<String, Long> eqpModelBindings() {
         return eqpModelBindings;
     }
+
+    /**
+     * modelRuntimes 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Map<Long, TcModelRuntime> modelRuntimes() {
         return modelRuntimes;
@@ -92,13 +104,32 @@ public final class BusinessModelRuntimeSnapshot {
         return Optional.ofNullable(modelRuntimes.get(modelKey));
     }
 
+    /**
+     * bindingCount 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int bindingCount() {
         return eqpModelBindings.size();
     }
 
+    /**
+     * runtimeCount 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int runtimeCount() {
         return modelRuntimes.size();
     }
+
+    /**
+     * normalizeEqpId 기능을 수행합니다.
+     *
+     * @param eqpId 입력 값
+     * @return 처리 결과
+     */
 
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null) {

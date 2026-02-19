@@ -19,6 +19,11 @@ package com.nori.tc.comm.gateway.domain.limit;
 public final class PayloadLimits {
 
     
+    /**
+     * PayloadLimits 생성자를 초기화합니다.
+     *
+     */
+
     private PayloadLimits() {}
 
     /**

@@ -13,6 +13,11 @@ package com.nori.tc.comm.gateway.hsms.frame;
 public final class HsmsControlFrameFactory {
 
     
+    /**
+     * HsmsControlFrameFactory 생성자를 초기화합니다.
+     *
+     */
+
     private HsmsControlFrameFactory() {}
 
     

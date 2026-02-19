@@ -7,7 +7,7 @@ import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.common.mailbox.MailboxScheduler;
-import com.nori.tc.common.task.execution.MailboxExecutionRuntime;
+import com.nori.tc.common.mailbox.execution.MailboxExecutionRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;

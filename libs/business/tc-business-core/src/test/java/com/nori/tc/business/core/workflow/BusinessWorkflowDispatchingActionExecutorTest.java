@@ -26,6 +26,12 @@ class BusinessWorkflowDispatchingActionExecutorTest {
     void shouldExecuteCoreActionWhenPluginActionIsNotPresent() {
         final AtomicInteger coreExecutionCount = new AtomicInteger(0);
         final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 coreExecutionCount.incrementAndGet();
@@ -58,12 +64,24 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         final AtomicInteger pluginExecutionCount = new AtomicInteger(0);
 
         final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 coreExecutionCount.incrementAndGet();
             }
         };
         final SocketActionExecutor pluginSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 pluginExecutionCount.incrementAndGet();
@@ -102,12 +120,24 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         final AtomicInteger pluginExecutionCount = new AtomicInteger(0);
 
         final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 coreExecutionCount.incrementAndGet();
             }
         };
         final SocketActionExecutor pluginSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("PLUGIN_ONLY_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 pluginExecutionCount.incrementAndGet();
@@ -144,12 +174,24 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         final AtomicInteger pluginExecutionCount = new AtomicInteger(0);
 
         final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 coreExecutionCount.incrementAndGet();
             }
         };
         final SocketActionExecutor pluginSocketExecutor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
                 pluginExecutionCount.incrementAndGet();

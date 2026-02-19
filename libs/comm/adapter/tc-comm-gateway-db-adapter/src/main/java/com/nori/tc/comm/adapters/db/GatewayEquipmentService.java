@@ -314,6 +314,13 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
         return snapshots;
     }
 
+    /**
+     * toHsmsSettings 기능을 수행합니다.
+     *
+     * @param hsms 입력 값
+     * @return 처리 결과
+     */
+
     private EquipmentContextProfile.HsmsSettings toHsmsSettings(final TcEqpHsms hsms) {
         return new EquipmentContextProfile.HsmsSettings(
                 hsms.deviceId(),
@@ -329,6 +336,13 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
         );
     }
 
+    /**
+     * toSocketSettings 기능을 수행합니다.
+     *
+     * @param socket 입력 값
+     * @return 처리 결과
+     */
+
     private EquipmentContextProfile.SocketSettings toSocketSettings(final TcEqpSocket socket) {
         return new EquipmentContextProfile.SocketSettings(
                 socket.socketProtocolType(),
@@ -343,6 +357,13 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
         );
     }
 
+    /**
+     * toCurrentStateSnapshot 기능을 수행합니다.
+     *
+     * @param state 입력 값
+     * @return 처리 결과
+     */
+
     private EquipmentContextProfile.CurrentStateSnapshot toCurrentStateSnapshot(final TcEqpState state) {
         return new EquipmentContextProfile.CurrentStateSnapshot(
                 state.controlState() == null ? null : state.controlState().name(),
@@ -353,6 +374,13 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
                 state.updatedAt()
         );
     }
+
+    /**
+     * toLogPolicy 기능을 수행합니다.
+     *
+     * @param logConfig 입력 값
+     * @return 처리 결과
+     */
 
     private EquipmentContextProfile.LogPolicy toLogPolicy(final TcEqpLog logConfig) {
         return new EquipmentContextProfile.LogPolicy(

@@ -128,109 +128,272 @@ public class GatewayKafkaShardProperties {
         );
     }
 
+    /**
+     * getCommandsPartitionCount 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int getCommandsPartitionCount() {
         return commandsPartitionCount;
     }
+
+    /**
+     * setCommandsPartitionCount 기능을 수행합니다.
+     *
+     * @param commandsPartitionCount 입력 값
+     */
 
     public void setCommandsPartitionCount(final int commandsPartitionCount) {
         this.commandsPartitionCount = commandsPartitionCount;
     }
 
+    /**
+     * getOwnedPartitions 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public List<Integer> getOwnedPartitions() {
         return ownedPartitions;
     }
+
+    /**
+     * setOwnedPartitions 기능을 수행합니다.
+     *
+     * @param ownedPartitions 입력 값
+     */
 
     public void setOwnedPartitions(final List<Integer> ownedPartitions) {
         this.ownedPartitions = ownedPartitions == null ? null : new ArrayList<>(ownedPartitions);
     }
 
+    /**
+     * getPollTimeoutMs 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getPollTimeoutMs() {
         return pollTimeoutMs;
     }
+
+    /**
+     * setPollTimeoutMs 기능을 수행합니다.
+     *
+     * @param pollTimeoutMs 입력 값
+     */
 
     public void setPollTimeoutMs(final long pollTimeoutMs) {
         this.pollTimeoutMs = pollTimeoutMs;
     }
 
+    /**
+     * getUiPollTimeoutMs 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getUiPollTimeoutMs() {
         return uiPollTimeoutMs;
     }
+
+    /**
+     * setUiPollTimeoutMs 기능을 수행합니다.
+     *
+     * @param uiPollTimeoutMs 입력 값
+     */
 
     public void setUiPollTimeoutMs(final long uiPollTimeoutMs) {
         this.uiPollTimeoutMs = uiPollTimeoutMs;
     }
 
+    /**
+     * getCommitRetryMax 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int getCommitRetryMax() {
         return commitRetryMax;
     }
+
+    /**
+     * setCommitRetryMax 기능을 수행합니다.
+     *
+     * @param commitRetryMax 입력 값
+     */
 
     public void setCommitRetryMax(final int commitRetryMax) {
         this.commitRetryMax = commitRetryMax;
     }
 
+    /**
+     * getCommitRetryBackoffMs 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getCommitRetryBackoffMs() {
         return commitRetryBackoffMs;
     }
+
+    /**
+     * setCommitRetryBackoffMs 기능을 수행합니다.
+     *
+     * @param commitRetryBackoffMs 입력 값
+     */
 
     public void setCommitRetryBackoffMs(final long commitRetryBackoffMs) {
         this.commitRetryBackoffMs = commitRetryBackoffMs;
     }
 
+    /**
+     * getLagSampleIntervalMs 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getLagSampleIntervalMs() {
         return lagSampleIntervalMs;
     }
+
+    /**
+     * setLagSampleIntervalMs 기능을 수행합니다.
+     *
+     * @param lagSampleIntervalMs 입력 값
+     */
 
     public void setLagSampleIntervalMs(final long lagSampleIntervalMs) {
         this.lagSampleIntervalMs = lagSampleIntervalMs;
     }
 
+    /**
+     * getConsumerShutdownWaitMs 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getConsumerShutdownWaitMs() {
         return consumerShutdownWaitMs;
     }
+
+    /**
+     * setConsumerShutdownWaitMs 기능을 수행합니다.
+     *
+     * @param consumerShutdownWaitMs 입력 값
+     */
 
     public void setConsumerShutdownWaitMs(final long consumerShutdownWaitMs) {
         this.consumerShutdownWaitMs = consumerShutdownWaitMs;
     }
 
+    /**
+     * getAdminTimeoutSeconds 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public long getAdminTimeoutSeconds() {
         return adminTimeoutSeconds;
     }
+
+    /**
+     * setAdminTimeoutSeconds 기능을 수행합니다.
+     *
+     * @param adminTimeoutSeconds 입력 값
+     */
 
     public void setAdminTimeoutSeconds(final long adminTimeoutSeconds) {
         this.adminTimeoutSeconds = adminTimeoutSeconds;
     }
 
+    /**
+     * isAsyncRecordProcessingEnabled 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public boolean isAsyncRecordProcessingEnabled() {
         return asyncRecordProcessingEnabled;
     }
+
+    /**
+     * setAsyncRecordProcessingEnabled 기능을 수행합니다.
+     *
+     * @param asyncRecordProcessingEnabled 입력 값
+     */
 
     public void setAsyncRecordProcessingEnabled(final boolean asyncRecordProcessingEnabled) {
         this.asyncRecordProcessingEnabled = asyncRecordProcessingEnabled;
     }
 
+    /**
+     * getRecordWorkerThreads 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int getRecordWorkerThreads() {
         return recordWorkerThreads;
     }
+
+    /**
+     * setRecordWorkerThreads 기능을 수행합니다.
+     *
+     * @param recordWorkerThreads 입력 값
+     */
 
     public void setRecordWorkerThreads(final int recordWorkerThreads) {
         this.recordWorkerThreads = recordWorkerThreads;
     }
 
+    /**
+     * getAckDrainMaxBatch 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int getAckDrainMaxBatch() {
         return ackDrainMaxBatch;
     }
+
+    /**
+     * setAckDrainMaxBatch 기능을 수행합니다.
+     *
+     * @param ackDrainMaxBatch 입력 값
+     */
 
     public void setAckDrainMaxBatch(final int ackDrainMaxBatch) {
         this.ackDrainMaxBatch = ackDrainMaxBatch;
     }
 
+    /**
+     * getMaxInFlightRecords 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public int getMaxInFlightRecords() {
         return maxInFlightRecords;
     }
 
+    /**
+     * setMaxInFlightRecords 기능을 수행합니다.
+     *
+     * @param maxInFlightRecords 입력 값
+     */
+
     public void setMaxInFlightRecords(final int maxInFlightRecords) {
         this.maxInFlightRecords = maxInFlightRecords;
     }
+
+    /**
+     * requireNotNull 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
 
     private static void requireNotNull(final String key, final Object value) {
         if (value == null) {
@@ -238,17 +401,38 @@ public class GatewayKafkaShardProperties {
         }
     }
 
+    /**
+     * requireNotEmpty 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
+
     private static void requireNotEmpty(final String key, final List<?> value) {
         if (value == null || value.isEmpty()) {
             throw new IllegalStateException(key + " must not be empty");
         }
     }
 
+    /**
+     * requirePositive 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
+
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
         }
     }
+
+    /**
+     * requireNonNegative 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
 
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {

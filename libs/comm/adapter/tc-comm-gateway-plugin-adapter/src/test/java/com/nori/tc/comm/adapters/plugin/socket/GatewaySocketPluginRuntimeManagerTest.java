@@ -150,14 +150,34 @@ class GatewaySocketPluginRuntimeManagerTest {
         private final List<TcEqp> eqps;
         private int findAllCallCount = 0;
 
+        /**
+         * FakeEqpStore 생성자를 초기화합니다.
+         *
+         * @param eqps 입력 값
+         */
+
         private FakeEqpStore(final List<TcEqp> eqps) {
             this.eqps = new ArrayList<>(eqps);
         }
+
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public TcEqp upsert(final UpsertTcEqp command) {
             throw new UnsupportedOperationException("not used");
         }
+
+        /**
+         * findByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcEqp> findByEqpId(final String eqpId) {
@@ -166,6 +186,13 @@ class GatewaySocketPluginRuntimeManagerTest {
                     .findFirst();
         }
 
+        /**
+         * findAll 기능을 수행합니다.
+         *
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcEqp> findAll(final PageRequest page) {
             findAllCallCount++;
@@ -173,6 +200,12 @@ class GatewaySocketPluginRuntimeManagerTest {
             final int to = Math.min(from + page.limit(), eqps.size());
             return List.copyOf(eqps.subList(from, to));
         }
+
+        /**
+         * deleteByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         */
 
         @Override
         public void deleteByEqpId(final String eqpId) {
@@ -186,19 +219,45 @@ class GatewaySocketPluginRuntimeManagerTest {
     private static final class FakeJarGatewayStore implements TcJarGatewayStore {
         private final Map<Long, TcJarGateway> jarByEqpKey;
 
+        /**
+         * FakeJarGatewayStore 생성자를 초기화합니다.
+         *
+         * @param jarByEqpKey 입력 값
+         */
+
         private FakeJarGatewayStore(final Map<Long, TcJarGateway> jarByEqpKey) {
             this.jarByEqpKey = new LinkedHashMap<>(jarByEqpKey);
         }
+
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public TcJarGateway upsert(final UpsertTcJarGateway command) {
             throw new UnsupportedOperationException("not used");
         }
 
+        /**
+         * findByEqpKey 기능을 수행합니다.
+         *
+         * @param eqpKey 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public Optional<TcJarGateway> findByEqpKey(final long eqpKey) {
             return Optional.ofNullable(jarByEqpKey.get(eqpKey));
         }
+
+        /**
+         * deleteByEqpKey 기능을 수행합니다.
+         *
+         * @param eqpKey 입력 값
+         */
 
         @Override
         public void deleteByEqpKey(final long eqpKey) {

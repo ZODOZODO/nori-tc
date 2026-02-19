@@ -1,7 +1,7 @@
 package com.nori.tc.comm.adapters.kafka.ui;
 
 import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDeduplicationStore;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDeduplicationStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -14,9 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * UI Task traceId 중복 처리를 담당하는 in-memory 저장소입니다.
  *
- * <p>핵심 동작:</p>
- * <p>1) traceId와 만료 시각(expiry epoch ms)을 함께 저장합니다.</p>
- * <p>2) 조회/등록 시 만료된 항목을 정리(cleanup)합니다.</p>
+ * <p>동작 방식:</p>
+ * <p>1) traceId마다 만료 시각(expiry epoch ms)을 저장합니다.</p>
+ * <p>2) 조회/등록 시 만료된 엔트리를 정리(cleanup)합니다.</p>
  * <p>3) 최대 크기 초과 시 가장 먼저 만료될 항목을 우선 축출합니다.</p>
  */
 @Component
@@ -152,3 +152,4 @@ public class UiTraceIdDeduplicationStore implements KafkaTaskDeduplicationStore 
         }
     }
 }
+

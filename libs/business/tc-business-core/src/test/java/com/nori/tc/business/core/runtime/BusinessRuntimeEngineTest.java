@@ -160,6 +160,11 @@ class BusinessRuntimeEngineTest {
                 dispositionMetrics.count(BusinessRuntimeDisposition.REJECTED),
                 "시작 전 submit은 REJECTED disposition 1건으로 집계되어야 합니다."
         );
+        Assertions.assertEquals(
+                1L,
+                dispositionMetrics.count("UI_EVENT", BusinessRuntimeDisposition.REJECTED),
+                "시작 전 UI submit은 UI_EVENT:REJECTED 1건으로 집계되어야 합니다."
+        );
     }
 
     /**
@@ -225,6 +230,11 @@ class BusinessRuntimeEngineTest {
                     1L,
                     dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED),
                     "정상 처리된 task는 ACCEPTED disposition 1건으로 집계되어야 합니다."
+            );
+            Assertions.assertEquals(
+                    1L,
+                    dispositionMetrics.count("EQP_EVENT", BusinessRuntimeDisposition.ACCEPTED),
+                    "EQP 이벤트 정상 처리는 EQP_EVENT:ACCEPTED 1건으로 집계되어야 합니다."
             );
         } finally {
             runtimeEngine.stop();

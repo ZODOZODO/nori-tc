@@ -101,6 +101,13 @@ public class BusinessModelRuntimeAssembler {
         );
     }
 
+    /**
+     * loadAllByPage 기능을 수행합니다.
+     *
+     * @param pageLoader 입력 값
+     * @return 처리 결과
+     */
+
     private <T> List<T> loadAllByPage(final Function<PageRequest, List<T>> pageLoader) {
         final int limit = cacheProperties.getPageSize();
         final List<T> results = new ArrayList<>();

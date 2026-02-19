@@ -42,15 +42,39 @@ public interface EquipmentStatePersistencePort {
             // no-op
         }
 
+        /**
+         * recordStart 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @param traceId 입력 값
+         * @param detailMessage 입력 값
+         */
+
         @Override
         public void recordStart(final String eqpId, final String traceId, final String detailMessage) {
             // no-op
         }
 
+        /**
+         * recordEnd 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @param traceId 입력 값
+         * @param detailMessage 입력 값
+         */
+
         @Override
         public void recordEnd(final String eqpId, final String traceId, final String detailMessage) {
             // no-op
         }
+
+        /**
+         * recordDelete 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @param traceId 입력 값
+         * @param detailMessage 입력 값
+         */
 
         @Override
         public void recordDelete(final String eqpId, final String traceId, final String detailMessage) {

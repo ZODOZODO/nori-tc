@@ -96,6 +96,12 @@ public final class PartitionCommitTracker {
         return completedOffsets.size();
     }
 
+    /**
+     * 현재 `nextCommitOffset`부터 연속 완료 구간을 가능한 만큼 전진합니다.
+     *
+     * <p>예: `nextCommitOffset=10`, 완료 집합이 {10,11,13}이면
+     * 실행 후 `nextCommitOffset=12`가 됩니다.</p>
+     */
     private void advanceContiguousRange() {
         while (completedOffsets.remove(nextCommitOffset)) {
             nextCommitOffset++;

@@ -33,6 +33,11 @@ import java.util.Optional;
  */
 final class ModelCacheTestFixtures {
 
+    /**
+     * ModelCacheTestFixtures 생성자를 초기화합니다.
+     *
+     */
+
     private ModelCacheTestFixtures() {
         throw new IllegalStateException("ModelCacheTestFixtures cannot be instantiated");
     }
@@ -63,6 +68,14 @@ final class ModelCacheTestFixtures {
         return page(source, pageRequest);
     }
 
+    /**
+     * page 기능을 수행합니다.
+     *
+     * @param source 입력 값
+     * @param pageRequest 입력 값
+     * @return 처리 결과
+     */
+
     private static <T> List<T> page(final List<T> source, final PageRequest pageRequest) {
         final int from = Math.min(pageRequest.offset(), source.size());
         final int to = Math.min(from + pageRequest.limit(), source.size());
@@ -80,10 +93,24 @@ final class ModelCacheTestFixtures {
             this.eqps.sort(Comparator.comparing(e -> e.eqpId() == null ? "" : e.eqpId()));
         }
 
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public TcEqp upsert(final UpsertTcEqp command) {
             throw new UnsupportedOperationException("not used");
         }
+
+        /**
+         * findByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcEqp> findByEqpId(final String eqpId) {
@@ -92,10 +119,23 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findAll 기능을 수행합니다.
+         *
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcEqp> findAll(final PageRequest page) {
             return pageEqp(eqps, page);
         }
+
+        /**
+         * deleteByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         */
 
         @Override
         public void deleteByEqpId(final String eqpId) {
@@ -117,15 +157,37 @@ final class ModelCacheTestFixtures {
             this.byModelKey = Map.copyOf(mapped);
         }
 
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public TcModel upsert(final UpsertTcModel command) {
             throw new UnsupportedOperationException("not used");
         }
 
+        /**
+         * findByModelKey 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public Optional<TcModel> findByModelKey(final long modelKey) {
             return Optional.ofNullable(byModelKey.get(modelKey));
         }
+
+        /**
+         * findByNameVersion 기능을 수행합니다.
+         *
+         * @param modelName 입력 값
+         * @param modelVersion 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcModel> findByNameVersion(final String modelName, final String modelVersion) {
@@ -134,12 +196,25 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findAll 기능을 수행합니다.
+         *
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcModel> findAll(final PageRequest page) {
             final List<TcModel> values = new ArrayList<>(byModelKey.values());
             values.sort(Comparator.comparingLong(TcModel::modelKey));
             return page(values, page);
         }
+
+        /**
+         * deleteByModelKey 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         */
 
         @Override
         public void deleteByModelKey(final long modelKey) {
@@ -161,10 +236,24 @@ final class ModelCacheTestFixtures {
             this.byModelKey = Map.copyOf(copied);
         }
 
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public TcModelWorkflow upsert(final UpsertTcModelWorkflow command) {
             throw new UnsupportedOperationException("not used");
         }
+
+        /**
+         * findByWorkflowKey 기능을 수행합니다.
+         *
+         * @param workflowKey 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcModelWorkflow> findByWorkflowKey(final long workflowKey) {
@@ -186,10 +275,24 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findAllByModelKey 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcModelWorkflow> findAllByModelKey(final long modelKey, final PageRequest page) {
             return pageWorkflow(byModelKey.getOrDefault(modelKey, List.of()), page);
         }
+
+        /**
+         * deleteByWorkflowKey 기능을 수행합니다.
+         *
+         * @param workflowKey 입력 값
+         */
 
         @Override
         public void deleteByWorkflowKey(final long workflowKey) {
@@ -211,10 +314,24 @@ final class ModelCacheTestFixtures {
             this.byModelKey = Map.copyOf(copied);
         }
 
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public TcModelSecsMessage upsert(final UpsertTcModelSecsMessage command) {
             throw new UnsupportedOperationException("not used");
         }
+
+        /**
+         * findBySecsMsgKey 기능을 수행합니다.
+         *
+         * @param secsMsgKey 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcModelSecsMessage> findBySecsMsgKey(final long secsMsgKey) {
@@ -224,6 +341,14 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findByModelKeyAndName 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @param secsMsgName 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public Optional<TcModelSecsMessage> findByModelKeyAndName(final long modelKey, final String secsMsgName) {
             return byModelKey.getOrDefault(modelKey, List.of()).stream()
@@ -231,10 +356,24 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findAllByModelKey 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcModelSecsMessage> findAllByModelKey(final long modelKey, final PageRequest page) {
             return pageSecs(byModelKey.getOrDefault(modelKey, List.of()), page);
         }
+
+        /**
+         * deleteBySecsMsgKey 기능을 수행합니다.
+         *
+         * @param secsMsgKey 입력 값
+         */
 
         @Override
         public void deleteBySecsMsgKey(final long secsMsgKey) {
@@ -256,6 +395,13 @@ final class ModelCacheTestFixtures {
             this.byModelKey = Map.copyOf(copied);
         }
 
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public TcModelSocketMessage upsert(final UpsertTcModelSocketMessage command) {
             throw new UnsupportedOperationException("not used");
@@ -271,10 +417,25 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findAllByModelKey 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcModelSocketMessage> findAllByModelKey(final long modelKey, final PageRequest page) {
             return pageSocket(byModelKey.getOrDefault(modelKey, List.of()), page);
         }
+
+        /**
+         * deleteByModelKeySocketMsgName 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @param socketMsgName 입력 값
+         */
 
         @Override
         public void deleteByModelKeySocketMsgName(final long modelKey, final String socketMsgName) {
@@ -296,10 +457,24 @@ final class ModelCacheTestFixtures {
             this.byModelKey = Map.copyOf(copied);
         }
 
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public TcModelVariableId upsert(final UpsertTcModelVariableId command) {
             throw new UnsupportedOperationException("not used");
         }
+
+        /**
+         * findByVariableKey 기능을 수행합니다.
+         *
+         * @param variableKey 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcModelVariableId> findByVariableKey(final long variableKey) {
@@ -321,10 +496,24 @@ final class ModelCacheTestFixtures {
                     .findFirst();
         }
 
+        /**
+         * findAllByModelKey 기능을 수행합니다.
+         *
+         * @param modelKey 입력 값
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcModelVariableId> findAllByModelKey(final long modelKey, final PageRequest page) {
             return pageVariable(byModelKey.getOrDefault(modelKey, List.of()), page);
         }
+
+        /**
+         * deleteByVariableKey 기능을 수행합니다.
+         *
+         * @param variableKey 입력 값
+         */
 
         @Override
         public void deleteByVariableKey(final long variableKey) {

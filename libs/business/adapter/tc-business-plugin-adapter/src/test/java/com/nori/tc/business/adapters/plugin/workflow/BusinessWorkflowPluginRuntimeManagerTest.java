@@ -195,6 +195,12 @@ class BusinessWorkflowPluginRuntimeManagerTest {
      */
     private static BusinessWorkflowActionRegistry createTestActionRegistry() {
         final SocketActionExecutor executor = new SocketActionExecutor() {
+            /**
+             * execute 기능을 수행합니다.
+             *
+             * @param context 입력 값
+             */
+
             @TcAction("TEST_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
                 // no-op
@@ -260,14 +266,34 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         private final List<TcEqp> eqps;
         private int findAllCallCount = 0;
 
+        /**
+         * FakeEqpStore 생성자를 초기화합니다.
+         *
+         * @param eqps 입력 값
+         */
+
         private FakeEqpStore(final List<TcEqp> eqps) {
             this.eqps = new ArrayList<>(eqps);
         }
+
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public TcEqp upsert(final UpsertTcEqp command) {
             throw new UnsupportedOperationException("not used");
         }
+
+        /**
+         * findByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public Optional<TcEqp> findByEqpId(final String eqpId) {
@@ -276,6 +302,13 @@ class BusinessWorkflowPluginRuntimeManagerTest {
                     .findFirst();
         }
 
+        /**
+         * findAll 기능을 수행합니다.
+         *
+         * @param page 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public List<TcEqp> findAll(final PageRequest page) {
             findAllCallCount++;
@@ -283,6 +316,12 @@ class BusinessWorkflowPluginRuntimeManagerTest {
             final int to = Math.min(from + page.limit(), eqps.size());
             return List.copyOf(eqps.subList(from, to));
         }
+
+        /**
+         * deleteByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         */
 
         @Override
         public void deleteByEqpId(final String eqpId) {
@@ -296,19 +335,45 @@ class BusinessWorkflowPluginRuntimeManagerTest {
     private static final class FakeJarBusinessStore implements TcJarBusinessStore {
         private final Map<Long, TcJarBusiness> jarByEqpKey;
 
+        /**
+         * FakeJarBusinessStore 생성자를 초기화합니다.
+         *
+         * @param jarByEqpKey 입력 값
+         */
+
         private FakeJarBusinessStore(final Map<Long, TcJarBusiness> jarByEqpKey) {
             this.jarByEqpKey = new LinkedHashMap<>(jarByEqpKey);
         }
+
+        /**
+         * upsert 기능을 수행합니다.
+         *
+         * @param command 입력 값
+         * @return 처리 결과
+         */
 
         @Override
         public TcJarBusiness upsert(final UpsertTcJarBusiness command) {
             throw new UnsupportedOperationException("not used");
         }
 
+        /**
+         * findByEqpKey 기능을 수행합니다.
+         *
+         * @param eqpKey 입력 값
+         * @return 처리 결과
+         */
+
         @Override
         public Optional<TcJarBusiness> findByEqpKey(final long eqpKey) {
             return Optional.ofNullable(jarByEqpKey.get(eqpKey));
         }
+
+        /**
+         * deleteByEqpKey 기능을 수행합니다.
+         *
+         * @param eqpKey 입력 값
+         */
 
         @Override
         public void deleteByEqpKey(final long eqpKey) {

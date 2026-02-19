@@ -102,6 +102,12 @@ public final class PublishPolicyEngine implements PublishPolicy {
         private final java.util.Map<String, String> headers;
 
         
+        /**
+         * CompiledRule 생성자를 초기화합니다.
+         *
+         * @param rule 입력 값
+         */
+
         private CompiledRule(final PublishPolicyRule rule) {
             Objects.requireNonNull(rule, "rule is null");
             this.matchType = Objects.requireNonNull(rule.matchType(), "matchType is null");

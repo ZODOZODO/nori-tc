@@ -25,6 +25,31 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
 
     private static final Logger log = LoggerFactory.getLogger(BusinessWorkflowDispatchingActionExecutor.class);
 
+    /**
+     * 액션 해석 결과가 plugin/core 모두 미존재인 경우의 표준 이벤트명입니다.
+     */
+    private static final String ACTION_RESOLUTION_EVENT_MISS = "ACTION_RESOLUTION_MISS";
+
+    /**
+     * plugin/core가 모두 존재하고 plugin이 선택된 override 케이스의 표준 이벤트명입니다.
+     */
+    private static final String ACTION_RESOLUTION_EVENT_PLUGIN_OVERRIDE = "ACTION_RESOLUTION_PLUGIN_OVERRIDE";
+
+    /**
+     * plugin에 액션이 없어 core로 fallback된 케이스의 표준 이벤트명입니다.
+     */
+    private static final String ACTION_RESOLUTION_EVENT_CORE_FALLBACK = "ACTION_RESOLUTION_CORE_FALLBACK";
+
+    /**
+     * 실행 가능한 액션이 선택되었지만 override/fallback 특이 케이스가 아닐 때의 debug 이벤트명입니다.
+     */
+    private static final String ACTION_RESOLUTION_EVENT_SELECTED = "ACTION_RESOLUTION_SELECTED";
+
+    /**
+     * 선택된 액션 실행 중 예외가 발생했을 때 기록하는 경고 이벤트명입니다.
+     */
+    private static final String ACTION_EXECUTION_EVENT_FAILED = "ACTION_EXECUTION_FAILED";
+
     private final BusinessWorkflowCoreActionRegistry coreActionRegistry;
     private final BusinessWorkflowPluginRuntimeProvider pluginRuntimeProvider;
     private final ActionResolutionPolicy actionResolutionPolicy;
@@ -104,7 +129,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
             );
 
             if (!trace.isResolved()) {
-                log.info("ACTION_RESOLUTION_MISS. {}", trace.summary());
+                log.info("{}. {}", ACTION_RESOLUTION_EVENT_MISS, trace.summary());
                 throw new BusinessWorkflowActionExecutionException(
                         "Action handler not found. eqpId=" + record.eqpId()
                                 + ", key=" + actionKey
@@ -121,7 +146,21 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
                     actionMessageType
             );
 
-            trace.selectedInvoker().invoke(actionContext);
+            try {
+                trace.selectedInvoker().invoke(actionContext);
+            } catch (RuntimeException ex) {
+                log.warn(
+                        "{}. eqpId={}, workflowKey={}, actionKey={}, resolution={}, reason={}",
+                        ACTION_EXECUTION_EVENT_FAILED,
+                        record.eqpId(),
+                        workflowEntry.workflowKey(),
+                        actionKey,
+                        trace.summary(),
+                        ex.getMessage(),
+                        ex
+                );
+                throw ex;
+            }
 
             if (trace.resolutionSource() == ActionResolutionTrace.ResolutionSource.PLUGIN) {
                 pluginExecutedCount++;
@@ -129,33 +168,33 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
                 // plugin/core 동시 존재 시 plugin을 선택한 override 케이스는 info로 명시합니다.
                 if (trace.isPluginOverride()) {
                     pluginOverrideCount++;
-                    log.info("ACTION_RESOLUTION_PLUGIN_OVERRIDE. {}", trace.summary());
-                }
-
-                if (log.isDebugEnabled()) {
-                    log.debug("Workflow action executed by plugin. eqpId={}, key={}, method={}, workflowKey={}",
+                    log.info("{}. {}", ACTION_RESOLUTION_EVENT_PLUGIN_OVERRIDE, trace.summary());
+                } else if (log.isDebugEnabled()) {
+                    log.debug(
+                            "{}. source=PLUGIN, eqpId={}, workflowKey={}, actionKey={}, method={}",
+                            ACTION_RESOLUTION_EVENT_SELECTED,
                             record.eqpId(),
+                            workflowEntry.workflowKey(),
                             actionKey,
-                            trace.selectedInvoker().describeMethod(),
-                            workflowEntry.workflowKey());
+                            trace.selectedInvoker().describeMethod()
+                    );
                 }
             } else {
                 coreExecutedCount++;
 
-                // plugin 미존재로 core fallback이 발생한 경우 debug trace를 남깁니다.
+                // plugin 미존재로 core fallback이 발생한 경우 info로 표준 이벤트를 남깁니다.
                 if (trace.isCoreFallback()) {
                     coreFallbackCount++;
-                    if (log.isDebugEnabled()) {
-                        log.debug("ACTION_RESOLUTION_CORE_FALLBACK. {}", trace.summary());
-                    }
-                }
-
-                if (log.isDebugEnabled()) {
-                    log.debug("Workflow action executed by core. eqpId={}, key={}, method={}, workflowKey={}",
+                    log.info("{}. {}", ACTION_RESOLUTION_EVENT_CORE_FALLBACK, trace.summary());
+                } else if (log.isDebugEnabled()) {
+                    log.debug(
+                            "{}. source=CORE, eqpId={}, workflowKey={}, actionKey={}, method={}",
+                            ACTION_RESOLUTION_EVENT_SELECTED,
                             record.eqpId(),
+                            workflowEntry.workflowKey(),
                             actionKey,
-                            trace.selectedInvoker().describeMethod(),
-                            workflowEntry.workflowKey());
+                            trace.selectedInvoker().describeMethod()
+                    );
                 }
             }
         }

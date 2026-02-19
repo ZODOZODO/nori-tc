@@ -14,6 +14,12 @@ public final class GatewayLogContext implements AutoCloseable {
     private final TcLogContext delegate;
 
     
+    /**
+     * GatewayLogContext 생성자를 초기화합니다.
+     *
+     * @param delegate 입력 값
+     */
+
     private GatewayLogContext(final TcLogContext delegate) {
         this.delegate = delegate;
     }

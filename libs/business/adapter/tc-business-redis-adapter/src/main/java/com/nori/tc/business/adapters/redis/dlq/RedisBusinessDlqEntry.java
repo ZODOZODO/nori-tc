@@ -75,65 +75,161 @@ public class RedisBusinessDlqEntry implements Serializable {
         this.ttlSeconds = ttlSeconds;
     }
 
+    /**
+     * getDlqId 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getDlqId() {
         return dlqId;
     }
+
+    /**
+     * getSource 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public String getSource() {
         return source;
     }
 
+    /**
+     * getStage 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getStage() {
         return stage;
     }
+
+    /**
+     * getReasonCode 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public String getReasonCode() {
         return reasonCode;
     }
 
+    /**
+     * getReasonMessage 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getReasonMessage() {
         return reasonMessage;
     }
+
+    /**
+     * getOccurredAt 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public long getOccurredAt() {
         return occurredAt;
     }
 
+    /**
+     * getTopic 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getTopic() {
         return topic;
     }
+
+    /**
+     * getPartition 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Integer getPartition() {
         return partition;
     }
 
+    /**
+     * getOffset 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Long getOffset() {
         return offset;
     }
+
+    /**
+     * getEqpId 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public String getEqpId() {
         return eqpId;
     }
 
+    /**
+     * getMessageType 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getMessageType() {
         return messageType;
     }
+
+    /**
+     * getMessageName 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public String getMessageName() {
         return messageName;
     }
 
+    /**
+     * getTraceId 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public String getTraceId() {
         return traceId;
     }
+
+    /**
+     * getPayloadRef 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public String getPayloadRef() {
         return payloadRef;
     }
 
+    /**
+     * getTags 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Map<String, String> getTags() {
         return tags;
     }
+
+    /**
+     * getTtlSeconds 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Long getTtlSeconds() {
         return ttlSeconds;

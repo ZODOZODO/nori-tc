@@ -41,6 +41,13 @@ public record BusinessMesCommandKafkaMessage(
         data = data == null ? Map.of() : Map.copyOf(data);
     }
 
+    /**
+     * requireText 기능을 수행합니다.
+     *
+     * @param field 입력 값
+     * @param value 입력 값
+     */
+
     private static void requireText(final String field, final String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(field + " is required");

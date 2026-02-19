@@ -3,9 +3,9 @@ package com.nori.tc.business.adapters.kafka.ui;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.ui.BusinessUiTaskExecutor;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
-import com.nori.tc.common.kafka.task.pipeline.DefaultKafkaTaskPipeline;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDispatchReport;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyStatus;
+import com.nori.tc.common.task.execution.pipeline.runtime.KafkaTaskExecutionPipeline;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskDispatchReport;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyStatus;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,8 +16,10 @@ import java.util.Objects;
 /**
  * {@link BusinessUiTaskExecutor} 구현체입니다.
  *
- * <p>런타임 record payload(JSON)를 {@link KafkaUiTaskMessage}로 역직렬화한 뒤
- * 공통 UI task 파이프라인으로 위임합니다.</p>
+ * <p>역할:</p>
+ * <p>1) Business inbound record payload(JSON)를 {@link KafkaUiTaskMessage}로 역직렬화</p>
+ * <p>2) 공통 UI Task 파이프라인으로 처리 위임</p>
+ * <p>3) 처리 결과를 표준 리포트로 반환</p>
  */
 @Component
 public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
@@ -25,19 +27,29 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
     private static final Logger log = LoggerFactory.getLogger(BusinessUiTaskExecutorImpl.class);
 
     private final ObjectMapper objectMapper;
-    private final DefaultKafkaTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline;
+    private final KafkaTaskExecutionPipeline<KafkaUiTaskMessage> uiTaskPipeline;
 
     /**
-     * UI task 실행기 의존성을 주입받습니다.
+     * UI Task 실행에 필요한 의존성을 초기화합니다.
+     *
+     * @param objectMapper JSON 직렬화/역직렬화 도구
+     * @param uiTaskPipeline 공통 UI Task 실행 파이프라인
      */
     public BusinessUiTaskExecutorImpl(
             final ObjectMapper objectMapper,
-            final DefaultKafkaTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline
+            final KafkaTaskExecutionPipeline<KafkaUiTaskMessage> uiTaskPipeline
     ) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");
         this.uiTaskPipeline = Objects.requireNonNull(uiTaskPipeline, "uiTaskPipeline is null");
     }
 
+    /**
+     * 단일 UI inbound record를 파이프라인으로 전달해 처리합니다.
+     *
+     * @param record Business 런타임에서 전달한 inbound record
+     * @return 파이프라인 처리 결과 리포트
+     * @throws Exception 역직렬화/파이프라인 처리 실패
+     */
     @Override
     public KafkaTaskDispatchReport execute(final BusinessInboundRecord record) throws Exception {
         Objects.requireNonNull(record, "record is null");
@@ -88,6 +100,12 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
         return report;
     }
 
+    /**
+     * 문자열을 null-safe하게 정규화합니다.
+     *
+     * @param value 원본 문자열
+     * @return trim 결과(빈 문자열이면 null)
+     */
     private static String normalize(final String value) {
         if (value == null) {
             return null;
@@ -99,6 +117,7 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
         return normalized;
     }
 }
+
 
 
 

@@ -87,29 +87,71 @@ public final class EquipmentContext {
         this.updatedAt = OffsetDateTime.now();
     }
 
+    /**
+     * eqpId 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public synchronized String eqpId() {
         return eqpId;
     }
+
+    /**
+     * profile 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public synchronized EquipmentContextProfile profile() {
         return profile;
     }
 
+    /**
+     * desiredState 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public synchronized EquipmentDesiredState desiredState() {
         return desiredState;
     }
+
+    /**
+     * runtimeState 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public synchronized EquipmentRuntimeState runtimeState() {
         return runtimeState;
     }
 
+    /**
+     * lastEventType 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public synchronized String lastEventType() {
         return lastEventType;
     }
 
+    /**
+     * lastTraceId 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public synchronized String lastTraceId() {
         return lastTraceId;
     }
+
+    /**
+     * updatedAt 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public synchronized OffsetDateTime updatedAt() {
         return updatedAt;

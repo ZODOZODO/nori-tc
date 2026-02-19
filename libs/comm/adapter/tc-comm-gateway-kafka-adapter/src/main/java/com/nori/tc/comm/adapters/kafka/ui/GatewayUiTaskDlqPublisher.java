@@ -6,9 +6,9 @@ import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskPipelineReasonCode;
-import com.nori.tc.common.kafka.task.pipeline.KafkaTaskPipelineStage;
+import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDlqReporter;
+import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineReasonKeys;
+import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineStage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,12 +19,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * UI Task 파이프라인 실패를 Gateway DLQ 메시지로 변환하여 저장하는 리포터입니다.
+ * UI Task 처리 실패를 Gateway DLQ 메시지로 변환/발행하는 어댑터입니다.
  *
- * <p>주요 책임:</p>
- * <p>1) 파이프라인 stage/reasonCode를 DLQ 표준 코드로 정규화합니다.</p>
- * <p>2) traceId/eqpId/interfaceType을 보정하여 DLQ 메시지를 구성합니다.</p>
- * <p>3) DLQ 발행 성공/실패를 로그로 남깁니다.</p>
+ * <p>역할:</p>
+ * <p>1) 파이프라인 stage/reasonCode를 Gateway DLQ 규격으로 매핑</p>
+ * <p>2) traceId/eqpId/interfaceType 등 기본 필드 보정</p>
+ * <p>3) 발행 성공/실패 로그 기록</p>
  */
 @Component
 public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTaskMessage> {
@@ -36,7 +36,7 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     private final DlqPublisherPort dlqPublisherPort;
 
     /**
-     * DLQ 리포터 의존성을 초기화합니다.
+     * DLQ 발행에 필요한 의존성을 초기화합니다.
      *
      * @param clockPort 현재 시간 제공 포트
      * @param traceIdGeneratorPort traceId 생성 포트
@@ -53,13 +53,13 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * 공통 파이프라인에서 전달한 실패 정보를 DLQ로 기록합니다.
+     * 파이프라인 실패 정보를 받아 DLQ 발행을 수행합니다.
      *
      * @param request 원본 UI Task 메시지
      * @param stage 실패 단계(ROUTING/PROCESS/PUBLISH)
      * @param reasonCode 실패 코드
-     * @param reasonMessage 실패 상세 메시지
-     * @param replyEventType 대응 Reply 이벤트 타입
+     * @param reasonMessage 실패 메시지
+     * @param replyEventType 응답 이벤트 타입
      */
     @Override
     public void report(
@@ -79,13 +79,13 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ 메시지를 구성해 발행합니다.
+     * DLQ 메시지를 구성하고 발행합니다.
      *
      * @param message 원본 UI Task 메시지
      * @param stage DLQ stage 문자열
      * @param reasonCode DLQ reason code
      * @param reasonMessage 실패 상세 메시지
-     * @param replyEventType 대응 Reply 이벤트 타입
+     * @param replyEventType 응답 이벤트 타입
      */
     private void publish(
             final KafkaUiTaskMessage message,
@@ -148,10 +148,10 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ 저장용 eqpId를 보정합니다.
+     * DLQ 기록용 eqpId를 보정합니다.
      *
      * @param message 원본 메시지
-     * @return 비어있지 않은 eqpId
+     * @return 보정된 eqpId
      */
     private String normalizeEqpId(final KafkaUiTaskMessage message) {
         final String eqpId = message.data() == null ? null : message.data().eqpId();
@@ -162,10 +162,10 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * DLQ 저장용 traceId를 보정합니다.
+     * DLQ 기록용 traceId를 보정합니다.
      *
      * @param message 원본 메시지
-     * @return 비어있지 않은 traceId
+     * @return 보정된 traceId
      */
     private String normalizeTraceId(final KafkaUiTaskMessage message) {
         final String traceId = message.metadata() == null ? null : message.metadata().traceId();
@@ -176,10 +176,10 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * interfaceType 문자열을 안전하게 enum으로 변환합니다.
+     * interfaceType 문자열을 enum으로 보정합니다.
      *
      * @param message 원본 메시지
-     * @return 변환된 interfaceType, 실패 시 SOCKET
+     * @return 보정된 interfaceType(실패 시 SOCKET)
      */
     private CommInterfaceType resolveInterfaceType(final KafkaUiTaskMessage message) {
         try {
@@ -192,10 +192,10 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * eventType 문자열을 DLQ 태그에 저장 가능한 형태로 보정합니다.
+     * eventType 문자열을 DLQ 태그용으로 보정합니다.
      *
      * @param message 원본 메시지
-     * @return 비어있지 않은 eventType
+     * @return 보정된 eventType
      */
     private String safeEventType(final KafkaUiTaskMessage message) {
         final String eventType = message.metadata() == null ? null : message.metadata().eventType();
@@ -225,12 +225,13 @@ public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTa
      * @return DLQ reasonCode
      */
     private static DlqReasonCode toDlqReasonCode(final String reasonCode) {
-        if (KafkaTaskPipelineReasonCode.PUBLISH_FAILED.equals(reasonCode)) {
+        if (KafkaTaskPipelineReasonKeys.PUBLISH_FAILED.equals(reasonCode)) {
             return DlqReasonCode.PUBLISH_FAILED;
         }
-        if (KafkaTaskPipelineReasonCode.PROCESS_FAILED.equals(reasonCode)) {
+        if (KafkaTaskPipelineReasonKeys.PROCESS_FAILED.equals(reasonCode)) {
             return DlqReasonCode.ROUTING_FAILED;
         }
         return DlqReasonCode.ROUTING_FAILED;
     }
 }
+

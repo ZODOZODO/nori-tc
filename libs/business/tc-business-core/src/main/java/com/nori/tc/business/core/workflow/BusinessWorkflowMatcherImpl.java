@@ -40,6 +40,14 @@ public class BusinessWorkflowMatcherImpl implements BusinessWorkflowMatcher {
         this.filterEvaluator = Objects.requireNonNull(filterEvaluator, "filterEvaluator is null");
     }
 
+    /**
+     * match 기능을 수행합니다.
+     *
+     * @param record 입력 값
+     * @param modelRuntime 입력 값
+     * @return 처리 결과
+     */
+
     @Override
     public BusinessWorkflowMatchResult match(final BusinessInboundRecord record, final TcModelRuntime modelRuntime) {
         Objects.requireNonNull(record, "record is null");

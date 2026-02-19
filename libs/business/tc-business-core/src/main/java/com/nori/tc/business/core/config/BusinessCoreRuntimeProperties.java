@@ -36,9 +36,21 @@ public class BusinessCoreRuntimeProperties {
                 runtime.workerThreads);
     }
 
+    /**
+     * getKafka 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+
     public Kafka getKafka() {
         return kafka;
     }
+
+    /**
+     * getRuntime 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
 
     public Runtime getRuntime() {
         return runtime;
@@ -99,6 +111,11 @@ public class BusinessCoreRuntimeProperties {
          */
         private Integer uiEventsConsumerThreads;
 
+        /**
+         * validate 기능을 수행합니다.
+         *
+         */
+
         private void validate() {
             requireText("tc.business.core.kafka.eqp-events-topic", eqpEventsTopic);
             requireText("tc.business.core.kafka.mes-events-topic", mesEventsTopic);
@@ -117,81 +134,201 @@ public class BusinessCoreRuntimeProperties {
             requireEqualsOne("tc.business.core.kafka.ui-events-consumer-threads", uiEventsConsumerThreads);
         }
 
+        /**
+         * getEqpEventsTopic 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getEqpEventsTopic() {
             return eqpEventsTopic;
         }
+
+        /**
+         * setEqpEventsTopic 기능을 수행합니다.
+         *
+         * @param eqpEventsTopic 입력 값
+         */
 
         public void setEqpEventsTopic(final String eqpEventsTopic) {
             this.eqpEventsTopic = eqpEventsTopic;
         }
 
+        /**
+         * getMesEventsTopic 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getMesEventsTopic() {
             return mesEventsTopic;
         }
+
+        /**
+         * setMesEventsTopic 기능을 수행합니다.
+         *
+         * @param mesEventsTopic 입력 값
+         */
 
         public void setMesEventsTopic(final String mesEventsTopic) {
             this.mesEventsTopic = mesEventsTopic;
         }
 
+        /**
+         * getUiEventsTopic 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getUiEventsTopic() {
             return uiEventsTopic;
         }
+
+        /**
+         * setUiEventsTopic 기능을 수행합니다.
+         *
+         * @param uiEventsTopic 입력 값
+         */
 
         public void setUiEventsTopic(final String uiEventsTopic) {
             this.uiEventsTopic = uiEventsTopic;
         }
 
+        /**
+         * getEqpCommandsTopic 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getEqpCommandsTopic() {
             return eqpCommandsTopic;
         }
+
+        /**
+         * setEqpCommandsTopic 기능을 수행합니다.
+         *
+         * @param eqpCommandsTopic 입력 값
+         */
 
         public void setEqpCommandsTopic(final String eqpCommandsTopic) {
             this.eqpCommandsTopic = eqpCommandsTopic;
         }
 
+        /**
+         * getMesCommandsTopic 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getMesCommandsTopic() {
             return mesCommandsTopic;
         }
+
+        /**
+         * setMesCommandsTopic 기능을 수행합니다.
+         *
+         * @param mesCommandsTopic 입력 값
+         */
 
         public void setMesCommandsTopic(final String mesCommandsTopic) {
             this.mesCommandsTopic = mesCommandsTopic;
         }
 
+        /**
+         * getUiCommandsTopic 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getUiCommandsTopic() {
             return uiCommandsTopic;
         }
+
+        /**
+         * setUiCommandsTopic 기능을 수행합니다.
+         *
+         * @param uiCommandsTopic 입력 값
+         */
 
         public void setUiCommandsTopic(final String uiCommandsTopic) {
             this.uiCommandsTopic = uiCommandsTopic;
         }
 
+        /**
+         * getSource 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public String getSource() {
             return source;
         }
+
+        /**
+         * setSource 기능을 수행합니다.
+         *
+         * @param source 입력 값
+         */
 
         public void setSource(final String source) {
             this.source = source;
         }
 
+        /**
+         * getEqpEventsConsumerThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getEqpEventsConsumerThreads() {
             return eqpEventsConsumerThreads;
         }
+
+        /**
+         * setEqpEventsConsumerThreads 기능을 수행합니다.
+         *
+         * @param eqpEventsConsumerThreads 입력 값
+         */
 
         public void setEqpEventsConsumerThreads(final int eqpEventsConsumerThreads) {
             this.eqpEventsConsumerThreads = eqpEventsConsumerThreads;
         }
 
+        /**
+         * getMesEventsConsumerThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getMesEventsConsumerThreads() {
             return mesEventsConsumerThreads;
         }
+
+        /**
+         * setMesEventsConsumerThreads 기능을 수행합니다.
+         *
+         * @param mesEventsConsumerThreads 입력 값
+         */
 
         public void setMesEventsConsumerThreads(final int mesEventsConsumerThreads) {
             this.mesEventsConsumerThreads = mesEventsConsumerThreads;
         }
 
+        /**
+         * getUiEventsConsumerThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getUiEventsConsumerThreads() {
             return uiEventsConsumerThreads;
         }
+
+        /**
+         * setUiEventsConsumerThreads 기능을 수행합니다.
+         *
+         * @param uiEventsConsumerThreads 입력 값
+         */
 
         public void setUiEventsConsumerThreads(final int uiEventsConsumerThreads) {
             this.uiEventsConsumerThreads = uiEventsConsumerThreads;
@@ -248,6 +385,11 @@ public class BusinessCoreRuntimeProperties {
          */
         private Long retryBackoffMs;
 
+        /**
+         * validate 기능을 수행합니다.
+         *
+         */
+
         private void validate() {
             requirePositive("tc.business.core.runtime.dispatcher-threads", dispatcherThreads);
             requirePositive("tc.business.core.runtime.worker-threads", workerThreads);
@@ -262,78 +404,193 @@ public class BusinessCoreRuntimeProperties {
             requireNonNegative("tc.business.core.runtime.retry-backoff-ms", retryBackoffMs);
         }
 
+        /**
+         * getDispatcherThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getDispatcherThreads() {
             return dispatcherThreads;
         }
+
+        /**
+         * setDispatcherThreads 기능을 수행합니다.
+         *
+         * @param dispatcherThreads 입력 값
+         */
 
         public void setDispatcherThreads(final int dispatcherThreads) {
             this.dispatcherThreads = dispatcherThreads;
         }
 
+        /**
+         * getWorkerThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getWorkerThreads() {
             return workerThreads;
         }
+
+        /**
+         * setWorkerThreads 기능을 수행합니다.
+         *
+         * @param workerThreads 입력 값
+         */
 
         public void setWorkerThreads(final int workerThreads) {
             this.workerThreads = workerThreads;
         }
 
+        /**
+         * getTimeoutSchedulerThreads 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getTimeoutSchedulerThreads() {
             return timeoutSchedulerThreads;
         }
+
+        /**
+         * setTimeoutSchedulerThreads 기능을 수행합니다.
+         *
+         * @param timeoutSchedulerThreads 입력 값
+         */
 
         public void setTimeoutSchedulerThreads(final int timeoutSchedulerThreads) {
             this.timeoutSchedulerThreads = timeoutSchedulerThreads;
         }
 
+        /**
+         * getTopicQueueCapacity 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getTopicQueueCapacity() {
             return topicQueueCapacity;
         }
+
+        /**
+         * setTopicQueueCapacity 기능을 수행합니다.
+         *
+         * @param topicQueueCapacity 입력 값
+         */
 
         public void setTopicQueueCapacity(final int topicQueueCapacity) {
             this.topicQueueCapacity = topicQueueCapacity;
         }
 
+        /**
+         * getMailboxCapacity 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getMailboxCapacity() {
             return mailboxCapacity;
         }
+
+        /**
+         * setMailboxCapacity 기능을 수행합니다.
+         *
+         * @param mailboxCapacity 입력 값
+         */
 
         public void setMailboxCapacity(final int mailboxCapacity) {
             this.mailboxCapacity = mailboxCapacity;
         }
 
+        /**
+         * getAckDrainMaxBatch 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getAckDrainMaxBatch() {
             return ackDrainMaxBatch;
         }
+
+        /**
+         * setAckDrainMaxBatch 기능을 수행합니다.
+         *
+         * @param ackDrainMaxBatch 입력 값
+         */
 
         public void setAckDrainMaxBatch(final int ackDrainMaxBatch) {
             this.ackDrainMaxBatch = ackDrainMaxBatch;
         }
 
+        /**
+         * getTaskTimeoutMs 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public long getTaskTimeoutMs() {
             return taskTimeoutMs;
         }
+
+        /**
+         * setTaskTimeoutMs 기능을 수행합니다.
+         *
+         * @param taskTimeoutMs 입력 값
+         */
 
         public void setTaskTimeoutMs(final long taskTimeoutMs) {
             this.taskTimeoutMs = taskTimeoutMs;
         }
 
+        /**
+         * getRetryMaxAttempts 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public int getRetryMaxAttempts() {
             return retryMaxAttempts;
         }
+
+        /**
+         * setRetryMaxAttempts 기능을 수행합니다.
+         *
+         * @param retryMaxAttempts 입력 값
+         */
 
         public void setRetryMaxAttempts(final int retryMaxAttempts) {
             this.retryMaxAttempts = retryMaxAttempts;
         }
 
+        /**
+         * getRetryBackoffMs 기능을 수행합니다.
+         *
+         * @return 처리 결과
+         */
+
         public long getRetryBackoffMs() {
             return retryBackoffMs;
         }
+
+        /**
+         * setRetryBackoffMs 기능을 수행합니다.
+         *
+         * @param retryBackoffMs 입력 값
+         */
 
         public void setRetryBackoffMs(final long retryBackoffMs) {
             this.retryBackoffMs = retryBackoffMs;
         }
     }
+
+    /**
+     * requireText 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
 
     private static void requireText(final String key, final String value) {
         if (value == null || value.isBlank()) {
@@ -341,17 +598,38 @@ public class BusinessCoreRuntimeProperties {
         }
     }
 
+    /**
+     * requirePositive 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
+
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
         }
     }
 
+    /**
+     * requireNonNegative 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
+
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");
         }
     }
+
+    /**
+     * requireEqualsOne 기능을 수행합니다.
+     *
+     * @param key 입력 값
+     * @param value 입력 값
+     */
 
     private static void requireEqualsOne(final String key, final Number value) {
         if (value == null || value.intValue() != 1) {

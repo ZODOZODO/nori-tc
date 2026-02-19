@@ -11,6 +11,7 @@
   - Mailbox 자료구조
   - ReadyQueue
   - Dispatcher/Scheduler
+  - `MailboxExecutionRuntime` (dispatcher/worker 실행 루프 공통화)
   - `inFlight=1` 동시성 제어
   - Queue overflow/backpressure 훅
   - 공통 메트릭 포인트
@@ -39,6 +40,7 @@
   - `tc.ui.events -> 처리 -> tc.ui.commands REP` 실행 템플릿
   - REP 발행 재시도/실패 처리 훅
 - 제외
+  - Mailbox 실행 루프(`MailboxExecutionRuntime`) 책임
   - 이벤트 타입별 도메인 처리기
   - 앱별 검증/응답 필드 규칙
   - 앱별 failureCategory 매핑 상세
