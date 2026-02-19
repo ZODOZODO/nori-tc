@@ -26,12 +26,14 @@ dependencies {
      * 공통 로깅 스타터
      */
     implementation(project(":libs:log:starter:tc-log-starter"))
+    api(libs.micrometer.core)
 
     /*
      * 공통 메일박스 스케줄러
      * - eqpId 단위 순차 실행(in-flight=1) 알고리즘을 gateway/business-core가 함께 재사용합니다.
      */
     implementation(project(":libs:common:tc-common-mailbox"))
+    implementation(project(":libs:common:tc-common-task-execution"))
 
     /*
      * Kafka 유틸리티

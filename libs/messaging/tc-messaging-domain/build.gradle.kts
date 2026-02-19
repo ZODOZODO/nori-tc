@@ -2,7 +2,7 @@
  * tc-messaging-domain
  *
  * 역할
- * - 메시징 공통 도메인 모델(기술 중립)을 정의
+ * - Kafka 공통 도메인 계약(토픽, Envelope, metadata, 검증 정책)을 정의합니다.
  */
 
 plugins {
@@ -19,7 +19,10 @@ java {
 }
 
 dependencies {
-    // 외부 의존성 없음
+    testImplementation(libs.slf4j.api)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {

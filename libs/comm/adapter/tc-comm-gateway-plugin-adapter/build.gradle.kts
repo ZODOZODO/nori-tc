@@ -14,29 +14,22 @@ java {
 
 dependencies {
     /*
-     * Gateway 코어 + SOCKET 플러그인 포트 계약 의존성입니다.
-     * - 런타임 매니저가 코어 포트/도메인 계약을 구현할 때 필요합니다.
+     * Gateway 肄붿뼱 + SOCKET ?뚮윭洹몄씤 ?ы듃 怨꾩빟 ?섏〈?깆엯?덈떎.
+     * - ?고???留ㅻ땲?媛 肄붿뼱 ?ы듃/?꾨찓??怨꾩빟??援ы쁽?????꾩슂?⑸땲??
      */
     api(project(":libs:comm:tc-comm-gateway-core"))
     api(project(":libs:comm:tc-comm-socket"))
 
     /*
-     * UI JARFILE 이벤트 확장 포인트를 구현하기 위한 의존성입니다.
-     * - GatewayUiJarfileTaskProcessor / GatewayUiTaskResult / ErrorCode 사용
-     */
-    implementation(project(":libs:comm:adapter:tc-comm-gateway-kafka-adapter"))
-    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
-
-    /*
-     * 플러그인 JAR 조회를 위한 DB 포트/도메인 의존성입니다.
-     * - tc_eqp 조회: TcEqpStore
-     * - tc_jar_gateway 조회: TcJarGatewayStore
+     * ?뚮윭洹몄씤 JAR 議고쉶瑜??꾪븳 DB ?ы듃/?꾨찓???섏〈?깆엯?덈떎.
+     * - tc_eqp 議고쉶: TcEqpStore
+     * - tc_jar_gateway 議고쉶: TcJarGatewayStore
      */
     implementation(project(":libs:db:tc-db-core"))
     implementation(project(":libs:db:tc-db-domain"))
 
     /*
-     * Spring 컴포넌트/설정 바인딩/라이프사이클 어노테이션 컴파일 의존성입니다.
+     * Spring 而댄룷?뚰듃/?ㅼ젙 諛붿씤???쇱씠?꾩궗?댄겢 ?대끂?뚯씠??而댄뙆???섏〈?깆엯?덈떎.
      */
     compileOnly(libs.spring.boot)
     compileOnly(libs.spring.context)
@@ -44,7 +37,7 @@ dependencies {
     annotationProcessor(libs.spring.boot.configuration.processor)
 
     /*
-     * 단위 테스트 의존성입니다.
+     * ?⑥쐞 ?뚯뒪???섏〈?깆엯?덈떎.
      */
     testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")

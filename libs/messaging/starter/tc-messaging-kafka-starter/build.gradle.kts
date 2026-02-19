@@ -2,7 +2,7 @@
  * tc-messaging-kafka-starter
  *
  * 역할
- * - 앱에서 Kafka 메시징을 쉽게 조립하도록 AutoConfiguration 제공
+ * - 애플리케이션에서 Kafka 메시징을 쉽게 조립하도록 AutoConfiguration을 제공합니다.
  */
 
 plugins {
@@ -21,15 +21,14 @@ java {
 
 dependencies {
     implementation(project(":libs:messaging:adapter:tc-messaging-kafka"))
-    implementation(project(":libs:common:tc-common-kafka-processing"))
+    implementation(project(":libs:common:tc-common-kafka-consumer-runtime"))
 
     implementation(libs.spring.boot.starter)
-    // KafkaTemplate, ProducerFactory, ConsumerFactory 등 Kafka 핵심 Bean 자동 구성을 활성화합니다.
+    // KafkaTemplate, ProducerFactory, ConsumerFactory 등 Kafka 핵심 Bean 구성을 제공합니다.
     implementation(libs.spring.boot.starter.kafka)
-    // Implementation only: app에서는 Kafka 의존을 직접 사용하지 않도록 한다.
+    // Starter 내부 구현용 의존성으로만 사용합니다.
     implementation(libs.spring.kafka)
     implementation(libs.kafka.clients)
-
 
     testImplementation(libs.spring.boot.starter.test)
 }

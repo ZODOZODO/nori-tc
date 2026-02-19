@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
-import com.nori.tc.common.ui.task.pipeline.UiTaskResult;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +57,7 @@ public class BusinessUiModelRuntimeCommandService {
      * @param request UI 요청 메시지
      * @return 처리 결과
      */
-    public UiTaskResult handleEqpCreateOrUpdate(final KafkaUiTaskMessage request) {
+    public KafkaTaskResult handleEqpCreateOrUpdate(final KafkaUiTaskMessage request) {
         final String eqpId = request.data().eqpId();
         final String traceId = request.metadata().traceId();
         final String eventType = request.metadata().eventType();
@@ -65,7 +65,7 @@ public class BusinessUiModelRuntimeCommandService {
         final Long modelKey = resolveModelKey(request.data().uiMessage());
         if (modelKey == null) {
             log.warn("UI {} failed: modelKey not found. eqpId={}, traceId={}", eventType, eqpId, traceId);
-            return UiTaskResult.fail(
+            return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_KEY_REQUIRED,
                     "uiMessage에서 modelKey를 찾을 수 없습니다."
             );
@@ -80,14 +80,14 @@ public class BusinessUiModelRuntimeCommandService {
                     traceId,
                     modelKey,
                     ex);
-            return UiTaskResult.fail(
+            return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
                     "eqpId-modelKey 바인딩 갱신 중 예외가 발생했습니다."
             );
         }
 
         log.info("UI {} success. eqpId={}, traceId={}, modelKey={}", eventType, eqpId, traceId, modelKey);
-        return UiTaskResult.pass();
+        return KafkaTaskResult.pass();
     }
 
     /**
@@ -99,7 +99,7 @@ public class BusinessUiModelRuntimeCommandService {
      * @param request UI 요청 메시지
      * @return 처리 결과
      */
-    public UiTaskResult handleEqpUpdateJarfile(final KafkaUiTaskMessage request) {
+    public KafkaTaskResult handleEqpUpdateJarfile(final KafkaUiTaskMessage request) {
         final String eqpId = request.data().eqpId();
         final String traceId = request.metadata().traceId();
 
@@ -109,7 +109,7 @@ public class BusinessUiModelRuntimeCommandService {
                 : runtimeMutationPort.findModelKeyByEqpId(eqpId).orElse(null);
         if (modelKey == null) {
             log.warn("UI EQP_UPDATE_JARFILE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
-            return UiTaskResult.fail(
+            return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
                     "eqpId에 연결된 modelKey를 찾을 수 없습니다."
             );
@@ -123,7 +123,7 @@ public class BusinessUiModelRuntimeCommandService {
                     traceId,
                     modelKey,
                     ex);
-            return UiTaskResult.fail(
+            return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
                     "model runtime 재조립 중 예외가 발생했습니다."
             );
@@ -141,14 +141,14 @@ public class BusinessUiModelRuntimeCommandService {
                     traceId,
                     modelKey,
                     ex);
-            return UiTaskResult.fail(
+            return KafkaTaskResult.fail(
                     BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED,
                     "workflow plugin runtime 리로드 중 예외가 발생했습니다."
             );
         }
 
         log.info("UI EQP_UPDATE_JARFILE success. eqpId={}, traceId={}, modelKey={}", eqpId, traceId, modelKey);
-        return UiTaskResult.pass();
+        return KafkaTaskResult.pass();
     }
 
     /**
@@ -255,5 +255,6 @@ public class BusinessUiModelRuntimeCommandService {
         return normalized;
     }
 }
+
 
 

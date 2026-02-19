@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -135,6 +136,61 @@ class BusinessWorkflowDispatchingActionExecutorTest {
 
         Assertions.assertEquals(1, coreExecutionCount.get(), "plugin key가 없으면 core fallback으로 실행되어야 합니다.");
         Assertions.assertEquals(0, pluginExecutionCount.get(), "key가 다른 plugin action은 실행되면 안 됩니다.");
+    }
+
+    @Test
+    void shouldFallbackToCoreAfterPluginActionIsDeletedFromRuntime() {
+        final AtomicInteger coreExecutionCount = new AtomicInteger(0);
+        final AtomicInteger pluginExecutionCount = new AtomicInteger(0);
+
+        final SocketActionExecutor coreSocketExecutor = new SocketActionExecutor() {
+            @TcAction("SOCKET_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                coreExecutionCount.incrementAndGet();
+            }
+        };
+        final SocketActionExecutor pluginSocketExecutor = new SocketActionExecutor() {
+            @TcAction("SOCKET_ACT")
+            public void execute(final BusinessWorkflowActionContext context) {
+                pluginExecutionCount.incrementAndGet();
+            }
+        };
+
+        final BusinessWorkflowActionRegistry pluginRegistry = new BusinessWorkflowActionRegistryBuilder()
+                .registerExecutor(pluginSocketExecutor, BusinessWorkflowActionMessageType.SOCKET)
+                .build();
+        final AtomicReference<Optional<BusinessWorkflowActionRegistry>> pluginRuntimeRef =
+                new AtomicReference<>(Optional.of(pluginRegistry));
+
+        final BusinessWorkflowCoreActionRegistry coreRegistry = new BusinessWorkflowCoreActionRegistry(
+                List.of(),
+                List.of(coreSocketExecutor),
+                List.of()
+        );
+        final BusinessWorkflowDispatchingActionExecutor dispatchingExecutor = new BusinessWorkflowDispatchingActionExecutor(
+                coreRegistry,
+                eqpId -> pluginRuntimeRef.get()
+        );
+
+        final BusinessInboundRecord record = createRecord("EQP-DELETE-01", "SOCKET_IN");
+
+        // 1) 플러그인 존재 시 plugin 우선 실행
+        dispatchingExecutor.execute(
+                record,
+                createRuntime(ProtocolType.SOCKET),
+                createMatchResult(record, "SOCKET_ACT")
+        );
+
+        // 2) 플러그인 런타임 제거(삭제) 후에는 core fallback 실행
+        pluginRuntimeRef.set(Optional.empty());
+        dispatchingExecutor.execute(
+                record,
+                createRuntime(ProtocolType.SOCKET),
+                createMatchResult(record, "SOCKET_ACT")
+        );
+
+        Assertions.assertEquals(1, pluginExecutionCount.get(), "플러그인 삭제 전에는 plugin이 1회 실행되어야 합니다.");
+        Assertions.assertEquals(1, coreExecutionCount.get(), "플러그인 삭제 후에는 core fallback이 1회 실행되어야 합니다.");
     }
 
     @Test

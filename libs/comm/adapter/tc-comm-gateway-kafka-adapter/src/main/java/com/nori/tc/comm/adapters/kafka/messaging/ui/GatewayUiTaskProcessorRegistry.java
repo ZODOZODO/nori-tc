@@ -2,6 +2,10 @@ package com.nori.tc.comm.adapters.kafka.messaging.ui;
 
 import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
+import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeMutationPort;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorSpec;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskEventType;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
@@ -9,223 +13,285 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * UI 이벤트 타입별 실행 스펙 레지스트리입니다.
+ * Gateway UI task 처리기 레지스트리입니다.
  *
- * <p>1차 최적화 목적:
- * - 이벤트가 늘어날 때마다 Handler 클래스를 추가하지 않고,
- *   "스펙 등록" 방식으로 확장 가능하도록 구조를 단순화합니다.</p>
+ * <p>핵심 설계 원칙:</p>
+ * <p>1) 이벤트 타입별 분기 규칙은 이 클래스에서 단일 관리합니다.</p>
+ * <p>2) 공통 파이프라인 계약({@link KafkaTaskProcessorRegistry})을 직접 구현해
+ *    중간 브리지 어댑터 클래스를 제거합니다.</p>
+ * <p>3) 처리 결과는 공통 결과 모델({@link KafkaTaskResult})로 통일합니다.</p>
  */
 @Component
-public class GatewayUiTaskProcessorRegistry {
+public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistry<KafkaUiTaskMessage> {
 
+    /**
+     * 런타임 처리 로그를 출력하는 로거입니다.
+     */
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskProcessorRegistry.class);
 
-    private final Map<KafkaUiTaskEventType, GatewayUiTaskProcessorSpec> specsByType;
-    private final GatewayUiJarfileTaskProcessor jarfileTaskProcessor;
+    /**
+     * eventType(대문자) -> 처리 스펙 매핑입니다.
+     */
+    private final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> specsByEventType;
+
+    /**
+     * 플러그인 런타임 변경 포트입니다(EQP_UPDATE_JARFILE 전용).
+     */
+    private final GatewaySocketPluginRuntimeMutationPort pluginRuntimeMutationPort;
+
+    /**
+     * 플러그인 런타임 변경 포트가 실제 구성되었는지 여부입니다.
+     */
+    private final boolean pluginRuntimeMutationConfigured;
+
+    /**
+     * 런타임 컨텍스트 생성/종료를 담당하는 서비스입니다.
+     */
     private final GatewayUiRuntimeControlService runtimeControlService;
+
+    /**
+     * UI task 정책 프로퍼티입니다.
+     */
     private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
 
     /**
-     * 이벤트 타입별 실행 스펙을 초기화합니다.
+     * 레지스트리를 초기화합니다.
+     *
+     * @param runtimeControlService 런타임 제어 서비스
+     * @param uiTaskPolicyProperties UI task 정책
+     * @param pluginRuntimeMutationPortProvider 플러그인 런타임 변경 포트 제공자
      */
     public GatewayUiTaskProcessorRegistry(
             final GatewayUiRuntimeControlService runtimeControlService,
             final GatewayUiTaskPolicyProperties uiTaskPolicyProperties,
-            final ObjectProvider<GatewayUiJarfileTaskProcessor> jarfileTaskProcessorProvider
+            final ObjectProvider<GatewaySocketPluginRuntimeMutationPort> pluginRuntimeMutationPortProvider
     ) {
         this.runtimeControlService = Objects.requireNonNull(runtimeControlService, "runtimeControlService is null");
         this.uiTaskPolicyProperties = Objects.requireNonNull(uiTaskPolicyProperties, "uiTaskPolicyProperties is null");
-        this.jarfileTaskProcessor = jarfileTaskProcessorProvider.getIfAvailable(
-                () -> (message, equipmentInfo) -> GatewayUiTaskResult.fail(
-                        GatewayUiTaskErrorCode.JARFILE_TASK_NOT_CONFIGURED,
-                        "Jarfile task processor is not configured"
-                )
-        );
-        this.specsByType = buildSpecs();
 
-        log.info("UI task processor registry initialized. count={}, eventTypes={}",
-                specsByType.size(), specsByType.keySet());
+        final GatewaySocketPluginRuntimeMutationPort resolvedPort = pluginRuntimeMutationPortProvider.getIfAvailable();
+        this.pluginRuntimeMutationConfigured = resolvedPort != null;
+        this.pluginRuntimeMutationPort = resolvedPort == null
+                ? GatewaySocketPluginRuntimeMutationPort.noop()
+                : resolvedPort;
+        this.specsByEventType = Map.copyOf(buildSpecs());
+
+        log.info("Gateway UI task processor registry initialized. count={}, eventTypes={}, pluginMutationConfigured={}",
+                specsByEventType.size(),
+                specsByEventType.keySet(),
+                pluginRuntimeMutationConfigured);
+        if (!pluginRuntimeMutationConfigured) {
+            log.info("Gateway socket plugin runtime mutation port is not configured. EQP_UPDATE_JARFILE requests will fail.");
+        }
     }
 
     /**
-     * 이벤트 타입으로 실행 스펙을 조회합니다.
+     * eventType으로 처리 스펙을 조회합니다.
+     *
+     * @param eventType 정규화 전 eventType
+     * @return 처리 스펙(Optional)
      */
-    public Optional<GatewayUiTaskProcessorSpec> find(final KafkaUiTaskEventType eventType) {
-        if (eventType == null) {
+    @Override
+    public Optional<KafkaTaskProcessorSpec<KafkaUiTaskMessage>> find(final String eventType) {
+        final String normalizedEventType = normalize(eventType);
+        if (normalizedEventType == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(specsByType.get(eventType));
+        return Optional.ofNullable(specsByEventType.get(normalizedEventType));
     }
 
     /**
-     * 이벤트 타입별 실행 스펙 맵을 구성합니다.
+     * 이벤트 타입별 처리 스펙 맵을 생성합니다.
      */
-    private Map<KafkaUiTaskEventType, GatewayUiTaskProcessorSpec> buildSpecs() {
-        final Map<KafkaUiTaskEventType, GatewayUiTaskProcessorSpec> mapped = new EnumMap<>(KafkaUiTaskEventType.class);
+    private Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> buildSpecs() {
+        final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped = new LinkedHashMap<>();
 
-        mapped.put(
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_CREATE,
-                new GatewayUiTaskProcessorSpec(
+                "EQP_CREATE_REP",
+                message -> executeRuntimeTask(
                         KafkaUiTaskEventType.EQP_CREATE,
-                        "EQP_CREATE_REP",
-                        message -> executeRuntimeTask(
-                                KafkaUiTaskEventType.EQP_CREATE,
-                                message,
-                                uiTaskPolicyProperties.getCreateTimeoutMs(),
-                                () -> runtimeControlService.createOrUpdateContext(
-                                        message.data().eqpId(),
-                                        message.data().interfaceType(),
-                                        message.metadata().traceId(),
-                                        KafkaUiTaskEventType.EQP_CREATE.name(),
-                                        uiTaskPolicyProperties.getCreateTimeoutMs()
-                                ),
-                                "Unhandled error while processing EQP_CREATE"
-                        )
+                        message,
+                        uiTaskPolicyProperties.getCreateTimeoutMs(),
+                        () -> runtimeControlService.createOrUpdateContext(
+                                message.data().eqpId(),
+                                message.data().interfaceType(),
+                                message.metadata().traceId(),
+                                KafkaUiTaskEventType.EQP_CREATE.name(),
+                                uiTaskPolicyProperties.getCreateTimeoutMs()
+                        ),
+                        "Unhandled error while processing EQP_CREATE"
                 )
         );
-        mapped.put(
+
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_UPDATE,
-                new GatewayUiTaskProcessorSpec(
+                "EQP_UPDATE_REP",
+                message -> executeRuntimeTask(
                         KafkaUiTaskEventType.EQP_UPDATE,
-                        "EQP_UPDATE_REP",
-                        message -> executeRuntimeTask(
-                                KafkaUiTaskEventType.EQP_UPDATE,
-                                message,
-                                uiTaskPolicyProperties.getUpdateTimeoutMs(),
-                                () -> runtimeControlService.createOrUpdateContext(
-                                        message.data().eqpId(),
-                                        message.data().interfaceType(),
-                                        message.metadata().traceId(),
-                                        KafkaUiTaskEventType.EQP_UPDATE.name(),
-                                        uiTaskPolicyProperties.getUpdateTimeoutMs()
-                                ),
-                                "Unhandled error while processing EQP_UPDATE"
-                        )
+                        message,
+                        uiTaskPolicyProperties.getUpdateTimeoutMs(),
+                        () -> runtimeControlService.createOrUpdateContext(
+                                message.data().eqpId(),
+                                message.data().interfaceType(),
+                                message.metadata().traceId(),
+                                KafkaUiTaskEventType.EQP_UPDATE.name(),
+                                uiTaskPolicyProperties.getUpdateTimeoutMs()
+                        ),
+                        "Unhandled error while processing EQP_UPDATE"
                 )
         );
-        mapped.put(
+
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_DELETE,
-                new GatewayUiTaskProcessorSpec(
+                "EQP_DELETE_REP",
+                message -> executeRuntimeTask(
                         KafkaUiTaskEventType.EQP_DELETE,
-                        "EQP_DELETE_REP",
-                        message -> executeRuntimeTask(
-                                KafkaUiTaskEventType.EQP_DELETE,
-                                message,
-                                uiTaskPolicyProperties.getDeleteTimeoutMs(),
-                                () -> runtimeControlService.deleteRuntimeContext(
-                                        message.data().eqpId(),
-                                        message.data().interfaceType(),
-                                        message.metadata().traceId(),
-                                        uiTaskPolicyProperties.getDeleteTimeoutMs()
-                                ),
-                                "Unhandled error while processing EQP_DELETE"
-                        )
+                        message,
+                        uiTaskPolicyProperties.getDeleteTimeoutMs(),
+                        () -> runtimeControlService.deleteRuntimeContext(
+                                message.data().eqpId(),
+                                message.data().interfaceType(),
+                                message.metadata().traceId(),
+                                uiTaskPolicyProperties.getDeleteTimeoutMs()
+                        ),
+                        "Unhandled error while processing EQP_DELETE"
                 )
         );
-        mapped.put(
+
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_START,
-                new GatewayUiTaskProcessorSpec(
+                "EQP_START_REP",
+                message -> executeRuntimeTask(
                         KafkaUiTaskEventType.EQP_START,
-                        "EQP_START_REP",
-                        message -> executeRuntimeTask(
-                                KafkaUiTaskEventType.EQP_START,
-                                message,
-                                uiTaskPolicyProperties.getStartTimeoutMs(),
-                                () -> runtimeControlService.startRuntime(
-                                        message.data().eqpId(),
-                                        message.data().interfaceType(),
-                                        message.metadata().traceId(),
-                                        uiTaskPolicyProperties.getStartTimeoutMs()
-                                ),
-                                "Unhandled error while processing EQP_START"
-                        )
+                        message,
+                        uiTaskPolicyProperties.getStartTimeoutMs(),
+                        () -> runtimeControlService.startRuntime(
+                                message.data().eqpId(),
+                                message.data().interfaceType(),
+                                message.metadata().traceId(),
+                                uiTaskPolicyProperties.getStartTimeoutMs()
+                        ),
+                        "Unhandled error while processing EQP_START"
                 )
         );
-        mapped.put(
+
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_END,
-                new GatewayUiTaskProcessorSpec(
+                "EQP_END_REP",
+                message -> executeRuntimeTask(
                         KafkaUiTaskEventType.EQP_END,
-                        "EQP_END_REP",
-                        message -> executeRuntimeTask(
-                                KafkaUiTaskEventType.EQP_END,
-                                message,
-                                uiTaskPolicyProperties.getEndTimeoutMs(),
-                                () -> runtimeControlService.endRuntime(
-                                        message.data().eqpId(),
-                                        message.data().interfaceType(),
-                                        message.metadata().traceId(),
-                                        uiTaskPolicyProperties.getEndTimeoutMs()
-                                ),
-                                "Unhandled error while processing EQP_END"
-                        )
+                        message,
+                        uiTaskPolicyProperties.getEndTimeoutMs(),
+                        () -> runtimeControlService.endRuntime(
+                                message.data().eqpId(),
+                                message.data().interfaceType(),
+                                message.metadata().traceId(),
+                                uiTaskPolicyProperties.getEndTimeoutMs()
+                        ),
+                        "Unhandled error while processing EQP_END"
                 )
         );
-        mapped.put(
+
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_SEND_MESSAGE,
-                new GatewayUiTaskProcessorSpec(
+                "EQP_SEND_MESSAGE_REP",
+                message -> executeRuntimeTask(
                         KafkaUiTaskEventType.EQP_SEND_MESSAGE,
-                        "EQP_SEND_MESSAGE_REP",
-                        message -> executeRuntimeTask(
-                                KafkaUiTaskEventType.EQP_SEND_MESSAGE,
-                                message,
-                                uiTaskPolicyProperties.getSendMessageTimeoutMs(),
-                                () -> runtimeControlService.sendUiMessage(
-                                        message.data().eqpId(),
-                                        message.data().interfaceType(),
-                                        message.metadata().traceId(),
-                                        message.data().uiMessage(),
-                                        uiTaskPolicyProperties.getSendMessageTimeoutMs()
-                                ),
-                                "Unhandled error while processing EQP_SEND_MESSAGE"
-                        )
+                        message,
+                        uiTaskPolicyProperties.getSendMessageTimeoutMs(),
+                        () -> runtimeControlService.sendUiMessage(
+                                message.data().eqpId(),
+                                message.data().interfaceType(),
+                                message.metadata().traceId(),
+                                message.data().uiMessage(),
+                                uiTaskPolicyProperties.getSendMessageTimeoutMs()
+                        ),
+                        "Unhandled error while processing EQP_SEND_MESSAGE"
                 )
         );
-        mapped.put(
+
+        register(
+                mapped,
                 KafkaUiTaskEventType.EQP_UPDATE_JARFILE,
-                new GatewayUiTaskProcessorSpec(
-                        KafkaUiTaskEventType.EQP_UPDATE_JARFILE,
-                        "EQP_UPDATE_JARFILE_REP",
-                        this::executeJarfileTask
-                )
+                "EQP_UPDATE_JARFILE_REP",
+                this::executeJarfileTask
         );
 
         return mapped;
     }
 
     /**
-     * START/END/CREATE/UPDATE/DELETE/SEND_MESSAGE 공통 실행 래퍼입니다.
+     * 단일 eventType 처리 스펙을 등록합니다.
      */
-    private GatewayUiTaskResult executeRuntimeTask(
+    private void register(
+            final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped,
+            final KafkaUiTaskEventType eventType,
+            final String replyEventType,
+            final GatewayUiTaskProcessor processor
+    ) {
+        final String key = eventType.name();
+        final KafkaTaskProcessorSpec<KafkaUiTaskMessage> spec = new KafkaTaskProcessorSpec<>(
+                key,
+                replyEventType,
+                processor::process
+        );
+        if (mapped.putIfAbsent(key, spec) != null) {
+            throw new IllegalStateException("Duplicate Gateway UI task processor eventType: " + key);
+        }
+    }
+
+    /**
+     * CREATE/UPDATE/DELETE/START/END/SEND_MESSAGE 공통 실행 로직입니다.
+     */
+    private KafkaTaskResult executeRuntimeTask(
             final KafkaUiTaskEventType eventType,
             final KafkaUiTaskMessage message,
             final long timeoutMs,
-            final UiTaskAction action,
+            final RuntimeControlAction action,
             final String unexpectedErrorMessage
     ) {
         if (log.isDebugEnabled()) {
             log.debug("UI {} task start. eqpId={}, traceId={}, timeoutMs={}",
-                    eventType, message.data().eqpId(), message.metadata().traceId(), timeoutMs);
+                    eventType,
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    timeoutMs);
         }
 
         try {
             action.run();
             log.info("UI {} task success. eqpId={}, traceId={}",
-                    eventType, message.data().eqpId(), message.metadata().traceId());
-            return GatewayUiTaskResult.pass();
+                    eventType,
+                    message.data().eqpId(),
+                    message.metadata().traceId());
+            return KafkaTaskResult.pass();
         } catch (GatewayUiTaskProcessingException ex) {
             log.warn("UI {} task failed. eqpId={}, traceId={}, errorCode={}",
-                    eventType, message.data().eqpId(), message.metadata().traceId(), ex.errorCode());
-            return GatewayUiTaskResult.fail(ex.errorCode(), ex.getMessage());
+                    eventType,
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    ex.errorCode());
+            return KafkaTaskResult.fail(ex.errorCode(), ex.getMessage());
         } catch (Exception ex) {
             log.error("UI {} task failed by unexpected error. eqpId={}, traceId={}",
-                    eventType, message.data().eqpId(), message.metadata().traceId(), ex);
-            return GatewayUiTaskResult.fail(
+                    eventType,
+                    message.data().eqpId(),
+                    message.metadata().traceId(),
+                    ex);
+            return KafkaTaskResult.fail(
                     GatewayUiTaskErrorCode.INTERNAL_ERROR,
                     unexpectedErrorMessage
             );
@@ -233,9 +299,9 @@ public class GatewayUiTaskProcessorRegistry {
     }
 
     /**
-     * EQP_UPDATE_JARFILE 전용 실행 래퍼입니다.
+     * EQP_UPDATE_JARFILE 이벤트를 처리합니다.
      */
-    private GatewayUiTaskResult executeJarfileTask(final KafkaUiTaskMessage message) {
+    private KafkaTaskResult executeJarfileTask(final KafkaUiTaskMessage message) {
         final long timeoutMs = uiTaskPolicyProperties.getUpdateJarfileTimeoutMs();
         if (log.isDebugEnabled()) {
             log.debug("UI {} task start. eqpId={}, traceId={}, timeoutMs={}",
@@ -257,68 +323,82 @@ public class GatewayUiTaskProcessorRegistry {
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex.errorCode());
-            return GatewayUiTaskResult.fail(ex.errorCode(), ex.getMessage());
+            return KafkaTaskResult.fail(ex.errorCode(), ex.getMessage());
+        }
+
+        if (!pluginRuntimeMutationConfigured) {
+            log.warn("UI {} task rejected. eqpId={}, traceId={}, reason=plugin runtime mutation port is not configured",
+                    KafkaUiTaskEventType.EQP_UPDATE_JARFILE,
+                    message.data().eqpId(),
+                    message.metadata().traceId());
+            return KafkaTaskResult.fail(
+                    GatewayUiTaskErrorCode.JARFILE_TASK_NOT_CONFIGURED,
+                    "Gateway socket plugin runtime mutation port is not configured"
+            );
         }
 
         try {
-            final GatewayUiTaskResult result = jarfileTaskProcessor.process(message, equipmentInfo);
-            if (result == null) {
-                return GatewayUiTaskResult.fail(
-                        GatewayUiTaskErrorCode.JARFILE_TASK_FAILED,
-                        "Jarfile task returned null result"
-                );
-            }
+            pluginRuntimeMutationPort.reloadByEqpId(equipmentInfo.equipmentId());
             log.info("UI {} task finished. eqpId={}, traceId={}, status={}",
                     KafkaUiTaskEventType.EQP_UPDATE_JARFILE,
                     message.data().eqpId(),
                     message.metadata().traceId(),
-                    result.status());
-            return result;
+                    "PASS");
+            return KafkaTaskResult.pass();
         } catch (Exception ex) {
             log.error("UI {} task failed by unexpected error. eqpId={}, traceId={}",
                     KafkaUiTaskEventType.EQP_UPDATE_JARFILE,
                     message.data().eqpId(),
                     message.metadata().traceId(),
                     ex);
-            return GatewayUiTaskResult.fail(
+            return KafkaTaskResult.fail(
                     GatewayUiTaskErrorCode.JARFILE_TASK_FAILED,
-                    "Jarfile task execution failed"
+                    "Jarfile task execution failed: " + safeMessage(ex)
             );
         }
     }
 
     /**
-     * 이벤트별 실행 스펙입니다.
+     * 예외 메시지를 null-safe 문자열로 변환합니다.
      */
-    public record GatewayUiTaskProcessorSpec(
-            KafkaUiTaskEventType eventType,
-            String replyEventType,
-            GatewayUiTaskProcessor processor
-    ) {
-        public GatewayUiTaskProcessorSpec {
-            Objects.requireNonNull(eventType, "eventType is null");
-            Objects.requireNonNull(replyEventType, "replyEventType is null");
-            Objects.requireNonNull(processor, "processor is null");
+    private static String safeMessage(final Throwable throwable) {
+        if (throwable == null) {
+            return "unknown";
         }
+        final String message = throwable.getMessage();
+        if (message == null || message.isBlank()) {
+            return throwable.getClass().getSimpleName();
+        }
+        return message;
     }
 
     /**
-     * 이벤트 실행 함수형 계약입니다.
+     * eventType 문자열을 공통 키 포맷(대문자)으로 정규화합니다.
      */
-    @FunctionalInterface
-    public interface GatewayUiTaskProcessor {
-
-        /**
-         * UI task 메시지를 처리하고 PASS/FAIL 결과를 반환합니다.
-         */
-        GatewayUiTaskResult process(KafkaUiTaskMessage message);
+    private static String normalize(final String value) {
+        if (value == null) {
+            return null;
+        }
+        final String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return trimmed.toUpperCase();
     }
 
     /**
-     * checked exception 전달을 허용하는 내부 실행 인터페이스입니다.
+     * UI task 처리 함수형 인터페이스입니다.
      */
     @FunctionalInterface
-    private interface UiTaskAction {
+    private interface GatewayUiTaskProcessor {
+        KafkaTaskResult process(KafkaUiTaskMessage message);
+    }
+
+    /**
+     * checked exception 전파를 허용하는 내부 실행 인터페이스입니다.
+     */
+    @FunctionalInterface
+    private interface RuntimeControlAction {
         void run() throws Exception;
     }
 }

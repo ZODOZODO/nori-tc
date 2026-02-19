@@ -18,8 +18,8 @@ import com.nori.tc.common.kafka.processing.AckQueue;
 import com.nori.tc.common.kafka.processing.AckStatus;
 import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
 import com.nori.tc.common.kafka.processing.PartitionCommitCoordinator;
-import com.nori.tc.common.mailbox.Mailbox;
 import com.nori.tc.common.mailbox.MailboxScheduler;
+import com.nori.tc.common.task.execution.MailboxExecutionRuntime;
 import com.nori.tc.common.task.policy.DefaultDlqRecordFactory;
 import com.nori.tc.common.task.policy.DefaultTaskHandlingPolicy;
 import com.nori.tc.common.task.policy.DlqRecord;
@@ -80,11 +80,10 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     private final MailboxScheduler<BusinessMailboxTask> mailboxScheduler;
     private final DefaultTaskHandlingPolicy taskHandlingPolicy;
     private final BusinessRuntimeDispositionMetrics dispositionMetrics;
+    private final MailboxExecutionRuntime<BusinessMailboxTask> mailboxExecutionRuntime;
 
     private final Map<String, TopicRuntime> topicRuntimes = new java.util.concurrent.ConcurrentHashMap<>();
 
-    private ExecutorService dispatcherPool;
-    private ExecutorService workerPool;
     private ScheduledExecutorService timeoutScheduler;
 
     private volatile boolean running = false;
@@ -160,6 +159,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 new DefaultDlqRecordFactory(300),
                 true
         );
+        this.mailboxExecutionRuntime = createMailboxExecutionRuntime();
     }
 
     /**
@@ -219,14 +219,6 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
         running = true;
 
         final BusinessCoreRuntimeProperties.Runtime runtime = properties.getRuntime();
-        this.dispatcherPool = Executors.newFixedThreadPool(
-                runtime.getDispatcherThreads(),
-                namedThreadFactory("biz-dispatcher-")
-        );
-        this.workerPool = Executors.newFixedThreadPool(
-                runtime.getWorkerThreads(),
-                namedThreadFactory("biz-worker-")
-        );
         this.timeoutScheduler = Executors.newScheduledThreadPool(
                 runtime.getTimeoutSchedulerThreads(),
                 namedThreadFactory("biz-timeout-")
@@ -234,7 +226,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
 
         registerTopicRuntimes();
         startTopicConsumers();
-        startDispatcherLoops();
+        mailboxExecutionRuntime.start();
 
         log.info("Business runtime engine started. topics={}, dispatcherThreads={}, workerThreads={}, timeoutThreads={}",
                 topicRuntimes.keySet(),
@@ -255,12 +247,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
         }
         topicRuntimes.clear();
 
-        shutdownExecutor(dispatcherPool, "dispatcher");
-        shutdownExecutor(workerPool, "worker");
+        mailboxExecutionRuntime.stop();
         shutdownExecutor(timeoutScheduler, "timeout-scheduler");
 
-        dispatcherPool = null;
-        workerPool = null;
         timeoutScheduler = null;
 
         log.info("Business runtime engine stopped.");
@@ -367,11 +356,36 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     /**
      * dispatcher loop를 시작합니다.
      */
-    private void startDispatcherLoops() {
-        final int dispatcherThreads = properties.getRuntime().getDispatcherThreads();
-        for (int i = 0; i < dispatcherThreads; i++) {
-            dispatcherPool.execute(this::runDispatcherLoop);
-        }
+    /**
+     * 공통 mailbox 실행 런타임을 생성합니다.
+     *
+     * <p>dispatcher/worker 루프 자체는 공통 모듈로 위임하고,</p>
+     * <p>비즈니스 엔진은 task 처리 정책만 유지합니다.</p>
+     */
+    private MailboxExecutionRuntime<BusinessMailboxTask> createMailboxExecutionRuntime() {
+        final BusinessCoreRuntimeProperties.Runtime runtime = properties.getRuntime();
+        final MailboxExecutionRuntime.Config runtimeConfig = MailboxExecutionRuntime.Config.async(
+                runtime.getDispatcherThreads(),
+                runtime.getWorkerThreads(),
+                3_000L,
+                "biz-dispatcher-",
+                "biz-worker-"
+        );
+
+        return new MailboxExecutionRuntime<>(
+                "business-runtime-engine",
+                mailboxScheduler,
+                runtimeConfig,
+                this::processTask,
+                this::handleWorkerRejectedTask,
+                (task, ex) -> log.error("Business task 처리 중 예외가 발생했습니다. topic={}, eqpId={}, partition={}, offset={}",
+                        task.record().topic(),
+                        task.record().eqpId(),
+                        task.record().partition(),
+                        task.record().offset(),
+                        ex),
+                ex -> log.error("Business mailbox dispatcher 루프에서 예외가 발생했습니다.", ex)
+        );
     }
 
     /**
@@ -438,41 +452,24 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
      * <p>readyQueue에서 eqpId를 꺼낸 뒤 mailbox in-flight CAS를 획득하고,
      * workerPool에 단일 task를 위임합니다.</p>
      */
-    private void runDispatcherLoop() {
-        while (running) {
-            try {
-                final String routingKey = mailboxScheduler.takeReadyKey();
-                final Mailbox<BusinessMailboxTask> mailbox = mailboxScheduler.tryAcquire(routingKey);
-                if (mailbox == null) {
-                    continue;
-                }
-
-                final BusinessMailboxTask task = mailbox.poll();
-                if (task == null) {
-                    mailboxScheduler.release(mailbox);
-                    continue;
-                }
-
-                try {
-                    workerPool.execute(() -> processTask(mailbox, task));
-                } catch (RejectedExecutionException rejected) {
-                    log.error("Worker pool rejected task. eqpId={}, topic={}, partition={}, offset={}",
-                            task.record().eqpId(),
-                            task.record().topic(),
-                            task.record().partition(),
-                            task.record().offset(),
-                            rejected);
-                    recordDisposition(task.record(), BusinessRuntimeDisposition.DLQ, "WORKER_POOL_REJECTED");
-                    emitAck(task.record(), AckStatus.DLQ);
-                    mailboxScheduler.release(mailbox);
-                }
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                return;
-            } catch (Exception ex) {
-                log.error("Dispatcher loop failed.", ex);
-            }
-        }
+    /**
+     * worker 큐에서 task 거부가 발생했을 때 DLQ 전환 처리를 수행합니다.
+     *
+     * @param task 거부된 task
+     * @param rejected 거부 예외
+     */
+    private void handleWorkerRejectedTask(
+            final BusinessMailboxTask task,
+            final RejectedExecutionException rejected
+    ) {
+        log.error("Worker pool rejected task. eqpId={}, topic={}, partition={}, offset={}",
+                task.record().eqpId(),
+                task.record().topic(),
+                task.record().partition(),
+                task.record().offset(),
+                rejected);
+        recordDisposition(task.record(), BusinessRuntimeDisposition.DLQ, "WORKER_POOL_REJECTED");
+        emitAck(task.record(), AckStatus.DLQ);
     }
 
     /**
@@ -483,7 +480,14 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
      * <p>- timeout: TIMEOUT 카테고리로 retry/DLQ 판단</p>
      * <p>- 필터/액션 예외: FILTER_EVAL/ACTION_EXEC 카테고리로 retry/DLQ 판단</p>
      */
-    private void processTask(final Mailbox<BusinessMailboxTask> mailbox, final BusinessMailboxTask task) {
+    /**
+     * 단일 business task를 처리합니다.
+     *
+     * <p>정상 처리와 실패 처리(재시도/ DLQ/거부)는 기존 정책을 그대로 유지합니다.</p>
+     *
+     * @param task 처리할 business task
+     */
+    private void processTask(final BusinessMailboxTask task) {
         try {
             final TaskExecutionOutcome outcome = executeWithTimeout(task);
             if (outcome == TaskExecutionOutcome.WORKFLOW_NOT_FOUND) {
@@ -506,8 +510,6 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
             handleFailure(task, TaskFailureCategory.ACTION_EXEC, actionEx, false);
         } catch (Exception ex) {
             handleFailure(task, TaskFailureCategory.UNKNOWN, ex, false);
-        } finally {
-            mailboxScheduler.release(mailbox);
         }
     }
 

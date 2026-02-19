@@ -1,18 +1,22 @@
 package com.nori.tc.comm.gateway.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Kafka shard ownership configuration.
+ * Gateway Kafka 소비 런타임(샤드/커밋/비동기) 설정입니다.
  *
- * - commandsPartitionCount: total partitions for tc.eqp.commands.
- * - ownedPartitions: fixed partition set owned by this gateway instance.
+ * <p>prefix: {@code tc.comm.gateway.kafka}</p>
+ *
+ * <p>설계 의도:</p>
+ * <p>1) tc.eqp.commands는 고정 assign 파티션 방식으로 소비합니다.</p>
+ * <p>2) 런타임 중 파티션 수 변경을 금지하고, 기동 시 불변식으로 검증합니다.</p>
+ * <p>3) poll-loop 비블로킹(비동기) 관련 모든 튜닝 값을 프로퍼티로 외부화합니다.</p>
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.kafka")
 public class GatewayKafkaShardProperties {
@@ -20,293 +24,235 @@ public class GatewayKafkaShardProperties {
     private static final Logger log = LoggerFactory.getLogger(GatewayKafkaShardProperties.class);
 
     /**
-     * Total partition count of tc.eqp.commands.
+     * tc.eqp.commands 전체 파티션 수입니다.
      */
     private Integer commandsPartitionCount;
 
     /**
-     * Fixed owned partitions for this gateway instance.
-     * Example: 0,1,2
+     * 현재 Gateway 인스턴스가 소유하는 고정 파티션 목록입니다.
      */
     private List<Integer> ownedPartitions;
 
     /**
-     * Kafka poll timeout for the assigned consumer (ms).
+     * tc.eqp.commands 소비 poll timeout(ms)입니다.
      */
     private Long pollTimeoutMs;
 
     /**
-     * Kafka poll timeout for UI commands consumer (ms).
+     * tc.ui.events 소비 poll timeout(ms)입니다.
      */
     private Long uiPollTimeoutMs;
 
     /**
-     * Commit retry count when commitSync fails.
+     * commit 실패 시 재시도 횟수입니다.
      */
     private Integer commitRetryMax;
 
     /**
-     * Commit retry backoff (ms).
+     * commit 재시도 backoff(ms)입니다.
      */
     private Long commitRetryBackoffMs;
 
     /**
-     * Consumer lag sampling interval (ms).
+     * lag 샘플링 주기(ms)입니다.
      */
     private Long lagSampleIntervalMs;
 
     /**
-     * Consumer shutdown wait (join) timeout (ms).
+     * consumer 종료 대기(join) 시간(ms)입니다.
      */
     private Long consumerShutdownWaitMs;
 
     /**
-     * Kafka admin timeout for invariant checks (seconds).
+     * Kafka AdminClient 기반 기동 검증 timeout(초)입니다.
      */
     private Long adminTimeoutSeconds;
 
-    
     /**
-     * 게이트웨이 Kafka 어댑터 입력/설정 유효성을 검증합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
+     * poll 스레드와 레코드 처리 스레드를 분리할지 여부입니다.
+     */
+    private Boolean asyncRecordProcessingEnabled = false;
+
+    /**
+     * 비동기 처리 모드에서 사용할 워커 스레드 수입니다.
+     */
+    private Integer recordWorkerThreads = 4;
+
+    /**
+     * poll 루프에서 한 번에 드레인할 ack 이벤트 최대 개수입니다.
+     */
+    private Integer ackDrainMaxBatch = 512;
+
+    /**
+     * 비동기 처리 모드에서 허용할 최대 in-flight 레코드 수입니다.
+     */
+    private Integer maxInFlightRecords = 10_000;
+
+    /**
+     * 애플리케이션 시작 시 설정 유효성을 검증합니다.
      */
     @PostConstruct
     public void validate() {
-        if (commandsPartitionCount == null || commandsPartitionCount <= 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.commands-partition-count must be > 0");
-        }
-        if (ownedPartitions == null || ownedPartitions.isEmpty()) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.owned-partitions must not be empty");
-        }
-        for (Integer p : ownedPartitions) {
-            if (p == null || p < 0) {
-                throw new IllegalStateException("Invalid owned partition: " + p);
-            }
-            if (p >= commandsPartitionCount) {
-                throw new IllegalStateException("Owned partition out of range: " + p);
+        requirePositive("tc.comm.gateway.kafka.commands-partition-count", commandsPartitionCount);
+        requireNotEmpty("tc.comm.gateway.kafka.owned-partitions", ownedPartitions);
+        for (Integer partition : ownedPartitions) {
+            requireNonNegative("tc.comm.gateway.kafka.owned-partitions element", partition);
+            if (partition >= commandsPartitionCount) {
+                throw new IllegalStateException(
+                        "Owned partition out of range: " + partition + " (commandsPartitionCount=" + commandsPartitionCount + ")"
+                );
             }
         }
-        if (pollTimeoutMs == null || pollTimeoutMs <= 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.poll-timeout-ms must be > 0");
-        }
-        if (uiPollTimeoutMs == null || uiPollTimeoutMs <= 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.ui-poll-timeout-ms must be > 0");
-        }
-        if (commitRetryMax == null || commitRetryMax < 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.commit-retry-max must be >= 0");
-        }
-        if (commitRetryBackoffMs == null || commitRetryBackoffMs < 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.commit-retry-backoff-ms must be >= 0");
-        }
-        if (lagSampleIntervalMs == null || lagSampleIntervalMs <= 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.lag-sample-interval-ms must be > 0");
-        }
-        if (consumerShutdownWaitMs == null || consumerShutdownWaitMs <= 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.consumer-shutdown-wait-ms must be > 0");
-        }
-        if (adminTimeoutSeconds == null || adminTimeoutSeconds <= 0) {
-            throw new IllegalStateException("tc.comm.gateway.kafka.admin-timeout-seconds must be > 0");
-        }
-        log.info("GatewayKafkaShardProperties validated. commandsPartitionCount={}, ownedPartitions={}",
-                commandsPartitionCount, ownedPartitions);
+
+        requirePositive("tc.comm.gateway.kafka.poll-timeout-ms", pollTimeoutMs);
+        requirePositive("tc.comm.gateway.kafka.ui-poll-timeout-ms", uiPollTimeoutMs);
+        requireNonNegative("tc.comm.gateway.kafka.commit-retry-max", commitRetryMax);
+        requireNonNegative("tc.comm.gateway.kafka.commit-retry-backoff-ms", commitRetryBackoffMs);
+        requirePositive("tc.comm.gateway.kafka.lag-sample-interval-ms", lagSampleIntervalMs);
+        requirePositive("tc.comm.gateway.kafka.consumer-shutdown-wait-ms", consumerShutdownWaitMs);
+        requirePositive("tc.comm.gateway.kafka.admin-timeout-seconds", adminTimeoutSeconds);
+
+        requireNotNull("tc.comm.gateway.kafka.async-record-processing-enabled", asyncRecordProcessingEnabled);
+        requirePositive("tc.comm.gateway.kafka.record-worker-threads", recordWorkerThreads);
+        requirePositive("tc.comm.gateway.kafka.ack-drain-max-batch", ackDrainMaxBatch);
+        requirePositive("tc.comm.gateway.kafka.max-in-flight-records", maxInFlightRecords);
+
+        log.info(
+                "GatewayKafkaShardProperties validated. commandsPartitionCount={}, ownedPartitions={}, asyncRecordProcessingEnabled={}, recordWorkerThreads={}, ackDrainMaxBatch={}, maxInFlightRecords={}",
+                commandsPartitionCount,
+                ownedPartitions,
+                asyncRecordProcessingEnabled,
+                recordWorkerThreads,
+                ackDrainMaxBatch,
+                maxInFlightRecords
+        );
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public int getCommandsPartitionCount() {
         return commandsPartitionCount;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param commandsPartitionCount 처리할 요청/명령 정보
-     */
     public void setCommandsPartitionCount(final int commandsPartitionCount) {
         this.commandsPartitionCount = commandsPartitionCount;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 조회/처리 결과 목록
-     */
     public List<Integer> getOwnedPartitions() {
         return ownedPartitions;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param ownedPartitions 게이트웨이 Kafka 어댑터 처리에 사용하는 입력 값
-     */
     public void setOwnedPartitions(final List<Integer> ownedPartitions) {
-        this.ownedPartitions = (ownedPartitions == null) ? null : new ArrayList<>(ownedPartitions);
+        this.ownedPartitions = ownedPartitions == null ? null : new ArrayList<>(ownedPartitions);
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public long getPollTimeoutMs() {
         return pollTimeoutMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param pollTimeoutMs 시간 관련 설정 값
-     */
     public void setPollTimeoutMs(final long pollTimeoutMs) {
         this.pollTimeoutMs = pollTimeoutMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public long getUiPollTimeoutMs() {
         return uiPollTimeoutMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param uiPollTimeoutMs 시간 관련 설정 값
-     */
     public void setUiPollTimeoutMs(final long uiPollTimeoutMs) {
         this.uiPollTimeoutMs = uiPollTimeoutMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public int getCommitRetryMax() {
         return commitRetryMax;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param commitRetryMax 게이트웨이 Kafka 어댑터 처리에 사용하는 입력 값
-     */
     public void setCommitRetryMax(final int commitRetryMax) {
         this.commitRetryMax = commitRetryMax;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public long getCommitRetryBackoffMs() {
         return commitRetryBackoffMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param commitRetryBackoffMs 게이트웨이 Kafka 어댑터 처리에 사용하는 입력 값
-     */
     public void setCommitRetryBackoffMs(final long commitRetryBackoffMs) {
         this.commitRetryBackoffMs = commitRetryBackoffMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public long getLagSampleIntervalMs() {
         return lagSampleIntervalMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param lagSampleIntervalMs 시간 관련 설정 값
-     */
     public void setLagSampleIntervalMs(final long lagSampleIntervalMs) {
         this.lagSampleIntervalMs = lagSampleIntervalMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public long getConsumerShutdownWaitMs() {
         return consumerShutdownWaitMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param consumerShutdownWaitMs 게이트웨이 Kafka 어댑터 처리에 사용하는 입력 값
-     */
     public void setConsumerShutdownWaitMs(final long consumerShutdownWaitMs) {
         this.consumerShutdownWaitMs = consumerShutdownWaitMs;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @return 게이트웨이 Kafka 어댑터 처리 결과
-     */
     public long getAdminTimeoutSeconds() {
         return adminTimeoutSeconds;
     }
 
-    
-    /**
-     * 게이트웨이 Kafka 어댑터 설정 값을 반영합니다.
-     *
-     * <p>토픽 구성, 메시지 발행/구독 흐름, 직렬화 규칙을 기준으로 처리합니다.</p>
-     * @param adminTimeoutSeconds 시간 관련 설정 값
-     */
     public void setAdminTimeoutSeconds(final long adminTimeoutSeconds) {
         this.adminTimeoutSeconds = adminTimeoutSeconds;
+    }
+
+    public boolean isAsyncRecordProcessingEnabled() {
+        return asyncRecordProcessingEnabled;
+    }
+
+    public void setAsyncRecordProcessingEnabled(final boolean asyncRecordProcessingEnabled) {
+        this.asyncRecordProcessingEnabled = asyncRecordProcessingEnabled;
+    }
+
+    public int getRecordWorkerThreads() {
+        return recordWorkerThreads;
+    }
+
+    public void setRecordWorkerThreads(final int recordWorkerThreads) {
+        this.recordWorkerThreads = recordWorkerThreads;
+    }
+
+    public int getAckDrainMaxBatch() {
+        return ackDrainMaxBatch;
+    }
+
+    public void setAckDrainMaxBatch(final int ackDrainMaxBatch) {
+        this.ackDrainMaxBatch = ackDrainMaxBatch;
+    }
+
+    public int getMaxInFlightRecords() {
+        return maxInFlightRecords;
+    }
+
+    public void setMaxInFlightRecords(final int maxInFlightRecords) {
+        this.maxInFlightRecords = maxInFlightRecords;
+    }
+
+    private static void requireNotNull(final String key, final Object value) {
+        if (value == null) {
+            throw new IllegalStateException(key + " is required");
+        }
+    }
+
+    private static void requireNotEmpty(final String key, final List<?> value) {
+        if (value == null || value.isEmpty()) {
+            throw new IllegalStateException(key + " must not be empty");
+        }
+    }
+
+    private static void requirePositive(final String key, final Number value) {
+        if (value == null || value.longValue() <= 0L) {
+            throw new IllegalStateException(key + " must be > 0");
+        }
+    }
+
+    private static void requireNonNegative(final String key, final Number value) {
+        if (value == null || value.longValue() < 0L) {
+            throw new IllegalStateException(key + " must be >= 0");
+        }
     }
 }

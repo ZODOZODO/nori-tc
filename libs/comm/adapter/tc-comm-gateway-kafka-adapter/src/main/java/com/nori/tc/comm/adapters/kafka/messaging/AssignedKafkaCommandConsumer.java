@@ -239,5 +239,25 @@ public class AssignedKafkaCommandConsumer extends AbstractGatewayKafkaConsumer<G
         public long lagSampleIntervalMs() {
             return shardProperties.getLagSampleIntervalMs();
         }
+
+        @Override
+        public boolean asyncRecordProcessingEnabled() {
+            return shardProperties.isAsyncRecordProcessingEnabled();
+        }
+
+        @Override
+        public int recordWorkerThreads() {
+            return shardProperties.getRecordWorkerThreads();
+        }
+
+        @Override
+        public int ackDrainMaxBatch() {
+            return shardProperties.getAckDrainMaxBatch();
+        }
+
+        @Override
+        public int maxInFlightRecords() {
+            return shardProperties.getMaxInFlightRecords();
+        }
     }
 }

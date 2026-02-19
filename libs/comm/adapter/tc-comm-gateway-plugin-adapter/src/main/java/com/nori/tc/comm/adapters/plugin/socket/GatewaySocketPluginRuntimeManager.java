@@ -1,9 +1,5 @@
 package com.nori.tc.comm.adapters.plugin.socket;
 
-import com.nori.tc.comm.adapters.kafka.messaging.ui.GatewayUiJarfileTaskProcessor;
-import com.nori.tc.comm.adapters.kafka.messaging.ui.GatewayUiTaskErrorCode;
-import com.nori.tc.comm.adapters.kafka.messaging.ui.GatewayUiTaskResult;
-import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeMutationPort;
 import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeProvider;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
@@ -13,7 +9,6 @@ import com.nori.tc.db.core.jar.store.TcJarGatewayStore;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.jar.TcJarGateway;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -58,8 +53,7 @@ import java.security.NoSuchAlgorithmException;
 @Component
 public class GatewaySocketPluginRuntimeManager
         implements GatewaySocketPluginRuntimeProvider,
-        GatewaySocketPluginRuntimeMutationPort,
-        GatewayUiJarfileTaskProcessor {
+        GatewaySocketPluginRuntimeMutationPort {
 
     /**
      * 런타임 동작 추적 로그입니다.
@@ -385,42 +379,6 @@ public class GatewaySocketPluginRuntimeManager
      * @param equipmentInfo 검증된 설비 정보
      * @return UI PASS/FAIL 결과
      */
-    @Override
-    public GatewayUiTaskResult process(
-            final KafkaUiTaskMessage message,
-            final GatewayEquipmentInfo equipmentInfo
-    ) {
-        final String eqpIdFromEquipment = equipmentInfo == null ? null : normalizeEqpId(equipmentInfo.equipmentId());
-        final String eqpIdFromMessage = message == null || message.data() == null
-                ? null
-                : normalizeEqpId(message.data().eqpId());
-        final String eqpId = eqpIdFromEquipment != null ? eqpIdFromEquipment : eqpIdFromMessage;
-
-        if (eqpId == null) {
-            log.info("Gateway plugin runtime reload rejected. reason=eqpId missing");
-            return GatewayUiTaskResult.fail(
-                    GatewayUiTaskErrorCode.JARFILE_TASK_FAILED,
-                    "Gateway plugin runtime reload failed: eqpId is required"
-            );
-        }
-
-        final String traceId = message == null || message.metadata() == null
-                ? "N/A"
-                : String.valueOf(message.metadata().traceId());
-
-        try {
-            reloadByEqpId(eqpId);
-            log.info("Gateway plugin runtime reload completed by UI jarfile task. eqpId={}, traceId={}", eqpId, traceId);
-            return GatewayUiTaskResult.pass();
-        } catch (RuntimeException ex) {
-            log.error("Gateway plugin runtime reload failed by UI jarfile task. eqpId={}, traceId={}", eqpId, traceId, ex);
-            return GatewayUiTaskResult.fail(
-                    GatewayUiTaskErrorCode.JARFILE_TASK_FAILED,
-                    "Gateway plugin runtime reload failed: " + safeMessage(ex)
-            );
-        }
-    }
-
     /**
      * 특정 설비용 플러그인 런타임을 구성합니다.
      *
@@ -925,17 +883,6 @@ public class GatewaySocketPluginRuntimeManager
      * @param ex 대상 예외
      * @return 메시지(없으면 예외 클래스명)
      */
-    private static String safeMessage(final Throwable ex) {
-        if (ex == null) {
-            return "unknown";
-        }
-        final String message = ex.getMessage();
-        if (message == null || message.isBlank()) {
-            return ex.getClass().getSimpleName();
-        }
-        return message;
-    }
-
     /**
      * Phase 4 보안 TODO 백로그를 우선순위와 함께 로그에 출력합니다.
      *

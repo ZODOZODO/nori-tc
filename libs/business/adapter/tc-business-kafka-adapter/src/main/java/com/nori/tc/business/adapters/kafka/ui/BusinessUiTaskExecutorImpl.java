@@ -3,9 +3,9 @@ package com.nori.tc.business.adapters.kafka.ui;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.ui.BusinessUiTaskExecutor;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
-import com.nori.tc.common.ui.task.pipeline.DefaultUiTaskPipeline;
-import com.nori.tc.common.ui.task.pipeline.UiTaskDispatchReport;
-import com.nori.tc.common.ui.task.pipeline.UiTaskReplyStatus;
+import com.nori.tc.common.kafka.task.pipeline.DefaultKafkaTaskPipeline;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDispatchReport;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyStatus;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,21 +25,21 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
     private static final Logger log = LoggerFactory.getLogger(BusinessUiTaskExecutorImpl.class);
 
     private final ObjectMapper objectMapper;
-    private final DefaultUiTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline;
+    private final DefaultKafkaTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline;
 
     /**
      * UI task 실행기 의존성을 주입받습니다.
      */
     public BusinessUiTaskExecutorImpl(
             final ObjectMapper objectMapper,
-            final DefaultUiTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline
+            final DefaultKafkaTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline
     ) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");
         this.uiTaskPipeline = Objects.requireNonNull(uiTaskPipeline, "uiTaskPipeline is null");
     }
 
     @Override
-    public UiTaskDispatchReport execute(final BusinessInboundRecord record) throws Exception {
+    public KafkaTaskDispatchReport execute(final BusinessInboundRecord record) throws Exception {
         Objects.requireNonNull(record, "record is null");
 
         final String payload = normalize(record.payload());
@@ -69,8 +69,8 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
                     record.offset());
         }
 
-        final UiTaskDispatchReport report = uiTaskPipeline.dispatch(request);
-        if (report.result().status() == UiTaskReplyStatus.FAIL) {
+        final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(request);
+        if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
             log.info("UI task finished with FAIL reply. eventType={}, eqpId={}, traceId={}, replyEventType={}, errorCode={}",
                     requestEventType,
                     request.data() == null ? null : request.data().eqpId(),
@@ -99,5 +99,6 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
         return normalized;
     }
 }
+
 
 

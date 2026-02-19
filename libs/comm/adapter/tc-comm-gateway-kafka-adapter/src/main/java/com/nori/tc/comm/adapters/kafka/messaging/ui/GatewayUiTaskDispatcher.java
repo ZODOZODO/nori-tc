@@ -1,8 +1,8 @@
 package com.nori.tc.comm.adapters.kafka.messaging.ui;
 
-import com.nori.tc.common.ui.task.pipeline.DefaultUiTaskPipeline;
-import com.nori.tc.common.ui.task.pipeline.UiTaskDispatchReport;
-import com.nori.tc.common.ui.task.pipeline.UiTaskReplyStatus;
+import com.nori.tc.common.kafka.task.pipeline.DefaultKafkaTaskPipeline;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDispatchReport;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyStatus;
 import com.nori.tc.comm.gateway.metrics.GatewayDisposition;
 import com.nori.tc.comm.gateway.metrics.GatewayDispositionMetrics;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaMessageDispatcher;
@@ -17,7 +17,7 @@ import java.util.Objects;
  * Gateway UI task 디스패처입니다.
  *
  * <p>기존 gateway 전용 분기/재시도/중복/REP/DLQ 로직을
- * 공통 {@link DefaultUiTaskPipeline}에 위임합니다.</p>
+ * 공통 {@link DefaultKafkaTaskPipeline}에 위임합니다.</p>
  */
 @Component
 public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTaskMessage> {
@@ -25,7 +25,7 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskDispatcher.class);
     private static final String FLOW_UI_TASK = "UI_TASK";
 
-    private final DefaultUiTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline;
+    private final DefaultKafkaTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline;
     private final GatewayDispositionMetrics dispositionMetrics;
 
     /**
@@ -35,7 +35,7 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
      * @param dispositionMetrics disposition 집계기
      */
     public GatewayUiTaskDispatcher(
-            final DefaultUiTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline,
+            final DefaultKafkaTaskPipeline<KafkaUiTaskMessage> uiTaskPipeline,
             final GatewayDispositionMetrics dispositionMetrics
     ) {
         this.uiTaskPipeline = Objects.requireNonNull(uiTaskPipeline, "uiTaskPipeline is null");
@@ -62,8 +62,8 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
                     traceId);
         }
 
-        final UiTaskDispatchReport report = uiTaskPipeline.dispatch(message);
-        if (report.result().status() == UiTaskReplyStatus.FAIL) {
+        final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(message);
+        if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
             dispositionMetrics.increment(FLOW_UI_TASK, GatewayDisposition.REJECTED);
             log.info("GATEWAY_UI_DISPOSITION. flow={}, disposition=REJECTED, reason=PIPELINE_FAIL, eventType={}, eqpId={}, traceId={}, replyEventType={}, errorCode={}",
                     FLOW_UI_TASK,
@@ -87,3 +87,4 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
         }
     }
 }
+

@@ -14,6 +14,7 @@ import com.nori.tc.db.core.jar.store.TcJarBusinessStore;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.jar.TcJarBusiness;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -53,6 +54,26 @@ public class BusinessWorkflowPluginRuntimeManager
         implements BusinessWorkflowPluginRuntimeProvider, BusinessWorkflowPluginRuntimeMutationPort {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessWorkflowPluginRuntimeManager.class);
+
+    /**
+     * 리로드 시작 표준 로그 이벤트명입니다.
+     */
+    private static final String RELOAD_EVENT_STARTED = "PLUGIN_RELOAD_STARTED";
+
+    /**
+     * 리로드 적용 완료 표준 로그 이벤트명입니다.
+     */
+    private static final String RELOAD_EVENT_APPLIED = "PLUGIN_RELOAD_APPLIED";
+
+    /**
+     * 리로드 롤백 표준 로그 이벤트명입니다.
+     */
+    private static final String RELOAD_EVENT_ROLLED_BACK = "PLUGIN_RELOAD_ROLLED_BACK";
+
+    /**
+     * jar 파일명이 비어 있을 때 사용할 기본명입니다.
+     */
+    private static final String DEFAULT_PLUGIN_JAR_FILE_NAME = "workflow-plugin.jar";
 
     /**
      * 플러그인 JAR 임시 파일을 저장할 루트 디렉터리입니다.
@@ -111,6 +132,20 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 
+    /**
+     * 애플리케이션 종료 시 플러그인 런타임 리소스를 정리합니다.
+     *
+     * <p>URLClassLoader/임시 JAR 파일이 누적되지 않도록, 종료 시점에
+     * 전체 런타임 스냅샷을 비우고 자원을 닫습니다.</p>
+     */
+    @PreDestroy
+    public void shutdown() {
+        final Map<String, PluginRuntime> previous = runtimeByEqpIdRef.getAndSet(Map.of());
+        closeRuntimeMapQuietly(previous);
+        log.info("Business workflow plugin runtime manager shutdown completed. closedRuntimeCount={}",
+                previous.size());
+    }
+
     @Override
     public Optional<BusinessWorkflowActionRegistry> findRegistryByEqpId(final String eqpId) {
         final String normalizedEqpId = normalizeEqpId(eqpId);
@@ -137,19 +172,44 @@ public class BusinessWorkflowPluginRuntimeManager
             throw new IllegalStateException("Invalid eqpKey for plugin reload. eqpId=" + normalizedEqpId);
         }
 
-        final TcJarBusiness jarBusiness = jarBusinessStore.findByEqpKey(eqp.eqpKey())
-                .orElseThrow(() -> new IllegalStateException(
-                        "tc_jar_business not found. eqpId=" + normalizedEqpId + ", eqpKey=" + eqp.eqpKey()));
-        if (jarBusiness.jarFile() == null || jarBusiness.jarFile().length == 0) {
-            throw new IllegalStateException("tc_jar_business.jar_file is empty. eqpId=" + normalizedEqpId);
+        final boolean hadPreviousRuntime = runtimeByEqpIdRef.get().containsKey(normalizedEqpId);
+        logReloadStarted(normalizedEqpId, eqp.eqpKey(), hadPreviousRuntime);
+
+        final TcJarBusiness jarBusiness = jarBusinessStore.findByEqpKey(eqp.eqpKey()).orElse(null);
+        if (jarBusiness == null || jarBusiness.jarFile() == null || jarBusiness.jarFile().length == 0) {
+            /*
+             * Phase 3 "액션 삭제 fallback" 규칙:
+             * - JAR 행이 삭제되었거나 파일이 비어 있으면 플러그인 런타임을 제거합니다.
+             * - 이후 실행기는 core registry만 사용하게 되어 자동 fallback 됩니다.
+             */
+            removeRuntimeByEqpId(normalizedEqpId, "JAR_ABSENT_OR_EMPTY");
+            return;
         }
 
-        final PluginRuntime newRuntime = buildPluginRuntime(
-                normalizedEqpId,
-                normalizeJarFileName(jarBusiness.jarFileName()),
-                jarBusiness.jarFile()
-        );
-        swapRuntime(normalizedEqpId, newRuntime);
+        try {
+            final PluginRuntime newRuntime = buildPluginRuntime(
+                    normalizedEqpId,
+                    normalizeJarFileName(jarBusiness.jarFileName()),
+                    jarBusiness.jarFile()
+            );
+            swapRuntime(normalizedEqpId, newRuntime);
+            logReloadApplied(
+                    normalizedEqpId,
+                    "UPSERT",
+                    true,
+                    newRuntime.jarFileName(),
+                    newRuntime.registry().size(),
+                    null
+            );
+        } catch (RuntimeException ex) {
+            /*
+             * build/swap 예외 시 기존 runtime은 유지됩니다.
+             * (swap 이전 실패, 또는 CAS 교체 실패 재시도 중 예외 없음)
+             */
+            final boolean runtimePreserved = runtimeByEqpIdRef.get().containsKey(normalizedEqpId);
+            logReloadRolledBack(normalizedEqpId, runtimePreserved, ex);
+            throw ex;
+        }
     }
 
     /**
@@ -254,6 +314,7 @@ public class BusinessWorkflowPluginRuntimeManager
             final String jarFileName,
             final byte[] jarBytes
     ) {
+        validateJarBytes(eqpId, jarBytes);
         final Path jarPath = writeJarToTemp(eqpId, jarFileName, jarBytes);
         final URLClassLoader classLoader = createClassLoader(jarPath);
 
@@ -291,6 +352,34 @@ public class BusinessWorkflowPluginRuntimeManager
             closeClassLoaderQuietly(classLoader, eqpId, jarFileName);
             deleteTempJarQuietly(jarPath);
             throw ex;
+        }
+    }
+
+    /**
+     * 플러그인 JAR 바이트의 최소 유효성을 검증합니다.
+     *
+     * <p>maxJarBytes 초과 시 로딩을 차단해 메모리 사용량 급증을 방지합니다.</p>
+     */
+    private void validateJarBytes(final String eqpId, final byte[] jarBytes) {
+        if (jarBytes == null || jarBytes.length == 0) {
+            throw new IllegalStateException("tc_jar_business.jar_file is empty. eqpId=" + eqpId);
+        }
+
+        final long maxJarBytes = properties.getMaxJarBytes();
+        if (jarBytes.length > maxJarBytes) {
+            throw new IllegalStateException("tc_jar_business.jar_file exceeds max size. eqpId="
+                    + eqpId
+                    + ", sizeBytes="
+                    + jarBytes.length
+                    + ", maxJarBytes="
+                    + maxJarBytes);
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Plugin jar bytes validated. eqpId={}, sizeBytes={}, maxJarBytes={}",
+                    eqpId,
+                    jarBytes.length,
+                    maxJarBytes);
         }
     }
 
@@ -379,6 +468,36 @@ public class BusinessWorkflowPluginRuntimeManager
                 newRuntime.registry().size());
     }
 
+    /**
+     * 특정 eqpId의 플러그인 런타임을 제거합니다.
+     *
+     * <p>JAR 삭제/미존재 시 호출되며, 이후 액션 해석은 core fallback으로 동작합니다.</p>
+     */
+    private void removeRuntimeByEqpId(final String eqpId, final String reason) {
+        PluginRuntime removedRuntime;
+        while (true) {
+            final Map<String, PluginRuntime> current = runtimeByEqpIdRef.get();
+            final Map<String, PluginRuntime> next = new LinkedHashMap<>(current);
+            removedRuntime = next.remove(eqpId);
+            if (runtimeByEqpIdRef.compareAndSet(current, Map.copyOf(next))) {
+                break;
+            }
+        }
+
+        if (removedRuntime != null) {
+            removedRuntime.closeQuietly();
+        }
+
+        logReloadApplied(
+                eqpId,
+                "REMOVE",
+                removedRuntime != null,
+                removedRuntime == null ? null : removedRuntime.jarFileName(),
+                removedRuntime == null ? 0 : removedRuntime.registry().size(),
+                reason
+        );
+    }
+
     private void replaceAllRuntimes(final Map<String, PluginRuntime> nextRuntimeMap) {
         final Map<String, PluginRuntime> previous = runtimeByEqpIdRef.getAndSet(Map.copyOf(nextRuntimeMap));
         closeRuntimeMapQuietly(previous);
@@ -457,7 +576,7 @@ public class BusinessWorkflowPluginRuntimeManager
 
     private static String normalizeJarFileName(final String jarFileName) {
         if (jarFileName == null || jarFileName.isBlank()) {
-            return "workflow-plugin.jar";
+            return DEFAULT_PLUGIN_JAR_FILE_NAME;
         }
         return jarFileName.trim();
     }
@@ -484,6 +603,72 @@ public class BusinessWorkflowPluginRuntimeManager
         } catch (Exception ex) {
             log.warn("Temporary plugin jar deletion failed. path={}", jarPath, ex);
         }
+    }
+
+    /**
+     * 플러그인 리로드 시작 로그를 표준 포맷으로 기록합니다.
+     */
+    private void logReloadStarted(
+            final String eqpId,
+            final long eqpKey,
+            final boolean hadPreviousRuntime
+    ) {
+        log.info("{}. eqpId={}, eqpKey={}, hadPreviousRuntime={}",
+                RELOAD_EVENT_STARTED,
+                eqpId,
+                eqpKey,
+                hadPreviousRuntime);
+    }
+
+    /**
+     * 플러그인 리로드 적용 로그를 표준 포맷으로 기록합니다.
+     */
+    private void logReloadApplied(
+            final String eqpId,
+            final String operation,
+            final boolean changed,
+            final String jarFileName,
+            final int actionCount,
+            final String reason
+    ) {
+        if (changed) {
+            log.info("{}. eqpId={}, operation={}, changed={}, jarFileName={}, actionCount={}, reason={}",
+                    RELOAD_EVENT_APPLIED,
+                    eqpId,
+                    operation,
+                    true,
+                    jarFileName == null ? "N/A" : jarFileName,
+                    actionCount,
+                    reason == null ? "N/A" : reason);
+            return;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("{}. eqpId={}, operation={}, changed={}, jarFileName={}, actionCount={}, reason={}",
+                    RELOAD_EVENT_APPLIED,
+                    eqpId,
+                    operation,
+                    false,
+                    jarFileName == null ? "N/A" : jarFileName,
+                    actionCount,
+                    reason == null ? "N/A" : reason);
+        }
+    }
+
+    /**
+     * 플러그인 리로드 실패/롤백 로그를 표준 포맷으로 기록합니다.
+     */
+    private void logReloadRolledBack(
+            final String eqpId,
+            final boolean runtimePreserved,
+            final Throwable cause
+    ) {
+        log.warn("{}. eqpId={}, runtimePreserved={}, reason={}",
+                RELOAD_EVENT_ROLLED_BACK,
+                eqpId,
+                runtimePreserved,
+                cause == null ? "N/A" : cause.getMessage(),
+                cause);
     }
 
     /**

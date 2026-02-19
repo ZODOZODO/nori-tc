@@ -14,7 +14,7 @@ java {
 
 dependencies {
     /*
-     * Starter는 business 계층(core + adapters)을 앱에 한 번에 조립하기 위한 진입점입니다.
+     * Starter는 business 코어와 핵심 어댑터를 앱에 한 번에 조립합니다.
      */
     api(project(":libs:business:tc-business-core"))
     api(project(":libs:business:adapter:tc-business-db-adapter"))
@@ -23,14 +23,10 @@ dependencies {
     api(project(":libs:business:adapter:tc-business-redis-adapter"))
 
     /*
-     * Starter 설정 클래스에서 직접 참조하는 공통 타입 의존성입니다.
-     * - UI Task Pipeline 타입
-     * - RetryPolicy 타입
-     * - Kafka UI 메시지 계약 타입
-     * - ObjectMapper 타입
+     * AutoConfiguration에서 직접 사용하는 공통 계약/구현입니다.
      */
-    implementation(project(":libs:common:tc-common-kafka-processing"))
-    implementation(project(":libs:common:tc-common-ui-task-pipeline"))
+    implementation(project(":libs:common:tc-common-kafka-consumer-runtime"))
+    implementation(project(":libs:common:tc-common-task-execution"))
     implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
     implementation(libs.jackson.databind)
 

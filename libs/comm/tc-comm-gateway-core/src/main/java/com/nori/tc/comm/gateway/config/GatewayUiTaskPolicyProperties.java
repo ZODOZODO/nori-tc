@@ -6,15 +6,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Gateway UI Task 처리 정책 속성입니다.
+ * Gateway UI Task 처리 정책 프로퍼티입니다.
  *
  * <p>prefix: {@code tc.comm.gateway.ui-task}</p>
  *
- * <p>본 속성은 UI 명령 처리의 타임아웃/재시도/중복 방지/라이프사이클 동기대기 모드를 통합 제어합니다.</p>
+ * <p>UI 명령 처리 타임아웃, 재시도, 중복 trace 차단 정책을 통합 관리합니다.</p>
  */
 @ConfigurationProperties(prefix = "tc.comm.gateway.ui-task")
 public class GatewayUiTaskPolicyProperties {
 
+    /**
+     * 정책 검증 로그를 위한 로거입니다.
+     */
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskPolicyProperties.class);
 
     /** EQP_CREATE 처리 타임아웃(ms) */
@@ -39,36 +42,36 @@ public class GatewayUiTaskPolicyProperties {
     private Long updateJarfileTimeoutMs = 30_000L;
 
     /**
-     * UI lifecycle(START/END)에서 실제 연결/해제 완료까지 동기 대기할지 여부입니다.
+     * START/END 요청에서 동기 대기 모드를 사용할지 여부입니다.
      *
-     * <p>Phase 2 기본값은 false(비동기 상태머신)이며, true로 설정하면 기존 동기 대기 경로를 사용합니다.</p>
+     * <p>true면 기존 동기 wait 경로를 사용하고,
+     * false면 상태머신 기반 비동기 전환 경로를 사용합니다.</p>
      */
     private boolean lifecycleSyncWaitEnabled = false;
 
-    /** UI task 처리 로직 최대 재시도 횟수 */
+    /** UI task 처리 재시도 횟수 */
     private Integer taskRetryMax = 1;
 
-    /** UI task 처리 로직 재시도 backoff(ms) */
+    /** UI task 처리 재시도 backoff(ms) */
     private Long taskRetryBackoffMs = 200L;
 
-    /** UI reply 발행 최대 재시도 횟수 */
+    /** UI reply 발행 재시도 횟수 */
     private Integer replyPublishRetryMax = 3;
 
     /** UI reply 발행 재시도 backoff(ms) */
     private Long replyPublishRetryBackoffMs = 200L;
 
-    /** 동일 traceId 중복 요청 차단 TTL(ms) */
+    /** traceId dedup 유지 시간(ms) */
     private Long duplicateTraceTtlMs = 600_000L;
 
-    /**
-     * 레코드 처리 실패 후 동일 레코드 재시도 전 backoff(ms)입니다.
-     *
-     * <p>REP 발행 실패 등으로 커밋이 보류될 때, 같은 레코드를 즉시 재처리하지 않도록 완충 역할을 합니다.</p>
-     */
+    /** traceId dedup 캐시 최대 엔트리 수 */
+    private Integer duplicateTraceMaxSize = 100_000;
+
+    /** 실패 레코드 재처리 backoff(ms) */
     private Long failedRecordRetryBackoffMs = 500L;
 
     /**
-     * 모든 정책값의 유효성을 검증합니다.
+     * 애플리케이션 시작 시 정책 값의 유효성을 검증합니다.
      */
     @PostConstruct
     public void validate() {
@@ -85,25 +88,31 @@ public class GatewayUiTaskPolicyProperties {
         requireNonNegative("tc.comm.gateway.ui-task.reply-publish-retry-max", replyPublishRetryMax);
         requireNonNegative("tc.comm.gateway.ui-task.reply-publish-retry-backoff-ms", replyPublishRetryBackoffMs);
         requirePositive("tc.comm.gateway.ui-task.duplicate-trace-ttl-ms", duplicateTraceTtlMs);
+        requirePositive("tc.comm.gateway.ui-task.duplicate-trace-max-size", duplicateTraceMaxSize);
         requireNonNegative("tc.comm.gateway.ui-task.failed-record-retry-backoff-ms", failedRecordRetryBackoffMs);
 
         log.info(
-                "GatewayUiTaskPolicyProperties validated. startTimeoutMs={}, endTimeoutMs={}, replyPublishRetryMax={}, lifecycleSyncWaitEnabled={}",
+                "GatewayUiTaskPolicyProperties validated. startTimeoutMs={}, endTimeoutMs={}, replyPublishRetryMax={}, duplicateTraceMaxSize={}, lifecycleSyncWaitEnabled={}",
                 startTimeoutMs,
                 endTimeoutMs,
                 replyPublishRetryMax,
+                duplicateTraceMaxSize,
                 lifecycleSyncWaitEnabled
         );
     }
 
-    /** 양수 검증 유틸입니다. */
+    /**
+     * 양수 여부를 검증합니다.
+     */
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
         }
     }
 
-    /** 0 이상 검증 유틸입니다. */
+    /**
+     * 0 이상 여부를 검증합니다.
+     */
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");
@@ -212,6 +221,14 @@ public class GatewayUiTaskPolicyProperties {
 
     public void setDuplicateTraceTtlMs(final long duplicateTraceTtlMs) {
         this.duplicateTraceTtlMs = duplicateTraceTtlMs;
+    }
+
+    public int getDuplicateTraceMaxSize() {
+        return duplicateTraceMaxSize;
+    }
+
+    public void setDuplicateTraceMaxSize(final int duplicateTraceMaxSize) {
+        this.duplicateTraceMaxSize = duplicateTraceMaxSize;
     }
 
     public long getFailedRecordRetryBackoffMs() {

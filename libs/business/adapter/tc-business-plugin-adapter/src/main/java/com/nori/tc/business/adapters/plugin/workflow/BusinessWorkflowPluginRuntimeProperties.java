@@ -31,6 +31,14 @@ public class BusinessWorkflowPluginRuntimeProperties {
     private int pageSize = 500;
 
     /**
+     * 플러그인 JAR 최대 허용 크기(바이트)입니다.
+     *
+     * <p>메모리 급증/비정상 대용량 바이너리 로딩을 방지하기 위한
+     * 1차 방어 설정입니다.</p>
+     */
+    private long maxJarBytes = 10L * 1024L * 1024L;
+
+    /**
      * 프로퍼티 유효성 검증을 수행합니다.
      */
     @PostConstruct
@@ -38,10 +46,14 @@ public class BusinessWorkflowPluginRuntimeProperties {
         if (pageSize <= 0) {
             throw new IllegalStateException("tc.business.core.plugin-runtime.page-size must be > 0");
         }
-        log.info("BusinessWorkflowPluginRuntimeProperties validated. loadOnStartup={}, failFastOnStartup={}, pageSize={}",
+        if (maxJarBytes <= 0L) {
+            throw new IllegalStateException("tc.business.core.plugin-runtime.max-jar-bytes must be > 0");
+        }
+        log.info("BusinessWorkflowPluginRuntimeProperties validated. loadOnStartup={}, failFastOnStartup={}, pageSize={}, maxJarBytes={}",
                 loadOnStartup,
                 failFastOnStartup,
-                pageSize);
+                pageSize,
+                maxJarBytes);
     }
 
     public boolean isLoadOnStartup() {
@@ -66,6 +78,14 @@ public class BusinessWorkflowPluginRuntimeProperties {
 
     public void setPageSize(final int pageSize) {
         this.pageSize = pageSize;
+    }
+
+    public long getMaxJarBytes() {
+        return maxJarBytes;
+    }
+
+    public void setMaxJarBytes(final long maxJarBytes) {
+        this.maxJarBytes = maxJarBytes;
     }
 }
 

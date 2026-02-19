@@ -1,7 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
-import com.nori.tc.common.ui.task.pipeline.UiTaskProcessorRegistry;
-import com.nori.tc.common.ui.task.pipeline.UiTaskProcessorSpec;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorSpec;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,11 +18,11 @@ import java.util.Optional;
  * <p>eventType별 처리기와 replyEventType 매핑을 관리합니다.</p>
  */
 @Component
-public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<KafkaUiTaskMessage> {
+public class BusinessUiTaskProcessorRegistry implements KafkaTaskProcessorRegistry<KafkaUiTaskMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessUiTaskProcessorRegistry.class);
 
-    private final Map<String, UiTaskProcessorSpec<KafkaUiTaskMessage>> specsByEventType;
+    private final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> specsByEventType;
 
     /**
      * 레지스트리를 초기화합니다.
@@ -32,10 +32,10 @@ public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<
     public BusinessUiTaskProcessorRegistry(final BusinessUiModelRuntimeCommandService commandService) {
         Objects.requireNonNull(commandService, "commandService is null");
 
-        final Map<String, UiTaskProcessorSpec<KafkaUiTaskMessage>> mapped = new LinkedHashMap<>();
+        final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped = new LinkedHashMap<>();
         register(
                 mapped,
-                new UiTaskProcessorSpec<>(
+                new KafkaTaskProcessorSpec<>(
                         "EQP_CREATE",
                         "EQP_CREATE_REP",
                         commandService::handleEqpCreateOrUpdate
@@ -43,7 +43,7 @@ public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<
         );
         register(
                 mapped,
-                new UiTaskProcessorSpec<>(
+                new KafkaTaskProcessorSpec<>(
                         "EQP_UPDATE",
                         "EQP_UPDATE_REP",
                         commandService::handleEqpCreateOrUpdate
@@ -51,7 +51,7 @@ public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<
         );
         register(
                 mapped,
-                new UiTaskProcessorSpec<>(
+                new KafkaTaskProcessorSpec<>(
                         "EQP_UPDATE_JARFILE",
                         "EQP_UPDATE_JARFILE_REP",
                         commandService::handleEqpUpdateJarfile
@@ -65,7 +65,7 @@ public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<
     }
 
     @Override
-    public Optional<UiTaskProcessorSpec<KafkaUiTaskMessage>> find(final String eventType) {
+    public Optional<KafkaTaskProcessorSpec<KafkaUiTaskMessage>> find(final String eventType) {
         final String normalizedEventType = normalize(eventType);
         if (normalizedEventType == null) {
             return Optional.empty();
@@ -74,8 +74,8 @@ public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<
     }
 
     private static void register(
-            final Map<String, UiTaskProcessorSpec<KafkaUiTaskMessage>> mapped,
-            final UiTaskProcessorSpec<KafkaUiTaskMessage> spec
+            final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped,
+            final KafkaTaskProcessorSpec<KafkaUiTaskMessage> spec
     ) {
         final String eventType = normalize(spec.eventType());
         if (eventType == null) {
@@ -97,4 +97,5 @@ public class BusinessUiTaskProcessorRegistry implements UiTaskProcessorRegistry<
         return normalized.toUpperCase();
     }
 }
+
 

@@ -6,6 +6,9 @@ import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskPipelineReasonCode;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskPipelineStage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +25,7 @@ import java.util.Objects;
  * 운영 추적이 필요한 케이스를 DLQ에 남깁니다.</p>
  */
 @Component
-public class GatewayUiTaskDlqPublisher {
+public class GatewayUiTaskDlqPublisher implements KafkaTaskDlqReporter<KafkaUiTaskMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskDlqPublisher.class);
 
@@ -44,7 +47,33 @@ public class GatewayUiTaskDlqPublisher {
     }
 
     /**
-     * UI task 실패 정보를 DLQ로 발행합니다.
+     * 공통 파이프라인 DLQ 보고 계약을 받아 gateway DLQ 메시지로 발행합니다.
+     *
+     * @param request 원본 요청
+     * @param stage 실패 단계
+     * @param reasonCode 실패 사유 코드
+     * @param reasonMessage 실패 상세 메시지
+     * @param replyEventType 응답 이벤트 타입
+     */
+    @Override
+    public void report(
+            final KafkaUiTaskMessage request,
+            final KafkaTaskPipelineStage stage,
+            final String reasonCode,
+            final String reasonMessage,
+            final String replyEventType
+    ) {
+        publish(
+                request,
+                toStage(stage),
+                toDlqReasonCode(reasonCode),
+                reasonMessage,
+                replyEventType
+        );
+    }
+
+    /**
+     * UI task 실패 정보를 실제 DLQ sink로 발행합니다.
      *
      * @param message 원본 UI task
      * @param stage 실패 단계(예: ROUTING/PUBLISH)
@@ -52,7 +81,7 @@ public class GatewayUiTaskDlqPublisher {
      * @param reasonMessage 실패 상세 메시지
      * @param replyEventType 응답 이벤트 타입(가능한 경우)
      */
-    public void publish(
+    private void publish(
             final KafkaUiTaskMessage message,
             final String stage,
             final DlqReasonCode reasonCode,
@@ -145,5 +174,34 @@ public class GatewayUiTaskDlqPublisher {
             return "UNKNOWN_EVENT";
         }
         return eventType.trim();
+    }
+
+    /**
+     * 공통 stage enum을 gateway DLQ stage 문자열로 변환합니다.
+     *
+     * @param stage 공통 stage
+     * @return gateway DLQ stage 문자열
+     */
+    private static String toStage(final KafkaTaskPipelineStage stage) {
+        if (stage == KafkaTaskPipelineStage.PUBLISH) {
+            return DlqMessage.STAGE_PUBLISH;
+        }
+        return DlqMessage.STAGE_ROUTING;
+    }
+
+    /**
+     * 공통 reasonCode를 gateway DLQ 사유 코드로 변환합니다.
+     *
+     * @param reasonCode 공통 reasonCode
+     * @return gateway DLQ 사유 코드
+     */
+    private static DlqReasonCode toDlqReasonCode(final String reasonCode) {
+        if (KafkaTaskPipelineReasonCode.PUBLISH_FAILED.equals(reasonCode)) {
+            return DlqReasonCode.PUBLISH_FAILED;
+        }
+        if (KafkaTaskPipelineReasonCode.PROCESS_FAILED.equals(reasonCode)) {
+            return DlqReasonCode.ROUTING_FAILED;
+        }
+        return DlqReasonCode.ROUTING_FAILED;
     }
 }

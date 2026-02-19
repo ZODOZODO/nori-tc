@@ -1,8 +1,9 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
-import com.nori.tc.common.ui.task.pipeline.UiTaskReplyPublisher;
-import com.nori.tc.common.ui.task.pipeline.UiTaskResult;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyPublisher;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
+import com.nori.tc.messaging.kafka.starter.contract.KafkaHeaderSupport;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskReplyMessage;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -21,7 +22,7 @@ import java.util.Objects;
  * {@code tc.ui.commands}로 발행합니다.</p>
  */
 @Component
-public class BusinessUiTaskReplyPublisher implements UiTaskReplyPublisher<KafkaUiTaskMessage> {
+public class BusinessUiTaskReplyPublisher implements KafkaTaskReplyPublisher<KafkaUiTaskMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessUiTaskReplyPublisher.class);
 
@@ -46,7 +47,7 @@ public class BusinessUiTaskReplyPublisher implements UiTaskReplyPublisher<KafkaU
     public void publishResult(
             final KafkaUiTaskMessage request,
             final String replyEventType,
-            final UiTaskResult result
+            final KafkaTaskResult result
     ) throws Exception {
         Objects.requireNonNull(request, "request is null");
         Objects.requireNonNull(result, "result is null");
@@ -71,6 +72,12 @@ public class BusinessUiTaskReplyPublisher implements UiTaskReplyPublisher<KafkaU
 
         final KafkaUiTaskReplyMessage payload = new KafkaUiTaskReplyMessage(metadata, data);
         final ProducerRecord<String, Object> producerRecord = new ProducerRecord<>(topic, eqpId, payload);
+        KafkaHeaderSupport.addTracingHeaders(
+                producerRecord,
+                metadata.traceId(),
+                metadata.eventType(),
+                metadata.source()
+        );
 
         if (log.isDebugEnabled()) {
             log.debug("Publishing UI REP. topic={}, eventType={}, eqpId={}, traceId={}, status={}",
@@ -117,5 +124,6 @@ public class BusinessUiTaskReplyPublisher implements UiTaskReplyPublisher<KafkaU
         return value.trim();
     }
 }
+
 
 

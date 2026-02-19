@@ -3,12 +3,12 @@ package com.nori.tc.business.starter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.adapters.kafka.ui.BusinessUiTaskPolicyProperties;
 import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
-import com.nori.tc.common.ui.task.pipeline.DefaultUiTaskPipeline;
-import com.nori.tc.common.ui.task.pipeline.UiTaskDeduplicationStore;
-import com.nori.tc.common.ui.task.pipeline.UiTaskDlqReporter;
-import com.nori.tc.common.ui.task.pipeline.UiTaskMessageAccessor;
-import com.nori.tc.common.ui.task.pipeline.UiTaskProcessorRegistry;
-import com.nori.tc.common.ui.task.pipeline.UiTaskReplyPublisher;
+import com.nori.tc.common.kafka.task.pipeline.DefaultKafkaTaskPipeline;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDeduplicationStore;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskMessageAccessor;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyPublisher;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -35,7 +35,7 @@ public class BusinessUiTaskPipelineConfiguration {
     }
 
     /**
-     * {@link DefaultUiTaskPipeline} 빈을 구성합니다.
+     * {@link DefaultKafkaTaskPipeline} 빈을 구성합니다.
      *
      * @param accessor 메시지 필드 접근자
      * @param registry eventType 처리기 레지스트리
@@ -46,15 +46,15 @@ public class BusinessUiTaskPipelineConfiguration {
      * @return 공통 UI task 파이프라인
      */
     @Bean
-    public DefaultUiTaskPipeline<KafkaUiTaskMessage> businessUiTaskPipeline(
-            final UiTaskMessageAccessor<KafkaUiTaskMessage> accessor,
-            final UiTaskProcessorRegistry<KafkaUiTaskMessage> registry,
-            final UiTaskReplyPublisher<KafkaUiTaskMessage> replyPublisher,
-            final UiTaskDlqReporter<KafkaUiTaskMessage> dlqReporter,
-            final UiTaskDeduplicationStore deduplicationStore,
+    public DefaultKafkaTaskPipeline<KafkaUiTaskMessage> businessUiTaskPipeline(
+            final KafkaTaskMessageAccessor<KafkaUiTaskMessage> accessor,
+            final KafkaTaskProcessorRegistry<KafkaUiTaskMessage> registry,
+            final KafkaTaskReplyPublisher<KafkaUiTaskMessage> replyPublisher,
+            final KafkaTaskDlqReporter<KafkaUiTaskMessage> dlqReporter,
+            final KafkaTaskDeduplicationStore deduplicationStore,
             final BusinessUiTaskPolicyProperties policyProperties
     ) {
-        return new DefaultUiTaskPipeline<>(
+        return new DefaultKafkaTaskPipeline<>(
                 accessor,
                 registry,
                 replyPublisher,
@@ -73,4 +73,5 @@ public class BusinessUiTaskPipelineConfiguration {
         );
     }
 }
+
 

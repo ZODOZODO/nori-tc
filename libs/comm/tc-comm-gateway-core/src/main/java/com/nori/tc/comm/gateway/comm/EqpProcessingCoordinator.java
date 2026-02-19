@@ -6,30 +6,26 @@ import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
-import com.nori.tc.common.mailbox.Mailbox;
 import com.nori.tc.common.mailbox.MailboxScheduler;
+import com.nori.tc.common.task.execution.MailboxExecutionRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 설비(eqpId) 단위 순차 처리를 담당하는 코디네이터입니다.
+ * 장비(EQP) 단위 순차 처리 코디네이터입니다.
  *
- * <p>핵심 역할:</p>
- * <p>1) 공통 {@link MailboxScheduler}를 이용해 eqpId 단위 in-flight=1을 보장</p>
- * <p>2) inbound/outbound를 동일 worker 흐름에서 순차 처리</p>
- * <p>3) outbound 전송 실패 시 재시도/격리(quarantine) 정책 적용</p>
- *
- * <p>스케줄링 주의사항:</p>
- * <p>- 본 클래스는 "스케줄 토큰"만 공통 mailbox에 적재합니다.</p>
- * <p>- 실제 데이터(inbound/outbound)는 {@link EqpMailbox} 내부 큐에서 관리합니다.</p>
+ * <p>핵심 역할은 다음과 같습니다.</p>
+ * <p>1) 공통 {@link MailboxScheduler}로 eqpId 단위 in-flight=1 보장</p>
+ * <p>2) 공통 {@link MailboxExecutionRuntime}로 dispatcher 루프 실행</p>
+ * <p>3) 장비 inbound/outbound를 한 사이클씩 처리하고 필요 시 재스케줄</p>
+ * <p>4) outbound 실패 시 재시도 또는 quarantine 정책 적용</p>
  */
 @Service
 public class EqpProcessingCoordinator implements SmartLifecycle {
@@ -39,10 +35,14 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     /**
      * 스케줄 토큰 전용 mailbox 용량입니다.
      *
-     * <p>동일 eqpId에 대해 "다음 처리 한 번"만 예약하면 충분하므로 1로 고정합니다.
-     * 중복 schedule 요청은 자연스럽게 흡수(dedup)됩니다.</p>
+     * <p>eqpId당 "처리 필요" 토큰만 유지하면 충분하므로 1로 고정합니다.</p>
      */
     private static final int SCHEDULER_MAILBOX_CAPACITY = 1;
+
+    /**
+     * 공통 mailbox 런타임 종료 대기 시간(ms)입니다.
+     */
+    private static final long MAILBOX_RUNTIME_SHUTDOWN_WAIT_MS = 3_000L;
 
     private final EqpMailboxRegistry mailboxRegistry;
     private final EqpSequentialProcessor sequentialProcessor;
@@ -51,8 +51,8 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     private final GatewayRuntimeProperties runtimeProperties;
     private final MailboxScheduler<EqpMailboxScheduleTask> mailboxScheduler =
             new MailboxScheduler<>(SCHEDULER_MAILBOX_CAPACITY);
+    private final MailboxExecutionRuntime<EqpMailboxScheduleTask> mailboxExecutionRuntime;
 
-    private ExecutorService workerPool;
     private ScheduledExecutorService retryScheduler;
 
     private volatile boolean running = false;
@@ -63,8 +63,8 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      * @param mailboxRegistry eqpId별 mailbox 레지스트리
      * @param sequentialProcessor inbound 순차 처리기
      * @param outboundSenderPort outbound 송신 포트
-     * @param quarantinePort 설비 격리 포트
-     * @param runtimeProperties 게이트웨이 런타임 설정
+     * @param quarantinePort 장비 격리 포트
+     * @param runtimeProperties 런타임 설정
      */
     public EqpProcessingCoordinator(
             final EqpMailboxRegistry mailboxRegistry,
@@ -78,14 +78,32 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         this.outboundSenderPort = Objects.requireNonNull(outboundSenderPort, "outboundSenderPort is null");
         this.quarantinePort = Objects.requireNonNull(quarantinePort, "quarantinePort is null");
         this.runtimeProperties = Objects.requireNonNull(runtimeProperties, "runtimeProperties is null");
+
+        final MailboxExecutionRuntime.Config runtimeConfig = MailboxExecutionRuntime.Config
+                .direct(
+                        runtimeProperties.getWorkerThreads(),
+                        MAILBOX_RUNTIME_SHUTDOWN_WAIT_MS,
+                        "gateway-eqp-dispatcher-"
+                )
+                .withDispatcherDecorator(GatewayLogContext::wrap);
+
+        this.mailboxExecutionRuntime = new MailboxExecutionRuntime<>(
+                "gateway-eqp-coordinator",
+                mailboxScheduler,
+                runtimeConfig,
+                this::handleScheduledMailboxTask,
+                null,
+                (task, ex) -> log.warn("장비 task 처리 중 예외가 발생했습니다. eqpId={}", task.eqpId(), ex),
+                ex -> log.warn("장비 mailbox dispatcher 루프에서 예외가 발생했습니다.", ex)
+        );
     }
 
     /**
-     * 특정 설비 mailbox에 대해 처리 스케줄을 등록합니다.
+     * 특정 장비 mailbox를 실행 큐에 등록합니다.
      *
-     * <p>중복 스케줄은 공통 mailbox 용량(1) 정책으로 자동 흡수됩니다.</p>
+     * <p>중복 스케줄 요청은 scheduler 내부 dedup 플래그로 자동 흡수됩니다.</p>
      *
-     * @param mailbox 처리 대상 설비 mailbox
+     * @param mailbox 처리 대상 장비 mailbox
      */
     public void schedule(final EqpMailbox mailbox) {
         if (mailbox == null) {
@@ -98,14 +116,14 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
                 now
         );
         if (!offered && log.isDebugEnabled()) {
-            log.debug("설비 스케줄 토큰이 이미 대기 중이라 추가 등록을 생략합니다. eqpId={}", mailbox.eqpId());
+            log.debug("장비 스케줄 토큰이 이미 대기 중이어서 추가 등록을 생략합니다. eqpId={}", mailbox.eqpId());
         }
     }
 
     /**
-     * 설비 언바인드 시 스케줄러 내부 상태를 정리합니다.
+     * 장비 삭제/언바인드 시 scheduler 내부 상태를 정리합니다.
      *
-     * @param eqpId 정리할 설비 ID
+     * @param eqpId 정리할 장비 ID
      */
     public void clearSchedulingState(final String eqpId) {
         if (eqpId == null || eqpId.isBlank()) {
@@ -113,12 +131,14 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         }
         mailboxScheduler.removeMailbox(eqpId);
         if (log.isDebugEnabled()) {
-            log.debug("설비 스케줄링 상태를 정리했습니다. eqpId={}", eqpId);
+            log.debug("장비 스케줄 상태를 정리했습니다. eqpId={}", eqpId);
         }
     }
 
     /**
-     * worker/retry 스레드풀을 초기화하고 코디네이터를 기동합니다.
+     * 코디네이터를 시작합니다.
+     *
+     * <p>공통 mailbox 실행 런타임과 outbound 재시도 스케줄러를 함께 기동합니다.</p>
      */
     @Override
     public synchronized void start() {
@@ -127,31 +147,23 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         }
         running = true;
 
-        workerPool = Executors.newFixedThreadPool(runtimeProperties.getWorkerThreads());
         retryScheduler = Executors.newScheduledThreadPool(runtimeProperties.getOutboundRetrySchedulerThreads());
+        mailboxExecutionRuntime.start();
 
-        for (int i = 0; i < runtimeProperties.getWorkerThreads(); i++) {
-            // lifecycle 스레드의 로그 컨텍스트를 worker loop까지 보존합니다.
-            workerPool.execute(GatewayLogContext.wrap(this::runWorkerLoop));
-        }
-
-        log.info("EqpProcessingCoordinator started. workerThreads={}, retrySchedulerThreads={}, schedulerMailboxCapacity={}",
+        log.info("EqpProcessingCoordinator started. dispatcherThreads={}, retrySchedulerThreads={}, schedulerMailboxCapacity={}",
                 runtimeProperties.getWorkerThreads(),
                 runtimeProperties.getOutboundRetrySchedulerThreads(),
                 SCHEDULER_MAILBOX_CAPACITY);
     }
 
     /**
-     * 코디네이터를 중지하고 내부 스레드풀을 종료합니다.
+     * 코디네이터를 중지합니다.
      */
     @Override
     public synchronized void stop() {
         running = false;
 
-        if (workerPool != null) {
-            workerPool.shutdownNow();
-            workerPool = null;
-        }
+        mailboxExecutionRuntime.stop();
         if (retryScheduler != null) {
             retryScheduler.shutdownNow();
             retryScheduler = null;
@@ -167,7 +179,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      */
     @Override
     public boolean isRunning() {
-        return running;
+        return running && mailboxExecutionRuntime.isRunning();
     }
 
     /**
@@ -181,49 +193,26 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     }
 
     /**
-     * worker loop 본문입니다.
+     * 공통 런타임에서 전달한 스케줄 task를 처리합니다.
      *
-     * <p>공통 mailbox에서 ready eqpId를 꺼내 단건 처리하고,
-     * 처리 후 공통 scheduler에 release 신호를 반환합니다.</p>
+     * @param scheduleTask 처리 대상 task
      */
-    private void runWorkerLoop() {
-        while (running) {
-            try {
-                final String eqpId = mailboxScheduler.takeReadyKey();
-                final Mailbox<EqpMailboxScheduleTask> schedulingMailbox = mailboxScheduler.tryAcquire(eqpId);
-                if (schedulingMailbox == null) {
-                    continue;
-                }
-
-                final EqpMailboxScheduleTask scheduleTask = schedulingMailbox.poll();
-                if (scheduleTask == null) {
-                    mailboxScheduler.release(schedulingMailbox);
-                    continue;
-                }
-
-                try {
-                    processOnce(scheduleTask.eqpId());
-                } finally {
-                    mailboxScheduler.release(schedulingMailbox);
-                }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
-            } catch (Exception ex) {
-                log.warn("Worker loop error.", ex);
-            }
+    private void handleScheduledMailboxTask(final EqpMailboxScheduleTask scheduleTask) {
+        if (scheduleTask == null) {
+            return;
         }
+        processOnce(scheduleTask.eqpId());
     }
 
     /**
-     * 단일 eqpId에 대한 한 번의 처리 사이클을 수행합니다.
+     * 단일 eqpId에 대해 한 사이클의 처리를 수행합니다.
      *
      * <p>처리 순서:</p>
-     * <p>1) inbound 파이프라인 drain</p>
-     * <p>2) outbound 큐 drain</p>
-     * <p>3) 잔여 데이터가 있으면 다음 사이클을 재스케줄</p>
+     * <p>1) inbound drain</p>
+     * <p>2) outbound drain</p>
+     * <p>3) 잔여 데이터가 있으면 다음 사이클 재스케줄</p>
      *
-     * @param eqpId 처리 대상 설비 ID
+     * @param eqpId 처리 대상 장비 ID
      */
     private void processOnce(final String eqpId) {
         if (eqpId == null || eqpId.isBlank()) {
@@ -245,7 +234,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
             if (hasPending(mailbox)) {
                 schedule(mailbox);
             } else if (log.isDebugEnabled()) {
-                log.debug("설비 큐 처리가 완료되었습니다. eqpId={}, inboundSize={}, outboundSize={}",
+                log.debug("장비 한 사이클 처리가 완료되었습니다. eqpId={}, inboundSize={}, outboundSize={}",
                         eqpId,
                         mailbox.inboundQueue().size(),
                         mailbox.outboundQueue().size());
@@ -254,9 +243,9 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     }
 
     /**
-     * outbound 큐를 최대 {@code maxOutboundPerDrain}만큼 순차 전송합니다.
+     * outbound 큐를 최대 {@code maxOutboundPerDrain} 개수까지 순차 송신합니다.
      *
-     * @param mailbox 설비 mailbox
+     * @param mailbox 장비 mailbox
      */
     private void drainOutbound(final EqpMailbox mailbox) {
         int processed = 0;
@@ -279,11 +268,15 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     }
 
     /**
-     * outbound 전송 실패 처리(재시도 또는 격리)를 수행합니다.
+     * outbound 송신 실패를 처리합니다.
      *
-     * @param mailbox 설비 mailbox
+     * <p>정책:</p>
+     * <p>1) 재시도 한도 이내면 지연 후 재큐잉</p>
+     * <p>2) 한도 초과면 장비를 quarantine 처리하고 채널 종료</p>
+     *
+     * @param mailbox 장비 mailbox
      * @param command 실패한 명령
-     * @param ex 실패 예외
+     * @param ex 송신 예외
      */
     private void handleOutboundFailure(
             final EqpMailbox mailbox,
@@ -295,11 +288,19 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
             final OutboundCommand retry = command.nextAttempt();
             final int delayMs = runtimeProperties.getOutboundRetryBackoffMs();
 
-            retryScheduler.schedule(
+            final ScheduledExecutorService scheduler = retryScheduler;
+            if (scheduler == null) {
+                log.warn("재시도 스케줄러가 종료되어 명령을 재시도할 수 없습니다. eqpId={}", mailbox.eqpId());
+                safeQuarantine(mailbox);
+                safeClose(mailbox);
+                return;
+            }
+
+            scheduler.schedule(
                     GatewayLogContext.wrap(() -> {
                         final boolean offered = mailbox.outboundQueue().offer(retry);
                         if (!offered) {
-                            log.warn("재시도 명령 enqueue에 실패하여 설비를 격리합니다. eqpId={}", mailbox.eqpId());
+                            log.warn("재시도 명령 enqueue가 실패하여 장비를 격리합니다. eqpId={}", mailbox.eqpId());
                             safeQuarantine(mailbox);
                             safeClose(mailbox);
                             return;
@@ -312,7 +313,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
             return;
         }
 
-        log.warn("outbound 전송이 재시도 한도를 초과했습니다. eqpId={}, attempts={}",
+        log.warn("outbound 송신 재시도 한도를 초과했습니다. eqpId={}, attempts={}",
                 mailbox.eqpId(),
                 command.attempt() + 1,
                 ex);
@@ -321,9 +322,9 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     }
 
     /**
-     * 설비 채널을 안전하게 종료합니다.
+     * 장비 채널을 안전하게 종료합니다.
      *
-     * @param mailbox 설비 mailbox
+     * @param mailbox 장비 mailbox
      */
     private void safeClose(final EqpMailbox mailbox) {
         final EquipmentChannel channel = mailbox.channel();
@@ -333,9 +334,9 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     }
 
     /**
-     * 설비를 quarantine 상태로 전환합니다.
+     * 장비를 quarantine 상태로 전환합니다.
      *
-     * @param mailbox 설비 mailbox
+     * @param mailbox 장비 mailbox
      */
     private void safeQuarantine(final EqpMailbox mailbox) {
         try {
@@ -345,15 +346,15 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
                     "Outbound send failed"
             );
         } catch (Exception ignored) {
-            // quarantine 포트 장애는 상위 처리 흐름을 추가로 깨지 않도록 로그만 남깁니다.
-            log.debug("설비 quarantine 호출 중 예외가 발생했습니다. eqpId={}", mailbox.eqpId(), ignored);
+            // quarantine 실패는 보조 경로이므로 처리 흐름을 중단하지 않습니다.
+            log.debug("장비 quarantine 호출 중 예외가 발생했습니다. eqpId={}", mailbox.eqpId(), ignored);
         }
     }
 
     /**
-     * inbound/outbound 큐에 잔여 데이터가 있는지 확인합니다.
+     * inbound/outbound 큐에 잔여 데이터가 있는지 반환합니다.
      *
-     * @param mailbox 설비 mailbox
+     * @param mailbox 장비 mailbox
      * @return 잔여 데이터가 있으면 true
      */
     private boolean hasPending(final EqpMailbox mailbox) {
@@ -363,7 +364,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     /**
      * 현재 epoch millis를 반환합니다.
      *
-     * @return 현재 시각(epoch millis)
+     * @return 현재 시간(epoch millis)
      */
     private static long nowEpochMillis() {
         return System.currentTimeMillis();

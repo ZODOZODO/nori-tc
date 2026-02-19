@@ -152,10 +152,14 @@ public class GatewayUiContextCommandService {
     }
 
     /**
-     * stopRuntime 같은 legacy 경로에서 interfaceType 문자열을 얻을 때 사용합니다.
+     * UI command 경로에서 장비의 interfaceType 문자열이 필요할 때 사용합니다.
      */
     public String resolveInterfaceTypeName(final String eqpId) {
-        final EquipmentContext context = resolveOrLoadContext(eqpId, "LEGACY_INTERFACE_RESOLVE", "LEGACY_INTERFACE_RESOLVE");
+        final EquipmentContext context = resolveOrLoadContext(
+                eqpId,
+                "UI_INTERFACE_RESOLVE",
+                "UI_INTERFACE_RESOLVE"
+        );
         return context.profile().equipmentInfo().commInterfaceType().name();
     }
 

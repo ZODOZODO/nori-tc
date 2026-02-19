@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.messaging.ui;
 
-import com.nori.tc.common.ui.task.pipeline.UiTaskMessageAccessor;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskMessageAccessor;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * gateway 전용 메시지 모델({@link KafkaUiTaskMessage})에서 추출합니다.</p>
  */
 @Component
-public class GatewayUiTaskMessageAccessor implements UiTaskMessageAccessor<KafkaUiTaskMessage> {
+public class GatewayUiTaskMessageAccessor implements KafkaTaskMessageAccessor<KafkaUiTaskMessage> {
 
     /**
      * 요청에서 eventType을 추출합니다.
@@ -55,3 +55,4 @@ public class GatewayUiTaskMessageAccessor implements UiTaskMessageAccessor<Kafka
         return request.data().eqpId();
     }
 }
+

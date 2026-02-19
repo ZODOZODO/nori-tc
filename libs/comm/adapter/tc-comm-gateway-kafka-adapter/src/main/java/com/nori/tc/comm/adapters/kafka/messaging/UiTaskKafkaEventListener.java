@@ -159,6 +159,18 @@ public class UiTaskKafkaEventListener extends AbstractGatewayKafkaConsumer<Kafka
                 return;
             }
 
+            if (message.metadata() == null || message.data() == null || message.data().eqpId() == null) {
+                if (logSampler.shouldLogCommandDrop()) {
+                    log.warn("UI task drop (invalid envelope). topic={}, partition={}, offset={}, hasMetadata={}, hasData={}",
+                            record.topic(),
+                            record.partition(),
+                            record.offset(),
+                            message.metadata() != null,
+                            message.data() != null);
+                }
+                return;
+            }
+
             if (key == null || !key.equals(message.data().eqpId())) {
                 log.warn("UI task key mismatch detected. key={}, eqpId={}, traceId={}",
                         key, message.data().eqpId(), message.metadata().traceId());
@@ -215,6 +227,26 @@ public class UiTaskKafkaEventListener extends AbstractGatewayKafkaConsumer<Kafka
         @Override
         public long lagSampleIntervalMs() {
             return shardProperties.getLagSampleIntervalMs();
+        }
+
+        @Override
+        public boolean asyncRecordProcessingEnabled() {
+            return shardProperties.isAsyncRecordProcessingEnabled();
+        }
+
+        @Override
+        public int recordWorkerThreads() {
+            return shardProperties.getRecordWorkerThreads();
+        }
+
+        @Override
+        public int ackDrainMaxBatch() {
+            return shardProperties.getAckDrainMaxBatch();
+        }
+
+        @Override
+        public int maxInFlightRecords() {
+            return shardProperties.getMaxInFlightRecords();
         }
     }
 }

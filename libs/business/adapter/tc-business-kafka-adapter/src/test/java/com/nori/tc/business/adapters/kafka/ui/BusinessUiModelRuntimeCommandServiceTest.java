@@ -6,8 +6,8 @@ import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
-import com.nori.tc.common.ui.task.pipeline.UiTaskReplyStatus;
-import com.nori.tc.common.ui.task.pipeline.UiTaskResult;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyStatus;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -39,9 +39,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
                 "{\"modelKey\":101}"
         );
 
-        final UiTaskResult result = service.handleEqpCreateOrUpdate(request);
+        final KafkaTaskResult result = service.handleEqpCreateOrUpdate(request);
 
-        Assertions.assertEquals(UiTaskReplyStatus.PASS, result.status());
+        Assertions.assertEquals(KafkaTaskReplyStatus.PASS, result.status());
         Assertions.assertEquals(101L, runtimePort.bindings.get("EQP-01"));
     }
 
@@ -61,9 +61,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
                 "{\"notModelKey\":1}"
         );
 
-        final UiTaskResult result = service.handleEqpCreateOrUpdate(request);
+        final KafkaTaskResult result = service.handleEqpCreateOrUpdate(request);
 
-        Assertions.assertEquals(UiTaskReplyStatus.FAIL, result.status());
+        Assertions.assertEquals(KafkaTaskReplyStatus.FAIL, result.status());
         Assertions.assertEquals(BusinessUiTaskErrorCode.MODEL_KEY_REQUIRED, result.errorCode());
     }
 
@@ -85,9 +85,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
                 null
         );
 
-        final UiTaskResult result = service.handleEqpUpdateJarfile(request);
+        final KafkaTaskResult result = service.handleEqpUpdateJarfile(request);
 
-        Assertions.assertEquals(UiTaskReplyStatus.PASS, result.status());
+        Assertions.assertEquals(KafkaTaskReplyStatus.PASS, result.status());
         Assertions.assertTrue(runtimePort.reloadedModelKeys.contains(200L));
     }
 
@@ -107,9 +107,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
                 null
         );
 
-        final UiTaskResult result = service.handleEqpUpdateJarfile(request);
+        final KafkaTaskResult result = service.handleEqpUpdateJarfile(request);
 
-        Assertions.assertEquals(UiTaskReplyStatus.FAIL, result.status());
+        Assertions.assertEquals(KafkaTaskReplyStatus.FAIL, result.status());
         Assertions.assertEquals(BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND, result.errorCode());
     }
 
@@ -133,9 +133,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
                 null
         );
 
-        final UiTaskResult result = service.handleEqpUpdateJarfile(request);
+        final KafkaTaskResult result = service.handleEqpUpdateJarfile(request);
 
-        Assertions.assertEquals(UiTaskReplyStatus.FAIL, result.status());
+        Assertions.assertEquals(KafkaTaskReplyStatus.FAIL, result.status());
         Assertions.assertEquals(BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED, result.errorCode());
         Assertions.assertTrue(runtimePort.reloadedModelKeys.contains(400L));
     }
@@ -193,5 +193,6 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
     }
 }
+
 
 

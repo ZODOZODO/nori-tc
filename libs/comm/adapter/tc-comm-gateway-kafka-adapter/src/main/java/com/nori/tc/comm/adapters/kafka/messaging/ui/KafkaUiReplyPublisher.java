@@ -1,10 +1,12 @@
 package com.nori.tc.comm.adapters.kafka.messaging.ui;
 
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyPublisher;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
 import com.nori.tc.comm.core.port.ClockPort;
+import com.nori.tc.messaging.kafka.starter.contract.KafkaHeaderSupport;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskReplyMessage;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskReplyStatus;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +23,7 @@ import java.util.Objects;
  * {@code tc.ui.commands} 토픽으로 발행합니다.</p>
  */
 @Component
-public class KafkaUiReplyPublisher {
+public class KafkaUiReplyPublisher implements KafkaTaskReplyPublisher<KafkaUiTaskMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaUiReplyPublisher.class);
     private static final String GATEWAY_SOURCE = "TC-COMM-GATEWAY-APP";
@@ -55,17 +57,18 @@ public class KafkaUiReplyPublisher {
         publishResult(
                 request,
                 replyEventType,
-                new GatewayUiTaskResult(KafkaUiTaskReplyStatus.FAIL, errorCode, errorMessage)
+                KafkaTaskResult.fail(errorCode, errorMessage)
         );
     }
 
     /**
      * 처리 결과를 기반으로 UI 응답 메시지를 생성/발행합니다.
      */
+    @Override
     public void publishResult(
             final KafkaUiTaskMessage request,
             final String replyEventType,
-            final GatewayUiTaskResult result
+            final KafkaTaskResult result
     ) {
         Objects.requireNonNull(request, "request is null");
         Objects.requireNonNull(result, "result is null");
@@ -91,6 +94,12 @@ public class KafkaUiReplyPublisher {
                 topicProperties.getUiCommands(),
                 request.data().eqpId(),
                 payload
+        );
+        KafkaHeaderSupport.addTracingHeaders(
+                record,
+                metadata.traceId(),
+                metadata.eventType(),
+                metadata.source()
         );
 
         if (log.isDebugEnabled()) {

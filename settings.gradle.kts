@@ -186,14 +186,11 @@ project(":libs:log:starter:tc-log-starter").projectDir = file("libs/log/starter/
 include(":libs:common:tc-common-mailbox")
 project(":libs:common:tc-common-mailbox").projectDir = file("libs/common/tc-common-mailbox")
 
-include(":libs:common:tc-common-kafka-processing")
-project(":libs:common:tc-common-kafka-processing").projectDir = file("libs/common/tc-common-kafka-processing")
+include(":libs:common:tc-common-kafka-consumer-runtime")
+project(":libs:common:tc-common-kafka-consumer-runtime").projectDir = file("libs/common/tc-common-kafka-consumer-runtime")
 
-include(":libs:common:tc-common-task-policy")
-project(":libs:common:tc-common-task-policy").projectDir = file("libs/common/tc-common-task-policy")
-
-include(":libs:common:tc-common-ui-task-pipeline")
-project(":libs:common:tc-common-ui-task-pipeline").projectDir = file("libs/common/tc-common-ui-task-pipeline")
+include(":libs:common:tc-common-task-execution")
+project(":libs:common:tc-common-task-execution").projectDir = file("libs/common/tc-common-task-execution")
 
 /* ===================================================
  * 8. Business Core Modules (App Composition Layer)
@@ -220,3 +217,4 @@ project(":libs:business:adapter:tc-business-redis-adapter").projectDir = file("l
 
 include(":libs:business:starter:tc-business-core-starter")
 project(":libs:business:starter:tc-business-core-starter").projectDir = file("libs/business/starter/tc-business-core-starter")
+

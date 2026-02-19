@@ -15,6 +15,9 @@ import java.util.Map;
  *
  * <p>{@code spring.kafka.*} 설정을 수집하고, Consumer/AdminClient 생성에 필요한
  * 최소 프로퍼티 맵으로 변환합니다.</p>
+ *
+ * <p>운영 중 설정 누락/충돌을 조기에 발견하기 위해 기동 시점 검증과
+ * 빌드 시점 디버그 로그를 함께 제공합니다.</p>
  */
 @ConfigurationProperties(prefix = "spring.kafka")
 public class GatewayKafkaClientProperties {
@@ -77,6 +80,15 @@ public class GatewayKafkaClientProperties {
         if (consumer.properties != null && !consumer.properties.isEmpty()) {
             props.putAll(consumer.properties);
         }
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Kafka consumer properties built. bootstrapServers={}, groupId={}, autoOffsetReset={}, propertyCount={}",
+                    bootstrapServers,
+                    consumer.groupId,
+                    consumer.autoOffsetReset,
+                    props.size()
+            );
+        }
         return props;
     }
 
@@ -87,7 +99,27 @@ public class GatewayKafkaClientProperties {
      * listener별 역직렬화 기본 타입을 분리하기 위해 사용합니다.</p>
      */
     public Map<String, Object> buildConsumerProperties(final Class<?> valueType) {
+        return buildConsumerProperties(valueType, null);
+    }
+
+    /**
+     * 메시지 value 타입과 groupId를 함께 고정한 Consumer 프로퍼티를 구성합니다.
+     *
+     * <p>topic은 동일하지만 소비 주체를 분리해야 할 때(consumer group 이중화),
+     * 리스너 단위로 groupId를 오버라이드할 수 있도록 제공합니다.</p>
+     *
+     * @param valueType 역직렬화 기본 value 타입
+     * @param groupIdOverride 리스너 전용 groupId(없으면 기본 groupId 사용)
+     * @return Kafka Consumer 프로퍼티
+     */
+    public Map<String, Object> buildConsumerProperties(final Class<?> valueType, final String groupIdOverride) {
         final Map<String, Object> props = buildConsumerProperties();
+        if (groupIdOverride != null && !groupIdOverride.isBlank()) {
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, groupIdOverride.trim());
+            if (log.isDebugEnabled()) {
+                log.debug("Kafka consumer groupId overridden. groupId={}", groupIdOverride.trim());
+            }
+        }
         if (valueType != null) {
             props.put(SPRING_JSON_VALUE_DEFAULT_TYPE, valueType.getName());
             if (log.isDebugEnabled()) {
@@ -105,6 +137,13 @@ public class GatewayKafkaClientProperties {
         props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         if (admin.properties != null && !admin.properties.isEmpty()) {
             props.putAll(admin.properties);
+        }
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Kafka admin properties built. bootstrapServers={}, propertyCount={}",
+                    bootstrapServers,
+                    props.size()
+            );
         }
         return props;
     }

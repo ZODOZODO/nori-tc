@@ -21,7 +21,12 @@ import java.util.Objects;
 public class GatewayUiRuntimeControlService {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayUiRuntimeControlService.class);
-    private static final long DEFAULT_LEGACY_TIMEOUT_MS = 30_000L;
+    /**
+     * 런타임 제어 기본 타임아웃(ms)입니다.
+     *
+     * <p>과거 레거시 호출 경로와의 호환 메서드에서도 동일 값을 사용합니다.</p>
+     */
+    private static final long DEFAULT_RUNTIME_CONTROL_TIMEOUT_MS = 30_000L;
 
     private final GatewayUiContextCommandService contextCommandService;
     private final GatewayUiLifecycleCommandService lifecycleCommandService;
@@ -120,7 +125,7 @@ public class GatewayUiRuntimeControlService {
         return contextCommandService.resolveAndValidateEquipment(
                 eqpId,
                 interfaceType,
-                "LEGACY_RESOLVE_VALIDATE",
+                "RUNTIME_RESOLVE_VALIDATE",
                 "RESOLVE_VALIDATE"
         );
     }
@@ -137,6 +142,6 @@ public class GatewayUiRuntimeControlService {
      */
     public void stopRuntime(final String eqpId) {
         final String interfaceType = contextCommandService.resolveInterfaceTypeName(eqpId);
-        endRuntime(eqpId, interfaceType, "LEGACY_STOP_RUNTIME", DEFAULT_LEGACY_TIMEOUT_MS);
+        endRuntime(eqpId, interfaceType, "RUNTIME_STOP", DEFAULT_RUNTIME_CONTROL_TIMEOUT_MS);
     }
 }

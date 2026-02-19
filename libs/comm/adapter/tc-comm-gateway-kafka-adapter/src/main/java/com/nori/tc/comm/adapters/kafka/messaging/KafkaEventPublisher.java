@@ -12,9 +12,9 @@ import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.hsms.secs.Secs2Message;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
+import com.nori.tc.messaging.kafka.starter.contract.KafkaHeaderSupport;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaTopicProperties;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.internals.RecordHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -97,13 +97,13 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
             }
 
             final ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, payload);
-
-            for (Map.Entry<String, String> header : decision.headers().entrySet()) {
-                record.headers().add(new RecordHeader(
-                        header.getKey(),
-                        header.getValue().getBytes(StandardCharsets.UTF_8)
-                ));
-            }
+            KafkaHeaderSupport.addTracingHeaders(
+                    record,
+                    payload.metadata().traceId(),
+                    payload.metadata().eventType(),
+                    payload.metadata().source()
+            );
+            KafkaHeaderSupport.copyStringHeaders(record, decision.headers());
 
             try {
                 if (log.isDebugEnabled()) {

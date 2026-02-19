@@ -19,17 +19,17 @@ dependencies {
     api(project(":libs:business:tc-business-core"))
 
     /*
-     * UI dedup 저장소 계약 타입을 구현하기 위해 공통 파이프라인 모듈을 사용합니다.
+     * UI 중복제거 저장소 계약(KafkaTaskDeduplicationStore)은 공통 실행 모듈에 있습니다.
      */
-    implementation(project(":libs:common:tc-common-ui-task-pipeline"))
+    implementation(project(":libs:common:tc-common-task-execution"))
 
     /*
-     * Redis CRUD 공통 리포지토리(TcRedisCrudRepository) 제공 스타터입니다.
+     * Redis 공통 CRUD 레이어를 제공합니다.
      */
     implementation(project(":libs:db:starter:tc-db-redis-starter"))
 
     /*
-     * Spring 컴포넌트/프로퍼티 바인딩 컴파일 의존성입니다.
+     * Spring 컴포넌트/프로퍼티 바인딩 의존성입니다.
      */
     compileOnly(libs.spring.boot)
     compileOnly(libs.spring.context)

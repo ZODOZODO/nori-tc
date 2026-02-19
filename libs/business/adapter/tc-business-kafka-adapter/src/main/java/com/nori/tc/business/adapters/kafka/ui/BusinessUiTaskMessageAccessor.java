@@ -1,6 +1,6 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
-import com.nori.tc.common.ui.task.pipeline.UiTaskMessageAccessor;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskMessageAccessor;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * 메시지 구조에서 안전하게 추출합니다.</p>
  */
 @Component
-public class BusinessUiTaskMessageAccessor implements UiTaskMessageAccessor<KafkaUiTaskMessage> {
+public class BusinessUiTaskMessageAccessor implements KafkaTaskMessageAccessor<KafkaUiTaskMessage> {
 
     @Override
     public String eventType(final KafkaUiTaskMessage request) {
@@ -37,4 +37,5 @@ public class BusinessUiTaskMessageAccessor implements UiTaskMessageAccessor<Kafk
         return request.data().eqpId();
     }
 }
+
 

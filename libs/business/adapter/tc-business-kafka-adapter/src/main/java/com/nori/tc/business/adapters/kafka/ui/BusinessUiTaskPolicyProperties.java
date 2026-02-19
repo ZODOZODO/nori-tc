@@ -26,6 +26,11 @@ public class BusinessUiTaskPolicyProperties {
     private long duplicateTraceTtlMs = 600_000L;
 
     /**
+     * traceId 중복 처리 캐시 최대 엔트리 수입니다.
+     */
+    private int duplicateTraceMaxSize = 100_000;
+
+    /**
      * UI task 처리 재시도 최대 시도 횟수입니다.
      */
     private int taskRetryMaxAttempts = 3;
@@ -52,14 +57,16 @@ public class BusinessUiTaskPolicyProperties {
     public void validate() {
         requireText("tc.business.core.ui-task.source", source);
         requirePositive("tc.business.core.ui-task.duplicate-trace-ttl-ms", duplicateTraceTtlMs);
+        requirePositive("tc.business.core.ui-task.duplicate-trace-max-size", duplicateTraceMaxSize);
         requirePositive("tc.business.core.ui-task.task-retry-max-attempts", taskRetryMaxAttempts);
         requireNonNegative("tc.business.core.ui-task.task-retry-backoff-ms", taskRetryBackoffMs);
         requirePositive("tc.business.core.ui-task.reply-retry-max-attempts", replyRetryMaxAttempts);
         requireNonNegative("tc.business.core.ui-task.reply-retry-backoff-ms", replyRetryBackoffMs);
 
-        log.info("BusinessUiTaskPolicyProperties validated. source={}, duplicateTraceTtlMs={}, taskRetryMaxAttempts={}, replyRetryMaxAttempts={}",
+        log.info("BusinessUiTaskPolicyProperties validated. source={}, duplicateTraceTtlMs={}, duplicateTraceMaxSize={}, taskRetryMaxAttempts={}, replyRetryMaxAttempts={}",
                 source,
                 duplicateTraceTtlMs,
+                duplicateTraceMaxSize,
                 taskRetryMaxAttempts,
                 replyRetryMaxAttempts);
     }
@@ -78,6 +85,14 @@ public class BusinessUiTaskPolicyProperties {
 
     public void setDuplicateTraceTtlMs(final long duplicateTraceTtlMs) {
         this.duplicateTraceTtlMs = duplicateTraceTtlMs;
+    }
+
+    public int getDuplicateTraceMaxSize() {
+        return duplicateTraceMaxSize;
+    }
+
+    public void setDuplicateTraceMaxSize(final int duplicateTraceMaxSize) {
+        this.duplicateTraceMaxSize = duplicateTraceMaxSize;
     }
 
     public int getTaskRetryMaxAttempts() {

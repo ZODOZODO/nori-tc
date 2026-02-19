@@ -5,8 +5,8 @@ import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
-import com.nori.tc.common.ui.task.pipeline.UiTaskProcessorSpec;
-import com.nori.tc.common.ui.task.pipeline.UiTaskReplyStatus;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskProcessorSpec;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyStatus;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -29,10 +29,10 @@ class BusinessUiTaskProcessorRegistryTest {
                 )
         );
 
-        final Optional<UiTaskProcessorSpec<KafkaUiTaskMessage>> specOptional = registry.find("EQP_UPDATE");
+        final Optional<KafkaTaskProcessorSpec<KafkaUiTaskMessage>> specOptional = registry.find("EQP_UPDATE");
         Assertions.assertTrue(specOptional.isPresent());
 
-        final UiTaskProcessorSpec<KafkaUiTaskMessage> spec = specOptional.orElseThrow();
+        final KafkaTaskProcessorSpec<KafkaUiTaskMessage> spec = specOptional.orElseThrow();
         Assertions.assertEquals("EQP_UPDATE", spec.eventType());
         Assertions.assertEquals("EQP_UPDATE_REP", spec.replyEventType());
 
@@ -49,7 +49,7 @@ class BusinessUiTaskProcessorRegistryTest {
                         "{\"modelKey\":101}"
                 )
         );
-        Assertions.assertEquals(UiTaskReplyStatus.PASS, spec.processor().process(request).status());
+        Assertions.assertEquals(KafkaTaskReplyStatus.PASS, spec.processor().process(request).status());
     }
 
     @Test
@@ -95,5 +95,6 @@ class BusinessUiTaskProcessorRegistryTest {
         }
     }
 }
+
 
 

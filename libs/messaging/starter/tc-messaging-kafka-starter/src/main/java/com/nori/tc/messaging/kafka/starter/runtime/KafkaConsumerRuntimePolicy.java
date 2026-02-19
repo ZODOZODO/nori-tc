@@ -27,4 +27,46 @@ public interface KafkaConsumerRuntimePolicy {
      * lag 샘플링 주기(ms)입니다.
      */
     long lagSampleIntervalMs();
+
+    /**
+     * poll 스레드와 record 처리 스레드를 분리할지 여부입니다.
+     *
+     * <p>true면 poll 루프는 record를 worker에 위임하고,
+     * ack/commit 처리에 집중하여 지연 전파를 줄입니다.</p>
+     *
+     * @return 비블로킹 처리 활성화 여부
+     */
+    default boolean asyncRecordProcessingEnabled() {
+        return false;
+    }
+
+    /**
+     * 비블로킹 처리 시 record worker 스레드 수입니다.
+     *
+     * @return worker 스레드 수(1 이상)
+     */
+    default int recordWorkerThreads() {
+        return 1;
+    }
+
+    /**
+     * poll 루프에서 한 번에 drain할 ack 이벤트 최대 개수입니다.
+     *
+     * @return ack drain 최대 배치 수(1 이상)
+     */
+    default int ackDrainMaxBatch() {
+        return 512;
+    }
+
+    /**
+     * poll 루프가 허용하는 최대 in-flight record 개수입니다.
+     *
+     * <p>이 값을 넘으면 poll 루프는 일시적으로 제출을 멈추고
+     * ack/commit 처리를 먼저 수행합니다.</p>
+     *
+     * @return 최대 in-flight 개수(1 이상)
+     */
+    default int maxInFlightRecords() {
+        return 10_000;
+    }
 }

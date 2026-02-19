@@ -40,4 +40,24 @@ public abstract class AbstractPolicyDrivenKafkaConsumerLifecycle<T> extends Abst
     protected long lagSampleIntervalMs() {
         return runtimePolicy.lagSampleIntervalMs();
     }
+
+    @Override
+    protected boolean asyncRecordProcessingEnabled() {
+        return runtimePolicy.asyncRecordProcessingEnabled();
+    }
+
+    @Override
+    protected int recordWorkerThreads() {
+        return runtimePolicy.recordWorkerThreads();
+    }
+
+    @Override
+    protected int ackDrainMaxBatch() {
+        return runtimePolicy.ackDrainMaxBatch();
+    }
+
+    @Override
+    protected int maxInFlightRecords() {
+        return runtimePolicy.maxInFlightRecords();
+    }
 }

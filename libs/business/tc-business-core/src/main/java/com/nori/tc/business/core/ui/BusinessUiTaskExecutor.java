@@ -1,8 +1,8 @@
 package com.nori.tc.business.core.ui;
 
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
-import com.nori.tc.common.ui.task.pipeline.UiTaskDispatchReport;
-import com.nori.tc.common.ui.task.pipeline.UiTaskResult;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDispatchReport;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;
 
 /**
  * 런타임 worker에서 UI task를 실행하는 포트입니다.
@@ -17,7 +17,7 @@ public interface BusinessUiTaskExecutor {
      * @return dispatch report
      * @throws Exception 파이프라인 처리 중 예외
      */
-    UiTaskDispatchReport execute(BusinessInboundRecord record) throws Exception;
+    KafkaTaskDispatchReport execute(BusinessInboundRecord record) throws Exception;
 
     /**
      * 테스트/골격 단계에서 사용할 no-op 실행기를 반환합니다.
@@ -25,12 +25,13 @@ public interface BusinessUiTaskExecutor {
      * @return no-op 실행기
      */
     static BusinessUiTaskExecutor noop() {
-        return record -> new UiTaskDispatchReport(
-                UiTaskResult.pass(),
+        return record -> new KafkaTaskDispatchReport(
+                KafkaTaskResult.pass(),
                 (record == null || record.messageName() == null ? "UI_TASK" : record.messageName()) + "_REP",
                 false
         );
     }
 }
+
 
 

@@ -131,6 +131,7 @@ mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.re
 ################################################################################
 spring-context = { module = "org.springframework:spring-context" }
 spring-tx = { module = "org.springframework:spring-tx" }
+micrometer-core = { module = "io.micrometer:micrometer-core" }
 
 # Logging / Jakarta Annotations (compile-only in core modules)
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }

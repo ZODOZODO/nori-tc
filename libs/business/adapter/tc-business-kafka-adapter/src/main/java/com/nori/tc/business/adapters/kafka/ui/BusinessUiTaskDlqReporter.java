@@ -2,8 +2,8 @@ package com.nori.tc.business.adapters.kafka.ui;
 
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
-import com.nori.tc.common.ui.task.pipeline.UiTaskDlqReporter;
-import com.nori.tc.common.ui.task.pipeline.UiTaskPipelineStage;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskPipelineStage;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +23,7 @@ import java.util.UUID;
  * <p>3) DLQ 포트 장애가 발생해도 원 처리 흐름을 중단하지 않고 로그로 남깁니다.</p>
  */
 @Component
-public class BusinessUiTaskDlqReporter implements UiTaskDlqReporter<KafkaUiTaskMessage> {
+public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTaskMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessUiTaskDlqReporter.class);
     private static final String UNKNOWN_EQP_ID = "UNKNOWN_EQP";
@@ -43,7 +43,7 @@ public class BusinessUiTaskDlqReporter implements UiTaskDlqReporter<KafkaUiTaskM
     @Override
     public void report(
             final KafkaUiTaskMessage request,
-            final UiTaskPipelineStage stage,
+            final KafkaTaskPipelineStage stage,
             final String reasonCode,
             final String reasonMessage,
             final String replyEventType
@@ -167,4 +167,5 @@ public class BusinessUiTaskDlqReporter implements UiTaskDlqReporter<KafkaUiTaskM
         tags.put(key, value.trim());
     }
 }
+
 

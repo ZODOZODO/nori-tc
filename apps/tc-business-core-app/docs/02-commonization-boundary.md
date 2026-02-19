@@ -1,4 +1,4 @@
-﻿# TC Business Core App 공통화 경계 정의 (Step 2)
+# TC Business Core App 공통화 경계 정의 (Step 2)
 
 ## 1. 목적
 `tc-comm-gateway-app`과 `tc-business-core-app` 간에 재사용 가능한 영역과 앱 고유 영역을 분리하여,
@@ -19,7 +19,7 @@
   - 도메인 실패 분류 규칙
   - 장비 제어/비즈니스 액션 실행
 
-### 2.2 tc-common-kafka-processing
+### 2.2 tc-common-kafka-consumer-runtime
 - 포함
   - Consumer lifecycle
   - Poll 루프
@@ -30,23 +30,19 @@
   - 토픽별 payload 파싱
   - 앱별 라우팅/업무 처리
 
-### 2.3 tc-common-task-policy
+### 2.3 tc-common-task-execution
 - 포함
   - Retry/backoff
   - Timeout interrupt(3분)
   - DLQ 전이 템플릿
   - 실패 공통 분류 인터페이스
-- 제외
-  - 앱별 failureCategory 매핑 상세
-  - 앱별 DLQ payload 구성 상세
-
-### 2.4 tc-common-ui-task-pipeline
-- 포함
   - `tc.ui.events -> 처리 -> tc.ui.commands REP` 실행 템플릿
   - REP 발행 재시도/실패 처리 훅
 - 제외
   - 이벤트 타입별 도메인 처리기
   - 앱별 검증/응답 필드 규칙
+  - 앱별 failureCategory 매핑 상세
+  - 앱별 DLQ payload 구성 상세
 
 ## 3. 앱 고유 영역
 
@@ -72,6 +68,5 @@
 
 ## 6. 적용 우선순위
 1. `tc-common-mailbox`
-2. `tc-common-kafka-processing`
-3. `tc-common-task-policy`
-4. `tc-common-ui-task-pipeline`
+2. `tc-common-kafka-consumer-runtime`
+3. `tc-common-task-execution`

@@ -1,6 +1,6 @@
 package com.nori.tc.business.adapters.redis.ui;
 
-import com.nori.tc.common.ui.task.pipeline.UiTaskDeduplicationStore;
+import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDeduplicationStore;
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 @Primary
 @Component
-public class RedisBusinessUiTraceIdDeduplicationStore implements UiTaskDeduplicationStore {
+public class RedisBusinessUiTraceIdDeduplicationStore implements KafkaTaskDeduplicationStore {
 
     private static final Logger log = LoggerFactory.getLogger(RedisBusinessUiTraceIdDeduplicationStore.class);
     private static final String TRACE_KEY_PREFIX = "tc:business:core:ui:trace:";
@@ -113,3 +113,4 @@ public class RedisBusinessUiTraceIdDeduplicationStore implements UiTaskDeduplica
         return normalized;
     }
 }
+
