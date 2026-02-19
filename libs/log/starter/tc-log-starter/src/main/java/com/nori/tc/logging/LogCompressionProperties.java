@@ -1,5 +1,8 @@
 package com.nori.tc.logging;
 
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -12,19 +15,46 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class LogCompressionProperties {
 
     /**
+     * 설정 검증 및 바인딩 상태를 기록하는 로거입니다.
+     */
+    private static final Logger log = LoggerFactory.getLogger(LogCompressionProperties.class);
+
+    /**
      * 로그 압축 기능 활성화 여부.
      */
-    private boolean enabled = true;
+    private Boolean enabled;
 
     /**
      * 최근 N일치 로그는 .log 유지 (기본 2일).
      */
-    private int afterDays = 2;
+    private Integer afterDays;
 
     /**
      * 압축 스캔 주기 (분).
      */
-    private int scanIntervalMinutes = 60;
+    private Integer scanIntervalMinutes;
+
+    /**
+     * 로그 압축 설정의 필수값/범위를 검증합니다.
+     *
+     * <p>운영 정책은 config 파일에서만 관리하고, 코드 기본값은 두지 않습니다.</p>
+     */
+    @PostConstruct
+    public void validate() {
+        if (enabled == null) {
+            throw new IllegalStateException("tc.logging.compress.enabled is required");
+        }
+        if (afterDays == null || afterDays < 0) {
+            throw new IllegalStateException("tc.logging.compress.after-days must be >= 0");
+        }
+        if (scanIntervalMinutes == null || scanIntervalMinutes <= 0) {
+            throw new IllegalStateException("tc.logging.compress.scan-interval-minutes must be > 0");
+        }
+        log.info("LogCompressionProperties validated. enabled={}, afterDays={}, scanIntervalMinutes={}",
+                enabled,
+                afterDays,
+                scanIntervalMinutes);
+    }
 
     /**
      * 로깅 모듈 현재 상태를 확인합니다.

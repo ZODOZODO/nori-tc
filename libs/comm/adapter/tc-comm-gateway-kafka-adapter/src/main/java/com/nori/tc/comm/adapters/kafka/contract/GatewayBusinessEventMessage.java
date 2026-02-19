@@ -1,4 +1,4 @@
-package com.nori.tc.comm.adapters.kafka.messaging.contract;
+package com.nori.tc.comm.adapters.kafka.contract;
 
 /**
  * Gateway -> Business Kafka message envelope.
@@ -111,3 +111,4 @@ public record GatewayBusinessEventMessage(
         }
     }
 }
+

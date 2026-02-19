@@ -1,5 +1,6 @@
-package com.nori.tc.business.adapters.kafka.ui;
+package com.nori.tc.business.adapters.kafka.publish;
 
+import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties;
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.common.kafka.task.pipeline.KafkaTaskReplyPublisher;
 import com.nori.tc.common.kafka.task.pipeline.KafkaTaskResult;

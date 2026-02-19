@@ -1,4 +1,4 @@
-package com.nori.tc.comm.adapters.kafka.messaging.ui;
+package com.nori.tc.comm.adapters.kafka.ui;
 
 import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
@@ -15,11 +15,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Gateway UI Task 공통 실행 파이프라인을 조립하는 설정 클래스입니다.
+ * Gateway UI Task 파이프라인 관련 Bean을 조립하는 설정 클래스입니다.
  *
- * <p>기존 게이트웨이 전용 분산 로직을
- * {@code tc-common-task-execution} 모듈의 공통 파이프라인으로 통합하여,
- * 앱 간 동일한 처리 규칙(재시도, 중복제거, 응답 발행, DLQ)을 유지합니다.</p>
+ * <p>구성 내용:</p>
+ * <p>1) UI 메시지 필드 접근자(eventType/traceId/eqpId)를 제공합니다.</p>
+ * <p>2) Task 처리 재시도 정책과 Reply 발행 재시도 정책을 생성합니다.</p>
+ * <p>3) 공통 {@link DefaultKafkaTaskPipeline} 인스턴스를 생성합니다.</p>
  */
 @Configuration
 public class GatewayUiTaskPipelineConfiguration {
@@ -27,19 +28,52 @@ public class GatewayUiTaskPipelineConfiguration {
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskPipelineConfiguration.class);
 
     /**
-     * Gateway UI Task 처리용 공통 파이프라인 빈을 생성합니다.
+     * UI Task 메시지 접근자를 Bean으로 등록합니다.
      *
-     * <p>주의: 설정 프로퍼티의 retry 값은 "재시도 횟수" 기준입니다.
-     * {@link FixedRetryPolicy}는 "총 시도 횟수(maxAttempts)"를 받으므로
-     * 내부적으로 +1 보정하여 전달합니다.</p>
+     * @return UI Task용 메시지 접근자
+     */
+    @Bean
+    public KafkaTaskMessageAccessor<KafkaUiTaskMessage> gatewayUiTaskMessageAccessor() {
+        return new KafkaTaskMessageAccessor<>() {
+            @Override
+            public String eventType(final KafkaUiTaskMessage request) {
+                if (request == null || request.metadata() == null) {
+                    return null;
+                }
+                return request.metadata().eventType();
+            }
+
+            @Override
+            public String traceId(final KafkaUiTaskMessage request) {
+                if (request == null || request.metadata() == null) {
+                    return null;
+                }
+                return request.metadata().traceId();
+            }
+
+            @Override
+            public String eqpId(final KafkaUiTaskMessage request) {
+                if (request == null || request.data() == null) {
+                    return null;
+                }
+                return request.data().eqpId();
+            }
+        };
+    }
+
+    /**
+     * UI Task 공통 파이프라인을 생성합니다.
      *
-     * @param accessor 메시지 필드 접근자
-     * @param registry UI Task 처리기 레지스트리
-     * @param replyPublisher REP 응답 발행기
-     * @param dlqReporter DLQ 보고기
+     * <p>주의: properties 의 retry 값은 "재시도 횟수" 개념이며,
+     * 실제 정책 객체에서는 "총 시도 횟수(maxAttempts)"로 변환해서 사용합니다.</p>
+     *
+     * @param accessor 메시지 접근자
+     * @param registry eventType 처리기 레지스트리
+     * @param replyPublisher 결과 Reply 발행기
+     * @param dlqReporter DLQ 리포터
      * @param deduplicationStore traceId 중복 저장소
-     * @param policyProperties UI Task 정책 프로퍼티
-     * @return 공통 UI Task 실행 파이프라인
+     * @param policyProperties UI Task 정책 값
+     * @return 조립된 UI Task 파이프라인
      */
     @Bean
     public DefaultKafkaTaskPipeline<KafkaUiTaskMessage> gatewayUiTaskPipeline(
@@ -50,10 +84,10 @@ public class GatewayUiTaskPipelineConfiguration {
             final KafkaTaskDeduplicationStore deduplicationStore,
             final GatewayUiTaskPolicyProperties policyProperties
     ) {
-        log.info("Gateway UI Task 공통 파이프라인을 초기화합니다.");
+        log.info("Gateway UI Task pipeline initializing.");
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Gateway UI Task 파이프라인 정책: taskRetryMax={}, taskRetryBackoffMs={}, replyRetryMax={}, replyRetryBackoffMs={}, duplicateTraceTtlMs={}",
+                    "Gateway UI Task policy loaded. taskRetryMax={}, taskRetryBackoffMs={}, replyRetryMax={}, replyRetryBackoffMs={}, duplicateTraceTtlMs={}",
                     policyProperties.getTaskRetryMax(),
                     policyProperties.getTaskRetryBackoffMs(),
                     policyProperties.getReplyPublishRetryMax(),
@@ -84,8 +118,8 @@ public class GatewayUiTaskPipelineConfiguration {
     /**
      * "재시도 횟수"를 "총 시도 횟수(maxAttempts)"로 변환합니다.
      *
-     * @param retryCount 재시도 횟수(0 이상)
-     * @return 총 시도 횟수(최소 1)
+     * @param retryCount 재시도 횟수
+     * @return 최소 1 이상인 총 시도 횟수
      */
     private static int retryToMaxAttempts(final int retryCount) {
         return Math.max(1, retryCount + 1);

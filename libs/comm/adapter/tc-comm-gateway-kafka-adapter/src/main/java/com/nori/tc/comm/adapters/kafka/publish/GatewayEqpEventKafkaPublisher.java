@@ -1,10 +1,11 @@
-package com.nori.tc.comm.adapters.kafka.messaging;
+package com.nori.tc.comm.adapters.kafka.publish;
 
-import com.nori.tc.comm.adapters.kafka.messaging.contract.GatewayBusinessEventMessage;
-import com.nori.tc.comm.adapters.kafka.messaging.contract.GatewayBusinessEventMessage.GatewayBusinessEventMetadata;
-import com.nori.tc.comm.adapters.kafka.messaging.contract.GatewayBusinessEventMessage.GatewayBusinessHsmsEventData;
-import com.nori.tc.comm.adapters.kafka.messaging.contract.GatewayBusinessEventMessage.GatewayBusinessHsmsSecs2;
-import com.nori.tc.comm.adapters.kafka.messaging.contract.GatewayBusinessEventMessage.GatewayBusinessSocketEventData;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessEventMessage;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessEventMessage.GatewayBusinessEventMetadata;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessEventMessage.GatewayBusinessHsmsEventData;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessEventMessage.GatewayBusinessHsmsSecs2;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessEventMessage.GatewayBusinessSocketEventData;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayKafkaContractSupport;
 import com.nori.tc.comm.core.message.ParsedMessage;
 import com.nori.tc.comm.core.port.KafkaPublisherPort;
 import com.nori.tc.comm.core.routing.PublishDecision;
@@ -29,41 +30,53 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Kafka DIRECT publisher implementation.
+ * Gateway -> Business 경로의 EQP 이벤트 Kafka 발행기입니다.
  *
- * - Builds gateway-business fixed envelope JSON(metadata + data).
- * - Enforces eventType validation before publish.
- * - Selects topic/key using PublishDecision with fallback to KafkaTopicProperties.
+ * <p>발행 규칙:
+ * 1) topic은 항상 {@code tc.eqp.events}
+ * 2) Kafka key는 항상 {@code eqpId}
+ * 3) payload는 {@code metadata + data} envelope 고정 구조
+ * 4) 발행 전 공통 계약 검증(eventType/source/key 정책)을 수행</p>
  */
 @Component
-public class KafkaEventPublisher implements KafkaPublisherPort {
+public class GatewayEqpEventKafkaPublisher implements KafkaPublisherPort {
 
-    private static final Logger log = LoggerFactory.getLogger(KafkaEventPublisher.class);
+    private static final Logger log = LoggerFactory.getLogger(GatewayEqpEventKafkaPublisher.class);
     private static final String GATEWAY_SOURCE = "TC-COMM-GATEWAY-APP";
     private static final Pattern SOCKET_EVENT_TYPE_PATTERN =
             Pattern.compile("^CMD=([^\\s]+)", Pattern.CASE_INSENSITIVE);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final KafkaTopicProperties topicProperties;
+    private final GatewayKafkaContractSupport contractSupport;
     private final GatewayMetrics metrics;
 
     /**
-     * Initializes gateway Kafka publisher components.
+     * Kafka 발행에 필요한 의존성을 초기화합니다.
+     *
+     * @param kafkaTemplate Kafka template
+     * @param topicProperties topic 설정
+     * @param contractSupport Kafka 계약 검증 지원기
+     * @param metrics gateway 메트릭
      */
-    public KafkaEventPublisher(
+    public GatewayEqpEventKafkaPublisher(
             final KafkaTemplate<String, Object> kafkaTemplate,
             final KafkaTopicProperties topicProperties,
+            final GatewayKafkaContractSupport contractSupport,
             final GatewayMetrics metrics
     ) {
         this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate is null");
         this.topicProperties = Objects.requireNonNull(topicProperties, "topicProperties is null");
+        this.contractSupport = Objects.requireNonNull(contractSupport, "contractSupport is null");
         this.metrics = Objects.requireNonNull(metrics, "metrics is null");
     }
 
     /**
-     * Publishes gateway events to Kafka with fixed metadata+data JSON.
+     * 파싱된 장비 메시지를 Kafka 이벤트로 발행합니다.
      *
-     * - If eventType cannot be resolved, logs error and skips publishing.
+     * @param message 파싱된 원본 메시지
+     * @param decision publish 정책 결정 결과
+     * @throws Exception Kafka 전송 실패 시 예외 전파
      */
     @Override
     public void publish(final ParsedMessage message, final PublishDecision decision) throws Exception {
@@ -74,14 +87,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
                 message.equipmentId().value(),
                 message.traceId()
         )) {
-
-            // Topic is fixed to eqp-events for gateway -> business flow.
             final String topic = topicProperties.getEqpEvents();
-
-            // Kafka key must be eqpId.
             final String key = message.equipmentId().value();
 
-            // Key/topic override is blocked by gateway invariant.
+            // Gateway는 topic/key override를 허용하지 않습니다.
             if (decision.topic() != null && !decision.topic().equals(topic)) {
                 throw new IllegalStateException("Kafka topic override is not allowed for gateway events");
             }
@@ -91,8 +100,16 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
 
             final GatewayBusinessEventMessage payload = buildGatewayBusinessPayload(message);
             if (payload == null) {
-                // eventType missing is a policy violation: log and drop.
                 metrics.incrementEventPublishFail();
+                return;
+            }
+
+            try {
+                contractSupport.validateGatewayBusinessEventRecord(topic, key, payload);
+            } catch (IllegalArgumentException ex) {
+                metrics.incrementEventPublishFail();
+                log.error("Gateway event publish skipped (contract validation failed). topic={}, eqpId={}, traceId={}",
+                        topic, key, message.traceId(), ex);
                 return;
             }
 
@@ -107,13 +124,13 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
 
             try {
                 if (log.isDebugEnabled()) {
-                    log.debug("Publishing gateway business event to Kafka. topic={}, eqpId={}, traceId={}, eventType={}",
+                    log.debug("Publishing gateway business event. topic={}, eqpId={}, traceId={}, eventType={}",
                             topic, key, message.traceId(), payload.metadata().eventType());
                 }
                 kafkaTemplate.send(record).get();
                 metrics.incrementEventPublishSuccess();
                 if (log.isDebugEnabled()) {
-                    log.debug("Gateway business event publish success. topic={}, eqpId={}, traceId={}, eventType={}",
+                    log.debug("Gateway business event published. topic={}, eqpId={}, traceId={}, eventType={}",
                             topic, key, message.traceId(), payload.metadata().eventType());
                 }
             } catch (Exception ex) {
@@ -124,10 +141,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Converts ParsedMessage to gateway-business fixed envelope.
+     * 파싱 메시지를 Gateway-Business 고정 envelope로 변환합니다.
      *
-     * @param message parsed inbound message
-     * @return envelope message, or null when eventType cannot be resolved
+     * @param message 파싱된 메시지
+     * @return 고정 계약 payload, eventType 미해결 시 null
      */
     private GatewayBusinessEventMessage buildGatewayBusinessPayload(final ParsedMessage message) {
         final String interfaceType = message.commInterfaceType().name();
@@ -187,7 +204,11 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Resolves metadata.eventType by protocol-specific rule.
+     * interfaceType 별 eventType 추출 규칙을 적용합니다.
+     *
+     * @param message 파싱된 메시지
+     * @param socketRawMessage socket 원문
+     * @return 정규화된 eventType
      */
     private String resolveEventType(final ParsedMessage message, final String socketRawMessage) {
         if (message.commInterfaceType() == CommInterfaceType.SOCKET) {
@@ -206,7 +227,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Resolves SOCKET raw message text from current parsed context.
+     * socket 파싱 컨텍스트에서 원문 메시지를 복원합니다.
+     *
+     * @param message 파싱된 메시지
+     * @return socket 원문
      */
     private String resolveSocketRawMessage(final ParsedMessage message) {
         final Map<String, String> attributes = message.attributes();
@@ -230,9 +254,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Extracts eventType from SOCKET raw command line.
+     * socket 원문에서 eventType(CMD=...)를 추출합니다.
      *
-     * Example: CMD=CHECK_REPLY ... -> CHECK_REPLY
+     * @param rawMessage socket 원문
+     * @return eventType, 미추출 시 null
      */
     private String extractSocketEventTypeFromRawMessage(final String rawMessage) {
         if (rawMessage == null || rawMessage.isBlank()) {
@@ -248,7 +273,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Extracts eventType from messageName token when messageName starts with CMD=.
+     * messageName이 CMD=로 시작할 때 eventType을 추출합니다.
+     *
+     * @param messageName messageName 값
+     * @return eventType, 미추출 시 null
      */
     private String extractSocketEventTypeFromMessageName(final String messageName) {
         if (messageName == null || messageName.isBlank()) {
@@ -262,7 +290,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Converts HSMS body to base64 raw message.
+     * HSMS body를 rawBody(base64) 형식으로 변환합니다.
+     *
+     * @param body HSMS body 객체
+     * @return rawBody 문자열
      */
     private String resolveHsmsRawBodyBase64(final Object body) {
         if (body == null) {
@@ -285,7 +316,10 @@ public class KafkaEventPublisher implements KafkaPublisherPort {
     }
 
     /**
-     * Normalizes text and returns null for blank values.
+     * 문자열을 trim 후 공백 문자열이면 null을 반환합니다.
+     *
+     * @param value 원본 문자열
+     * @return 정규화 문자열
      */
     private String normalizeText(final String value) {
         if (value == null) {

@@ -1,5 +1,6 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
+import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties;
 import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDeduplicationStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,7 +1,7 @@
-package com.nori.tc.comm.adapters.kafka.messaging;
+package com.nori.tc.comm.adapters.kafka.subscribe;
 
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
-import com.nori.tc.comm.adapters.kafka.messaging.contract.GatewayBusinessCommandMessage;
+import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessCommandMessage;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.core.port.ClockPort;
@@ -42,16 +42,16 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Gateway inbound command 디스패처입니다.
+ * Gateway inbound command ?遺용뮞??μ퓗??낅빍??
  *
- * <p>설계 기준:</p>
- * <p>1) 입력 계약은 {@link GatewayBusinessCommandMessage}(metadata + data)만 허용합니다.</p>
- * <p>2) Kafka key/토픽 정책은 상위 consumer 계층에서 보장하고, 본 클래스는 실제 송신 전 검증/라우팅만 담당합니다.</p>
- * <p>3) 실패는 공통 task-policy + DLQ + disposition 메트릭으로 표준화합니다.</p>
+ * <p>??블?疫꿸퀣?:</p>
+ * <p>1) ??낆젾 ?④쑴鍮?? {@link GatewayBusinessCommandMessage}(metadata + data)筌???됱뒠??몃빍??</p>
+ * <p>2) Kafka key/?醫뤿동 ?類ㅼ퐠?? ?怨몄맄 consumer ?④쑴留?癒?퐣 癰귣똻???랁? 癰??????삳뮉 ??쇱젫 ??る뻿 ??野꺜筌???깆뒭??낆춸 ?????몃빍??</p>
+ * <p>3) ??쎈솭???⑤벏??task-policy + DLQ + disposition 筌롫??껆뵳??앮에?????酉鍮??덈뼄.</p>
  *
- * <p>현재 범위:</p>
- * <p>- SOCKET 명령 송신 활성화</p>
- * <p>- HSMS 명령 송신은 TODO 정책에 따라 DLQ로 분류</p>
+ * <p>?袁⑹삺 甕곕뗄??</p>
+ * <p>- SOCKET 筌뤿굝議???る뻿 ??뽮쉐??/p>
+ * <p>- HSMS 筌뤿굝議???る뻿?? TODO ?類ㅼ퐠???怨뺤뵬 DLQ嚥??브쑬履?/p>
  */
 @Component
 public class GatewayCommandDispatcher {
@@ -59,29 +59,29 @@ public class GatewayCommandDispatcher {
     private static final Logger log = LoggerFactory.getLogger(GatewayCommandDispatcher.class);
 
     /**
-     * DLQ 기록 시 eqpId가 비어 있을 때 사용할 대체 식별자입니다.
+     * DLQ 疫꿸퀡以???eqpId揶쎛 ??쑴堉???됱뱽 ?????????筌???명?癒?뿯??덈뼄.
      */
     private static final String UNKNOWN_EQP_ID = "UNKNOWN_EQP";
 
     /**
-     * task-policy에서 사용할 메시지 타입 분류값입니다.
+     * task-policy?癒?퐣 ?????筌롫뗄?놅쭪? ?????브쑬履잌첎誘れ뿯??덈뼄.
      */
     private static final String BUSINESS_MESSAGE_TYPE = "BUSINESS";
 
     /**
-     * 공통 DLQ 레코드의 예외 메시지 최대 길이입니다.
+     * ?⑤벏??DLQ ??됲맜??뽰벥 ??됱뇚 筌롫뗄?놅쭪? 筌ㅼ뮆? 疫뀀챷???낅빍??
      */
     private static final int DLQ_EXCEPTION_MESSAGE_MAX_LENGTH = 300;
 
     /**
-     * gateway command 실패 정책 최대 시도 횟수입니다.
+     * gateway command ??쎈솭 ?類ㅼ퐠 筌ㅼ뮆? ??뺣즲 ??쏅땾??낅빍??
      *
-     * <p>현재 정책은 즉시 DLQ를 기본으로 사용합니다.</p>
+     * <p>?袁⑹삺 ?類ㅼ퐠?? 筌앸맩??DLQ??疫꿸퀡???곗쨮 ?????몃빍??</p>
      */
     private static final int COMMAND_FAILURE_MAX_ATTEMPTS = 1;
 
     /**
-     * disposition 메트릭의 flow 키입니다.
+     * disposition 筌롫??껆뵳???flow ??쇱뿯??덈뼄.
      */
     private static final String FLOW_COMMAND = "COMMAND";
 
@@ -102,7 +102,7 @@ public class GatewayCommandDispatcher {
     private final DefaultTaskHandlingPolicy commandTaskHandlingPolicy;
 
     /**
-     * 디스패처 의존성을 초기화합니다.
+     * ?遺용뮞??μ퓗 ??뤵?源놁뱽 ?λ뜃由?酉鍮??덈뼄.
      */
     public GatewayCommandDispatcher(
             final EquipmentChannelRegistry channelRegistry,
@@ -144,13 +144,13 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * Business 명령 계약(metadata + data)을 처리합니다.
+     * Business 筌뤿굝議??④쑴鍮?metadata + data)??筌ｌ꼶???몃빍??
      *
-     * <p>처리 순서:</p>
-     * <p>1) envelope 필수값 검증</p>
-     * <p>2) 장비 채널/인터페이스 정합성 검증</p>
-     * <p>3) socketType 인코딩 후 outbound enqueue</p>
-     * <p>4) 실패 시 공통 정책 기반 DLQ 발행 및 필요 시 quarantine</p>
+     * <p>筌ｌ꼶????뽮퐣:</p>
+     * <p>1) envelope ?袁⑸땾揶?野꺜筌?/p>
+     * <p>2) ?貫??筌?쑬瑗??紐낃숲??륁뵠???類λ???野꺜筌?/p>
+     * <p>3) socketType ?紐꾪맜????outbound enqueue</p>
+     * <p>4) ??쎈솭 ???⑤벏???類ㅼ퐠 疫꿸퀡而?DLQ 獄쏆뮉六?獄??袁⑹뒄 ??quarantine</p>
      *
      * @param message business command envelope
      */
@@ -185,8 +185,8 @@ public class GatewayCommandDispatcher {
 
             if (envelope.interfaceType() == CommInterfaceType.HSMS) {
                 /*
-                 * TODO: HSMS business command 송신 경로는 정책 확정 후 구현합니다.
-                 * 현재는 의도적으로 DLQ로 분류해 운영 가시성을 유지합니다.
+                 * TODO: HSMS business command ??る뻿 野껋럥以???類ㅼ퐠 ?類ㅼ젟 ???닌뗭겱??몃빍??
+                 * ?袁⑹삺????롫즲?怨몄몵嚥?DLQ嚥??브쑬履????곸겫 揶쎛??뽮쉐???醫???몃빍??
                  */
                 log.info("HSMS business command is not implemented yet. eqpId={}, traceId={}, eventType={}",
                         envelope.eqpId(),
@@ -282,7 +282,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 수신 envelope 필수값을 검증하고 송신 처리 입력 모델로 변환합니다.
+     * ??뤿뻿 envelope ?袁⑸땾揶쏅???野꺜筌앹빜釉????る뻿 筌ｌ꼶????낆젾 筌뤴뫀?썸에?癰궰??묐???덈뼄.
      */
     private CommandEnvelope validateEnvelope(
             final GatewayBusinessCommandMessage message,
@@ -380,7 +380,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 장비 프로필 조회를 수행하고 실패 시 DLQ를 발행합니다.
+     * ?貫???袁⑥쨮??鈺곌퀬?띄몴???묐뻬??랁???쎈솭 ??DLQ??獄쏆뮉六??몃빍??
      */
     private GatewayEquipmentInfo resolveEquipmentOrPublishDlq(
             final GatewayBusinessCommandMessage message,
@@ -404,7 +404,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * SOCKET payload 인코딩을 수행하고 실패 시 DLQ를 발행합니다.
+     * SOCKET payload ?紐꾪맜??뱀뱽 ??묐뻬??랁???쎈솭 ??DLQ??獄쏆뮉六??몃빍??
      */
     private byte[] encodePayloadOrPublishDlq(
             final GatewayBusinessCommandMessage message,
@@ -440,7 +440,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 활성 채널 존재 여부를 확인합니다.
+     * ??뽮쉐 筌?쑬瑗?鈺곕똻????????類ㅼ뵥??몃빍??
      */
     private boolean hasActiveChannel(final EquipmentId equipmentId) {
         final var channel = channelRegistry.get(equipmentId);
@@ -448,11 +448,11 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * SOCKET rawMessage를 socketType 핸들러 규칙으로 인코딩합니다.
+     * SOCKET rawMessage??socketType ?紐껊굶??域뱀뮇???곗쨮 ?紐꾪맜??븍???덈뼄.
      *
-     * <p>정책:</p>
-     * <p>1) 설비별 플러그인 핸들러가 있으면 우선 사용합니다.</p>
-     * <p>2) 없으면 기본 registry 핸들러를 사용합니다.</p>
+     * <p>?類ㅼ퐠:</p>
+     * <p>1) ??삵돩癰????쑎域밸챷???紐껊굶??? ??됱몵筌??怨쀪퐨 ?????몃빍??</p>
+     * <p>2) ??곸몵筌?疫꿸퀡??registry ?紐껊굶??? ?????몃빍??</p>
      */
     private byte[] encodeSocketRawMessage(
             final String eqpId,
@@ -479,7 +479,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 장비 정보에서 socketType을 읽고, 비어 있으면 기본 socketType으로 보정합니다.
+     * ?貫???類ｋ궖?癒?퐣 socketType????꾪? ??쑴堉???됱몵筌?疫꿸퀡??socketType??곗쨮 癰귣똻???몃빍??
      */
     private String resolveSocketType(final GatewayEquipmentInfo equipmentInfo) {
         final String fromEquipment = normalizeText(equipmentInfo.socketType());
@@ -490,7 +490,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * business 명령 처리 실패를 DLQ로 기록합니다.
+     * business 筌뤿굝議?筌ｌ꼶????쎈솭??DLQ嚥?疫꿸퀡以??몃빍??
      */
     private void publishBusinessDlq(
             final GatewayBusinessCommandMessage message,
@@ -542,7 +542,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * business 실패 컨텍스트를 공통 task-policy 입력 모델로 변환합니다.
+     * business ??쎈솭 ?뚢뫂???쎈뱜???⑤벏??task-policy ??낆젾 筌뤴뫀?썸에?癰궰??묐???덈뼄.
      */
     private TaskFailureContext buildBusinessFailureContext(
             final GatewayBusinessCommandMessage message,
@@ -568,10 +568,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 공통 실패 정책으로 DLQ 레코드를 계산합니다.
+     * ?⑤벏????쎈솭 ?類ㅼ퐠??곗쨮 DLQ ??됲맜??? ?④쑴沅??몃빍??
      *
-     * <p>현재 정책은 사실상 즉시 DLQ를 기본으로 사용하지만,
-     * 정책 변경 시에도 방어적으로 fallback DLQ를 생성합니다.</p>
+     * <p>?袁⑹삺 ?類ㅼ퐠?? ?????筌앸맩??DLQ??疫꿸퀡???곗쨮 ??????筌?
+     * ?類ㅼ퐠 癰궰野???뽯퓠??獄쎻뫗堉?怨몄몵嚥?fallback DLQ????밴쉐??몃빍??</p>
      */
     private DlqRecord resolveDlqRecord(final TaskFailureContext failureContext) {
         final TaskHandlingDecision decision = commandTaskHandlingPolicy.decide(failureContext);
@@ -595,7 +595,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * business DLQ 태그를 null-safe 하게 구성합니다.
+     * business DLQ ??볥젃??null-safe ??띿쓺 ?닌딄쉐??몃빍??
      */
     private Map<String, String> buildBusinessDlqTags(
             final GatewayBusinessCommandMessage message,
@@ -624,10 +624,9 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * DLQ 발행을 안전하게 수행합니다.
+     * DLQ 獄쏆뮉六????됱읈??띿쓺 ??묐뻬??몃빍??
      *
-     * <p>DLQ 발행 실패는 보조 경로이므로 원 처리 흐름을 중단하지 않고
-     * disposition/에러 로그만 남깁니다.</p>
+     * <p>DLQ 獄쏆뮉六???쎈솭??癰귣똻??野껋럥以???嚥???筌ｌ꼶???癒?カ??餓λ쵎???? ??꾪?     * disposition/?癒?쑎 嚥≪뮄?뉛쭕???ｍ돥??덈뼄.</p>
      */
     private void publishDlqSafely(final DlqMessage dlqMessage) {
         try {
@@ -663,7 +662,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * business 명령 payloadRef를 생성합니다.
+     * business 筌뤿굝議?payloadRef????밴쉐??몃빍??
      */
     private String buildBusinessPayloadRef(final GatewayBusinessCommandMessage message, final String traceId) {
         final String rawMessage = message.data() == null ? null : message.data().rawMessage();
@@ -672,7 +671,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * business 메시지의 eventType을 실패 컨텍스트용 messageName으로 변환합니다.
+     * business 筌롫뗄?놅쭪???eventType????쎈솭 ?뚢뫂???쎈뱜??messageName??곗쨮 癰궰??묐???덈뼄.
      */
     private String resolveBusinessMessageName(final GatewayBusinessCommandMessage message) {
         final String eventType = message.metadata() == null ? null : message.metadata().eventType();
@@ -681,7 +680,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * DLQ reason code를 공통 실패 카테고리로 매핑합니다.
+     * DLQ reason code???⑤벏????쎈솭 燁삳똾?믤⑥쥓?곫에?筌띲끋釉??몃빍??
      */
     private TaskFailureCategory mapFailureCategory(final DlqReasonCode reasonCode) {
         if (reasonCode == null) {
@@ -696,7 +695,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * eqpId를 DLQ 기록 기준으로 보정합니다.
+     * eqpId??DLQ 疫꿸퀡以?疫꿸퀣???곗쨮 癰귣똻???몃빍??
      */
     private String normalizeEqpId(final String eqpId) {
         final String normalized = normalizeText(eqpId);
@@ -704,7 +703,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 문자열이 비어 있지 않을 때만 태그 맵에 값을 추가합니다.
+     * ?얜챷???곸뵠 ??쑴堉???? ??놁뱽 ???춸 ??볥젃 筌띾벊肉?揶쏅????곕떽???몃빍??
      */
     private void putIfHasText(final Map<String, String> tags, final String key, final String value) {
         final String normalized = normalizeText(value);
@@ -714,7 +713,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * traceId를 보정합니다.
+     * traceId??癰귣똻???몃빍??
      */
     private String resolveTraceId(final String traceId) {
         final String normalized = normalizeText(traceId);
@@ -722,7 +721,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * interfaceType 파싱 실패 시 기본값을 반환합니다.
+     * interfaceType ???뼓 ??쎈솭 ??疫꿸퀡??첎誘れ뱽 獄쏆꼹???몃빍??
      */
     private CommInterfaceType parseInterfaceTypeOrDefault(
             final String interfaceType,
@@ -736,7 +735,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * reasonMessage를 null/blank 안전하게 보정합니다.
+     * reasonMessage??null/blank ??됱읈??띿쓺 癰귣똻???몃빍??
      */
     private String safeReason(final String reasonMessage, final String fallback) {
         final String normalized = normalizeText(reasonMessage);
@@ -744,7 +743,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 문자열을 trim하고 비어 있으면 null을 반환합니다.
+     * ?얜챷???곸뱽 trim??랁???쑴堉???됱몵筌?null??獄쏆꼹???몃빍??
      */
     private String normalizeText(final String value) {
         if (value == null) {
@@ -755,7 +754,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 장비 격리 호출을 안전하게 수행합니다.
+     * ?貫??野꺿뫖???紐꾪뀱????됱읈??띿쓺 ??묐뻬??몃빍??
      */
     private void safeQuarantine(
             final EquipmentId equipmentId,
@@ -765,16 +764,16 @@ public class GatewayCommandDispatcher {
         try {
             quarantinePort.quarantine(equipmentId, reasonCode.name(), reasonMessage);
         } catch (Exception ignored) {
-            // 격리 실패는 보조 처리이므로 본 흐름을 방해하지 않습니다.
+            // 野꺿뫖????쎈솭??癰귣똻??筌ｌ꼶????嚥?癰??癒?カ??獄쎻뫚鍮??? ??녿뮸??덈뼄.
         }
     }
 
     /**
-     * command 처리 disposition을 표준 로그/메트릭으로 기록합니다.
+     * command 筌ｌ꼶??disposition????? 嚥≪뮄??筌롫??껆뵳??앮에?疫꿸퀡以??몃빍??
      *
-     * <p>로그 레벨 정책:</p>
-     * <p>1) ACCEPTED는 고빈도 이벤트이므로 debug로 기록합니다.</p>
-     * <p>2) DLQ/REJECTED는 운영 추적 핵심이므로 info로 기록합니다.</p>
+     * <p>嚥≪뮄????덇볼 ?類ㅼ퐠:</p>
+     * <p>1) ACCEPTED???⑥쥓?????源?紐꾩뵠沃샕嚥?debug嚥?疫꿸퀡以??몃빍??</p>
+     * <p>2) DLQ/REJECTED????곸겫 ?곕뗄?????뼎???嚥?info嚥?疫꿸퀡以??몃빍??</p>
      */
     private void recordCommandDisposition(
             final String eqpId,
@@ -805,7 +804,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 로그 출력용 traceId를 보정합니다.
+     * 嚥≪뮄???곗뮆???traceId??癰귣똻???몃빍??
      */
     private String safeTraceIdForLog(final String traceId) {
         final String normalized = normalizeText(traceId);
@@ -813,7 +812,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * 송신 처리 중간 상태를 담는 내부 모델입니다.
+     * ??る뻿 筌ｌ꼶??餓λ쵌而??怨밴묶????????? 筌뤴뫀???낅빍??
      */
     private record CommandEnvelope(
             EquipmentId equipmentId,
@@ -824,3 +823,4 @@ public class GatewayCommandDispatcher {
     ) {
     }
 }
+

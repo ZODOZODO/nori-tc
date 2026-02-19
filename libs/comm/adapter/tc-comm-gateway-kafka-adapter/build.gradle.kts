@@ -24,6 +24,7 @@ dependencies {
     /*
      * Kafka 어댑터/계약 의존성입니다.
      */
+    implementation(project(":libs:messaging:tc-messaging-domain"))
     implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
     implementation(libs.spring.kafka)
     implementation(libs.kafka.clients)

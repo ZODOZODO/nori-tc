@@ -25,13 +25,14 @@ public class BusinessCoreRuntimeProperties {
     public void validate() {
         kafka.validate();
         runtime.validate();
-        log.info("BusinessCoreRuntimeProperties validated. consumeTopics=[{},{},{}], produceTopics=[{},{},{}], workerThreads={}",
+        log.info("BusinessCoreRuntimeProperties validated. consumeTopics=[{},{},{}], produceTopics=[{},{},{}], source={}, workerThreads={}",
                 kafka.eqpEventsTopic,
                 kafka.mesEventsTopic,
                 kafka.uiEventsTopic,
                 kafka.eqpCommandsTopic,
                 kafka.mesCommandsTopic,
                 kafka.uiCommandsTopic,
+                kafka.source,
                 runtime.workerThreads);
     }
 
@@ -48,16 +49,55 @@ public class BusinessCoreRuntimeProperties {
      */
     public static final class Kafka {
 
-        private String eqpEventsTopic = "tc.eqp.events";
-        private String mesEventsTopic = "tc.mes.events";
-        private String uiEventsTopic = "tc.ui.events";
-        private String eqpCommandsTopic = "tc.eqp.commands";
-        private String mesCommandsTopic = "tc.mes.commands";
-        private String uiCommandsTopic = "tc.ui.commands";
+        /**
+         * EQP 이벤트 소비 토픽입니다.
+         */
+        private String eqpEventsTopic;
 
-        private int eqpEventsConsumerThreads = 1;
-        private int mesEventsConsumerThreads = 1;
-        private int uiEventsConsumerThreads = 1;
+        /**
+         * MES 이벤트 소비 토픽입니다.
+         */
+        private String mesEventsTopic;
+
+        /**
+         * UI 이벤트 소비 토픽입니다.
+         */
+        private String uiEventsTopic;
+
+        /**
+         * EQP 명령 발행 토픽입니다.
+         */
+        private String eqpCommandsTopic;
+
+        /**
+         * MES 명령 발행 토픽입니다.
+         */
+        private String mesCommandsTopic;
+
+        /**
+         * UI 명령 발행 토픽입니다.
+         */
+        private String uiCommandsTopic;
+
+        /**
+         * Kafka metadata.source 값입니다.
+         */
+        private String source;
+
+        /**
+         * EQP 이벤트 토픽 consumer thread 수입니다.
+         */
+        private Integer eqpEventsConsumerThreads;
+
+        /**
+         * MES 이벤트 토픽 consumer thread 수입니다.
+         */
+        private Integer mesEventsConsumerThreads;
+
+        /**
+         * UI 이벤트 토픽 consumer thread 수입니다.
+         */
+        private Integer uiEventsConsumerThreads;
 
         private void validate() {
             requireText("tc.business.core.kafka.eqp-events-topic", eqpEventsTopic);
@@ -66,6 +106,7 @@ public class BusinessCoreRuntimeProperties {
             requireText("tc.business.core.kafka.eqp-commands-topic", eqpCommandsTopic);
             requireText("tc.business.core.kafka.mes-commands-topic", mesCommandsTopic);
             requireText("tc.business.core.kafka.ui-commands-topic", uiCommandsTopic);
+            requireText("tc.business.core.kafka.source", source);
 
             /*
              * 현재 설계 요구사항은 토픽별 consumer thread 1개 고정입니다.
@@ -124,6 +165,14 @@ public class BusinessCoreRuntimeProperties {
             this.uiCommandsTopic = uiCommandsTopic;
         }
 
+        public String getSource() {
+            return source;
+        }
+
+        public void setSource(final String source) {
+            this.source = source;
+        }
+
         public int getEqpEventsConsumerThreads() {
             return eqpEventsConsumerThreads;
         }
@@ -154,17 +203,50 @@ public class BusinessCoreRuntimeProperties {
      */
     public static final class Runtime {
 
-        private int dispatcherThreads = 1;
-        private int workerThreads = 8;
-        private int timeoutSchedulerThreads = 1;
+        /**
+         * 디스패처 스레드 수입니다.
+         */
+        private Integer dispatcherThreads;
 
-        private int topicQueueCapacity = 10_000;
-        private int mailboxCapacity = 2_048;
-        private int ackDrainMaxBatch = 512;
+        /**
+         * 워커 스레드 수입니다.
+         */
+        private Integer workerThreads;
 
-        private long taskTimeoutMs = 180_000L;
-        private int retryMaxAttempts = 3;
-        private long retryBackoffMs = 200L;
+        /**
+         * 타임아웃 스케줄러 스레드 수입니다.
+         */
+        private Integer timeoutSchedulerThreads;
+
+        /**
+         * 토픽 큐 용량입니다.
+         */
+        private Integer topicQueueCapacity;
+
+        /**
+         * 장비별 메일박스 용량입니다.
+         */
+        private Integer mailboxCapacity;
+
+        /**
+         * ACK 드레인 최대 배치 크기입니다.
+         */
+        private Integer ackDrainMaxBatch;
+
+        /**
+         * 작업 타임아웃(ms)입니다.
+         */
+        private Long taskTimeoutMs;
+
+        /**
+         * 재시도 최대 횟수입니다.
+         */
+        private Integer retryMaxAttempts;
+
+        /**
+         * 재시도 backoff(ms)입니다.
+         */
+        private Long retryBackoffMs;
 
         private void validate() {
             requirePositive("tc.business.core.runtime.dispatcher-threads", dispatcherThreads);
@@ -259,20 +341,20 @@ public class BusinessCoreRuntimeProperties {
         }
     }
 
-    private static void requirePositive(final String key, final long value) {
-        if (value <= 0L) {
+    private static void requirePositive(final String key, final Number value) {
+        if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
         }
     }
 
-    private static void requireNonNegative(final String key, final long value) {
-        if (value < 0L) {
+    private static void requireNonNegative(final String key, final Number value) {
+        if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");
         }
     }
 
-    private static void requireEqualsOne(final String key, final int value) {
-        if (value != 1) {
+    private static void requireEqualsOne(final String key, final Number value) {
+        if (value == null || value.intValue() != 1) {
             throw new IllegalStateException(key + " must be exactly 1");
         }
     }

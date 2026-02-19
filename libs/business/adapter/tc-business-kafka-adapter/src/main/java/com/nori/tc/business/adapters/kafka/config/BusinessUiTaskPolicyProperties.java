@@ -1,4 +1,4 @@
-package com.nori.tc.business.adapters.kafka.ui;
+package com.nori.tc.business.adapters.kafka.config;
 
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -18,37 +18,37 @@ public class BusinessUiTaskPolicyProperties {
     /**
      * UI REP metadata.source 값입니다.
      */
-    private String source = "TC-BUSINESS-CORE-APP";
+    private String source;
 
     /**
      * traceId 중복 처리 TTL(ms)입니다.
      */
-    private long duplicateTraceTtlMs = 600_000L;
+    private Long duplicateTraceTtlMs;
 
     /**
      * traceId 중복 처리 캐시 최대 엔트리 수입니다.
      */
-    private int duplicateTraceMaxSize = 100_000;
+    private Integer duplicateTraceMaxSize;
 
     /**
      * UI task 처리 재시도 최대 시도 횟수입니다.
      */
-    private int taskRetryMaxAttempts = 3;
+    private Integer taskRetryMaxAttempts;
 
     /**
      * UI task 처리 재시도 backoff(ms)입니다.
      */
-    private long taskRetryBackoffMs = 200L;
+    private Long taskRetryBackoffMs;
 
     /**
      * UI REP 발행 재시도 최대 시도 횟수입니다.
      */
-    private int replyRetryMaxAttempts = 3;
+    private Integer replyRetryMaxAttempts;
 
     /**
      * UI REP 발행 재시도 backoff(ms)입니다.
      */
-    private long replyRetryBackoffMs = 200L;
+    private Long replyRetryBackoffMs;
 
     /**
      * 설정값 유효성을 검증합니다.
@@ -133,14 +133,14 @@ public class BusinessUiTaskPolicyProperties {
         }
     }
 
-    private static void requirePositive(final String key, final long value) {
-        if (value <= 0L) {
+    private static void requirePositive(final String key, final Number value) {
+        if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
         }
     }
 
-    private static void requireNonNegative(final String key, final long value) {
-        if (value < 0L) {
+    private static void requireNonNegative(final String key, final Number value) {
+        if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");
         }
     }

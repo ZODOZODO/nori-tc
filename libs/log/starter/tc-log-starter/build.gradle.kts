@@ -29,6 +29,7 @@ dependencies {
     compileOnly(libs.spring.boot)
     compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.slf4j.api)
+    compileOnly(libs.jakarta.annotation.api)
 }
 
 tasks.test {

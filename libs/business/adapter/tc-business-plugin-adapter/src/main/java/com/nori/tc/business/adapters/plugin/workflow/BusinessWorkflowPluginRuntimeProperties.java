@@ -18,17 +18,17 @@ public class BusinessWorkflowPluginRuntimeProperties {
     /**
      * 애플리케이션 기동 시 tc_jar_business 기반 plugin runtime preload 수행 여부입니다.
      */
-    private boolean loadOnStartup = true;
+    private Boolean loadOnStartup;
 
     /**
      * preload 실패 시 기동을 중단할지 여부입니다.
      */
-    private boolean failFastOnStartup = true;
+    private Boolean failFastOnStartup;
 
     /**
      * preload 시 eqp 목록 조회에 사용할 페이지 크기입니다.
      */
-    private int pageSize = 500;
+    private Integer pageSize;
 
     /**
      * 플러그인 JAR 최대 허용 크기(바이트)입니다.
@@ -36,17 +36,23 @@ public class BusinessWorkflowPluginRuntimeProperties {
      * <p>메모리 급증/비정상 대용량 바이너리 로딩을 방지하기 위한
      * 1차 방어 설정입니다.</p>
      */
-    private long maxJarBytes = 10L * 1024L * 1024L;
+    private Long maxJarBytes;
 
     /**
      * 프로퍼티 유효성 검증을 수행합니다.
      */
     @PostConstruct
     public void validate() {
-        if (pageSize <= 0) {
+        if (loadOnStartup == null) {
+            throw new IllegalStateException("tc.business.core.plugin-runtime.load-on-startup is required");
+        }
+        if (failFastOnStartup == null) {
+            throw new IllegalStateException("tc.business.core.plugin-runtime.fail-fast-on-startup is required");
+        }
+        if (pageSize == null || pageSize <= 0) {
             throw new IllegalStateException("tc.business.core.plugin-runtime.page-size must be > 0");
         }
-        if (maxJarBytes <= 0L) {
+        if (maxJarBytes == null || maxJarBytes <= 0L) {
             throw new IllegalStateException("tc.business.core.plugin-runtime.max-jar-bytes must be > 0");
         }
         log.info("BusinessWorkflowPluginRuntimeProperties validated. loadOnStartup={}, failFastOnStartup={}, pageSize={}, maxJarBytes={}",

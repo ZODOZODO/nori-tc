@@ -1,5 +1,6 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
+import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
 import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDlqReporter;
@@ -17,10 +18,10 @@ import java.util.UUID;
 /**
  * UI 파이프라인 DLQ 리포터입니다.
  *
- * <p>역할:</p>
- * <p>1) 공통 UI 파이프라인에서 전달한 실패 정보를 DLQ 표준 메시지로 변환합니다.</p>
- * <p>2) DLQ 포트로 발행하여 저장소 구현(예: Redis)에 위임합니다.</p>
- * <p>3) DLQ 포트 장애가 발생해도 원 처리 흐름을 중단하지 않고 로그로 남깁니다.</p>
+ * <p>역할:
+ * 1) 공통 UI 파이프라인에서 전달된 실패 정보를 DLQ 표준 메시지로 변환합니다.
+ * 2) DLQ 발행 포트로 위임하여 저장소 구현(예: Redis)과 분리합니다.
+ * 3) DLQ 발행 실패 시에도 파이프라인을 중단하지 않고 로그로 기록합니다.</p>
  */
 @Component
 public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTaskMessage> {
@@ -30,14 +31,20 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     private static final String UNKNOWN_TRACE_ID = "UNKNOWN_TRACE";
 
     private final BusinessDlqPublisherPort dlqPublisherPort;
+    private final BusinessCoreRuntimeProperties runtimeProperties;
 
     /**
-     * DLQ 포트를 주입받습니다.
+     * DLQ 리포터 의존성을 주입받습니다.
      *
      * @param dlqPublisherPort DLQ 발행 포트
+     * @param runtimeProperties Business 런타임 토픽 프로퍼티
      */
-    public BusinessUiTaskDlqReporter(final BusinessDlqPublisherPort dlqPublisherPort) {
+    public BusinessUiTaskDlqReporter(
+            final BusinessDlqPublisherPort dlqPublisherPort,
+            final BusinessCoreRuntimeProperties runtimeProperties
+    ) {
         this.dlqPublisherPort = Objects.requireNonNull(dlqPublisherPort, "dlqPublisherPort is null");
+        this.runtimeProperties = Objects.requireNonNull(runtimeProperties, "runtimeProperties is null");
     }
 
     @Override
@@ -61,6 +68,8 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
             putIfHasText(tags, "timestamp", request.metadata().timestamp());
         }
 
+        // 9) 하드코딩 토픽 문자열을 런타임 프로퍼티 기반으로 치환합니다.
+        final String uiEventsTopic = runtimeProperties.getKafka().getUiEventsTopic();
         final BusinessDlqMessage dlqMessage = new BusinessDlqMessage(
                 UUID.randomUUID().toString(),
                 "BUSINESS_UI_PIPELINE",
@@ -68,7 +77,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
                 normalizeReasonCode(reasonCode),
                 normalizeReasonMessage(reasonMessage),
                 System.currentTimeMillis(),
-                "tc.ui.events",
+                uiEventsTopic,
                 null,
                 null,
                 normalizeEqpId(eqpId),
@@ -81,7 +90,8 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
 
         try {
             dlqPublisherPort.publish(dlqMessage);
-            log.info("UI task pipeline DLQ published. stage={}, reasonCode={}, eventType={}, replyEventType={}, eqpId={}, traceId={}",
+            log.info("UI task pipeline DLQ published. topic={}, stage={}, reasonCode={}, eventType={}, replyEventType={}, eqpId={}, traceId={}",
+                    dlqMessage.topic(),
                     dlqMessage.stage(),
                     dlqMessage.reasonCode(),
                     eventType,
@@ -89,7 +99,8 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
                     dlqMessage.eqpId(),
                     dlqMessage.traceId());
         } catch (Exception ex) {
-            log.error("UI task pipeline DLQ publish failed. stage={}, reasonCode={}, eventType={}, replyEventType={}, eqpId={}, traceId={}",
+            log.error("UI task pipeline DLQ publish failed. topic={}, stage={}, reasonCode={}, eventType={}, replyEventType={}, eqpId={}, traceId={}",
+                    dlqMessage.topic(),
                     dlqMessage.stage(),
                     dlqMessage.reasonCode(),
                     eventType,
@@ -158,7 +169,7 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
     }
 
     /**
-     * 텍스트 값이 있는 경우에만 태그 맵에 추가합니다.
+     * 텍스트 값이 있는 경우에만 태그 맵에 값을 추가합니다.
      */
     private static void putIfHasText(final Map<String, String> tags, final String key, final String value) {
         if (value == null || value.isBlank()) {
@@ -167,5 +178,3 @@ public class BusinessUiTaskDlqReporter implements KafkaTaskDlqReporter<KafkaUiTa
         tags.put(key, value.trim());
     }
 }
-
-

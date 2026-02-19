@@ -1,16 +1,16 @@
-package com.nori.tc.comm.adapters.kafka.messaging.contract;
+package com.nori.tc.comm.adapters.kafka.contract;
 
 /**
- * Business -> Gateway 명령 수신용 Kafka 메시지 계약입니다.
+ * Business -> Gateway 紐낅졊 ?섏떊??Kafka 硫붿떆吏 怨꾩빟?낅땲??
  *
- * <p>요구사항 기준:
- * 1) tc.eqp.events 발행 구조(metadata + data)와 동일한 JSON 형태를 사용합니다.
- * 2) eventType 값은 라우팅 키가 아니라 운영/추적 로그 용도로만 사용합니다.
- * 3) SOCKET/HSMS를 하나의 계약으로 수용하되, 현재 구현 단계에서는 SOCKET 처리만 활성화합니다.</p>
+ * <p>?붽뎄?ы빆 湲곗?:
+ * 1) tc.eqp.events 諛쒗뻾 援ъ“(metadata + data)? ?숈씪??JSON ?뺥깭瑜??ъ슜?⑸땲??
+ * 2) eventType 媛믪? ?쇱슦???ㅺ? ?꾨땲???댁쁺/異붿쟻 濡쒓렇 ?⑸룄濡쒕쭔 ?ъ슜?⑸땲??
+ * 3) SOCKET/HSMS瑜??섎굹??怨꾩빟?쇰줈 ?섏슜?섎릺, ?꾩옱 援ы쁽 ?④퀎?먯꽌??SOCKET 泥섎━留??쒖꽦?뷀빀?덈떎.</p>
  *
- * <p>주의:
- * - 외부 시스템 입력을 안정적으로 수용하기 위해 record 생성자에서 강한 예외 검증은 두지 않습니다.
- * - 실제 필수값 검증/오류 분류는 디스패처 계층에서 수행합니다.</p>
+ * <p>二쇱쓽:
+ * - ?몃? ?쒖뒪???낅젰???덉젙?곸쑝濡??섏슜?섍린 ?꾪빐 record ?앹꽦?먯뿉??媛뺥븳 ?덉쇅 寃利앹? ?먯? ?딆뒿?덈떎.
+ * - ?ㅼ젣 ?꾩닔媛?寃利??ㅻ쪟 遺꾨쪟???붿뒪?⑥쿂 怨꾩링?먯꽌 ?섑뻾?⑸땲??</p>
  */
 public record GatewayBusinessCommandMessage(
         GatewayBusinessCommandMetadata metadata,
@@ -18,13 +18,10 @@ public record GatewayBusinessCommandMessage(
 ) {
 
     /**
-     * 공통 메타데이터 블록입니다.
+     * 怨듯넻 硫뷀??곗씠??釉붾줉?낅땲??
      *
-     * <p>예시:
-     * - eventType: CHECK_REPLY, S6F11 등
-     * - timestamp: ISO-8601 문자열
-     * - source   : 발행 시스템 식별자
-     * - traceId  : 분산 추적 식별자</p>
+     * <p>?덉떆:
+     * - eventType: CHECK_REPLY, S6F11 ??     * - timestamp: ISO-8601 臾몄옄??     * - source   : 諛쒗뻾 ?쒖뒪???앸퀎??     * - traceId  : 遺꾩궛 異붿쟻 ?앸퀎??/p>
      */
     public record GatewayBusinessCommandMetadata(
             String eventType,
@@ -35,11 +32,11 @@ public record GatewayBusinessCommandMessage(
     }
 
     /**
-     * 공통 데이터 블록입니다.
+     * 怨듯넻 ?곗씠??釉붾줉?낅땲??
      *
-     * <p>SOCKET/HSMS를 함께 표현하기 위해 필드를 통합했습니다.
-     * - eqpId/interfaceType/rawMessage: SOCKET 처리 시 핵심 입력
-     * - transactionId/secs2         : HSMS 확장 입력(TODO 단계)</p>
+     * <p>SOCKET/HSMS瑜??④퍡 ?쒗쁽?섍린 ?꾪빐 ?꾨뱶瑜??듯빀?덉뒿?덈떎.
+     * - eqpId/interfaceType/rawMessage: SOCKET 泥섎━ ???듭떖 ?낅젰
+     * - transactionId/secs2         : HSMS ?뺤옣 ?낅젰(TODO ?④퀎)</p>
      */
     public record GatewayBusinessCommandData(
             String transactionId,
@@ -51,10 +48,10 @@ public record GatewayBusinessCommandMessage(
     }
 
     /**
-     * HSMS SECS-II 세부 블록입니다.
+     * HSMS SECS-II ?몃? 釉붾줉?낅땲??
      *
-     * <p>현재 구현 범위에서는 HSMS 송신을 활성화하지 않으므로,
-     * 수신/로그/향후 확장을 위한 계약 보존 목적의 구조입니다.</p>
+     * <p>?꾩옱 援ы쁽 踰붿쐞?먯꽌??HSMS ?≪떊???쒖꽦?뷀븯吏 ?딆쑝誘濡?
+     * ?섏떊/濡쒓렇/?ν썑 ?뺤옣???꾪븳 怨꾩빟 蹂댁〈 紐⑹쟻??援ъ“?낅땲??</p>
      */
     public record GatewayBusinessCommandSecs2(
             String systemBytes,
@@ -63,3 +60,4 @@ public record GatewayBusinessCommandMessage(
     ) {
     }
 }
+

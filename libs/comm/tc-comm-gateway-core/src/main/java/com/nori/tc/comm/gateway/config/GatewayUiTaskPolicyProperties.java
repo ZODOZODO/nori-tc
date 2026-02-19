@@ -21,25 +21,25 @@ public class GatewayUiTaskPolicyProperties {
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskPolicyProperties.class);
 
     /** EQP_CREATE 처리 타임아웃(ms) */
-    private Long createTimeoutMs = 30_000L;
+    private Long createTimeoutMs;
 
     /** EQP_UPDATE 처리 타임아웃(ms) */
-    private Long updateTimeoutMs = 30_000L;
+    private Long updateTimeoutMs;
 
     /** EQP_DELETE 처리 타임아웃(ms) */
-    private Long deleteTimeoutMs = 30_000L;
+    private Long deleteTimeoutMs;
 
     /** EQP_START 처리 타임아웃(ms) */
-    private Long startTimeoutMs = 30_000L;
+    private Long startTimeoutMs;
 
     /** EQP_END 처리 타임아웃(ms) */
-    private Long endTimeoutMs = 30_000L;
+    private Long endTimeoutMs;
 
     /** EQP_SEND_MESSAGE 처리 타임아웃(ms) */
-    private Long sendMessageTimeoutMs = 30_000L;
+    private Long sendMessageTimeoutMs;
 
     /** EQP_UPDATE_JARFILE 처리 타임아웃(ms) */
-    private Long updateJarfileTimeoutMs = 30_000L;
+    private Long updateJarfileTimeoutMs;
 
     /**
      * START/END 요청에서 동기 대기 모드를 사용할지 여부입니다.
@@ -47,28 +47,28 @@ public class GatewayUiTaskPolicyProperties {
      * <p>true면 기존 동기 wait 경로를 사용하고,
      * false면 상태머신 기반 비동기 전환 경로를 사용합니다.</p>
      */
-    private boolean lifecycleSyncWaitEnabled = false;
+    private Boolean lifecycleSyncWaitEnabled;
 
     /** UI task 처리 재시도 횟수 */
-    private Integer taskRetryMax = 1;
+    private Integer taskRetryMax;
 
     /** UI task 처리 재시도 backoff(ms) */
-    private Long taskRetryBackoffMs = 200L;
+    private Long taskRetryBackoffMs;
 
     /** UI reply 발행 재시도 횟수 */
-    private Integer replyPublishRetryMax = 3;
+    private Integer replyPublishRetryMax;
 
     /** UI reply 발행 재시도 backoff(ms) */
-    private Long replyPublishRetryBackoffMs = 200L;
+    private Long replyPublishRetryBackoffMs;
 
     /** traceId dedup 유지 시간(ms) */
-    private Long duplicateTraceTtlMs = 600_000L;
+    private Long duplicateTraceTtlMs;
 
     /** traceId dedup 캐시 최대 엔트리 수 */
-    private Integer duplicateTraceMaxSize = 100_000;
+    private Integer duplicateTraceMaxSize;
 
     /** 실패 레코드 재처리 backoff(ms) */
-    private Long failedRecordRetryBackoffMs = 500L;
+    private Long failedRecordRetryBackoffMs;
 
     /**
      * 애플리케이션 시작 시 정책 값의 유효성을 검증합니다.
@@ -82,6 +82,7 @@ public class GatewayUiTaskPolicyProperties {
         requirePositive("tc.comm.gateway.ui-task.end-timeout-ms", endTimeoutMs);
         requirePositive("tc.comm.gateway.ui-task.send-message-timeout-ms", sendMessageTimeoutMs);
         requirePositive("tc.comm.gateway.ui-task.update-jarfile-timeout-ms", updateJarfileTimeoutMs);
+        requireNotNull("tc.comm.gateway.ui-task.lifecycle-sync-wait-enabled", lifecycleSyncWaitEnabled);
 
         requireNonNegative("tc.comm.gateway.ui-task.task-retry-max", taskRetryMax);
         requireNonNegative("tc.comm.gateway.ui-task.task-retry-backoff-ms", taskRetryBackoffMs);
@@ -116,6 +117,15 @@ public class GatewayUiTaskPolicyProperties {
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");
+        }
+    }
+
+    /**
+     * 필수 불린값 누락 여부를 검증합니다.
+     */
+    private static void requireNotNull(final String key, final Object value) {
+        if (value == null) {
+            throw new IllegalStateException(key + " is required");
         }
     }
 

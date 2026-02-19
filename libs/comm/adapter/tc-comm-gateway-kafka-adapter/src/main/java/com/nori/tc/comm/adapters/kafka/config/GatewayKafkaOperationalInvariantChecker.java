@@ -1,7 +1,5 @@
-package com.nori.tc.comm.adapters.kafka.messaging;
+package com.nori.tc.comm.adapters.kafka.config;
 
-import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaClientProperties;
-import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
 import com.nori.tc.comm.gateway.config.GatewayKafkaShardProperties;
 import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -18,27 +16,31 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Gateway Kafka 운영 불변식(startup invariant) 검증기입니다.
+ * Gateway Kafka 운영 불변조건(startup invariant) 검증기입니다.
  *
- * <p>기동 직후 아래 조건을 반드시 만족해야만 앱이 정상 실행됩니다.</p>
- * <p>1) Gateway가 사용하는 필수 토픽이 모두 존재해야 합니다.</p>
- * <p>2) 모든 필수 토픽의 파티션 수는 1 이상이어야 합니다.</p>
- * <p>3) tc.eqp.commands 파티션 수는 설정값(commandsPartitionCount)과 정확히 일치해야 합니다.</p>
- * <p>4) ownedPartitions는 실제 파티션 범위를 벗어나면 안 됩니다.</p>
+ * <p>애플리케이션 시작 직후 아래 조건을 검증합니다.
+ * 1) 필수 topic이 모두 존재하는지
+ * 2) topic 파티션 수가 1 이상인지
+ * 3) {@code tc.eqp.commands} 파티션 수가 shard 설정과 일치하는지
+ * 4) ownedPartitions가 실제 파티션 범위를 벗어나지 않는지</p>
  */
 @Component
-public class KafkaOperationalInvariantChecker {
+public class GatewayKafkaOperationalInvariantChecker {
 
-    private static final Logger log = LoggerFactory.getLogger(KafkaOperationalInvariantChecker.class);
+    private static final Logger log = LoggerFactory.getLogger(GatewayKafkaOperationalInvariantChecker.class);
 
     private final GatewayKafkaClientProperties kafkaClientProperties;
     private final GatewayKafkaShardProperties shardProperties;
     private final GatewayKafkaTopicProperties topicProperties;
 
     /**
-     * 불변식 검증에 필요한 의존성을 초기화합니다.
+     * 불변조건 검증에 필요한 의존성을 초기화합니다.
+     *
+     * @param kafkaClientProperties Kafka admin 설정
+     * @param shardProperties shard/partition 정책
+     * @param topicProperties topic 매핑 설정
      */
-    public KafkaOperationalInvariantChecker(
+    public GatewayKafkaOperationalInvariantChecker(
             final GatewayKafkaClientProperties kafkaClientProperties,
             final GatewayKafkaShardProperties shardProperties,
             final GatewayKafkaTopicProperties topicProperties
@@ -49,7 +51,9 @@ public class KafkaOperationalInvariantChecker {
     }
 
     /**
-     * 기동 시점에 Kafka 토픽/파티션 불변식을 검증합니다.
+     * 애플리케이션 시작 후 Kafka 토픽/파티션 불변조건을 검증합니다.
+     *
+     * <p>검증 실패 시 즉시 예외를 발생시켜 잘못된 설정으로 구동되는 것을 차단합니다.</p>
      */
     @PostConstruct
     public void verify() {
@@ -98,7 +102,9 @@ public class KafkaOperationalInvariantChecker {
     }
 
     /**
-     * Gateway 운영에 필수인 토픽 목록을 중복 없이 구성합니다.
+     * Gateway 필수 topic 목록을 중복 없이 구성합니다.
+     *
+     * @return 필수 topic 목록
      */
     private List<String> buildRequiredTopics() {
         final Set<String> unique = new LinkedHashSet<>();
@@ -106,6 +112,7 @@ public class KafkaOperationalInvariantChecker {
         unique.add(topicProperties.getEqpCommands());
         unique.add(topicProperties.getUiEvents());
         unique.add(topicProperties.getUiCommands());
+
         if (unique.size() != 4) {
             throw new IllegalStateException(
                     "Gateway Kafka required topics must be unique. eqpEvents="
@@ -122,7 +129,10 @@ public class KafkaOperationalInvariantChecker {
     }
 
     /**
-     * tc.eqp.commands 파티션 수/소유 파티션 범위 불변식을 검증합니다.
+     * command topic 파티션 관련 불변조건을 검증합니다.
+     *
+     * @param topic command topic
+     * @param actualPartitionCount 실제 파티션 수
      */
     private void verifyCommandTopicPartitionInvariant(final String topic, final int actualPartitionCount) {
         final int expectedPartitionCount = shardProperties.getCommandsPartitionCount();

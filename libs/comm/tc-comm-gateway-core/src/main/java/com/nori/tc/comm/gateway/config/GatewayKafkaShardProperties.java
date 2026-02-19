@@ -71,22 +71,22 @@ public class GatewayKafkaShardProperties {
     /**
      * poll 스레드와 레코드 처리 스레드를 분리할지 여부입니다.
      */
-    private Boolean asyncRecordProcessingEnabled = false;
+    private Boolean asyncRecordProcessingEnabled;
 
     /**
      * 비동기 처리 모드에서 사용할 워커 스레드 수입니다.
      */
-    private Integer recordWorkerThreads = 4;
+    private Integer recordWorkerThreads;
 
     /**
      * poll 루프에서 한 번에 드레인할 ack 이벤트 최대 개수입니다.
      */
-    private Integer ackDrainMaxBatch = 512;
+    private Integer ackDrainMaxBatch;
 
     /**
      * 비동기 처리 모드에서 허용할 최대 in-flight 레코드 수입니다.
      */
-    private Integer maxInFlightRecords = 10_000;
+    private Integer maxInFlightRecords;
 
     /**
      * 애플리케이션 시작 시 설정 유효성을 검증합니다.

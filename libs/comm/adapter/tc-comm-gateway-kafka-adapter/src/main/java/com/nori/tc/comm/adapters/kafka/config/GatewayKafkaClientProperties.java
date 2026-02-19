@@ -11,13 +11,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Gateway 애플리케이션의 Kafka 클라이언트 설정 바인딩 클래스입니다.
+ * Gateway Kafka 클라이언트 프로퍼티 바인딩 클래스입니다.
  *
- * <p>{@code spring.kafka.*} 설정을 수집하고, Consumer/AdminClient 생성에 필요한
- * 최소 프로퍼티 맵으로 변환합니다.</p>
- *
- * <p>운영 중 설정 누락/충돌을 조기에 발견하기 위해 기동 시점 검증과
- * 빌드 시점 디버그 로그를 함께 제공합니다.</p>
+ * <p>{@code spring.kafka.*} 값을 바탕으로
+ * consumer/admin 생성에 필요한 설정 맵을 구성합니다.</p>
  */
 @ConfigurationProperties(prefix = "spring.kafka")
 public class GatewayKafkaClientProperties {
@@ -30,10 +27,7 @@ public class GatewayKafkaClientProperties {
     private final Admin admin = new Admin();
 
     /**
-     * 필수 Kafka 클라이언트 설정값을 검증합니다.
-     *
-     * <p>운영 중 설정 누락을 늦게 발견하지 않도록 애플리케이션 시작 시점에
-     * Fail-Fast로 검증합니다.</p>
+     * 필수 Kafka 설정값을 애플리케이션 시작 시 검증합니다.
      */
     @PostConstruct
     public void validate() {
@@ -67,7 +61,9 @@ public class GatewayKafkaClientProperties {
     }
 
     /**
-     * {@code spring.kafka.consumer.*} 기반의 공통 Consumer 프로퍼티를 구성합니다.
+     * 기본 consumer 설정 맵을 생성합니다.
+     *
+     * @return Kafka consumer 설정 맵
      */
     public Map<String, Object> buildConsumerProperties() {
         final Map<String, Object> props = new HashMap<>();
@@ -81,36 +77,31 @@ public class GatewayKafkaClientProperties {
             props.putAll(consumer.properties);
         }
         if (log.isDebugEnabled()) {
-            log.debug(
-                    "Kafka consumer properties built. bootstrapServers={}, groupId={}, autoOffsetReset={}, propertyCount={}",
+            log.debug("Kafka consumer properties built. bootstrapServers={}, groupId={}, autoOffsetReset={}, propertyCount={}",
                     bootstrapServers,
                     consumer.groupId,
                     consumer.autoOffsetReset,
-                    props.size()
-            );
+                    props.size());
         }
         return props;
     }
 
     /**
-     * 메시지 value 타입을 고정한 Consumer 프로퍼티를 구성합니다.
+     * value 타입을 지정해 consumer 설정 맵을 생성합니다.
      *
-     * <p>동일 그룹에서 서로 다른 메시지 타입을 소비할 때
-     * listener별 역직렬화 기본 타입을 분리하기 위해 사용합니다.</p>
+     * @param valueType 역직렬화 value 타입
+     * @return Kafka consumer 설정 맵
      */
     public Map<String, Object> buildConsumerProperties(final Class<?> valueType) {
         return buildConsumerProperties(valueType, null);
     }
 
     /**
-     * 메시지 value 타입과 groupId를 함께 고정한 Consumer 프로퍼티를 구성합니다.
+     * value 타입과 groupId override를 적용해 consumer 설정 맵을 생성합니다.
      *
-     * <p>topic은 동일하지만 소비 주체를 분리해야 할 때(consumer group 이중화),
-     * 리스너 단위로 groupId를 오버라이드할 수 있도록 제공합니다.</p>
-     *
-     * @param valueType 역직렬화 기본 value 타입
-     * @param groupIdOverride 리스너 전용 groupId(없으면 기본 groupId 사용)
-     * @return Kafka Consumer 프로퍼티
+     * @param valueType 역직렬화 value 타입
+     * @param groupIdOverride groupId override 값
+     * @return Kafka consumer 설정 맵
      */
     public Map<String, Object> buildConsumerProperties(final Class<?> valueType, final String groupIdOverride) {
         final Map<String, Object> props = buildConsumerProperties();
@@ -130,7 +121,9 @@ public class GatewayKafkaClientProperties {
     }
 
     /**
-     * {@code spring.kafka.*} 기반의 AdminClient 프로퍼티를 구성합니다.
+     * AdminClient 설정 맵을 생성합니다.
+     *
+     * @return Kafka admin 설정 맵
      */
     public Map<String, Object> buildAdminProperties() {
         final Map<String, Object> props = new HashMap<>();
@@ -139,11 +132,8 @@ public class GatewayKafkaClientProperties {
             props.putAll(admin.properties);
         }
         if (log.isDebugEnabled()) {
-            log.debug(
-                    "Kafka admin properties built. bootstrapServers={}, propertyCount={}",
-                    bootstrapServers,
-                    props.size()
-            );
+            log.debug("Kafka admin properties built. bootstrapServers={}, propertyCount={}",
+                    bootstrapServers, props.size());
         }
         return props;
     }
@@ -165,7 +155,7 @@ public class GatewayKafkaClientProperties {
     }
 
     /**
-     * {@code spring.kafka.consumer.*} 하위 설정 바인딩 모델입니다.
+     * {@code spring.kafka.consumer.*} 바인딩 모델입니다.
      */
     public static final class Consumer {
         private String groupId;
@@ -225,7 +215,7 @@ public class GatewayKafkaClientProperties {
     }
 
     /**
-     * {@code spring.kafka.admin.properties.*} 하위 설정 바인딩 모델입니다.
+     * {@code spring.kafka.admin.properties.*} 바인딩 모델입니다.
      */
     public static final class Admin {
         private Map<String, String> properties;

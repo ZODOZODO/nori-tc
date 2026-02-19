@@ -20,14 +20,14 @@ public class BusinessRedisProperties {
      *
      * <p>0이면 만료 없이 보관합니다.</p>
      */
-    private long dlqTtlSeconds = 604_800L;
+    private Long dlqTtlSeconds;
 
     /**
      * 설정값 유효성을 검증합니다.
      */
     @PostConstruct
     public void validate() {
-        if (dlqTtlSeconds < 0L) {
+        if (dlqTtlSeconds == null || dlqTtlSeconds < 0L) {
             throw new IllegalStateException("tc.business.core.redis.dlq-ttl-seconds must be >= 0");
         }
         log.info("BusinessRedisProperties validated. dlqTtlSeconds={}", dlqTtlSeconds);

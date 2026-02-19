@@ -1,7 +1,7 @@
 package com.nori.tc.business.starter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nori.tc.business.adapters.kafka.ui.BusinessUiTaskPolicyProperties;
+import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties;
 import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
 import com.nori.tc.common.kafka.task.pipeline.DefaultKafkaTaskPipeline;
 import com.nori.tc.common.kafka.task.pipeline.KafkaTaskDeduplicationStore;
