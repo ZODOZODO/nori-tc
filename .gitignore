@@ -19,6 +19,9 @@ Desktop.ini
 # VS Code
 .vscode/
 
+# editor
+.editorconfig
+
 # IntelliJ IDEA
 .idea/
 *.iws
