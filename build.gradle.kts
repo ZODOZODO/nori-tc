@@ -1,14 +1,14 @@
-﻿/*
- * 猷⑦듃 build.gradle.kts (FIX)
+/*
+ * 루트 build.gradle.kts
  *
- * ?듭떖 Fix
- * - io.spring.dependency-management ?뚮윭洹몄씤???곸슜??紐⑤뱺 紐⑤뱢?? *   spring-boot-dependencies BOM??import ?댁꽌
- *   Spring Boot starter?ㅼ쓽 "踰꾩쟾 怨듬갚(:)" 臾몄젣瑜??쒓굅?쒕떎.
+ * 적용 내용
+ * - io.spring.dependency-management 플러그인을 사용하는 모든 모듈에서
+ *   spring-boot-dependencies BOM을 import 하도록 설정합니다.
+ *   이를 통해 Spring Boot starter 버전 누락 문제를 방지합니다.
  *
- * 異붽? Fix(沅뚯옣)
- * - java-library???대??곸쑝濡?java ?뚮윭洹몄씤???ы븿?섎?濡?
- *   java / java-library 釉붾줉???????먮㈃ ?ㅼ젙??以묐났 ?곸슜?????덈떎.
- *   -> java 釉붾줉留??먭퀬 java-library 釉붾줉? ?쒓굅?쒕떎.
+ * 추가 정리
+ * - java-library 플러그인은 java 플러그인을 포함하므로
+ *   중복 설정을 피하고 java 블록 기준으로 공통 설정을 관리합니다.
  */
 
 import io.spring.gradle.dependencymanagement.dsl.DependencyManagementExtension
@@ -31,19 +31,17 @@ allprojects {
 
 subprojects {
     /**
-     * FIX: dependency-management ?곸슜 紐⑤뱢??Spring Boot BOM 媛뺤젣 import
-     * - ?닿구 ?댁빞 org.springframework.boot:spring-boot-starter-xxx ?ㅼ씠 踰꾩쟾 ?놁씠??resolve ?⑸땲??
+     * dependency-management 플러그인 적용 모듈에 Spring Boot BOM을 강제 import 합니다.
+     * - org.springframework.boot:spring-boot-starter-* 의 버전 해석을 안정화합니다.
      *
-     * 二쇱쓽
-     * - ??釉붾줉? io.spring.dependency-management ?뚮윭洹몄씤??"紐낆떆?곸쑝濡? ?곸슜??紐⑤뱢?먮쭔 ?숈옉?⑸땲??
-     * - 留뚯빟 ?대뼡 紐⑤뱢???ㅽ??곕? ?곕뒗?곕룄 dependency-management瑜??곸슜?섏? ?딆쑝硫?
-     *   (?먮뒗 spring-boot ?뚮윭洹몄씤留??곸슜?섍퀬 ???뚮윭洹몄씤???곸슜?섏? ?딆쑝硫?
-     *   踰꾩쟾 ?댁꽍???щ씪吏????덉쑝??紐⑤뱢蹂??뚮윭洹몄씤 ?곸슜 ?뺤콉???듭씪?섏꽭??
+     * 주의
+     * - 이 블록은 io.spring.dependency-management 플러그인이 적용된 모듈에서만 동작합니다.
+     * - 해당 플러그인을 적용하지 않으면 BOM 기반 버전 관리가 적용되지 않습니다.
      */
     pluginManager.withPlugin("io.spring.dependency-management") {
         extensions.configure(DependencyManagementExtension::class.java) {
             imports {
-                // spring-boot ?뚮윭洹몄씤 踰꾩쟾(= libs.versions.springBoot)怨?BOM 踰꾩쟾???숈씪?섍쾶 怨좎젙
+                // spring-boot 플러그인 버전과 동일한 BOM 버전을 사용합니다.
                 mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}")
             }
         }
@@ -66,10 +64,12 @@ subprojects {
     }
 
     /**
-     * Java 怨듯넻
+     * Java 공통 설정
      *
-     * - java-library??java瑜??ы븿?섎?濡??ш린 ??踰덈쭔 ?ㅼ젙?쒕떎.
-     * - UTF-8 / -parameters / JUnit Platform ?듭씪
+     * - Toolchain: Java 21
+     * - 인코딩: UTF-8
+     * - 컴파일러 인자: -parameters
+     * - 테스트: JUnit Platform
      */
     pluginManager.withPlugin("java") {
         extensions.configure(org.gradle.api.plugins.JavaPluginExtension::class.java) {
@@ -80,7 +80,7 @@ subprojects {
 
         tasks.withType(JavaCompile::class.java).configureEach {
             options.encoding = "UTF-8"
-            // 以묐났 異붽? 諛⑹?瑜??꾪빐 議댁옱 ?щ? 泥댄겕 ??異붽?
+            // 중복 추가를 방지하기 위해 기존 인자 존재 여부를 확인합니다.
             if (!options.compilerArgs.contains("-parameters")) {
                 options.compilerArgs.add("-parameters")
             }
@@ -91,5 +91,3 @@ subprojects {
         }
     }
 }
-
-

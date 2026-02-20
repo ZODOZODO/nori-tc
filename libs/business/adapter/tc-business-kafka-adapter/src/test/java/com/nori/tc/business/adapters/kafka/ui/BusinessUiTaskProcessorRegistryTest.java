@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
-import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
+import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeMutationPort;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyStatus;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
@@ -15,10 +15,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * BusinessUiTaskProcessorRegistryTest 클래스입니다.
+ * BusinessUiTaskProcessorRegistryTest ?대옒?ㅼ엯?덈떎.
  *
- * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
- * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ * <p>?대떦 紐⑤뱢?먯꽌 怨듯넻 怨꾩빟怨??숈옉 寃쎄퀎瑜??뺤쓽?섎ŉ,
+ * ?몄텧 怨꾩링?먯꽌 ?쇨????ъ슜??媛?ν븯?꾨줉 ?ㅺ퀎?섏뿀?듬땲??</p>
  */
 class BusinessUiTaskProcessorRegistryTest {
 
@@ -102,11 +102,11 @@ class BusinessUiTaskProcessorRegistryTest {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private static final class NoopRuntimeMutationPort implements BusinessModelRuntimeMutationPort {
         /**
-         * reloadAll 기능을 수행합니다.
+         * reloadAll 湲곕뒫???섑뻾?⑸땲??
          *
          */
 
@@ -116,10 +116,9 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
-         * reloadModelRuntime 기능을 수행합니다.
+         * reloadModelRuntime 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey 입력 값
-         */
+         * @param modelKey ?낅젰 媛?         */
 
         @Override
         public void reloadModelRuntime(final long modelKey) {
@@ -127,11 +126,9 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
-         * updateEqpBinding 기능을 수행합니다.
+         * updateEqpBinding 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId 입력 값
-         * @param modelKey 입력 값
-         */
+         * @param eqpId ?낅젰 媛?         * @param modelKey ?낅젰 媛?         */
 
         @Override
         public void updateEqpBinding(final String eqpId, final long modelKey) {
@@ -139,10 +136,9 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
-         * removeEqpBinding 기능을 수행합니다.
+         * removeEqpBinding 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId 입력 값
-         * @return 처리 결과
+         * @param eqpId ?낅젰 媛?         * @return 泥섎━ 寃곌낵
          */
         @Override
         public Optional<Long> removeEqpBinding(final String eqpId) {
@@ -150,9 +146,9 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
-         * currentSnapshot 기능을 수행합니다.
+         * currentSnapshot 湲곕뒫???섑뻾?⑸땲??
          *
-         * @return 처리 결과
+         * @return 泥섎━ 寃곌낵
          */
 
         @Override
@@ -161,10 +157,9 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
-         * findRuntimeByModelKey 기능을 수행합니다.
+         * findRuntimeByModelKey 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey 입력 값
-         * @return 처리 결과
+         * @param modelKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
          */
 
         @Override
@@ -173,6 +168,7 @@ class BusinessUiTaskProcessorRegistryTest {
         }
     }
 }
+
 
 
 

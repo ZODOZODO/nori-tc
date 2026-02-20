@@ -1,13 +1,13 @@
 package com.nori.tc.business.adapters.plugin.workflow;
 
-import com.nori.tc.business.core.workflow.BusinessWorkflowActionMessageType;
-import com.nori.tc.business.core.workflow.BusinessWorkflowActionRegistry;
-import com.nori.tc.business.core.workflow.BusinessWorkflowActionRegistryBuilder;
-import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
-import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeProvider;
-import com.nori.tc.business.core.workflow.MesActionExecutor;
-import com.nori.tc.business.core.workflow.SecsActionExecutor;
-import com.nori.tc.business.core.workflow.SocketActionExecutor;
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistryBuilder;
+import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeMutationPort;
+import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeProvider;
+import com.nori.tc.business.core.workflow.api.spi.executor.AbstractMesActionExecutor;
+import com.nori.tc.business.core.workflow.api.spi.executor.AbstractSecsActionExecutor;
+import com.nori.tc.business.core.workflow.api.spi.executor.AbstractSocketActionExecutor;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.core.jar.store.TcJarBusinessStore;
@@ -38,16 +38,16 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 /**
- * 설비별 플러그인 런타임 관리자입니다.
+ * ?ㅻ퉬蹂??뚮윭洹몄씤 ?고???愿由ъ옄?낅땲??
  *
- * <p>역할:</p>
- * <p>1) tc_jar_business에서 JAR 바이너리를 읽어 ClassLoader로 로딩</p>
- * <p>2) Executor(@TcAction) 스캔 후 액션 레지스트리 구성</p>
- * <p>3) 검증 성공 시 eqpId 기준으로 plugin runtime 원자적(atomic) 스왑</p>
+ * <p>??븷:</p>
+ * <p>1) tc_jar_business?먯꽌 JAR 諛붿씠?덈━瑜??쎌뼱 ClassLoader濡?濡쒕뵫</p>
+ * <p>2) Executor(@TcAction) ?ㅼ틪 ???≪뀡 ?덉??ㅽ듃由?援ъ꽦</p>
+ * <p>3) 寃利??깃났 ??eqpId 湲곗??쇰줈 plugin runtime ?먯옄??atomic) ?ㅼ솑</p>
  *
- * <p>Step 14 확장:</p>
- * <p>- 기동 시 plugin runtime preload 지원</p>
- * <p>- preload fail-fast 정책/페이지 조회 크기 설정 지원</p>
+ * <p>Step 14 ?뺤옣:</p>
+ * <p>- 湲곕룞 ??plugin runtime preload 吏??/p>
+ * <p>- preload fail-fast ?뺤콉/?섏씠吏 議고쉶 ?ш린 ?ㅼ젙 吏??/p>
  */
 @Component
 public class BusinessWorkflowPluginRuntimeManager
@@ -56,27 +56,27 @@ public class BusinessWorkflowPluginRuntimeManager
     private static final Logger log = LoggerFactory.getLogger(BusinessWorkflowPluginRuntimeManager.class);
 
     /**
-     * 리로드 시작 표준 로그 이벤트명입니다.
+     * 由щ줈???쒖옉 ?쒖? 濡쒓렇 ?대깽?몃챸?낅땲??
      */
     private static final String RELOAD_EVENT_STARTED = "PLUGIN_RELOAD_STARTED";
 
     /**
-     * 리로드 적용 완료 표준 로그 이벤트명입니다.
+     * 由щ줈???곸슜 ?꾨즺 ?쒖? 濡쒓렇 ?대깽?몃챸?낅땲??
      */
     private static final String RELOAD_EVENT_APPLIED = "PLUGIN_RELOAD_APPLIED";
 
     /**
-     * 리로드 롤백 표준 로그 이벤트명입니다.
+     * 由щ줈??濡ㅻ갚 ?쒖? 濡쒓렇 ?대깽?몃챸?낅땲??
      */
     private static final String RELOAD_EVENT_ROLLED_BACK = "PLUGIN_RELOAD_ROLLED_BACK";
 
     /**
-     * jar 파일명이 비어 있을 때 사용할 기본명입니다.
+     * jar ?뚯씪紐낆씠 鍮꾩뼱 ?덉쓣 ???ъ슜??湲곕낯紐낆엯?덈떎.
      */
     private static final String DEFAULT_PLUGIN_JAR_FILE_NAME = "workflow-plugin.jar";
 
     /**
-     * 플러그인 JAR 임시 파일을 저장할 루트 디렉터리입니다.
+     * ?뚮윭洹몄씤 JAR ?꾩떆 ?뚯씪????ν븷 猷⑦듃 ?붾젆?곕━?낅땲??
      */
     private static final Path PLUGIN_TEMP_ROOT = Path.of(
             System.getProperty("java.io.tmpdir"),
@@ -89,16 +89,16 @@ public class BusinessWorkflowPluginRuntimeManager
     private final BusinessWorkflowPluginRuntimeProperties properties;
 
     /**
-     * eqpId -> PluginRuntime 매핑 스냅샷입니다.
+     * eqpId -> PluginRuntime 留ㅽ븨 ?ㅻ깄?룹엯?덈떎.
      *
-     * <p>항상 불변 맵(Map.copyOf)으로 저장하며, 갱신은 원자적으로 교체합니다.</p>
+     * <p>??긽 遺덈? 留?Map.copyOf)?쇰줈 ??ν븯硫? 媛깆떊? ?먯옄?곸쑝濡?援먯껜?⑸땲??</p>
      */
     private final AtomicReference<Map<String, PluginRuntime>> runtimeByEqpIdRef = new AtomicReference<>(Map.of());
 
     /**
-     * 플러그인 런타임 관리자 의존성을 주입받습니다.
+     * ?뚮윭洹몄씤 ?고???愿由ъ옄 ?섏〈?깆쓣 二쇱엯諛쏆뒿?덈떎.
      *
-     * @param eqpStore eqp 조회 store
+     * @param eqpStore eqp 議고쉶 store
      * @param jarBusinessStore business jar store
      * @param properties plugin runtime properties
      */
@@ -113,7 +113,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 애플리케이션 기동 직후 preload 정책을 수행합니다.
+     * ?좏뵆由ъ??댁뀡 湲곕룞 吏곹썑 preload ?뺤콉???섑뻾?⑸땲??
      */
     @PostConstruct
     public void initialize() {
@@ -133,10 +133,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 애플리케이션 종료 시 플러그인 런타임 리소스를 정리합니다.
+     * ?좏뵆由ъ??댁뀡 醫낅즺 ???뚮윭洹몄씤 ?고???由ъ냼?ㅻ? ?뺣━?⑸땲??
      *
-     * <p>URLClassLoader/임시 JAR 파일이 누적되지 않도록, 종료 시점에
-     * 전체 런타임 스냅샷을 비우고 자원을 닫습니다.</p>
+     * <p>URLClassLoader/?꾩떆 JAR ?뚯씪???꾩쟻?섏? ?딅룄濡? 醫낅즺 ?쒖젏??     * ?꾩껜 ?고????ㅻ깄?룹쓣 鍮꾩슦怨??먯썝???レ뒿?덈떎.</p>
      */
     @PreDestroy
     public void shutdown() {
@@ -147,10 +146,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * findRegistryByEqpId 기능을 수행합니다.
+     * findRegistryByEqpId 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param eqpId 입력 값
-     * @return 처리 결과
+     * @param eqpId ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     @Override
@@ -167,10 +165,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * reloadByEqpId 기능을 수행합니다.
+     * reloadByEqpId 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param eqpId 입력 값
-     */
+     * @param eqpId ?낅젰 媛?     */
 
     @Override
     public void reloadByEqpId(final String eqpId) {
@@ -191,9 +188,9 @@ public class BusinessWorkflowPluginRuntimeManager
         final TcJarBusiness jarBusiness = jarBusinessStore.findByEqpKey(eqp.eqpKey()).orElse(null);
         if (jarBusiness == null || jarBusiness.jarFile() == null || jarBusiness.jarFile().length == 0) {
             /*
-             * Phase 3 "액션 삭제 fallback" 규칙:
-             * - JAR 행이 삭제되었거나 파일이 비어 있으면 플러그인 런타임을 제거합니다.
-             * - 이후 실행기는 core registry만 사용하게 되어 자동 fallback 됩니다.
+             * Phase 3 "?≪뀡 ??젣 fallback" 洹쒖튃:
+             * - JAR ?됱씠 ??젣?섏뿀嫄곕굹 ?뚯씪??鍮꾩뼱 ?덉쑝硫??뚮윭洹몄씤 ?고??꾩쓣 ?쒓굅?⑸땲??
+             * - ?댄썑 ?ㅽ뻾湲곕뒗 core registry留??ъ슜?섍쾶 ?섏뼱 ?먮룞 fallback ?⑸땲??
              */
             removeRuntimeByEqpId(normalizedEqpId, "JAR_ABSENT_OR_EMPTY");
             return;
@@ -216,8 +213,8 @@ public class BusinessWorkflowPluginRuntimeManager
             );
         } catch (RuntimeException ex) {
             /*
-             * build/swap 예외 시 기존 runtime은 유지됩니다.
-             * (swap 이전 실패, 또는 CAS 교체 실패 재시도 중 예외 없음)
+             * build/swap ?덉쇅 ??湲곗〈 runtime? ?좎??⑸땲??
+             * (swap ?댁쟾 ?ㅽ뙣, ?먮뒗 CAS 援먯껜 ?ㅽ뙣 ?ъ떆??以??덉쇅 ?놁쓬)
              */
             final boolean runtimePreserved = runtimeByEqpIdRef.get().containsKey(normalizedEqpId);
             logReloadRolledBack(normalizedEqpId, runtimePreserved, ex);
@@ -226,12 +223,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 특정 eqpId의 플러그인 런타임을 제거합니다.
+     * ?뱀젙 eqpId???뚮윭洹몄씤 ?고??꾩쓣 ?쒓굅?⑸땲??
      *
-     * <p>UI EQP_DELETE 처리 경로에서 호출되며,
-     * 이미 런타임이 없는 경우에는 예외 없이 무시합니다.</p>
+     * <p>UI EQP_DELETE 泥섎━ 寃쎈줈?먯꽌 ?몄텧?섎ŉ,
+     * ?대? ?고??꾩씠 ?녿뒗 寃쎌슦?먮뒗 ?덉쇅 ?놁씠 臾댁떆?⑸땲??</p>
      *
-     * @param eqpId 제거 대상 설비 ID
+     * @param eqpId ?쒓굅 ????ㅻ퉬 ID
      */
     @Override
     public void removeByEqpId(final String eqpId) {
@@ -243,9 +240,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * DB 기준으로 전체 플러그인 런타임을 preload/재조립합니다.
+     * DB 湲곗??쇰줈 ?꾩껜 ?뚮윭洹몄씤 ?고??꾩쓣 preload/?ъ“由쏀빀?덈떎.
      *
-     * <p>검증 성공한 eqp만 새 스냅샷에 포함하며, 최종적으로 기존 스냅샷과 원자적으로 교체합니다.</p>
+     * <p>寃利??깃났??eqp留????ㅻ깄?룹뿉 ?ы븿?섎ŉ, 理쒖쥌?곸쑝濡?湲곗〈 ?ㅻ깄?룰낵 ?먯옄?곸쑝濡?援먯껜?⑸땲??</p>
      */
     public void preloadAllFromDb() {
         final List<TcEqp> eqps = loadAllEqps();
@@ -321,9 +318,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * loadAllEqps 기능을 수행합니다.
+     * loadAllEqps 湲곕뒫???섑뻾?⑸땲??
      *
-     * @return 처리 결과
+     * @return 泥섎━ 寃곌낵
      */
 
     private List<TcEqp> loadAllEqps() {
@@ -392,9 +389,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 플러그인 JAR 바이트의 최소 유효성을 검증합니다.
+     * ?뚮윭洹몄씤 JAR 諛붿씠?몄쓽 理쒖냼 ?좏슚?깆쓣 寃利앺빀?덈떎.
      *
-     * <p>maxJarBytes 초과 시 로딩을 차단해 메모리 사용량 급증을 방지합니다.</p>
+     * <p>maxJarBytes 珥덇낵 ??濡쒕뵫??李⑤떒??硫붾え由??ъ슜??湲됱쬆??諛⑹??⑸땲??</p>
      */
     private void validateJarBytes(final String eqpId, final byte[] jarBytes) {
         if (jarBytes == null || jarBytes.length == 0) {
@@ -428,9 +425,9 @@ public class BusinessWorkflowPluginRuntimeManager
             log.debug("Plugin class discovery completed. classCount={}", classNames.size());
         }
 
-        SecsActionExecutor secsExecutor = null;
-        SocketActionExecutor socketExecutor = null;
-        MesActionExecutor mesExecutor = null;
+        AbstractSecsActionExecutor secsExecutor = null;
+        AbstractSocketActionExecutor socketExecutor = null;
+        AbstractMesActionExecutor mesExecutor = null;
 
         for (String className : classNames) {
             final Class<?> loadedClass;
@@ -447,25 +444,25 @@ public class BusinessWorkflowPluginRuntimeManager
                 continue;
             }
 
-            if (SecsActionExecutor.class.isAssignableFrom(loadedClass)) {
+            if (AbstractSecsActionExecutor.class.isAssignableFrom(loadedClass)) {
                 if (secsExecutor != null) {
-                    throw new IllegalStateException("Multiple SecsActionExecutor implementations found in plugin jar");
+                    throw new IllegalStateException("Multiple AbstractSecsActionExecutor implementations found in plugin jar");
                 }
-                secsExecutor = instantiateExecutor(loadedClass, SecsActionExecutor.class);
+                secsExecutor = instantiateExecutor(loadedClass, AbstractSecsActionExecutor.class);
                 continue;
             }
-            if (SocketActionExecutor.class.isAssignableFrom(loadedClass)) {
+            if (AbstractSocketActionExecutor.class.isAssignableFrom(loadedClass)) {
                 if (socketExecutor != null) {
-                    throw new IllegalStateException("Multiple SocketActionExecutor implementations found in plugin jar");
+                    throw new IllegalStateException("Multiple AbstractSocketActionExecutor implementations found in plugin jar");
                 }
-                socketExecutor = instantiateExecutor(loadedClass, SocketActionExecutor.class);
+                socketExecutor = instantiateExecutor(loadedClass, AbstractSocketActionExecutor.class);
                 continue;
             }
-            if (MesActionExecutor.class.isAssignableFrom(loadedClass)) {
+            if (AbstractMesActionExecutor.class.isAssignableFrom(loadedClass)) {
                 if (mesExecutor != null) {
-                    throw new IllegalStateException("Multiple MesActionExecutor implementations found in plugin jar");
+                    throw new IllegalStateException("Multiple AbstractMesActionExecutor implementations found in plugin jar");
                 }
-                mesExecutor = instantiateExecutor(loadedClass, MesActionExecutor.class);
+                mesExecutor = instantiateExecutor(loadedClass, AbstractMesActionExecutor.class);
             }
         }
 
@@ -473,11 +470,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * instantiateExecutor 기능을 수행합니다.
+     * instantiateExecutor 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param rawClass 입력 값
-     * @param expectedType 입력 값
-     * @return 처리 결과
+     * @param rawClass ?낅젰 媛?     * @param expectedType ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private <T> T instantiateExecutor(final Class<?> rawClass, final Class<T> expectedType) {
@@ -492,11 +487,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * swapRuntime 기능을 수행합니다.
+     * swapRuntime 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param eqpId 입력 값
-     * @param newRuntime 입력 값
-     */
+     * @param eqpId ?낅젰 媛?     * @param newRuntime ?낅젰 媛?     */
 
     private void swapRuntime(final String eqpId, final PluginRuntime newRuntime) {
         PluginRuntime previousRuntime;
@@ -520,9 +513,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 특정 eqpId의 플러그인 런타임을 제거합니다.
+     * ?뱀젙 eqpId???뚮윭洹몄씤 ?고??꾩쓣 ?쒓굅?⑸땲??
      *
-     * <p>JAR 삭제/미존재 시 호출되며, 이후 액션 해석은 core fallback으로 동작합니다.</p>
+     * <p>JAR ??젣/誘몄〈?????몄텧?섎ŉ, ?댄썑 ?≪뀡 ?댁꽍? core fallback?쇰줈 ?숈옉?⑸땲??</p>
      */
     private void removeRuntimeByEqpId(final String eqpId, final String reason) {
         PluginRuntime removedRuntime;
@@ -550,10 +543,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * replaceAllRuntimes 기능을 수행합니다.
+     * replaceAllRuntimes 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param nextRuntimeMap 입력 값
-     */
+     * @param nextRuntimeMap ?낅젰 媛?     */
 
     private void replaceAllRuntimes(final Map<String, PluginRuntime> nextRuntimeMap) {
         final Map<String, PluginRuntime> previous = runtimeByEqpIdRef.getAndSet(Map.copyOf(nextRuntimeMap));
@@ -561,10 +553,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * closeRuntimeMapQuietly 기능을 수행합니다.
+     * closeRuntimeMapQuietly 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param runtimeMap 입력 값
-     */
+     * @param runtimeMap ?낅젰 媛?     */
 
     private static void closeRuntimeMapQuietly(final Map<String, PluginRuntime> runtimeMap) {
         if (runtimeMap == null || runtimeMap.isEmpty()) {
@@ -578,10 +569,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * extractClassNames 기능을 수행합니다.
+     * extractClassNames 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param jarBytes 입력 값
-     * @return 처리 결과
+     * @param jarBytes ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private static List<String> extractClassNames(final byte[] jarBytes) {
@@ -628,10 +618,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * createClassLoader 기능을 수행합니다.
+     * createClassLoader 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param jarPath 입력 값
-     * @return 처리 결과
+     * @param jarPath ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private static URLClassLoader createClassLoader(final Path jarPath) {
@@ -644,10 +633,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * normalizeEqpId 기능을 수행합니다.
+     * normalizeEqpId 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param eqpId 입력 값
-     * @return 처리 결과
+     * @param eqpId ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private static String normalizeEqpId(final String eqpId) {
@@ -659,10 +647,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * normalizeJarFileName 기능을 수행합니다.
+     * normalizeJarFileName 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param jarFileName 입력 값
-     * @return 처리 결과
+     * @param jarFileName ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private static String normalizeJarFileName(final String jarFileName) {
@@ -673,10 +660,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * sanitizeFileToken 기능을 수행합니다.
+     * sanitizeFileToken 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param value 입력 값
-     * @return 처리 결과
+     * @param value ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private static String sanitizeFileToken(final String value) {
@@ -696,10 +682,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * deleteTempJarQuietly 기능을 수행합니다.
+     * deleteTempJarQuietly 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param jarPath 입력 값
-     */
+     * @param jarPath ?낅젰 媛?     */
 
     private static void deleteTempJarQuietly(final Path jarPath) {
         try {
@@ -710,7 +695,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 플러그인 리로드 시작 로그를 표준 포맷으로 기록합니다.
+     * ?뚮윭洹몄씤 由щ줈???쒖옉 濡쒓렇瑜??쒖? ?щ㎎?쇰줈 湲곕줉?⑸땲??
      */
     private void logReloadStarted(
             final String eqpId,
@@ -725,7 +710,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 플러그인 리로드 적용 로그를 표준 포맷으로 기록합니다.
+     * ?뚮윭洹몄씤 由щ줈???곸슜 濡쒓렇瑜??쒖? ?щ㎎?쇰줈 湲곕줉?⑸땲??
      */
     private void logReloadApplied(
             final String eqpId,
@@ -760,7 +745,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 플러그인 리로드 실패/롤백 로그를 표준 포맷으로 기록합니다.
+     * ?뚮윭洹몄씤 由щ줈???ㅽ뙣/濡ㅻ갚 濡쒓렇瑜??쒖? ?щ㎎?쇰줈 湲곕줉?⑸땲??
      */
     private void logReloadRolledBack(
             final String eqpId,
@@ -776,7 +761,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 로딩된 플러그인 런타임 컨테이너입니다.
+     * 濡쒕뵫???뚮윭洹몄씤 ?고???而⑦뀒?대꼫?낅땲??
      */
     private record PluginRuntime(
             String eqpId,
@@ -787,7 +772,7 @@ public class BusinessWorkflowPluginRuntimeManager
     ) {
 
         /**
-         * 런타임 리소스를 정리합니다.
+         * ?고???由ъ냼?ㅻ? ?뺣━?⑸땲??
          */
         private void closeQuietly() {
             try {
@@ -804,17 +789,17 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 플러그인에서 탐지된 Executor 묶음입니다.
+     * ?뚮윭洹몄씤?먯꽌 ?먯???Executor 臾띠쓬?낅땲??
      */
     private static final class DiscoveredExecutors {
-        private final SecsActionExecutor secsExecutor;
-        private final SocketActionExecutor socketExecutor;
-        private final MesActionExecutor mesExecutor;
+        private final AbstractSecsActionExecutor secsExecutor;
+        private final AbstractSocketActionExecutor socketExecutor;
+        private final AbstractMesActionExecutor mesExecutor;
 
         private DiscoveredExecutors(
-                final SecsActionExecutor secsExecutor,
-                final SocketActionExecutor socketExecutor,
-                final MesActionExecutor mesExecutor
+                final AbstractSecsActionExecutor secsExecutor,
+                final AbstractSocketActionExecutor socketExecutor,
+                final AbstractMesActionExecutor mesExecutor
         ) {
             this.secsExecutor = secsExecutor;
             this.socketExecutor = socketExecutor;
@@ -822,3 +807,5 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 }
+
+

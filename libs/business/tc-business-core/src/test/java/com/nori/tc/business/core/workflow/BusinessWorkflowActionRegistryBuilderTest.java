@@ -1,5 +1,14 @@
 package com.nori.tc.business.core.workflow;
 
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
+import com.nori.tc.business.core.workflow.api.annotation.TcAction;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowFilterContext;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionKey;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionMethodInvoker;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistryBuilder;
+import com.nori.tc.business.core.workflow.api.spi.executor.AbstractSocketActionExecutor;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.business.domain.runtime.BusinessMessageType;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
@@ -16,19 +25,18 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * {@link BusinessWorkflowActionRegistryBuilder} 단위 테스트입니다.
+ * {@link BusinessWorkflowActionRegistryBuilder} ?⑥쐞 ?뚯뒪?몄엯?덈떎.
  */
 class BusinessWorkflowActionRegistryBuilderTest {
 
     @Test
     void shouldRegisterAndInvokeAnnotatedActionMethod() {
         final AtomicInteger counter = new AtomicInteger(0);
-        final SocketActionExecutor executor = new SocketActionExecutor() {
+        final AbstractSocketActionExecutor executor = new AbstractSocketActionExecutor() {
             /**
-             * execute 기능을 수행합니다.
+             * execute 湲곕뒫???섑뻾?⑸땲??
              *
-             * @param context 입력 값
-             */
+             * @param context ?낅젰 媛?             */
 
             @TcAction("SOCKET_TEST_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -50,24 +58,22 @@ class BusinessWorkflowActionRegistryBuilderTest {
 
     @Test
     void shouldThrowWhenDuplicateActionKeyIsRegistered() {
-        final SocketActionExecutor first = new SocketActionExecutor() {
+        final AbstractSocketActionExecutor first = new AbstractSocketActionExecutor() {
             /**
-             * execute 기능을 수행합니다.
+             * execute 湲곕뒫???섑뻾?⑸땲??
              *
-             * @param context 입력 값
-             */
+             * @param context ?낅젰 媛?             */
 
             @TcAction("DUP_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
                 // no-op
             }
         };
-        final SocketActionExecutor second = new SocketActionExecutor() {
+        final AbstractSocketActionExecutor second = new AbstractSocketActionExecutor() {
             /**
-             * execute 기능을 수행합니다.
+             * execute 湲곕뒫???섑뻾?⑸땲??
              *
-             * @param context 입력 값
-             */
+             * @param context ?낅젰 媛?             */
 
             @TcAction("DUP_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -86,11 +92,11 @@ class BusinessWorkflowActionRegistryBuilderTest {
 
     @Test
     void shouldThrowWhenTcActionMethodSignatureIsInvalid() {
-        final SocketActionExecutor invalidExecutor = new SocketActionExecutor() {
+        final AbstractSocketActionExecutor invalidExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 기능을 수행합니다.
+             * execute 湲곕뒫???섑뻾?⑸땲??
              *
-             * @return 처리 결과
+             * @return 泥섎━ 寃곌낵
              */
 
             @TcAction("INVALID_SIG")
@@ -107,7 +113,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
     }
 
     /**
-     * 액션 호출 테스트용 컨텍스트를 생성합니다.
+     * ?≪뀡 ?몄텧 ?뚯뒪?몄슜 而⑦뀓?ㅽ듃瑜??앹꽦?⑸땲??
      */
     private static BusinessWorkflowActionContext createContext() {
         final BusinessInboundRecord record = new BusinessInboundRecord(
@@ -148,7 +154,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
     }
 
     /**
-     * 테스트용 model runtime을 생성합니다.
+     * ?뚯뒪?몄슜 model runtime???앹꽦?⑸땲??
      */
     private static TcModelRuntime createRuntime() {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -173,6 +179,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
         );
     }
 }
+
 
 
 

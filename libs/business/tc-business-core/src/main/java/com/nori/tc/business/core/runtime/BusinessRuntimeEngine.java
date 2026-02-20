@@ -9,11 +9,11 @@ import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.business.domain.runtime.BusinessMessageType;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.core.ui.BusinessUiTaskExecutor;
-import com.nori.tc.business.core.workflow.BusinessWorkflowActionExecutionException;
-import com.nori.tc.business.core.workflow.BusinessWorkflowActionExecutor;
-import com.nori.tc.business.core.workflow.BusinessWorkflowFilterEvaluationException;
-import com.nori.tc.business.core.workflow.BusinessWorkflowMatchResult;
-import com.nori.tc.business.core.workflow.BusinessWorkflowMatcher;
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionExecutionException;
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionExecutor;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowFilterEvaluationException;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowMatchResult;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowMatcher;
 import com.nori.tc.common.kafka.processing.AckEvent;
 import com.nori.tc.common.kafka.processing.AckQueue;
 import com.nori.tc.common.kafka.processing.AckStatus;
@@ -56,17 +56,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * BusinessRuntimeEngine 클래스입니다.
+ * BusinessRuntimeEngine ?대옒?ㅼ엯?덈떎.
  *
- * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
- * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ * <p>?대떦 紐⑤뱢?먯꽌 怨듯넻 怨꾩빟怨??숈옉 寃쎄퀎瑜??뺤쓽?섎ŉ,
+ * ?몄텧 怨꾩링?먯꽌 ?쇨????ъ슜??媛?ν븯?꾨줉 ?ㅺ퀎?섏뿀?듬땲??</p>
  */
 @Component
 public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngressPort {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessRuntimeEngine.class);
     /**
-     * TRACE_ID_NOT_AVAILABLE 필드입니다.
+     * TRACE_ID_NOT_AVAILABLE ?꾨뱶?낅땲??
      */
     private static final String TRACE_ID_NOT_AVAILABLE = "N/A";
 
@@ -88,7 +88,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     private volatile boolean running = false;
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     @Autowired
     public BusinessRuntimeEngine(
@@ -112,7 +112,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     BusinessRuntimeEngine(
             final BusinessCoreRuntimeProperties properties,
@@ -143,7 +143,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     BusinessRuntimeEngine(
             final BusinessCoreRuntimeProperties properties,
@@ -164,7 +164,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     BusinessRuntimeEngine(final BusinessCoreRuntimeProperties properties) {
         this(
@@ -179,7 +179,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * start 기능을 수행합니다.
+     * start 湲곕뒫???섑뻾?⑸땲??
      *
      */
     @Override
@@ -207,7 +207,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * stop 기능을 수행합니다.
+     * stop 湲곕뒫???섑뻾?⑸땲??
      *
      */
     @Override
@@ -228,9 +228,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * isRunning 기능을 수행합니다.
+     * isRunning 湲곕뒫???섑뻾?⑸땲??
      *
-     * @return 처리 결과
+     * @return 泥섎━ 寃곌낵
      */
     @Override
     public boolean isRunning() {
@@ -238,9 +238,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * getPhase 기능을 수행합니다.
+     * getPhase 湲곕뒫???섑뻾?⑸땲??
      *
-     * @return 처리 결과
+     * @return 泥섎━ 寃곌낵
      */
     @Override
     public int getPhase() {
@@ -248,10 +248,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * submit 기능을 수행합니다.
+     * submit 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param record 입력 값
-     * @return 처리 결과
+     * @param record ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
     @Override
     public boolean submit(final BusinessInboundRecord record) {
@@ -278,7 +277,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * registerTopicRuntimes 기능을 수행합니다.
+     * registerTopicRuntimes 湲곕뒫???섑뻾?⑸땲??
      *
      */
     private void registerTopicRuntimes() {
@@ -322,7 +321,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * startTopicConsumers 기능을 수행합니다.
+     * startTopicConsumers 湲곕뒫???섑뻾?⑸땲??
      *
      */
     private void startTopicConsumers() {
@@ -332,12 +331,12 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     /**
-     * createMailboxExecutionRuntime 기능을 수행합니다.
+     * createMailboxExecutionRuntime 湲곕뒫???섑뻾?⑸땲??
      *
-     * @return 처리 결과
+     * @return 泥섎━ 寃곌낵
      */
     private MailboxExecutionRuntime<BusinessMailboxTask> createMailboxExecutionRuntime() {
         final BusinessCoreRuntimeProperties.Runtime runtime = properties.getRuntime();
@@ -355,21 +354,20 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 runtimeConfig,
                 this::processTask,
                 this::handleWorkerRejectedTask,
-                (task, ex) -> log.error("Business task 筌ｌ꼶??餓???됱뇚揶쎛 獄쏆뮇源??됰뮸??덈뼄. topic={}, eqpId={}, partition={}, offset={}",
+                (task, ex) -> log.error("Business task 嶺뚳퐣瑗??繞????깅뇶?띠럾? ?꾩룇裕뉑틦???곕????덈펲. topic={}, eqpId={}, partition={}, offset={}",
                         task.record().topic(),
                         task.record().eqpId(),
                         task.record().partition(),
                         task.record().offset(),
                         ex),
-                ex -> log.error("Business mailbox dispatcher ?룐뫂遊?癒?퐣 ??됱뇚揶쎛 獄쏆뮇源??됰뮸??덈뼄.", ex)
+                ex -> log.error("Business mailbox dispatcher ?猷먮쳜?????????깅뇶?띠럾? ?꾩룇裕뉑틦???곕????덈펲.", ex)
         );
     }
 
     /**
-     * runTopicConsumerLoop 기능을 수행합니다.
+     * runTopicConsumerLoop 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param topicRuntime 입력 값
-     */
+     * @param topicRuntime ?낅젰 媛?     */
     private void runTopicConsumerLoop(final TopicRuntime topicRuntime) {
         while (running) {
             try {
@@ -401,10 +399,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * drainAckAndPrepareCommit 기능을 수행합니다.
+     * drainAckAndPrepareCommit 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param topicRuntime 입력 값
-     */
+     * @param topicRuntime ?낅젰 媛?     */
     private void drainAckAndPrepareCommit(final TopicRuntime topicRuntime) {
         final List<AckEvent> drained = new ArrayList<>();
         final int drainedCount = topicRuntime.ackQueue().drainTo(drained, topicRuntime.ackDrainMaxBatch());
@@ -423,18 +420,18 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private void handleWorkerRejectedTask(
             final BusinessMailboxTask task,
             final RejectedExecutionException rejected
     ) {
         /*
-         * mailbox worker 거절 시점은 비동기 경계이며, 호출 스레드 MDC를 신뢰할 수 없습니다.
-         * 따라서 task에 담긴 eqpId를 기준으로 MDC를 재주입하여 설비 로그 파일 분리를 보장합니다.
+         * mailbox worker 嫄곗젅 ?쒖젏? 鍮꾨룞湲?寃쎄퀎?대ŉ, ?몄텧 ?ㅻ젅??MDC瑜??좊ː?????놁뒿?덈떎.
+         * ?곕씪??task???닿릿 eqpId瑜?湲곗??쇰줈 MDC瑜??ъ＜?낇븯???ㅻ퉬 濡쒓렇 ?뚯씪 遺꾨━瑜?蹂댁옣?⑸땲??
          */
         try (BusinessLogContext ignored = BusinessLogContext.withEqpId(task.record().eqpId())) {
             log.error("Worker pool rejected task. eqpId={}, topic={}, partition={}, offset={}",
@@ -449,17 +446,16 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     /**
-     * processTask 기능을 수행합니다.
+     * processTask 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     */
+     * @param task ?낅젰 媛?     */
     private void processTask(final BusinessMailboxTask task) {
         /*
-         * worker 진입 시점에 eqpId MDC를 주입해,
-         * task 처리 전체 로그(성공/실패/재시도 분기)를 동일 설비 로그 파일로 보냅니다.
+         * worker 吏꾩엯 ?쒖젏??eqpId MDC瑜?二쇱엯??
+         * task 泥섎━ ?꾩껜 濡쒓렇(?깃났/?ㅽ뙣/?ъ떆??遺꾧린)瑜??숈씪 ?ㅻ퉬 濡쒓렇 ?뚯씪濡?蹂대깄?덈떎.
          */
         try (BusinessLogContext ignored = BusinessLogContext.withEqpId(task.record().eqpId())) {
             if (log.isDebugEnabled()) {
@@ -499,10 +495,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * executeWithTimeout 기능을 수행합니다.
+     * executeWithTimeout 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     * @return 처리 결과
+     * @param task ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
     private TaskExecutionOutcome executeWithTimeout(final BusinessMailboxTask task) throws Exception {
         final TimeoutBoundRunner timeoutBoundRunner = new TimeoutBoundRunner(
@@ -513,10 +508,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * executeTask 기능을 수행합니다.
+     * executeTask 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     * @return 처리 결과
+     * @param task ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
     private TaskExecutionOutcome executeTask(final BusinessMailboxTask task) {
         if (task.record().messageType() == BusinessMessageType.UI) {
@@ -528,10 +522,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * executeUiTask 기능을 수행합니다.
+     * executeUiTask 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     */
+     * @param task ?낅젰 媛?     */
 
     private void executeUiTask(final BusinessMailboxTask task) {
         try {
@@ -550,10 +543,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * executeNonUiTask 기능을 수행합니다.
+     * executeNonUiTask 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     * @return 처리 결과
+     * @param task ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
 
     private TaskExecutionOutcome executeNonUiTask(final BusinessMailboxTask task) {
@@ -588,7 +580,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private void handleFailure(
             final BusinessMailboxTask task,
@@ -655,11 +647,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * scheduleRetry 기능을 수행합니다.
+     * scheduleRetry 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     * @param backoffMs 입력 값
-     */
+     * @param task ?낅젰 媛?     * @param backoffMs ?낅젰 媛?     */
     private void scheduleRetry(final BusinessMailboxTask task, final long backoffMs) {
         try {
             timeoutScheduler.schedule(() -> {
@@ -693,11 +683,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * publishRuntimeDlq 기능을 수행합니다.
+     * publishRuntimeDlq 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param task 입력 값
-     * @param decision 입력 값
-     */
+     * @param task ?낅젰 媛?     * @param decision ?낅젰 媛?     */
     private void publishRuntimeDlq(final BusinessMailboxTask task, final TaskHandlingDecision decision) {
         final BusinessInboundRecord record = task.record();
         final DlqRecord dlqRecord = decision.dlqRecord();
@@ -762,11 +750,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * resolveReasonMessage 기능을 수행합니다.
+     * resolveReasonMessage 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param message 입력 값
-     * @param fallback 입력 값
-     * @return 처리 결과
+     * @param message ?낅젰 媛?     * @param fallback ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
     private static String resolveReasonMessage(final String message, final String fallback) {
         if (message == null || message.isBlank()) {
@@ -776,11 +762,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * emitAck 기능을 수행합니다.
+     * emitAck 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param record 입력 값
-     * @param status 입력 값
-     */
+     * @param record ?낅젰 媛?     * @param status ?낅젰 媛?     */
     private void emitAck(final BusinessInboundRecord record, final AckStatus status) {
         final TopicRuntime topicRuntime = topicRuntimes.get(record.topic());
         if (topicRuntime == null) {
@@ -799,7 +783,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private void recordDisposition(
             final BusinessInboundRecord record,
@@ -837,10 +821,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * resolveDispositionFlow 기능을 수행합니다.
+     * resolveDispositionFlow 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param record 입력 값
-     * @return 처리 결과
+     * @param record ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
     private String resolveDispositionFlow(final BusinessInboundRecord record) {
         if (record == null || record.messageType() == null) {
@@ -854,9 +837,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * now 기능을 수행합니다.
+     * now 湲곕뒫???섑뻾?⑸땲??
      *
-     * @return 처리 결과
+     * @return 泥섎━ 寃곌낵
      */
 
     private static long now() {
@@ -864,10 +847,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * namedThreadFactory 기능을 수행합니다.
+     * namedThreadFactory 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param prefix 입력 값
-     * @return 처리 결과
+     * @param prefix ?낅젰 媛?     * @return 泥섎━ 寃곌낵
      */
     private static ThreadFactory namedThreadFactory(final String prefix) {
         final AtomicInteger sequence = new AtomicInteger(0);
@@ -880,11 +862,9 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * shutdownExecutor 기능을 수행합니다.
+     * shutdownExecutor 湲곕뒫???섑뻾?⑸땲??
      *
-     * @param executor 입력 값
-     * @param name 입력 값
-     */
+     * @param executor ?낅젰 媛?     * @param name ?낅젰 媛?     */
     private static void shutdownExecutor(final ExecutorService executor, final String name) {
         if (executor == null) {
             return;
@@ -902,7 +882,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private record TopicRuntime(
             String topicName,
@@ -934,12 +914,13 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private enum TaskExecutionOutcome {
         SUCCESS,
         WORKFLOW_NOT_FOUND
     }
 }
+
 
 

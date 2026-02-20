@@ -8,10 +8,10 @@ import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.business.domain.runtime.BusinessMessageType;
 import com.nori.tc.business.core.ui.BusinessUiTaskExecutor;
-import com.nori.tc.business.core.workflow.BusinessWorkflowActionExecutor;
-import com.nori.tc.business.core.workflow.BusinessWorkflowFilterContext;
-import com.nori.tc.business.core.workflow.BusinessWorkflowMatchResult;
-import com.nori.tc.business.core.workflow.BusinessWorkflowMatcher;
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionExecutor;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowFilterContext;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowMatchResult;
+import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowMatcher;
 import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.model.TcModel;
@@ -25,12 +25,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 /**
- * {@link BusinessRuntimeEngine} 기본 동작 테스트입니다.
+ * {@link BusinessRuntimeEngine} 湲곕낯 ?숈옉 ?뚯뒪?몄엯?덈떎.
  */
 class BusinessRuntimeEngineTest {
 
     /**
-     * runtime 실행 중에는 inbound record가 정상 수락되는지 확인합니다.
+     * runtime ?ㅽ뻾 以묒뿉??inbound record媛 ?뺤긽 ?섎씫?섎뒗吏 ?뺤씤?⑸땲??
      */
     @Test
     void shouldAcceptInboundRecordWhenRuntimeIsRunning() throws Exception {
@@ -61,7 +61,7 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * non-UI(EQP/MES) 경로에서 workflow 매칭 후 action executor가 호출되는지 확인합니다.
+     * non-UI(EQP/MES) 寃쎈줈?먯꽌 workflow 留ㅼ묶 ??action executor媛 ?몄텧?섎뒗吏 ?뺤씤?⑸땲??
      */
     @Test
     void shouldExecuteNonUiActionWhenWorkflowIsMatched() throws Exception {
@@ -125,7 +125,7 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * 런타임이 시작되지 않은 상태에서 submit 호출 시 REJECTED disposition이 누적되는지 검증합니다.
+     * ?고??꾩씠 ?쒖옉?섏? ?딆? ?곹깭?먯꽌 submit ?몄텧 ??REJECTED disposition???꾩쟻?섎뒗吏 寃利앺빀?덈떎.
      */
     @Test
     void shouldRecordRejectedDispositionWhenSubmitIsCalledBeforeStart() {
@@ -154,21 +154,21 @@ class BusinessRuntimeEngineTest {
                 "{\"sample\":false}"
         ));
 
-        Assertions.assertFalse(accepted, "시작 전 submit은 거부되어야 합니다.");
+        Assertions.assertFalse(accepted, "?쒖옉 ??submit? 嫄곕??섏뼱???⑸땲??");
         Assertions.assertEquals(
                 1L,
                 dispositionMetrics.count(BusinessRuntimeDisposition.REJECTED),
-                "시작 전 submit은 REJECTED disposition 1건으로 집계되어야 합니다."
+                "?쒖옉 ??submit? REJECTED disposition 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
         );
         Assertions.assertEquals(
                 1L,
                 dispositionMetrics.count("UI_EVENT", BusinessRuntimeDisposition.REJECTED),
-                "시작 전 UI submit은 UI_EVENT:REJECTED 1건으로 집계되어야 합니다."
+                "?쒖옉 ??UI submit? UI_EVENT:REJECTED 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
         );
     }
 
     /**
-     * 정상 처리된 non-UI task가 ACCEPTED disposition으로 집계되는지 검증합니다.
+     * ?뺤긽 泥섎━??non-UI task媛 ACCEPTED disposition?쇰줈 吏묎퀎?섎뒗吏 寃利앺빀?덈떎.
      */
     @Test
     void shouldRecordAcceptedDispositionWhenTaskIsProcessedSuccessfully() throws Exception {
@@ -197,7 +197,7 @@ class BusinessRuntimeEngineTest {
                 new BusinessWorkflowFilterContext(record, Map.of(), Map.of())
         );
         final BusinessWorkflowActionExecutor actionExecutor = (record, runtime, matchResult) -> {
-            // 성공 시나리오 검증을 위해 no-op 실행기로 둡니다.
+            // ?깃났 ?쒕굹由ъ삤 寃利앹쓣 ?꾪빐 no-op ?ㅽ뻾湲곕줈 ?〓땲??
         };
 
         final BusinessRuntimeDispositionMetrics dispositionMetrics = new BusinessRuntimeDispositionMetrics();
@@ -223,18 +223,18 @@ class BusinessRuntimeEngineTest {
                     "payload://eqp/disp/1",
                     "{\"message\":\"PING\"}"
             ));
-            Assertions.assertTrue(accepted, "런타임 기동 중 submit은 수락되어야 합니다.");
+            Assertions.assertTrue(accepted, "?고???湲곕룞 以?submit? ?섎씫?섏뼱???⑸땲??");
 
             awaitUntil(() -> dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED) > 0L, 2_000L);
             Assertions.assertEquals(
                     1L,
                     dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED),
-                    "정상 처리된 task는 ACCEPTED disposition 1건으로 집계되어야 합니다."
+                    "?뺤긽 泥섎━??task??ACCEPTED disposition 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
             );
             Assertions.assertEquals(
                     1L,
                     dispositionMetrics.count("EQP_EVENT", BusinessRuntimeDisposition.ACCEPTED),
-                    "EQP 이벤트 정상 처리는 EQP_EVENT:ACCEPTED 1건으로 집계되어야 합니다."
+                    "EQP ?대깽???뺤긽 泥섎━??EQP_EVENT:ACCEPTED 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
             );
         } finally {
             runtimeEngine.stop();
@@ -242,7 +242,7 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * 제한 시간 안에 조건이 만족될 때까지 대기합니다.
+     * ?쒗븳 ?쒓컙 ?덉뿉 議곌굔??留뚯”???뚭퉴吏 ?湲고빀?덈떎.
      */
     private static void awaitUntil(final BooleanSupplier condition, final long timeoutMs) throws InterruptedException {
         final long deadline = System.currentTimeMillis() + timeoutMs;
@@ -256,7 +256,7 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * 테스트용 TcModelRuntime을 생성합니다.
+     * ?뚯뒪?몄슜 TcModelRuntime???앹꽦?⑸땲??
      */
     private static TcModelRuntime createRuntime(final long modelKey, final ProtocolType protocolType) {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -282,5 +282,6 @@ class BusinessRuntimeEngineTest {
         );
     }
 }
+
 
 

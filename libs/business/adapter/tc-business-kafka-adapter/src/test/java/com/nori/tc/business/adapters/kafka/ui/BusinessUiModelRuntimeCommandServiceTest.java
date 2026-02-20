@@ -5,7 +5,7 @@ import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
-import com.nori.tc.business.core.workflow.BusinessWorkflowPluginRuntimeMutationPort;
+import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeMutationPort;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyStatus;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
@@ -19,10 +19,10 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * BusinessUiModelRuntimeCommandServiceTest 클래스입니다.
+ * BusinessUiModelRuntimeCommandServiceTest ?대옒?ㅼ엯?덈떎.
  *
- * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
- * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ * <p>?대떦 紐⑤뱢?먯꽌 怨듯넻 怨꾩빟怨??숈옉 寃쎄퀎瑜??뺤쓽?섎ŉ,
+ * ?몄텧 怨꾩링?먯꽌 ?쇨????ъ슜??媛?ν븯?꾨줉 ?ㅺ퀎?섏뿀?듬땲??</p>
  */
 class BusinessUiModelRuntimeCommandServiceTest {
 
@@ -213,27 +213,26 @@ class BusinessUiModelRuntimeCommandServiceTest {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
      */
     private static final class FakeRuntimeMutationPort implements BusinessModelRuntimeMutationPort {
         private final Map<String, Long> bindings = new LinkedHashMap<>();
         private final Set<Long> reloadedModelKeys = new LinkedHashSet<>();
 
         /**
-         * reloadAll 기능을 수행합니다.
+         * reloadAll 湲곕뒫???섑뻾?⑸땲??
          *
          */
 
         @Override
         public void reloadAll() {
-            // 테스트 더블 구현에서는 별도 동작 없이 무시합니다.
+            // ?뚯뒪???붾툝 援ы쁽?먯꽌??蹂꾨룄 ?숈옉 ?놁씠 臾댁떆?⑸땲??
         }
 
         /**
-         * reloadModelRuntime 기능을 수행합니다.
+         * reloadModelRuntime 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey 입력 값
-         */
+         * @param modelKey ?낅젰 媛?         */
 
         @Override
         public void reloadModelRuntime(final long modelKey) {
@@ -241,11 +240,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
 
         /**
-         * updateEqpBinding 기능을 수행합니다.
+         * updateEqpBinding 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId 입력 값
-         * @param modelKey 입력 값
-         */
+         * @param eqpId ?낅젰 媛?         * @param modelKey ?낅젰 媛?         */
 
         @Override
         public void updateEqpBinding(final String eqpId, final long modelKey) {
@@ -253,10 +250,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
 
         /**
-         * removeEqpBinding 기능을 수행합니다.
+         * removeEqpBinding 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId 입력 값
-         * @return 처리 결과
+         * @param eqpId ?낅젰 媛?         * @return 泥섎━ 寃곌낵
          */
         @Override
         public Optional<Long> removeEqpBinding(final String eqpId) {
@@ -265,9 +261,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
 
         /**
-         * currentSnapshot 기능을 수행합니다.
+         * currentSnapshot 湲곕뒫???섑뻾?⑸땲??
          *
-         * @return 처리 결과
+         * @return 泥섎━ 寃곌낵
          */
 
         @Override
@@ -276,10 +272,9 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
 
         /**
-         * findRuntimeByModelKey 기능을 수행합니다.
+         * findRuntimeByModelKey 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey 입력 값
-         * @return 처리 결과
+         * @param modelKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
          */
 
         @Override
@@ -289,35 +284,34 @@ class BusinessUiModelRuntimeCommandServiceTest {
     }
 
     /**
-     * 플러그인 런타임 제거 호출 여부를 검증하기 위한 테스트 더블입니다.
+     * ?뚮윭洹몄씤 ?고????쒓굅 ?몄텧 ?щ?瑜?寃利앺븯湲??꾪븳 ?뚯뒪???붾툝?낅땲??
      */
     private static final class TrackingPluginMutationPort implements BusinessWorkflowPluginRuntimeMutationPort {
 
         /**
-         * 마지막으로 remove 요청된 eqpId입니다.
+         * 留덉?留됱쑝濡?remove ?붿껌??eqpId?낅땲??
          */
         private String lastRemovedEqpId;
 
         /**
-         * reloadByEqpId 기능을 수행합니다.
+         * reloadByEqpId 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId 입력 값
-         */
+         * @param eqpId ?낅젰 媛?         */
         @Override
         public void reloadByEqpId(final String eqpId) {
-            // 이 테스트 더블에서는 reload 경로를 사용하지 않습니다.
+            // ???뚯뒪???붾툝?먯꽌??reload 寃쎈줈瑜??ъ슜?섏? ?딆뒿?덈떎.
         }
 
         /**
-         * removeByEqpId 기능을 수행합니다.
+         * removeByEqpId 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId 입력 값
-         */
+         * @param eqpId ?낅젰 媛?         */
         @Override
         public void removeByEqpId(final String eqpId) {
             this.lastRemovedEqpId = eqpId;
         }
     }
 }
+
 
 

@@ -1,10 +1,19 @@
 package com.nori.tc.business.core.workflow;
 
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
+import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
+import com.nori.tc.business.core.workflow.api.annotation.TcAction;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionKey;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
+import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistryBuilder;
+import com.nori.tc.business.core.workflow.api.spi.executor.AbstractSocketActionExecutor;
+import com.nori.tc.business.core.workflow.internal.resolution.ActionResolutionPolicy;
+import com.nori.tc.business.core.workflow.internal.resolution.ActionResolutionTrace;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link ActionResolutionPolicy} 단위 테스트입니다.
+ * {@link ActionResolutionPolicy} ?⑥쐞 ?뚯뒪?몄엯?덈떎.
  */
 class ActionResolutionPolicyTest {
 
@@ -30,9 +39,9 @@ class ActionResolutionPolicyTest {
                 coreRegistry
         );
 
-        Assertions.assertTrue(trace.isResolved(), "plugin/core 모두 있으면 반드시 해석되어야 합니다.");
+        Assertions.assertTrue(trace.isResolved(), "plugin/core 紐⑤몢 ?덉쑝硫?諛섎뱶???댁꽍?섏뼱???⑸땲??");
         Assertions.assertEquals(ActionResolutionTrace.ResolutionSource.PLUGIN, trace.resolutionSource());
-        Assertions.assertTrue(trace.isPluginOverride(), "plugin 우선 정책이면 override=true 이어야 합니다.");
+        Assertions.assertTrue(trace.isPluginOverride(), "plugin ?곗꽑 ?뺤콉?대㈃ override=true ?댁뼱???⑸땲??");
         Assertions.assertFalse(trace.isCoreFallback());
     }
 
@@ -58,9 +67,9 @@ class ActionResolutionPolicyTest {
                 coreRegistry
         );
 
-        Assertions.assertTrue(trace.isResolved(), "plugin에 key가 없으면 core fallback이 동작해야 합니다.");
+        Assertions.assertTrue(trace.isResolved(), "plugin??key媛 ?놁쑝硫?core fallback???숈옉?댁빞 ?⑸땲??");
         Assertions.assertEquals(ActionResolutionTrace.ResolutionSource.CORE, trace.resolutionSource());
-        Assertions.assertTrue(trace.isCoreFallback(), "core fallback trace가 true 이어야 합니다.");
+        Assertions.assertTrue(trace.isCoreFallback(), "core fallback trace媛 true ?댁뼱???⑸땲??");
         Assertions.assertFalse(trace.isPluginOverride());
     }
 
@@ -79,21 +88,20 @@ class ActionResolutionPolicyTest {
                 BusinessWorkflowActionRegistry.empty()
         );
 
-        Assertions.assertFalse(trace.isResolved(), "plugin/core 모두 없으면 미해결이어야 합니다.");
+        Assertions.assertFalse(trace.isResolved(), "plugin/core 紐⑤몢 ?놁쑝硫?誘명빐寃곗씠?댁빞 ?⑸땲??");
         Assertions.assertEquals(ActionResolutionTrace.ResolutionSource.NONE, trace.resolutionSource());
         Assertions.assertFalse(trace.isPluginOverride());
         Assertions.assertFalse(trace.isCoreFallback());
     }
 
     /**
-     * plugin/core 충돌 테스트에서 plugin 쪽 동일 액션을 제공합니다.
+     * plugin/core 異⑸룎 ?뚯뒪?몄뿉??plugin 履??숈씪 ?≪뀡???쒓났?⑸땲??
      */
-    private static final class PluginSocketExecutor extends SocketActionExecutor {
+    private static final class PluginSocketExecutor extends AbstractSocketActionExecutor {
         /**
-         * pluginSocketAct 기능을 수행합니다.
+         * pluginSocketAct 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param context 입력 값
-         */
+         * @param context ?낅젰 媛?         */
 
         @TcAction("SOCKET_ACT")
         public void pluginSocketAct(final BusinessWorkflowActionContext context) {
@@ -102,14 +110,13 @@ class ActionResolutionPolicyTest {
     }
 
     /**
-     * plugin에는 존재하지만 fallback 대상 key와는 다른 액션을 제공합니다.
+     * plugin?먮뒗 議댁옱?섏?留?fallback ???key????ㅻⅨ ?≪뀡???쒓났?⑸땲??
      */
-    private static final class PluginOnlyActionExecutor extends SocketActionExecutor {
+    private static final class PluginOnlyActionExecutor extends AbstractSocketActionExecutor {
         /**
-         * pluginOnlyAction 기능을 수행합니다.
+         * pluginOnlyAction 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param context 입력 값
-         */
+         * @param context ?낅젰 媛?         */
 
         @TcAction("PLUGIN_ONLY_ACTION")
         public void pluginOnlyAction(final BusinessWorkflowActionContext context) {
@@ -118,14 +125,13 @@ class ActionResolutionPolicyTest {
     }
 
     /**
-     * core fallback 테스트에서 core 쪽 동일 액션을 제공합니다.
+     * core fallback ?뚯뒪?몄뿉??core 履??숈씪 ?≪뀡???쒓났?⑸땲??
      */
-    private static final class CoreSocketExecutor extends SocketActionExecutor {
+    private static final class CoreSocketExecutor extends AbstractSocketActionExecutor {
         /**
-         * coreSocketAct 기능을 수행합니다.
+         * coreSocketAct 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param context 입력 값
-         */
+         * @param context ?낅젰 媛?         */
 
         @TcAction("SOCKET_ACT")
         public void coreSocketAct(final BusinessWorkflowActionContext context) {
@@ -133,3 +139,4 @@ class ActionResolutionPolicyTest {
         }
     }
 }
+
