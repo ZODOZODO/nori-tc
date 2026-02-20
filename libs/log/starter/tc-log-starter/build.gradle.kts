@@ -30,6 +30,9 @@ dependencies {
     compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.slf4j.api)
     compileOnly(libs.jakarta.annotation.api)
+    // EQP 로그 필터 구현(EqpMdcPresenceFilter) 컴파일 시 Logback 타입이 필요합니다.
+    // 버전은 루트 BOM(spring-boot-dependencies)에서 관리합니다.
+    compileOnly("ch.qos.logback:logback-classic")
 }
 
 tasks.test {

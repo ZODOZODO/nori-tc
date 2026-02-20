@@ -1,6 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -20,6 +22,7 @@ import java.util.regex.Pattern;
  *
  * <p>지원 시나리오:</p>
  * <p>- EQP_CREATE / EQP_UPDATE: eqpId -> modelKey 바인딩 갱신</p>
+ * <p>- EQP_DELETE: eqpId 바인딩 제거 + plugin runtime 제거</p>
  * <p>- EQP_UPDATE_JARFILE: model runtime 리로드 + workflow plugin runtime 리로드</p>
  */
 @Service
@@ -62,36 +65,49 @@ public class BusinessUiModelRuntimeCommandService {
      * @return 처리 결과
      */
     public KafkaTaskResult handleEqpCreateOrUpdate(final KafkaUiTaskMessage request) {
-        final String eqpId = request.data().eqpId();
-        final String traceId = request.metadata().traceId();
+        final String eqpId = normalize(request.data().eqpId());
+        final String traceId = normalize(request.metadata().traceId());
         final String eventType = request.metadata().eventType();
-
-        final Long modelKey = resolveModelKey(request.data().uiMessage());
-        if (modelKey == null) {
-            log.warn("UI {} failed: modelKey not found. eqpId={}, traceId={}", eventType, eqpId, traceId);
+        if (eqpId == null) {
             return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.MODEL_KEY_REQUIRED,
-                    "uiMessage에서 modelKey를 찾을 수 없습니다."
+                    BusinessUiTaskErrorCode.EQP_ID_REQUIRED,
+                    "eqpId는 필수입니다."
             );
         }
 
-        try {
-            runtimeMutationPort.updateEqpBinding(eqpId, modelKey);
-        } catch (Exception ex) {
-            log.error("UI {} failed during binding update. eqpId={}, traceId={}, modelKey={}",
-                    eventType,
-                    eqpId,
-                    traceId,
-                    modelKey,
-                    ex);
-            return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
-                    "eqpId-modelKey 바인딩 갱신에 실패했습니다."
-            );
-        }
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(eqpId, traceId)) {
+            log.info("UI {} request received. eqpId={}, traceId={}", eventType, eqpId, traceId);
 
-        log.info("UI {} success. eqpId={}, traceId={}, modelKey={}", eventType, eqpId, traceId, modelKey);
-        return KafkaTaskResult.pass();
+            final Long modelKey = resolveModelKey(request.data().uiMessage());
+            if (modelKey == null) {
+                log.warn("UI {} failed: modelKey not found. eqpId={}, traceId={}", eventType, eqpId, traceId);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_KEY_REQUIRED,
+                        "uiMessage에서 modelKey를 찾을 수 없습니다."
+                );
+            }
+
+            try {
+                runtimeMutationPort.updateEqpBinding(eqpId, modelKey);
+            } catch (Exception ex) {
+                log.error("UI {} failed during binding update. eqpId={}, traceId={}, modelKey={}",
+                        eventType,
+                        eqpId,
+                        traceId,
+                        modelKey,
+                        ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
+                        "eqpId-modelKey 바인딩 갱신에 실패했습니다."
+                );
+            }
+
+            log.info("UI {} success. eqpId={}, traceId={}, modelKey={}", eventType, eqpId, traceId, modelKey);
+            if (log.isDebugEnabled()) {
+                log.debug("UI {} binding update detail. eqpId={}, modelKey={}", eventType, eqpId, modelKey);
+            }
+            return KafkaTaskResult.pass();
+        }
     }
 
     /**
@@ -104,55 +120,132 @@ public class BusinessUiModelRuntimeCommandService {
      * @return 처리 결과
      */
     public KafkaTaskResult handleEqpUpdateJarfile(final KafkaUiTaskMessage request) {
-        final String eqpId = request.data().eqpId();
-        final String traceId = request.metadata().traceId();
-
-        final Long modelKeyFromMessage = resolveModelKey(request.data().uiMessage());
-        final Long modelKey = modelKeyFromMessage != null
-                ? modelKeyFromMessage
-                : runtimeMutationPort.findModelKeyByEqpId(eqpId).orElse(null);
-        if (modelKey == null) {
-            log.warn("UI EQP_UPDATE_JARFILE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
+        final String eqpId = normalize(request.data().eqpId());
+        final String traceId = normalize(request.metadata().traceId());
+        if (eqpId == null) {
             return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
-                    "eqpId에 매핑된 modelKey를 찾을 수 없습니다."
+                    BusinessUiTaskErrorCode.EQP_ID_REQUIRED,
+                    "eqpId는 필수입니다."
             );
         }
 
-        try {
-            runtimeMutationPort.reloadModelRuntime(modelKey);
-        } catch (Exception ex) {
-            log.error("UI EQP_UPDATE_JARFILE failed during runtime reload. eqpId={}, traceId={}, modelKey={}",
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(eqpId, traceId)) {
+            log.info("UI EQP_UPDATE_JARFILE request received. eqpId={}, traceId={}", eqpId, traceId);
+
+            final Long modelKeyFromMessage = resolveModelKey(request.data().uiMessage());
+            final Long modelKey = modelKeyFromMessage != null
+                    ? modelKeyFromMessage
+                    : runtimeMutationPort.findModelKeyByEqpId(eqpId).orElse(null);
+            if (modelKey == null) {
+                log.warn("UI EQP_UPDATE_JARFILE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
+                        "eqpId에 매핑된 modelKey를 찾을 수 없습니다."
+                );
+            }
+
+            try {
+                runtimeMutationPort.reloadModelRuntime(modelKey);
+            } catch (Exception ex) {
+                log.error("UI EQP_UPDATE_JARFILE failed during runtime reload. eqpId={}, traceId={}, modelKey={}",
+                        eqpId,
+                        traceId,
+                        modelKey,
+                        ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
+                        "model runtime 리로드에 실패했습니다."
+                );
+            }
+
+            /*
+             * model runtime 리로드 성공 후 plugin runtime 리로드를 순차 수행합니다.
+             * 이 단계가 실패하면 전체 요청을 실패로 처리합니다.
+             */
+            try {
+                pluginRuntimeMutationPort.reloadByEqpId(eqpId);
+            } catch (Exception ex) {
+                log.error("UI EQP_UPDATE_JARFILE failed during plugin runtime reload. eqpId={}, traceId={}, modelKey={}",
+                        eqpId,
+                        traceId,
+                        modelKey,
+                        ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED,
+                        "workflow plugin runtime 리로드에 실패했습니다."
+                );
+            }
+
+            log.info("UI EQP_UPDATE_JARFILE success. eqpId={}, traceId={}, modelKey={}", eqpId, traceId, modelKey);
+            if (log.isDebugEnabled()) {
+                log.debug("UI EQP_UPDATE_JARFILE detail. eqpId={}, modelKey={}", eqpId, modelKey);
+            }
+            return KafkaTaskResult.pass();
+        }
+    }
+
+    /**
+     * EQP_DELETE를 처리합니다.
+     *
+     * <p>처리 정책:</p>
+     * <p>1) eqpId -> modelKey 바인딩을 먼저 제거합니다.</p>
+     * <p>2) 바인딩 제거 후 해당 eqp의 workflow plugin runtime을 제거합니다.</p>
+     * <p>3) model runtime 캐시는 바인딩 제거 단계에서 "참조 0개"일 때만 자동 제거됩니다.</p>
+     *
+     * @param request UI 요청 메시지
+     * @return 처리 결과
+     */
+    public KafkaTaskResult handleEqpDelete(final KafkaUiTaskMessage request) {
+        final String eqpId = normalize(request.data().eqpId());
+        final String traceId = normalize(request.metadata().traceId());
+        if (eqpId == null) {
+            return KafkaTaskResult.fail(
+                    BusinessUiTaskErrorCode.EQP_ID_REQUIRED,
+                    "eqpId는 필수입니다."
+            );
+        }
+
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(eqpId, traceId)) {
+            log.info("UI EQP_DELETE request received. eqpId={}, traceId={}", eqpId, traceId);
+
+            final Optional<Long> removedModelKey;
+            try {
+                removedModelKey = runtimeMutationPort.removeEqpBinding(eqpId);
+            } catch (Exception ex) {
+                log.error("UI EQP_DELETE failed during binding remove. eqpId={}, traceId={}", eqpId, traceId, ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_BINDING_DELETE_FAILED,
+                        "eqpId-modelKey 바인딩 삭제에 실패했습니다."
+                );
+            }
+
+            if (removedModelKey.isEmpty()) {
+                log.warn("UI EQP_DELETE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
+                        "삭제할 eqpId-modelKey 바인딩이 존재하지 않습니다."
+                );
+            }
+
+            try {
+                pluginRuntimeMutationPort.removeByEqpId(eqpId);
+            } catch (Exception ex) {
+                log.error("UI EQP_DELETE failed during plugin runtime remove. eqpId={}, traceId={}", eqpId, traceId, ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_REMOVE_FAILED,
+                        "workflow plugin runtime 제거에 실패했습니다."
+                );
+            }
+
+            log.info("UI EQP_DELETE success. eqpId={}, traceId={}, removedModelKey={}",
                     eqpId,
                     traceId,
-                    modelKey,
-                    ex);
-            return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
-                    "model runtime 리로드에 실패했습니다."
-            );
+                    removedModelKey.orElse(null));
+            if (log.isDebugEnabled()) {
+                log.debug("UI EQP_DELETE detail. eqpId={}, removedModelKey={}", eqpId, removedModelKey.orElse(null));
+            }
+            return KafkaTaskResult.pass();
         }
-
-        /*
-         * model runtime 리로드 성공 후 plugin runtime 리로드를 순차 수행합니다.
-         * 이 단계가 실패하면 전체 요청을 실패로 처리합니다.
-         */
-        try {
-            pluginRuntimeMutationPort.reloadByEqpId(eqpId);
-        } catch (Exception ex) {
-            log.error("UI EQP_UPDATE_JARFILE failed during plugin runtime reload. eqpId={}, traceId={}, modelKey={}",
-                    eqpId,
-                    traceId,
-                    modelKey,
-                    ex);
-            return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED,
-                    "workflow plugin runtime 리로드에 실패했습니다."
-            );
-        }
-
-        log.info("UI EQP_UPDATE_JARFILE success. eqpId={}, traceId={}, modelKey={}", eqpId, traceId, modelKey);
-        return KafkaTaskResult.pass();
     }
 
     /**

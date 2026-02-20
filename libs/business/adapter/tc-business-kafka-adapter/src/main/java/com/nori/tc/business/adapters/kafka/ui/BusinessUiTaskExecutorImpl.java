@@ -1,6 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.nori.tc.business.core.ui.BusinessUiTaskExecutor;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.common.task.execution.pipeline.runtime.KafkaTaskExecutionPipeline;
@@ -61,43 +62,51 @@ public class BusinessUiTaskExecutorImpl implements BusinessUiTaskExecutor {
 
         final KafkaUiTaskMessage request = objectMapper.readValue(payload, KafkaUiTaskMessage.class);
         final String requestEventType = request.metadata() == null ? null : request.metadata().eventType();
+        final String requestEqpId = normalize(request.data() == null ? null : request.data().eqpId());
+        final String requestTraceId = normalize(request.metadata() == null ? null : request.metadata().traceId());
 
-        if (requestEventType != null && record.messageName() != null
-                && !requestEventType.equalsIgnoreCase(record.messageName())) {
-            log.warn("UI messageName mismatch detected. recordMessageName={}, payloadEventType={}, eqpId={}, partition={}, offset={}",
-                    record.messageName(),
-                    requestEventType,
-                    record.eqpId(),
-                    record.partition(),
-                    record.offset());
+        /*
+         * Business runtime worker 스레드에서 UI 파이프라인을 실행할 때
+         * request 본문의 eqpId/traceId를 MDC에 주입해 설비 로그 분리를 보장합니다.
+         */
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(requestEqpId, requestTraceId)) {
+            if (requestEventType != null && record.messageName() != null
+                    && !requestEventType.equalsIgnoreCase(record.messageName())) {
+                log.warn("UI messageName mismatch detected. recordMessageName={}, payloadEventType={}, eqpId={}, partition={}, offset={}",
+                        record.messageName(),
+                        requestEventType,
+                        record.eqpId(),
+                        record.partition(),
+                        record.offset());
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("Dispatching UI task through pipeline. eventType={}, eqpId={}, traceId={}, partition={}, offset={}",
+                        requestEventType,
+                        requestEqpId,
+                        requestTraceId,
+                        record.partition(),
+                        record.offset());
+            }
+
+            final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(request);
+            if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
+                log.info("UI task finished with FAIL reply. eventType={}, eqpId={}, traceId={}, replyEventType={}, errorCode={}",
+                        requestEventType,
+                        requestEqpId,
+                        requestTraceId,
+                        report.replyEventType(),
+                        report.result().errorCode());
+            } else if (log.isDebugEnabled()) {
+                log.debug("UI task finished with PASS reply. eventType={}, eqpId={}, traceId={}, replyEventType={}",
+                        requestEventType,
+                        requestEqpId,
+                        requestTraceId,
+                        report.replyEventType());
+            }
+
+            return report;
         }
-
-        if (log.isDebugEnabled()) {
-            log.debug("Dispatching UI task through pipeline. eventType={}, eqpId={}, traceId={}, partition={}, offset={}",
-                    requestEventType,
-                    request.data() == null ? null : request.data().eqpId(),
-                    request.metadata() == null ? null : request.metadata().traceId(),
-                    record.partition(),
-                    record.offset());
-        }
-
-        final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(request);
-        if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
-            log.info("UI task finished with FAIL reply. eventType={}, eqpId={}, traceId={}, replyEventType={}, errorCode={}",
-                    requestEventType,
-                    request.data() == null ? null : request.data().eqpId(),
-                    request.metadata() == null ? null : request.metadata().traceId(),
-                    report.replyEventType(),
-                    report.result().errorCode());
-        } else if (log.isDebugEnabled()) {
-            log.debug("UI task finished with PASS reply. eventType={}, eqpId={}, traceId={}, replyEventType={}",
-                    requestEventType,
-                    request.data() == null ? null : request.data().eqpId(),
-                    request.metadata() == null ? null : request.metadata().traceId(),
-                    report.replyEventType());
-        }
-
-        return report;
     }
 
     /**

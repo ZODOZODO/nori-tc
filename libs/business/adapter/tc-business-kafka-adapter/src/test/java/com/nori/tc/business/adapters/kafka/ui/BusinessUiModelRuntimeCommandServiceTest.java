@@ -143,6 +143,55 @@ class BusinessUiModelRuntimeCommandServiceTest {
         Assertions.assertTrue(runtimePort.reloadedModelKeys.contains(400L));
     }
 
+    @Test
+    void shouldDeleteBindingAndRemovePluginRuntimeOnEqpDelete() {
+        final FakeRuntimeMutationPort runtimePort = new FakeRuntimeMutationPort();
+        runtimePort.bindings.put("EQP-05", 500L);
+        final TrackingPluginMutationPort pluginPort = new TrackingPluginMutationPort();
+        final BusinessUiModelRuntimeCommandService service =
+                new BusinessUiModelRuntimeCommandService(
+                        runtimePort,
+                        pluginPort,
+                        new ObjectMapper()
+                );
+
+        final KafkaUiTaskMessage request = createRequest(
+                "EQP_DELETE",
+                "EQP-05",
+                null
+        );
+
+        final KafkaTaskResult result = service.handleEqpDelete(request);
+
+        Assertions.assertEquals(KafkaTaskReplyStatus.PASS, result.status());
+        Assertions.assertFalse(runtimePort.bindings.containsKey("EQP-05"));
+        Assertions.assertEquals("EQP-05", pluginPort.lastRemovedEqpId);
+    }
+
+    @Test
+    void shouldReturnFailWhenBindingMissingOnEqpDelete() {
+        final FakeRuntimeMutationPort runtimePort = new FakeRuntimeMutationPort();
+        final TrackingPluginMutationPort pluginPort = new TrackingPluginMutationPort();
+        final BusinessUiModelRuntimeCommandService service =
+                new BusinessUiModelRuntimeCommandService(
+                        runtimePort,
+                        pluginPort,
+                        new ObjectMapper()
+                );
+
+        final KafkaUiTaskMessage request = createRequest(
+                "EQP_DELETE",
+                "EQP-06",
+                null
+        );
+
+        final KafkaTaskResult result = service.handleEqpDelete(request);
+
+        Assertions.assertEquals(KafkaTaskReplyStatus.FAIL, result.status());
+        Assertions.assertEquals(BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND, result.errorCode());
+        Assertions.assertNull(pluginPort.lastRemovedEqpId);
+    }
+
     private static KafkaUiTaskMessage createRequest(
             final String eventType,
             final String eqpId,
@@ -204,6 +253,18 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
 
         /**
+         * removeEqpBinding 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @return 처리 결과
+         */
+        @Override
+        public Optional<Long> removeEqpBinding(final String eqpId) {
+            final Long removed = bindings.remove(eqpId);
+            return Optional.ofNullable(removed);
+        }
+
+        /**
          * currentSnapshot 기능을 수행합니다.
          *
          * @return 처리 결과
@@ -226,7 +287,37 @@ class BusinessUiModelRuntimeCommandServiceTest {
             return Optional.empty();
         }
     }
-}
 
+    /**
+     * 플러그인 런타임 제거 호출 여부를 검증하기 위한 테스트 더블입니다.
+     */
+    private static final class TrackingPluginMutationPort implements BusinessWorkflowPluginRuntimeMutationPort {
+
+        /**
+         * 마지막으로 remove 요청된 eqpId입니다.
+         */
+        private String lastRemovedEqpId;
+
+        /**
+         * reloadByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         */
+        @Override
+        public void reloadByEqpId(final String eqpId) {
+            // 이 테스트 더블에서는 reload 경로를 사용하지 않습니다.
+        }
+
+        /**
+         * removeByEqpId 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         */
+        @Override
+        public void removeByEqpId(final String eqpId) {
+            this.lastRemovedEqpId = eqpId;
+        }
+    }
+}
 
 

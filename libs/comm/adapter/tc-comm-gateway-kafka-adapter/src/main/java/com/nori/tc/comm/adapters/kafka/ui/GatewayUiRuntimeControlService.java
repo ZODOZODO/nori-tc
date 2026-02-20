@@ -19,6 +19,7 @@ import com.nori.tc.comm.gateway.context.EquipmentStatePersistencePort;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -127,40 +128,59 @@ public class GatewayUiRuntimeControlService {
             final long timeoutMs
     ) {
         final String normalizedEqpId = requireEqpId(eqpId);
-        final CommInterfaceType requestedType = parseInterfaceType(interfaceType);
-        final EquipmentContextProfile profile = profileProvider.findProfileById(normalizedEqpId).orElseThrow(
-                () -> new ProcessingException(ErrorCode.EQP_NOT_FOUND, "Equipment profile not found")
-        );
-        final GatewayEquipmentInfo equipmentInfo = profile.equipmentInfo();
-        validateInterfaceType(equipmentInfo, requestedType);
-
-        final EquipmentContext existing = contextRegistry.find(normalizedEqpId).orElse(null);
-        final EquipmentDesiredState desiredState = existing == null
-                ? (equipmentInfo.enabled() ? EquipmentDesiredState.STARTED : EquipmentDesiredState.ENDED)
-                : existing.desiredState();
-        final EquipmentRuntimeState runtimeState = existing == null
-                ? (equipmentInfo.enabled() ? EquipmentRuntimeState.DISCONNECTED : EquipmentRuntimeState.REGISTERED)
-                : existing.runtimeState();
-
-        contextRegistry.upsertProfile(profile, desiredState, runtimeState, eventType, traceId);
-        statePersistencePort.recordCreateOrUpdate(normalizedEqpId, traceId, eventType, "UI create/update request processed");
-
-        log.info(
-                "UI context upsert completed. eventType={}, eqpId={}, traceId={}, enabled={}",
-                eventType,
-                normalizedEqpId,
-                traceId,
-                equipmentInfo.enabled()
-        );
-        if (log.isDebugEnabled()) {
-            log.debug(
-                    "UI context upsert detail. timeoutMs={}, desiredState={}, runtimeState={}",
-                    timeoutMs,
-                    desiredState,
-                    runtimeState
+        /**
+         * UI CREATE/UPDATE는 비동기 mailbox worker에서 수행되므로
+         * 호출 경계에서 eqpId/traceId MDC를 명시적으로 주입해야 EQP 로그 분리가 유지됩니다.
+         */
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(normalizedEqpId, traceId)) {
+            log.info(
+                    "UI context upsert request received. eventType={}, eqpId={}, traceId={}, timeoutMs={}",
+                    eventType,
+                    normalizedEqpId,
+                    traceId,
+                    timeoutMs
             );
+
+            final CommInterfaceType requestedType = parseInterfaceType(interfaceType);
+            final EquipmentContextProfile profile = profileProvider.findProfileById(normalizedEqpId).orElseThrow(
+                    () -> new ProcessingException(ErrorCode.EQP_NOT_FOUND, "Equipment profile not found")
+            );
+            final GatewayEquipmentInfo equipmentInfo = profile.equipmentInfo();
+            validateInterfaceType(equipmentInfo, requestedType);
+
+            final EquipmentContext existing = contextRegistry.find(normalizedEqpId).orElse(null);
+            final EquipmentDesiredState desiredState = existing == null
+                    ? (equipmentInfo.enabled() ? EquipmentDesiredState.STARTED : EquipmentDesiredState.ENDED)
+                    : existing.desiredState();
+            final EquipmentRuntimeState runtimeState = existing == null
+                    ? (equipmentInfo.enabled() ? EquipmentRuntimeState.DISCONNECTED : EquipmentRuntimeState.REGISTERED)
+                    : existing.runtimeState();
+
+            contextRegistry.upsertProfile(profile, desiredState, runtimeState, eventType, traceId);
+            statePersistencePort.recordCreateOrUpdate(
+                    normalizedEqpId,
+                    traceId,
+                    eventType,
+                    "UI create/update request processed"
+            );
+
+            log.info(
+                    "UI context upsert completed. eventType={}, eqpId={}, traceId={}, enabled={}",
+                    eventType,
+                    normalizedEqpId,
+                    traceId,
+                    equipmentInfo.enabled()
+            );
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "UI context upsert detail. timeoutMs={}, desiredState={}, runtimeState={}",
+                        timeoutMs,
+                        desiredState,
+                        runtimeState
+                );
+            }
+            return equipmentInfo;
         }
-        return equipmentInfo;
     }
 
     /**
@@ -294,26 +314,39 @@ public class GatewayUiRuntimeControlService {
             final long timeoutMs
     ) {
         final String normalizedEqpId = requireEqpId(eqpId);
-        final CommInterfaceType requestedType = parseInterfaceType(interfaceType);
-        final EquipmentContext context = contextRegistry.find(normalizedEqpId).orElseThrow(
-                () -> new ProcessingException(ErrorCode.EQP_CONTEXT_NOT_FOUND, "Equipment context not found")
-        );
-        validateInterfaceType(context.profile().equipmentInfo(), requestedType);
+        /**
+         * DELETE 역시 CREATE/UPDATE와 동일하게 MDC를 강제 주입합니다.
+         * 이 구간에서 발생하는 검증/삭제/상태기록 로그를 모두 동일 eqpId 파일로 라우팅하기 위함입니다.
+         */
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(normalizedEqpId, traceId)) {
+            log.info(
+                    "Runtime delete request received. eqpId={}, traceId={}, timeoutMs={}",
+                    normalizedEqpId,
+                    traceId,
+                    timeoutMs
+            );
 
-        final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
-        if (context.desiredState() == EquipmentDesiredState.STARTED || (channel != null && channel.isActive())) {
-            throw new ProcessingException(ErrorCode.EQP_RUNNING, "Equipment must be ended before delete");
+            final CommInterfaceType requestedType = parseInterfaceType(interfaceType);
+            final EquipmentContext context = contextRegistry.find(normalizedEqpId).orElseThrow(
+                    () -> new ProcessingException(ErrorCode.EQP_CONTEXT_NOT_FOUND, "Equipment context not found")
+            );
+            validateInterfaceType(context.profile().equipmentInfo(), requestedType);
+
+            final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
+            if (context.desiredState() == EquipmentDesiredState.STARTED || (channel != null && channel.isActive())) {
+                throw new ProcessingException(ErrorCode.EQP_RUNNING, "Equipment must be ended before delete");
+            }
+
+            connectionControlPort.suppressActiveReconnect(normalizedEqpId);
+            processingService.removeMailbox(normalizedEqpId);
+            contextRegistry.remove(normalizedEqpId, "EQP_DELETE", traceId);
+            statePersistencePort.recordDelete(normalizedEqpId, traceId, "UI delete request processed");
+
+            if (log.isDebugEnabled()) {
+                log.debug("Runtime delete detail. eqpId={}, traceId={}, timeoutMs={}", normalizedEqpId, traceId, timeoutMs);
+            }
+            log.info("Runtime context deleted. eqpId={}, traceId={}", normalizedEqpId, traceId);
         }
-
-        connectionControlPort.suppressActiveReconnect(normalizedEqpId);
-        processingService.removeMailbox(normalizedEqpId);
-        contextRegistry.remove(normalizedEqpId, "EQP_DELETE", traceId);
-        statePersistencePort.recordDelete(normalizedEqpId, traceId, "UI delete request processed");
-
-        if (log.isDebugEnabled()) {
-            log.debug("Runtime delete detail. eqpId={}, traceId={}, timeoutMs={}", normalizedEqpId, traceId, timeoutMs);
-        }
-        log.info("Runtime context deleted. eqpId={}, traceId={}", normalizedEqpId, traceId);
     }
 
     /**

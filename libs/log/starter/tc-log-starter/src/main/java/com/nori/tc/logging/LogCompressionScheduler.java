@@ -161,7 +161,11 @@ public final class LogCompressionScheduler implements SmartLifecycle {
             return;
         }
 
-        try (Stream<Path> stream = Files.list(dir)) {
+        /*
+         * EQP 로그를 logs/eqp/{eqpId}/... 구조로 저장하므로,
+         * 하위 디렉터리까지 포함한 전체 로그 파일을 순회해야 압축/정리 정책이 일관되게 적용됩니다.
+         */
+        try (Stream<Path> stream = Files.walk(dir)) {
             stream.filter(Files::isRegularFile).forEach(path -> {
                 final String name = path.getFileName().toString();
                 try {

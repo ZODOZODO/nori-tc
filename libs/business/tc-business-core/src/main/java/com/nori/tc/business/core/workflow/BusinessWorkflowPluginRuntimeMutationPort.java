@@ -16,6 +16,19 @@ public interface BusinessWorkflowPluginRuntimeMutationPort {
     void reloadByEqpId(String eqpId);
 
     /**
+     * 특정 설비의 플러그인 런타임을 제거합니다.
+     *
+     * <p>기본 구현은 no-op입니다.</p>
+     * <p>플러그인 어댑터가 연결된 환경에서는 실제 구현체가 오버라이드하여
+     * eqpId 기준 런타임 캐시를 제거합니다.</p>
+     *
+     * @param eqpId equipment id
+     */
+    default void removeByEqpId(final String eqpId) {
+        // default no-op
+    }
+
+    /**
      * no-op mutation port를 반환합니다.
      *
      * @return no-op implementation

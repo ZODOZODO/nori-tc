@@ -1,5 +1,7 @@
 package com.nori.tc.business.core.modelcache;
 
+import java.util.Optional;
+
 /**
  * model runtime 캐시 조회/갱신 포트입니다.
  *
@@ -27,5 +29,17 @@ public interface BusinessModelRuntimeMutationPort extends BusinessModelRuntimePr
      * @param modelKey model key
      */
     void updateEqpBinding(String eqpId, long modelKey);
+
+    /**
+     * eqpId -> modelKey 바인딩을 제거합니다.
+     *
+     * <p>삭제 정책:</p>
+     * <p>1) eqpId 바인딩을 먼저 제거합니다.</p>
+     * <p>2) 제거된 modelKey를 참조하는 eqp가 더 이상 없을 때만 model runtime 캐시도 함께 제거합니다.</p>
+     *
+     * @param eqpId 제거할 장비 ID
+     * @return 제거된 modelKey(optional), 바인딩이 없으면 empty
+     */
+    Optional<Long> removeEqpBinding(String eqpId);
 }
 

@@ -30,6 +30,14 @@ import java.util.Optional;
 class GatewaySocketPluginRuntimeManagerTest {
 
     /**
+     * 테스트에서 사용하는 플러그인 JAR 최대 허용 크기(byte)입니다.
+     *
+     * <p>운영 기본값과 동일한 수준으로 맞춰 속성 검증 로직과 테스트 fixture가
+     * 항상 같은 전제를 갖도록 유지합니다.</p>
+     */
+    private static final long TEST_MAX_JAR_BYTES = 10L * 1024L * 1024L;
+
+    /**
      * loadOnStartup=false 인 경우 preload 를 시도하지 않아야 합니다.
      */
     @Test
@@ -103,6 +111,7 @@ class GatewaySocketPluginRuntimeManagerTest {
         properties.setLoadOnStartup(loadOnStartup);
         properties.setFailFastOnStartup(failFastOnStartup);
         properties.setPageSize(pageSize);
+        properties.setMaxJarBytes(TEST_MAX_JAR_BYTES);
         properties.validate();
         return properties;
     }

@@ -21,6 +21,12 @@
     <springProperty scope="context" name="EQP_LOG_MAX_HISTORY" source="tc.logging.eqp.max-history" defaultValue="7"/>
     <springProperty scope="context" name="EQP_LOG_MAX_SIZE" source="tc.logging.eqp.max-size" defaultValue="100MB"/>
     <springProperty scope="context" name="EQP_LOG_TOTAL_SIZE_CAP" source="tc.logging.eqp.total-size-cap" defaultValue="2GB"/>
+    <!--
+      설비 로그 파일 prefix(app 구분자)입니다.
+      - 예) gateway, business
+      - 파일명: {prefix}-{eqpId}.yyyy-MM-dd.i.log
+    -->
+    <springProperty scope="context" name="EQP_LOG_FILE_PREFIX" source="tc.logging.eqp.file-prefix" defaultValue="gateway"/>
 
     <!-- 콘솔 로그: 표준 패턴 적용 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -29,8 +35,14 @@
         </encoder>
     </appender>
 
-    <!-- 앱 구동/운영 로그 파일 (eqpId 유무와 무관하게 모두 기록, 파일명에 날짜 포함) -->
+    <!-- 앱 구동/운영 로그 파일 (설비 스코프 로그 제외, 파일명에 날짜 포함) -->
     <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!--
+          APP 분리 규칙:
+          - eqpId가 없는 공통 로그만 APP 파일로 허용
+          - 유효 eqpId가 있는 설비 로그는 APP 파일에서 제외(EQP 파일 전용)
+        -->
+        <filter class="com.nori.tc.logging.AppMdcAbsenceFilter"/>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
         </encoder>
@@ -42,8 +54,14 @@
         </rollingPolicy>
     </appender>
 
-    <!-- 설비별 로그 파일 (MDC eqpId 기반, 파일명에 날짜 포함) -->
+    <!-- 설비별 로그 파일 (MDC eqpId 기반, eqpId 디렉터리 하위에 파일 저장) -->
     <appender name="EQP_SIFT" class="ch.qos.logback.classic.sift.SiftingAppender">
+        <!--
+          EQP 분리 규칙:
+          - 유효한 MDC eqpId(공백/unknown 제외)가 있는 이벤트만 EQP 파일로 허용
+          - eqpId가 없거나 unknown인 공통 로그는 DENY 처리하여 gateway-unknown 파일 생성을 차단
+        -->
+        <filter class="com.nori.tc.logging.EqpMdcPresenceFilter"/>
         <discriminator class="ch.qos.logback.classic.sift.MDCBasedDiscriminator">
             <key>eqpId</key>
             <defaultValue>unknown</defaultValue>
@@ -54,7 +72,13 @@
                     <pattern>${LOG_PATTERN}</pattern>
                 </encoder>
                 <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-                    <fileNamePattern>${LOG_DIR}/eqp/gateway-${eqpId}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+                    <!--
+                      EQP 로그 파일 저장 규칙:
+                      - logs/eqp/{eqpId}/ 하위에 앱 prefix별 파일을 분리 저장
+                      - 예) logs/eqp/EQP-01/gateway.2026-02-20.0.log
+                      - 예) logs/eqp/EQP-01/business.2026-02-20.0.log
+                    -->
+                    <fileNamePattern>${LOG_DIR}/eqp/${eqpId}/${EQP_LOG_FILE_PREFIX}.${eqpId}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
                     <maxFileSize>${EQP_LOG_MAX_SIZE}</maxFileSize>
                     <maxHistory>${EQP_LOG_MAX_HISTORY}</maxHistory>
                     <totalSizeCap>${EQP_LOG_TOTAL_SIZE_CAP}</totalSizeCap>

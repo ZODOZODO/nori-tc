@@ -1,5 +1,6 @@
 package com.nori.tc.business.adapters.kafka.subscribe;
 
+import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.nori.tc.business.core.runtime.BusinessTaskIngressPort;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.business.domain.runtime.BusinessMessageType;
@@ -61,25 +62,27 @@ public class BusinessEqpEventKafkaSubscriber {
 
     public void onMessage(final ConsumerRecord<String, String> record) throws Exception {
         final BusinessInboundRecord inboundRecord = recordMapper.map(record, BusinessMessageType.EQP);
-        final boolean accepted = ingressPort.submit(inboundRecord);
-        if (!accepted) {
-            throw new IllegalStateException(
-                    "Runtime queue overflow while ingesting EQP event. topic="
-                            + record.topic()
-                            + ", partition="
-                            + record.partition()
-                            + ", offset="
-                            + record.offset()
-            );
-        }
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(inboundRecord.eqpId())) {
+            final boolean accepted = ingressPort.submit(inboundRecord);
+            if (!accepted) {
+                throw new IllegalStateException(
+                        "Runtime queue overflow while ingesting EQP event. topic="
+                                + record.topic()
+                                + ", partition="
+                                + record.partition()
+                                + ", offset="
+                                + record.offset()
+                );
+            }
 
-        if (log.isDebugEnabled()) {
-            log.debug("EQP event ingested. topic={}, partition={}, offset={}, eqpId={}, eventType={}",
-                    inboundRecord.topic(),
-                    inboundRecord.partition(),
-                    inboundRecord.offset(),
-                    inboundRecord.eqpId(),
-                    inboundRecord.messageName());
+            if (log.isDebugEnabled()) {
+                log.debug("EQP event ingested. topic={}, partition={}, offset={}, eqpId={}, eventType={}",
+                        inboundRecord.topic(),
+                        inboundRecord.partition(),
+                        inboundRecord.offset(),
+                        inboundRecord.eqpId(),
+                        inboundRecord.messageName());
+            }
         }
     }
 }

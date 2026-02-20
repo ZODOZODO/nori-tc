@@ -2,6 +2,7 @@ package com.nori.tc.business.core.runtime;
 
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
+import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeProvider;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
@@ -431,14 +432,20 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
             final BusinessMailboxTask task,
             final RejectedExecutionException rejected
     ) {
-        log.error("Worker pool rejected task. eqpId={}, topic={}, partition={}, offset={}",
-                task.record().eqpId(),
-                task.record().topic(),
-                task.record().partition(),
-                task.record().offset(),
-                rejected);
-        recordDisposition(task.record(), BusinessRuntimeDisposition.DLQ, "WORKER_POOL_REJECTED");
-        emitAck(task.record(), AckStatus.DLQ);
+        /*
+         * mailbox worker 거절 시점은 비동기 경계이며, 호출 스레드 MDC를 신뢰할 수 없습니다.
+         * 따라서 task에 담긴 eqpId를 기준으로 MDC를 재주입하여 설비 로그 파일 분리를 보장합니다.
+         */
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(task.record().eqpId())) {
+            log.error("Worker pool rejected task. eqpId={}, topic={}, partition={}, offset={}",
+                    task.record().eqpId(),
+                    task.record().topic(),
+                    task.record().partition(),
+                    task.record().offset(),
+                    rejected);
+            recordDisposition(task.record(), BusinessRuntimeDisposition.DLQ, "WORKER_POOL_REJECTED");
+            emitAck(task.record(), AckStatus.DLQ);
+        }
     }
 
     /**
@@ -450,28 +457,44 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
      * @param task 입력 값
      */
     private void processTask(final BusinessMailboxTask task) {
-        try {
-            final TaskExecutionOutcome outcome = executeWithTimeout(task);
-            if (outcome == TaskExecutionOutcome.WORKFLOW_NOT_FOUND) {
-                log.info("No workflow matched. topic={}, eqpId={}, messageName={}, partition={}, offset={}",
+        /*
+         * worker 진입 시점에 eqpId MDC를 주입해,
+         * task 처리 전체 로그(성공/실패/재시도 분기)를 동일 설비 로그 파일로 보냅니다.
+         */
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(task.record().eqpId())) {
+            if (log.isDebugEnabled()) {
+                log.debug("Business task processing started. topic={}, eqpId={}, partition={}, offset={}, messageType={}, messageName={}",
                         task.record().topic(),
                         task.record().eqpId(),
-                        task.record().messageName(),
                         task.record().partition(),
-                        task.record().offset());
-                recordDisposition(task.record(), BusinessRuntimeDisposition.ACCEPTED, "WORKFLOW_NOT_FOUND");
-            } else {
-                recordDisposition(task.record(), BusinessRuntimeDisposition.ACCEPTED, "PROCESSED");
+                        task.record().offset(),
+                        task.record().messageType(),
+                        task.record().messageName());
             }
-            emitAck(task.record(), AckStatus.SUCCESS);
-        } catch (TaskTimeoutExceededException timeout) {
-            handleFailure(task, TaskFailureCategory.TIMEOUT, timeout, true);
-        } catch (BusinessWorkflowFilterEvaluationException filterEx) {
-            handleFailure(task, TaskFailureCategory.FILTER_EVAL, filterEx, false);
-        } catch (BusinessWorkflowActionExecutionException actionEx) {
-            handleFailure(task, TaskFailureCategory.ACTION_EXEC, actionEx, false);
-        } catch (Exception ex) {
-            handleFailure(task, TaskFailureCategory.UNKNOWN, ex, false);
+
+            try {
+                final TaskExecutionOutcome outcome = executeWithTimeout(task);
+                if (outcome == TaskExecutionOutcome.WORKFLOW_NOT_FOUND) {
+                    log.info("No workflow matched. topic={}, eqpId={}, messageName={}, partition={}, offset={}",
+                            task.record().topic(),
+                            task.record().eqpId(),
+                            task.record().messageName(),
+                            task.record().partition(),
+                            task.record().offset());
+                    recordDisposition(task.record(), BusinessRuntimeDisposition.ACCEPTED, "WORKFLOW_NOT_FOUND");
+                } else {
+                    recordDisposition(task.record(), BusinessRuntimeDisposition.ACCEPTED, "PROCESSED");
+                }
+                emitAck(task.record(), AckStatus.SUCCESS);
+            } catch (TaskTimeoutExceededException timeout) {
+                handleFailure(task, TaskFailureCategory.TIMEOUT, timeout, true);
+            } catch (BusinessWorkflowFilterEvaluationException filterEx) {
+                handleFailure(task, TaskFailureCategory.FILTER_EVAL, filterEx, false);
+            } catch (BusinessWorkflowActionExecutionException actionEx) {
+                handleFailure(task, TaskFailureCategory.ACTION_EXEC, actionEx, false);
+            } catch (Exception ex) {
+                handleFailure(task, TaskFailureCategory.UNKNOWN, ex, false);
+            }
         }
     }
 
@@ -918,6 +941,5 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
         WORKFLOW_NOT_FOUND
     }
 }
-
 
 

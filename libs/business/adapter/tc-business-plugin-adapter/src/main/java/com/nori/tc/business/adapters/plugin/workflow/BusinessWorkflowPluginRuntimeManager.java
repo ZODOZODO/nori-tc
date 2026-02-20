@@ -226,6 +226,23 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
+     * 특정 eqpId의 플러그인 런타임을 제거합니다.
+     *
+     * <p>UI EQP_DELETE 처리 경로에서 호출되며,
+     * 이미 런타임이 없는 경우에는 예외 없이 무시합니다.</p>
+     *
+     * @param eqpId 제거 대상 설비 ID
+     */
+    @Override
+    public void removeByEqpId(final String eqpId) {
+        final String normalizedEqpId = normalizeEqpId(eqpId);
+        if (normalizedEqpId == null) {
+            throw new IllegalArgumentException("eqpId is required");
+        }
+        removeRuntimeByEqpId(normalizedEqpId, "UI_DELETE");
+    }
+
+    /**
      * DB 기준으로 전체 플러그인 런타임을 preload/재조립합니다.
      *
      * <p>검증 성공한 eqp만 새 스냅샷에 포함하며, 최종적으로 기존 스냅샷과 원자적으로 교체합니다.</p>
@@ -805,4 +822,3 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 }
-

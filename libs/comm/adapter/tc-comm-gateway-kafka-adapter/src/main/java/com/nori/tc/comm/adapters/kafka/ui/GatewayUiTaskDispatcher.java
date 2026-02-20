@@ -4,6 +4,7 @@ import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
 import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.metrics.GatewayDisposition;
 import com.nori.tc.comm.gateway.metrics.GatewayDispositionMetrics;
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.common.mailbox.MailboxScheduler;
 import com.nori.tc.common.mailbox.MailboxTask;
 import com.nori.tc.common.mailbox.execution.MailboxExecutionRuntime;
@@ -177,22 +178,41 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
      * @throws Exception 파이프라인 처리 예외
      */
     private void processMailboxTask(final GatewayUiMailboxTask task) throws Exception {
-        if (log.isDebugEnabled()) {
-            log.debug(
-                    "Gateway UI mailbox task processing started. topic={}, eqpId={}, traceId={}, eventType={}, enqueuedAtEpochMs={}",
-                    topicProperties.getUiEvents(),
-                    task.routingKey(),
-                    safeText(task.traceId()),
-                    safeText(task.eventType()),
-                    task.enqueuedAtEpochMs()
-            );
-        }
+        /**
+         * Kafka consumer thread -> mailbox worker thread로 실행 컨텍스트가 바뀌는 구간입니다.
+         * 비동기 경계에서 MDC가 유실되면 EQP 로그 분리가 깨지므로,
+         * worker 진입 시점에 eqpId/traceId를 다시 주입합니다.
+         */
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(task.routingKey(), task.traceId())) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Gateway UI mailbox task processing started. topic={}, eqpId={}, traceId={}, eventType={}, enqueuedAtEpochMs={}",
+                        topicProperties.getUiEvents(),
+                        task.routingKey(),
+                        safeText(task.traceId()),
+                        safeText(task.eventType()),
+                        task.enqueuedAtEpochMs()
+                );
+            }
 
-        final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(task.message());
-        if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
+            final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(task.message());
+            if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
+                recordDisposition(
+                        GatewayDisposition.REJECTED,
+                        "PIPELINE_FAIL",
+                        task.eventType(),
+                        task.routingKey(),
+                        task.traceId(),
+                        report.replyEventType(),
+                        report.result().errorCode(),
+                        report.duplicateSkipped()
+                );
+                return;
+            }
+
             recordDisposition(
-                    GatewayDisposition.REJECTED,
-                    "PIPELINE_FAIL",
+                    GatewayDisposition.ACCEPTED,
+                    "PIPELINE_PASS",
                     task.eventType(),
                     task.routingKey(),
                     task.traceId(),
@@ -200,19 +220,7 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
                     report.result().errorCode(),
                     report.duplicateSkipped()
             );
-            return;
         }
-
-        recordDisposition(
-                GatewayDisposition.ACCEPTED,
-                "PIPELINE_PASS",
-                task.eventType(),
-                task.routingKey(),
-                task.traceId(),
-                report.replyEventType(),
-                report.result().errorCode(),
-                report.duplicateSkipped()
-        );
     }
 
     /**
@@ -222,26 +230,28 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
      * @param ex 거절 예외
      */
     private void handleMailboxRejected(final GatewayUiMailboxTask task, final RejectedExecutionException ex) {
-        recordDisposition(
-                GatewayDisposition.REJECTED,
-                "WORKER_REJECTED",
-                task.eventType(),
-                task.routingKey(),
-                task.traceId(),
-                null,
-                null,
-                false
-        );
-        log.error(
-                "Gateway UI mailbox worker rejected task. topic={}, eqpId={}, traceId={}, eventType={}, mailboxCount={}, readyQueueSize={}",
-                topicProperties.getUiEvents(),
-                task.routingKey(),
-                safeText(task.traceId()),
-                safeText(task.eventType()),
-                mailboxScheduler.mailboxCount(),
-                mailboxScheduler.readyQueueSize(),
-                ex
-        );
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(task.routingKey(), task.traceId())) {
+            recordDisposition(
+                    GatewayDisposition.REJECTED,
+                    "WORKER_REJECTED",
+                    task.eventType(),
+                    task.routingKey(),
+                    task.traceId(),
+                    null,
+                    null,
+                    false
+            );
+            log.error(
+                    "Gateway UI mailbox worker rejected task. topic={}, eqpId={}, traceId={}, eventType={}, mailboxCount={}, readyQueueSize={}",
+                    topicProperties.getUiEvents(),
+                    task.routingKey(),
+                    safeText(task.traceId()),
+                    safeText(task.eventType()),
+                    mailboxScheduler.mailboxCount(),
+                    mailboxScheduler.readyQueueSize(),
+                    ex
+            );
+        }
     }
 
     /**
@@ -251,24 +261,26 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
      * @param ex 처리 예외
      */
     private void handleMailboxFailure(final GatewayUiMailboxTask task, final Exception ex) {
-        recordDisposition(
-                GatewayDisposition.REJECTED,
-                "PIPELINE_EXCEPTION",
-                task.eventType(),
-                task.routingKey(),
-                task.traceId(),
-                null,
-                null,
-                false
-        );
-        log.error(
-                "Gateway UI mailbox task failed. topic={}, eqpId={}, traceId={}, eventType={}",
-                topicProperties.getUiEvents(),
-                task.routingKey(),
-                safeText(task.traceId()),
-                safeText(task.eventType()),
-                ex
-        );
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(task.routingKey(), task.traceId())) {
+            recordDisposition(
+                    GatewayDisposition.REJECTED,
+                    "PIPELINE_EXCEPTION",
+                    task.eventType(),
+                    task.routingKey(),
+                    task.traceId(),
+                    null,
+                    null,
+                    false
+            );
+            log.error(
+                    "Gateway UI mailbox task failed. topic={}, eqpId={}, traceId={}, eventType={}",
+                    topicProperties.getUiEvents(),
+                    task.routingKey(),
+                    safeText(task.traceId()),
+                    safeText(task.eventType()),
+                    ex
+            );
+        }
     }
 
     /**

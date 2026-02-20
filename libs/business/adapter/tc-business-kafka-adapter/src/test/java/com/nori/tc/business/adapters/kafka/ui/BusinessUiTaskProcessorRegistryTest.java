@@ -65,7 +65,40 @@ class BusinessUiTaskProcessorRegistryTest {
                 )
         );
 
-        Assertions.assertTrue(registry.find("EQP_DELETE").isEmpty());
+        Assertions.assertTrue(registry.find("UNKNOWN_EVENT").isEmpty());
+    }
+
+    @Test
+    void shouldResolveProcessorForEqpDelete() throws Exception {
+        final BusinessUiTaskProcessorRegistry registry = new BusinessUiTaskProcessorRegistry(
+                new BusinessUiModelRuntimeCommandService(
+                        new NoopRuntimeMutationPort(),
+                        BusinessWorkflowPluginRuntimeMutationPort.noop(),
+                        new ObjectMapper()
+                )
+        );
+
+        final Optional<KafkaTaskProcessorSpec<KafkaUiTaskMessage>> specOptional = registry.find("EQP_DELETE");
+        Assertions.assertTrue(specOptional.isPresent());
+
+        final KafkaTaskProcessorSpec<KafkaUiTaskMessage> spec = specOptional.orElseThrow();
+        Assertions.assertEquals("EQP_DELETE", spec.eventType());
+        Assertions.assertEquals("EQP_DELETE_REP", spec.replyEventType());
+
+        final KafkaUiTaskMessage request = new KafkaUiTaskMessage(
+                new KafkaUiTaskMessage.KafkaUiTaskMetadata(
+                        "EQP_DELETE",
+                        "2026-02-13T00:00:00Z",
+                        "UI-BACKEND",
+                        "TRACE-DEL-1"
+                ),
+                new KafkaUiTaskMessage.KafkaUiTaskData(
+                        "EQP-DELETE-01",
+                        "SOCKET",
+                        null
+                )
+        );
+        Assertions.assertEquals(KafkaTaskReplyStatus.FAIL, spec.processor().process(request).status());
     }
 
     /**
@@ -106,6 +139,17 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
+         * removeEqpBinding 기능을 수행합니다.
+         *
+         * @param eqpId 입력 값
+         * @return 처리 결과
+         */
+        @Override
+        public Optional<Long> removeEqpBinding(final String eqpId) {
+            return Optional.empty();
+        }
+
+        /**
          * currentSnapshot 기능을 수행합니다.
          *
          * @return 처리 결과
@@ -129,7 +173,6 @@ class BusinessUiTaskProcessorRegistryTest {
         }
     }
 }
-
 
 
 

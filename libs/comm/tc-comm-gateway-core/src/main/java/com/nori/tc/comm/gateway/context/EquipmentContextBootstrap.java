@@ -1,5 +1,6 @@
 package com.nori.tc.comm.gateway.context;
 
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ public class EquipmentContextBootstrap {
         int endedDesiredCount = 0;
 
         for (EquipmentContextProfile profile : profiles) {
+            final String eqpId = profile.equipmentInfo().equipmentId();
             final boolean enabled = profile.equipmentInfo().enabled();
             final EquipmentDesiredState desiredState = enabled
                     ? EquipmentDesiredState.STARTED
@@ -53,13 +55,36 @@ public class EquipmentContextBootstrap {
                     ? EquipmentRuntimeState.DISCONNECTED
                     : EquipmentRuntimeState.REGISTERED;
 
-            contextRegistry.upsertProfile(
-                    profile,
-                    desiredState,
-                    runtimeState,
-                    "BOOTSTRAP_LOAD",
-                    "BOOTSTRAP"
-            );
+            /**
+             * 부팅 적재 단계에서도 설비 단위 로그를 명확히 분리하기 위해
+             * upsert 수행 구간 전체를 eqpId MDC 스코프로 감쌉니다.
+             *
+             * 이렇게 하면 contextRegistry 내부에서 남기는 "created/refreshed" 로그까지
+             * 동일한 eqpId로 라우팅되어 EQP 파일에 안정적으로 기록됩니다.
+             */
+            try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "부팅 컨텍스트 적재 시작. eqpId={}, enabled={}, desiredState={}, runtimeState={}",
+                            eqpId,
+                            enabled,
+                            desiredState,
+                            runtimeState
+                    );
+                }
+
+                contextRegistry.upsertProfile(
+                        profile,
+                        desiredState,
+                        runtimeState,
+                        "BOOTSTRAP_LOAD",
+                        "BOOTSTRAP"
+                );
+
+                if (log.isDebugEnabled()) {
+                    log.debug("부팅 컨텍스트 적재 완료. eqpId={}", eqpId);
+                }
+            }
 
             if (enabled) {
                 startedDesiredCount++;
@@ -77,4 +102,3 @@ public class EquipmentContextBootstrap {
         }
     }
 }
-

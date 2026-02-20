@@ -1,5 +1,6 @@
 package com.nori.tc.business.adapters.db.modelcache;
 
+import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
@@ -17,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -191,9 +193,77 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                 log.warn("Skipping eqp binding because eqpId is blank. eqpKey={}", eqp.eqpKey());
                 continue;
             }
-            bindings.put(eqpId, eqp.modelKey());
+
+            /*
+             * 부팅 시점 DB 스냅샷 적재에서도 설비 단위 로그를 분리하기 위해
+             * eqpId MDC 스코프를 명시적으로 열고 바인딩을 기록합니다.
+             */
+            try (BusinessLogContext ignored = BusinessLogContext.withEqpId(eqpId)) {
+                bindings.put(eqpId, eqp.modelKey());
+                if (log.isDebugEnabled()) {
+                    log.debug("Boot binding loaded. eqpId={}, modelKey={}", eqpId, eqp.modelKey());
+                }
+            }
         }
         return bindings;
+    }
+
+    /**
+     * eqpId -> modelKey 바인딩을 제거합니다.
+     *
+     * <p>핵심 정책:</p>
+     * <p>1) 바인딩 제거는 항상 원자적(CAS) 스냅샷 교체로 수행합니다.</p>
+     * <p>2) 제거한 modelKey를 참조하는 eqp가 0개가 되면 model runtime 캐시도 같이 제거합니다.</p>
+     *
+     * @param eqpId 제거할 설비 ID
+     * @return 제거된 modelKey(optional)
+     */
+    @Override
+    public Optional<Long> removeEqpBinding(final String eqpId) {
+        final String normalizedEqpId = normalizeEqpId(eqpId);
+        if (normalizedEqpId == null) {
+            throw new IllegalArgumentException("eqpId is required");
+        }
+
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(normalizedEqpId)) {
+            while (true) {
+                final BusinessModelRuntimeSnapshot base = snapshotRef.get();
+                final Long removedModelKey = base.eqpModelBindings().get(normalizedEqpId);
+                if (removedModelKey == null) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Eqp binding remove skipped because binding is absent. eqpId={}", normalizedEqpId);
+                    }
+                    return Optional.empty();
+                }
+
+                final Map<String, Long> nextBindings = new LinkedHashMap<>(base.eqpModelBindings());
+                nextBindings.remove(normalizedEqpId);
+
+                final Map<Long, TcModelRuntime> nextRuntimes = new LinkedHashMap<>(base.modelRuntimes());
+                final boolean modelRuntimeStillReferenced = nextBindings.containsValue(removedModelKey);
+                final boolean modelRuntimeRemoved = !modelRuntimeStillReferenced && nextRuntimes.remove(removedModelKey) != null;
+
+                final BusinessModelRuntimeSnapshot next = BusinessModelRuntimeSnapshot.of(nextBindings, nextRuntimes);
+                if (snapshotRef.compareAndSet(base, next)) {
+                    log.info(
+                            "Eqp binding removed. eqpId={}, removedModelKey={}, modelRuntimeRemoved={}, bindingCount={}, runtimeCount={}",
+                            normalizedEqpId,
+                            removedModelKey,
+                            modelRuntimeRemoved,
+                            next.bindingCount(),
+                            next.runtimeCount()
+                    );
+                    if (log.isDebugEnabled() && !modelRuntimeRemoved) {
+                        log.debug(
+                                "Model runtime preserved because other eqp still reference the modelKey. eqpId={}, modelKey={}",
+                                normalizedEqpId,
+                                removedModelKey
+                        );
+                    }
+                    return Optional.of(removedModelKey);
+                }
+            }
+        }
     }
 
     /**
@@ -239,4 +309,3 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
         return normalized;
     }
 }
-
