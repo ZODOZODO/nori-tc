@@ -217,7 +217,7 @@ public class GatewayUiRuntimeControlService {
         final EquipmentRuntimeState runtimeBefore = context.runtimeState();
         lifecycleStateMachine.requestStart(normalizedEqpId, traceId, boundedTimeoutMs);
 
-        if (equipmentInfo.connectionMode() == ConnectionMode.ACTIVE) {
+        if (equipmentInfo.connectionMode() == ConnectionMode.PASSIVE) {
             connectionControlPort.resumeActiveReconnect(normalizedEqpId);
             connectionControlPort.connectActiveIfPossible(normalizedEqpId);
         }
@@ -269,11 +269,16 @@ public class GatewayUiRuntimeControlService {
         final EquipmentDesiredState desiredBefore = context.desiredState();
         final EquipmentRuntimeState runtimeBefore = context.runtimeState();
 
-        connectionControlPort.suppressActiveReconnect(normalizedEqpId);
         final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
-        if (channel != null && channel.isActive()) {
-            channel.close();
+        if (channel == null || !channel.isActive()) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_ALREADY_DISCONNECTED,
+                    "Equipment channel is already disconnected"
+            );
         }
+
+        connectionControlPort.suppressActiveReconnect(normalizedEqpId);
+        channel.close();
 
         lifecycleStateMachine.requestEnd(normalizedEqpId, traceId, boundedTimeoutMs);
         log.info(
@@ -457,18 +462,18 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * ACTIVE 모드 설비에 대해 즉시 연결 재시도를 트리거합니다.
+     * PASSIVE 모드 설비에 대해 아웃바운드 연결 재개/즉시 시도를 트리거합니다.
      *
      * @param equipmentInfo 설비 정보
      */
     public void startActiveIfNeeded(final GatewayEquipmentInfo equipmentInfo) {
         Objects.requireNonNull(equipmentInfo, "equipmentInfo is null");
-        if (equipmentInfo.connectionMode() != ConnectionMode.ACTIVE) {
+        if (equipmentInfo.connectionMode() != ConnectionMode.PASSIVE) {
             return;
         }
         connectionControlPort.resumeActiveReconnect(equipmentInfo.equipmentId());
         connectionControlPort.connectActiveIfPossible(equipmentInfo.equipmentId());
-        log.info("Active runtime start requested. eqpId={}", equipmentInfo.equipmentId());
+        log.info("Outbound runtime start requested. eqpId={}", equipmentInfo.equipmentId());
     }
 
     /**
@@ -613,8 +618,12 @@ public class GatewayUiRuntimeControlService {
         public static final String EQP_DISABLED = "EQP_DISABLED";
         public static final String EQP_NOT_STARTED = "EQP_NOT_STARTED";
         public static final String EQP_NOT_CONNECTED = "EQP_NOT_CONNECTED";
+        public static final String EQP_ALREADY_DISCONNECTED = "EQP_ALREADY_DISCONNECTED";
+        public static final String EQP_LIFECYCLE_BUSY = "EQP_LIFECYCLE_BUSY";
+        public static final String EQP_START_NOT_COMPLETED = "EQP_START_NOT_COMPLETED";
         public static final String EQP_RUNNING = "EQP_RUNNING";
         public static final String EQP_START_TIMEOUT = "EQP_START_TIMEOUT";
+        public static final String EQP_START_RETRY_EXHAUSTED = "EQP_START_RETRY_EXHAUSTED";
         public static final String EQP_END_TIMEOUT = "EQP_END_TIMEOUT";
         public static final String TASK_TIMEOUT = "TASK_TIMEOUT";
         public static final String REPLY_PUBLISH_FAILED = "REPLY_PUBLISH_FAILED";

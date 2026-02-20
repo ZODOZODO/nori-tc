@@ -3,10 +3,9 @@ package com.nori.tc.comm.adapters.netty;
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
 import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,25 +21,26 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Netty inbound handler (PASSIVE/ACTIVE 공용).
+ * Netty 인바운드 채널 핸들러입니다.
  *
- * 상태머신 요약
- * - UNBOUND: eqpId 미확정 상태
- *   - channelRead에서 byte[] enqueue만 수행
- *   - bind 시도는 별도 executor에서 수행
- *   - bind 성공 시 BOUND로 전이
- * - BOUND: eqpId 확정 상태
- *   - channelRead에서 inboundQueue enqueue만 수행
+ * <p>ACTIVE/ PASSIVE 채널 경로를 공통 처리하며, 바인딩 전후 상태를 다음처럼 관리합니다.</p>
+ * <p>1) UNBOUND: eqpId 미확정 상태(핸드셰이크/등록 대기)</p>
+ * <p>2) BOUND: eqpId 확정 상태(메일박스 enqueue 가능)</p>
  *
- * 성능 원칙
- * - Netty channelRead는 enqueue까지만 수행한다
- * - 파싱/세션/Kafka IO는 worker 스레드에서 처리한다
+ * <p>성능 원칙:</p>
+ * <p>- channelRead에서는 byte[] 복사 + enqueue까지만 수행합니다.</p>
+ * <p>- 파싱/검증/실처리는 worker/바인딩 executor에서 수행합니다.</p>
  */
 public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayChannelHandler.class);
 
     private final CommInterfaceType interfaceType;
+    /**
+     * 아웃바운드 채널(게이트웨이 발신)인 경우 미리 알고 있는 대상 eqpId입니다.
+     *
+     * <p>null이면 서버 수신 채널(게이트웨이 수신)로 동작합니다.</p>
+     */
     private final String presetEqpId;
     private final GatewayNettyProperties nettyProperties;
     private final GatewayProcessingService processingService;
@@ -51,24 +51,28 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     private final SocketEqpIdExtractor socketExtractor;
     private final BindAttemptExecutor bindExecutor;
 
+    /**
+     * 동일 채널에서 동시 바인딩 시도가 중첩되지 않도록 보호합니다.
+     */
     private final AtomicBoolean bindScheduled = new AtomicBoolean(false);
+    /**
+     * UNBOUND 상태에서 수신된 raw bytes를 임시 보관하는 inbox입니다.
+     */
     private final UnboundInbox unboundInbox;
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 구성 요소를 초기화합니다.
+     * 채널 핸들러를 생성합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param interfaceType 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param presetEqpId 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param nettyProperties 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param processingService 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param bindingService 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param metrics 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param logSampler 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param hsmsExtractor 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param socketExtractor 통신 채널/세션 정보
-     * @param bindExecutor 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * @param interfaceType 통신 인터페이스 타입
+     * @param presetEqpId 아웃바운드 대상 eqpId(수신 채널이면 null)
+     * @param nettyProperties netty 런타임 설정
+     * @param processingService inbound/outbound enqueue 진입점
+     * @param bindingService 설비 바인딩 서비스
+     * @param metrics 게이트웨이 메트릭 수집기
+     * @param logSampler 로그 샘플링 정책
+     * @param hsmsExtractor HSMS eqpId 추출기
+     * @param socketExtractor SOCKET eqpId 추출기
+     * @param bindExecutor 바인딩 전용 executor
      */
     public GatewayChannelHandler(
             final CommInterfaceType interfaceType,
@@ -98,12 +102,15 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         );
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 채널 활성화 시 초기 상태를 UNBOUND로 세팅하고 바인딩 준비를 시작합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param ctx 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * <p>동작 정책:</p>
+     * <p>1) 아웃바운드 HSMS는 preset eqpId를 즉시 바인딩합니다(기존 정책 유지).</p>
+     * <p>2) SOCKET(inbound/outbound)은 모두 initialize 핸드셰이크를 수행합니다.</p>
+     * <p>3) 핸드셰이크/등록 타임아웃을 예약합니다.</p>
+     *
+     * @param ctx Netty 핸들러 컨텍스트
      */
     @Override
     public void channelActive(final ChannelHandlerContext ctx) {
@@ -112,74 +119,27 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         metrics.incrementActiveConnections();
         metrics.incrementUnboundConnections();
 
-        // ACTIVE: eqpId를 알고 있으므로 즉시 bind
-        if (presetEqpId != null) {
-            final EqpBindingService.BindResult result = bindingService.bindActive(presetEqpId, interfaceType, channel);
-            if (result != EqpBindingService.BindResult.OK) {
-                if (result == EqpBindingService.BindResult.DUPLICATE_CONNECTION) {
-                    metrics.incrementDuplicateEqpReject();
-                    if (logSampler.shouldLogDuplicateReject()) {
-                        log.warn("DUPLICATE_EQP_REJECT. eqpId={}, remote={}", presetEqpId, channel.remoteAddress());
-                    }
-                } else if (result == EqpBindingService.BindResult.NOT_OWNED) {
-                    if (logSampler.shouldLogNotOwnerReject()) {
-                        log.warn("NOT_OWNER_PARTITION. eqpId={}, remote={}", presetEqpId, channel.remoteAddress());
-                    }
-                } else {
-                    log.warn("Active bind failed. eqpId={}, result={}, remote={}",
-                            presetEqpId, result, channel.remoteAddress());
-                }
-                metrics.decrementUnboundConnections();
-                metrics.decrementActiveConnections();
-                channel.close();
-                return;
-            }
-
-            NettyChannelAttributes.setEqpId(channel, presetEqpId);
-            NettyChannelAttributes.setBindState(channel, BindState.BOUND);
-            metrics.decrementUnboundConnections();
-            metrics.incrementBoundConnections();
-
-            // 설비별 로그 파일 생성을 위해 성공 바인딩 로그를 남긴다.
-            try (GatewayLogContext ignored = GatewayLogContext.withEqpId(presetEqpId)) {
-                log.info("ACTIVE_BIND_OK. eqpId={}, remote={}", presetEqpId, channel.remoteAddress());
-            }
-
-            sendInitializeIfNeeded(channel);
+        // HSMS 아웃바운드는 현재 설계에서 preset eqpId 즉시 바인딩으로 유지합니다.
+        if (shouldBindImmediatelyOnChannelActive()) {
+            bindImmediatelyWithPresetEqpId(channel);
             return;
         }
 
-        // PASSIVE: 등록 타임아웃. UNBOUND 상태가 일정 시간 지속되면 종료한다.
-        final ScheduledFuture<?> task = channel.eventLoop().schedule(() -> {
-            final BindState state = NettyChannelAttributes.getBindState(channel);
-            if (state == BindState.UNBOUND) {
-                metrics.incrementBindTimeout();
-                if (logSampler.shouldLogBindTimeout()) {
-                    log.warn("BIND_TIMEOUT. closing channel. remote={}", channel.remoteAddress());
-                }
-                channel.close();
-            }
-        }, nettyProperties.getBindTimeoutSeconds(), TimeUnit.SECONDS);
-
-        NettyChannelAttributes.setBindTimeoutTask(channel, task);
-        if (log.isDebugEnabled()) {
-            log.debug("Bind timeout scheduled. seconds={}, remote={}",
-                    nettyProperties.getBindTimeoutSeconds(), channel.remoteAddress());
-        }
-
+        // SOCKET(inbound/outbound) + HSMS inbound는 UNBOUND 타임아웃 감시를 공통 적용합니다.
+        scheduleBindTimeout(channel);
         sendInitializeIfNeeded(channel);
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 채널 비활성화 시 메트릭/바인딩 상태를 정리합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param ctx 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * @param ctx Netty 핸들러 컨텍스트
      */
     @Override
     public void channelInactive(final ChannelHandlerContext ctx) {
         final Channel channel = ctx.channel();
+        cancelBindTimeout(channel);
+
         final BindState state = NettyChannelAttributes.getBindState(channel);
         if (state == BindState.BOUND) {
             metrics.decrementBoundConnections();
@@ -190,13 +150,14 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         bindingService.unbind(channel);
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 수신 메시지를 바인딩 상태에 따라 처리합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param ctx 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param msg 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * <p>BOUND 상태면 eqp mailbox로 inbound enqueue하고,
+     * UNBOUND 상태면 unbound inbox에 쌓은 뒤 바인딩 시도를 예약합니다.</p>
+     *
+     * @param ctx Netty 핸들러 컨텍스트
+     * @param msg 수신 객체(ByteBuf 기대)
      */
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
@@ -206,8 +167,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         }
 
         try {
-            // 1) byte[] copy (IO 스레드에서 최소 작업)
-            // IO 스레드는 enqueue-only (파싱/세션 작업 금지)
+            // IO 스레드에서는 최소 작업(복사 + enqueue)만 수행합니다.
             final byte[] bytes = new byte[buf.readableBytes()];
             buf.readBytes(bytes);
 
@@ -215,7 +175,6 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             final BindState state = NettyChannelAttributes.getBindState(channel);
 
             if (state == BindState.BOUND) {
-                // 2) BOUND: inbound 큐에 enqueue만 수행
                 final String eqpId = NettyChannelAttributes.getEqpId(channel);
                 if (eqpId != null) {
                     processingService.enqueueInbound(eqpId, bytes);
@@ -223,9 +182,8 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
 
-            // 3) UNBOUND: unbound inbox에 enqueue만 수행 (파싱은 별도 스레드)
             if (!unboundInbox.offer(bytes)) {
-                log.warn("Unbound inbox overflow. closing channel.");
+                log.warn("Unbound inbox overflow. closing channel. remote={}", channel.remoteAddress());
                 channel.close();
                 return;
             }
@@ -236,13 +194,11 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 채널 예외 발생 시 경고 로그를 남기고 채널을 닫습니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param ctx 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param cause 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * @param ctx Netty 핸들러 컨텍스트
+     * @param cause 예외
      */
     @Override
     public void exceptionCaught(final ChannelHandlerContext ctx, final Throwable cause) {
@@ -250,15 +206,58 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         ctx.close();
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 채널 활성화 직후 즉시 바인딩할지 여부를 판단합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param channel 통신 채널/세션 정보
+     * <p>현재 정책:</p>
+     * <p>- preset eqpId가 있고, 인터페이스가 SOCKET이 아닌 경우(즉, HSMS 아웃바운드) 즉시 바인딩</p>
+     * <p>- SOCKET은 inbound/outbound 모두 핸드셰이크 후 바인딩</p>
+     *
+     * @return 즉시 바인딩 여부
+     */
+    private boolean shouldBindImmediatelyOnChannelActive() {
+        return presetEqpId != null && interfaceType != CommInterfaceType.SOCKET;
+    }
+
+    /**
+     * preset eqpId 기반 즉시 바인딩을 수행합니다.
+     *
+     * <p>즉시 바인딩 실패 시 채널을 종료하고, 성공 시 BOUND 상태로 전환합니다.</p>
+     *
+     * @param channel 대상 채널
+     */
+    private void bindImmediatelyWithPresetEqpId(final Channel channel) {
+        final EqpBindingService.BindResult result = bindingService.bindActive(presetEqpId, interfaceType, channel);
+        if (result != EqpBindingService.BindResult.OK) {
+            logBindRejected(result, presetEqpId, channel, "Immediate outbound");
+            metrics.decrementUnboundConnections();
+            metrics.decrementActiveConnections();
+            channel.close();
+            return;
+        }
+
+        NettyChannelAttributes.setEqpId(channel, presetEqpId);
+        NettyChannelAttributes.setBindState(channel, BindState.BOUND);
+        cancelBindTimeout(channel);
+        metrics.decrementUnboundConnections();
+        metrics.incrementBoundConnections();
+
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(presetEqpId)) {
+            log.info("ACTIVE_BIND_OK. eqpId={}, remote={}", presetEqpId, channel.remoteAddress());
+        }
+
+        // HSMS 즉시 바인딩 경로에서는 no-op이지만, 구조 일관성을 위해 호출합니다.
+        sendInitializeIfNeeded(channel);
+    }
+
+    /**
+     * 바인딩 시도 작업을 executor에 예약합니다.
+     *
+     * <p>동일 채널에서 동시 예약은 1건만 허용합니다.</p>
+     *
+     * @param channel 대상 채널
      */
     private void scheduleBindAttempt(final Channel channel) {
-        // 연결 제어 단계: 상태 전이와 예외 케이스를 함께 관리합니다.
         if (!bindScheduled.compareAndSet(false, true)) {
             return;
         }
@@ -272,12 +271,12 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         });
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * UNBOUND 채널의 바인딩 시도를 수행합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param channel 통신 채널/세션 정보
+     * <p>SOCKET outbound의 경우 추가 검증으로 preset eqpId와 rep eqpId 일치 여부를 확인합니다.</p>
+     *
+     * @param channel 대상 채널
      */
     private void attemptBind(final Channel channel) {
         if (!channel.isActive()) {
@@ -287,90 +286,170 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        // Bind flow (UNBOUND):
-        // - move queued bytes to buffer
-        // - try extract eqpId (registration message)
-        // - bind + create mailbox if owned/valid
-        final Optional<String> eqpIdOpt;
+        final Optional<String> extractedEqpIdOpt;
         try {
-            // inbox에 쌓인 바이트를 버퍼로 이동 (IO 스레드 밖에서 처리)
+            // 별도 executor에서 unbound inbox를 버퍼로 드레인하고 프레임 파싱을 수행합니다.
             unboundInbox.drainToBuffer();
-
-            // 등록 메시지 파싱:
-            // - 등록 성공 시 eqpId 반환
-            // - 등록 메시지가 아니면 버퍼를 유지하고 empty 반환
-            eqpIdOpt = switch (interfaceType) {
+            extractedEqpIdOpt = switch (interfaceType) {
                 case HSMS -> hsmsExtractor.tryExtractEqpId(unboundInbox.buffer());
                 case SOCKET -> socketExtractor.tryExtractEqpId(unboundInbox.buffer());
             };
         } catch (Exception ex) {
-            log.warn("Bind parsing failed. closing channel.", ex);
+            log.warn("Bind parsing failed. closing channel. remote={}", channel.remoteAddress(), ex);
             channel.close();
             return;
         }
 
-        if (eqpIdOpt.isEmpty()) {
+        if (extractedEqpIdOpt.isEmpty()) {
             return;
         }
 
-        final String eqpId = eqpIdOpt.get();
-        final EqpBindingService.BindResult result = bindingService.bindPassive(eqpId, interfaceType, channel);
+        final String extractedEqpId = extractedEqpIdOpt.get();
+        final boolean outboundChannel = presetEqpId != null;
+
+        // SOCKET 아웃바운드는 핸드셰이크 응답 eqpId가 목표 설비와 같아야만 바인딩합니다.
+        if (outboundChannel
+                && interfaceType == CommInterfaceType.SOCKET
+                && !presetEqpId.equals(extractedEqpId)) {
+            log.warn("SOCKET_INITIALIZE_EQPID_MISMATCH. expectedEqpId={}, replyEqpId={}, remote={}",
+                    presetEqpId,
+                    extractedEqpId,
+                    channel.remoteAddress());
+            channel.close();
+            return;
+        }
+
+        final String bindEqpId = outboundChannel ? presetEqpId : extractedEqpId;
+        final EqpBindingService.BindResult result = outboundChannel
+                ? bindingService.bindActive(bindEqpId, interfaceType, channel)
+                : bindingService.bindPassive(bindEqpId, interfaceType, channel);
 
         if (result != EqpBindingService.BindResult.OK) {
-            if (result == EqpBindingService.BindResult.DUPLICATE_CONNECTION) {
-                metrics.incrementDuplicateEqpReject();
-                if (logSampler.shouldLogDuplicateReject()) {
-                    log.warn("DUPLICATE_EQP_REJECT. eqpId={}, remote={}", eqpId, channel.remoteAddress());
-                }
-            } else if (result == EqpBindingService.BindResult.NOT_OWNED) {
-                if (logSampler.shouldLogNotOwnerReject()) {
-                    log.warn("NOT_OWNER_PARTITION. eqpId={}, remote={}", eqpId, channel.remoteAddress());
-                }
-            } else {
-                log.warn("Passive bind rejected. eqpId={}, result={}, remote={}", eqpId, result, channel.remoteAddress());
-            }
+            logBindRejected(result, bindEqpId, channel, outboundChannel ? "Outbound" : "Inbound");
             channel.close();
             return;
         }
 
-        NettyChannelAttributes.setEqpId(channel, eqpId);
+        NettyChannelAttributes.setEqpId(channel, bindEqpId);
         NettyChannelAttributes.setBindState(channel, BindState.BOUND);
         cancelBindTimeout(channel);
         metrics.decrementUnboundConnections();
         metrics.incrementBoundConnections();
 
-        // 설비별 로그 파일 생성을 위해 성공 바인딩 로그를 남긴다.
-        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
-            log.info("PASSIVE_BIND_OK. eqpId={}, remote={}", eqpId, channel.remoteAddress());
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(bindEqpId)) {
+            if (outboundChannel) {
+                log.info("ACTIVE_BIND_OK. eqpId={}, remote={}", bindEqpId, channel.remoteAddress());
+            } else {
+                log.info("PASSIVE_BIND_OK. eqpId={}, remote={}", bindEqpId, channel.remoteAddress());
+            }
         }
 
-        // 등록 완료 후 남은 메시지 drop: unbound buffer 비움
+        // 등록 완료 후 UNBOUND 버퍼를 비웁니다.
         unboundInbox.clear();
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 바인딩 거절 결과를 코드별로 로깅합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param channel 통신 채널/세션 정보
+     * @param result 바인딩 결과
+     * @param eqpId 대상 eqpId
+     * @param channel 대상 채널
+     * @param bindPath 로깅용 바인딩 경로 명
+     */
+    private void logBindRejected(
+            final EqpBindingService.BindResult result,
+            final String eqpId,
+            final Channel channel,
+            final String bindPath
+    ) {
+        if (result == EqpBindingService.BindResult.DUPLICATE_CONNECTION) {
+            metrics.incrementDuplicateEqpReject();
+            if (logSampler.shouldLogDuplicateReject()) {
+                log.warn("DUPLICATE_EQP_REJECT. bindPath={}, eqpId={}, remote={}",
+                        bindPath,
+                        eqpId,
+                        channel.remoteAddress());
+            }
+            return;
+        }
+
+        if (result == EqpBindingService.BindResult.NOT_OWNED) {
+            if (logSampler.shouldLogNotOwnerReject()) {
+                log.warn("NOT_OWNER_PARTITION. bindPath={}, eqpId={}, remote={}",
+                        bindPath,
+                        eqpId,
+                        channel.remoteAddress());
+            }
+            return;
+        }
+
+        log.warn("Bind rejected. bindPath={}, eqpId={}, result={}, remote={}",
+                bindPath,
+                eqpId,
+                result,
+                channel.remoteAddress());
+    }
+
+    /**
+     * UNBOUND 타임아웃 감시 작업을 채널 이벤트 루프에 예약합니다.
+     *
+     * <p>타임아웃 내에 BOUND 전환이 일어나지 않으면 채널을 닫습니다.</p>
+     *
+     * @param channel 대상 채널
+     */
+    private void scheduleBindTimeout(final Channel channel) {
+        cancelBindTimeout(channel);
+
+        final ScheduledFuture<?> task = channel.eventLoop().schedule(() -> {
+            if (!channel.isActive()) {
+                return;
+            }
+
+            final BindState state = NettyChannelAttributes.getBindState(channel);
+            if (state == BindState.UNBOUND) {
+                metrics.incrementBindTimeout();
+                if (logSampler.shouldLogBindTimeout()) {
+                    log.warn("BIND_TIMEOUT. closing channel. seconds={}, interfaceType={}, presetEqpId={}, remote={}",
+                            nettyProperties.getBindTimeoutSeconds(),
+                            interfaceType,
+                            presetEqpId,
+                            channel.remoteAddress());
+                }
+                channel.close();
+            }
+        }, nettyProperties.getBindTimeoutSeconds(), TimeUnit.SECONDS);
+
+        NettyChannelAttributes.setBindTimeoutTask(channel, task);
+        if (log.isDebugEnabled()) {
+            log.debug("Bind timeout scheduled. seconds={}, interfaceType={}, presetEqpId={}, remote={}",
+                    nettyProperties.getBindTimeoutSeconds(),
+                    interfaceType,
+                    presetEqpId,
+                    channel.remoteAddress());
+        }
+    }
+
+    /**
+     * 예약된 바인딩 타임아웃 작업을 취소합니다.
+     *
+     * @param channel 대상 채널
      */
     private void cancelBindTimeout(final Channel channel) {
         final ScheduledFuture<?> task = NettyChannelAttributes.getBindTimeoutTask(channel);
         if (task != null) {
             task.cancel(false);
         }
+        NettyChannelAttributes.setBindTimeoutTask(channel, null);
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 메시지 또는 이벤트를 발행합니다.
+     * SOCKET 채널일 때 initialize 명령을 전송합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param channel 통신 채널/세션 정보
+     * <p>설정값이 비활성화면 전송하지 않습니다.</p>
+     *
+     * @param channel 대상 채널
      */
     private void sendInitializeIfNeeded(final Channel channel) {
-        // 출력 단계: 결과를 외부 저장소/브로커로 반영합니다.
         if (interfaceType != CommInterfaceType.SOCKET) {
             return;
         }
@@ -379,6 +458,11 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         }
 
         final byte[] cmd = socketExtractor.initializeCommandBytes();
+        if (log.isDebugEnabled()) {
+            log.debug("SOCKET initialize command sent. presetEqpId={}, remote={}",
+                    presetEqpId,
+                    channel.remoteAddress());
+        }
         channel.writeAndFlush(io.netty.buffer.Unpooled.wrappedBuffer(cmd));
     }
 }

@@ -4,6 +4,7 @@ import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeMutationPort;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyPublishMode;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskEventType;
@@ -24,7 +25,8 @@ import java.util.Optional;
  * <p>역할:</p>
  * <p>1) eventType -> processor 매핑 등록/조회</p>
  * <p>2) Runtime 제어 요청 실행 및 {@link KafkaTaskResult} 표준 변환</p>
- * <p>3) EQP_UPDATE_JARFILE 요청 시 플러그인 런타임 리로드 위임</p>
+ * <p>3) START/END 요청의 지연 응답(deferred reply) pending 등록/해제</p>
+ * <p>4) EQP_UPDATE_JARFILE 요청 시 플러그인 런타임 리로드 위임</p>
  */
 @Component
 public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistry<KafkaUiTaskMessage> {
@@ -46,6 +48,9 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     /** UI Task 정책 설정입니다. */
     private final GatewayUiTaskPolicyProperties uiTaskPolicyProperties;
 
+    /** START/END 지연 응답 pending 관리 서비스입니다. */
+    private final GatewayUiDeferredLifecycleReplyService deferredLifecycleReplyService;
+
     /**
      * 레지스트리를 초기화하고 eventType 매핑을 구성합니다.
      *
@@ -56,10 +61,15 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
     public GatewayUiTaskProcessorRegistry(
             final GatewayUiRuntimeControlService runtimeControlService,
             final GatewayUiTaskPolicyProperties uiTaskPolicyProperties,
+            final GatewayUiDeferredLifecycleReplyService deferredLifecycleReplyService,
             final ObjectProvider<GatewaySocketPluginRuntimeMutationPort> pluginRuntimeMutationPortProvider
     ) {
         this.runtimeControlService = Objects.requireNonNull(runtimeControlService, "runtimeControlService is null");
         this.uiTaskPolicyProperties = Objects.requireNonNull(uiTaskPolicyProperties, "uiTaskPolicyProperties is null");
+        this.deferredLifecycleReplyService = Objects.requireNonNull(
+                deferredLifecycleReplyService,
+                "deferredLifecycleReplyService is null"
+        );
 
         final GatewaySocketPluginRuntimeMutationPort resolvedPort = pluginRuntimeMutationPortProvider.getIfAvailable();
         this.pluginRuntimeMutationConfigured = resolvedPort != null;
@@ -162,9 +172,12 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
                 mapped,
                 KafkaUiTaskEventType.EQP_START,
                 "EQP_START_REP",
-                message -> executeRuntimeTask(
+                KafkaTaskReplyPublishMode.DEFERRED_ON_PASS,
+                message -> executeDeferredLifecycleTask(
                         KafkaUiTaskEventType.EQP_START,
                         message,
+                        "EQP_START_REP",
+                        GatewayUiDeferredLifecycleReplyService.TransitionType.START,
                         uiTaskPolicyProperties.getStartTimeoutMs(),
                         () -> runtimeControlService.startRuntime(
                                 message.data().eqpId(),
@@ -180,9 +193,12 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
                 mapped,
                 KafkaUiTaskEventType.EQP_END,
                 "EQP_END_REP",
-                message -> executeRuntimeTask(
+                KafkaTaskReplyPublishMode.DEFERRED_ON_PASS,
+                message -> executeDeferredLifecycleTask(
                         KafkaUiTaskEventType.EQP_END,
                         message,
+                        "EQP_END_REP",
+                        GatewayUiDeferredLifecycleReplyService.TransitionType.END,
                         uiTaskPolicyProperties.getEndTimeoutMs(),
                         () -> runtimeControlService.endRuntime(
                                 message.data().eqpId(),
@@ -237,10 +253,30 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
             final String replyEventType,
             final GatewayUiTaskProcessor processor
     ) {
+        register(mapped, eventType, replyEventType, KafkaTaskReplyPublishMode.IMMEDIATE, processor);
+    }
+
+    /**
+     * eventType 처리기 스펙을 맵에 등록합니다.
+     *
+     * @param mapped 대상 맵
+     * @param eventType eventType
+     * @param replyEventType reply eventType
+     * @param replyPublishMode 응답 발행 정책
+     * @param processor 처리 로직
+     */
+    private void register(
+            final Map<String, KafkaTaskProcessorSpec<KafkaUiTaskMessage>> mapped,
+            final KafkaUiTaskEventType eventType,
+            final String replyEventType,
+            final KafkaTaskReplyPublishMode replyPublishMode,
+            final GatewayUiTaskProcessor processor
+    ) {
         final String key = eventType.name();
         final KafkaTaskProcessorSpec<KafkaUiTaskMessage> spec = new KafkaTaskProcessorSpec<>(
                 key,
                 replyEventType,
+                replyPublishMode,
                 processor::process
         );
         if (mapped.putIfAbsent(key, spec) != null) {
@@ -301,6 +337,93 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
                     message.metadata().traceId(),
                     ex
             );
+            return KafkaTaskResult.fail(
+                    GatewayUiRuntimeControlService.ErrorCode.INTERNAL_ERROR,
+                    unexpectedErrorMessage
+            );
+        }
+    }
+
+    /**
+     * lifecycle START/END 요청을 "지연 응답(deferred reply)" 정책으로 실행합니다.
+     *
+     * <p>처리 원칙:</p>
+     * <p>1) 요청 단계에서는 pending 등록 + 실제 동작 트리거만 수행하고 PASS를 반환합니다.</p>
+     * <p>2) 최종 START_REP/END_REP 발행은 lifecycle outcome 리스너에서 수행합니다.</p>
+     * <p>3) 요청 단계 예외가 발생하면 pending을 즉시 정리하고 FAIL을 반환합니다.</p>
+     *
+     * @param eventType UI 이벤트 타입
+     * @param message 원본 UI 메시지
+     * @param replyEventType 응답 이벤트 타입
+     * @param transitionType 전이 타입(START/END)
+     * @param timeoutMs 요청 timeout(ms)
+     * @param action 실제 실행 작업
+     * @param unexpectedErrorMessage 예기치 못한 예외 메시지
+     * @return 요청 단계 처리 결과
+     */
+    private KafkaTaskResult executeDeferredLifecycleTask(
+            final KafkaUiTaskEventType eventType,
+            final KafkaUiTaskMessage message,
+            final String replyEventType,
+            final GatewayUiDeferredLifecycleReplyService.TransitionType transitionType,
+            final long timeoutMs,
+            final RuntimeControlAction action,
+            final String unexpectedErrorMessage
+    ) {
+        final String eqpId = message == null || message.data() == null ? null : message.data().eqpId();
+        final String traceId = message == null || message.metadata() == null ? null : message.metadata().traceId();
+
+        if (log.isDebugEnabled()) {
+            log.debug("UI {} deferred task start. eqpId={}, traceId={}, replyEventType={}, timeoutMs={}, transition={}",
+                    eventType,
+                    eqpId,
+                    traceId,
+                    replyEventType,
+                    timeoutMs,
+                    transitionType);
+        }
+
+        try {
+            if (transitionType == GatewayUiDeferredLifecycleReplyService.TransitionType.START) {
+                deferredLifecycleReplyService.registerStartPending(message, replyEventType, timeoutMs);
+            } else {
+                deferredLifecycleReplyService.registerEndPending(message, replyEventType, timeoutMs);
+            }
+
+            try {
+                action.run();
+            } catch (Exception ex) {
+                deferredLifecycleReplyService.clearPendingOnRequestFailure(
+                        eqpId,
+                        traceId,
+                        transitionType,
+                        "REQUEST_FAILURE"
+                );
+                throw ex;
+            }
+
+            log.info("UI {} deferred task accepted. eqpId={}, traceId={}, replyEventType={}, transition={}",
+                    eventType,
+                    eqpId,
+                    traceId,
+                    replyEventType,
+                    transitionType);
+            return KafkaTaskResult.pass();
+        } catch (GatewayUiRuntimeControlService.ProcessingException ex) {
+            log.warn("UI {} deferred task failed. eqpId={}, traceId={}, errorCode={}, transition={}",
+                    eventType,
+                    eqpId,
+                    traceId,
+                    ex.errorCode(),
+                    transitionType);
+            return KafkaTaskResult.fail(ex.errorCode(), ex.getMessage());
+        } catch (Exception ex) {
+            log.error("UI {} deferred task failed by unexpected error. eqpId={}, traceId={}, transition={}",
+                    eventType,
+                    eqpId,
+                    traceId,
+                    transitionType,
+                    ex);
             return KafkaTaskResult.fail(
                     GatewayUiRuntimeControlService.ErrorCode.INTERNAL_ERROR,
                     unexpectedErrorMessage

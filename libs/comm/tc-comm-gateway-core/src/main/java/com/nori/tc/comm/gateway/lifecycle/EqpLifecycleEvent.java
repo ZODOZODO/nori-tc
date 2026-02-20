@@ -106,6 +106,28 @@ public record EqpLifecycleEvent(
     }
 
     /**
+     * START 실패 이벤트를 생성합니다.
+     *
+     * <p>예: 아웃바운드 재시도 소진 등으로 더 이상 START 전이 진행이 불가능한 경우</p>
+     */
+    public static EqpLifecycleEvent startFailed(
+            final String eqpId,
+            final String traceId,
+            final long stateVersion,
+            final String reason
+    ) {
+        return new EqpLifecycleEvent(
+                eqpId,
+                EqpLifecycleEventType.START_FAILED,
+                traceId,
+                stateVersion,
+                0L,
+                reason,
+                System.currentTimeMillis()
+        );
+    }
+
+    /**
      * END timeout 이벤트를 생성합니다.
      */
     public static EqpLifecycleEvent endTimeout(
@@ -199,6 +221,7 @@ public record EqpLifecycleEvent(
         CHANNEL_CONNECTED,
         CHANNEL_DISCONNECTED,
         START_TIMEOUT,
+        START_FAILED,
         END_TIMEOUT
     }
 }

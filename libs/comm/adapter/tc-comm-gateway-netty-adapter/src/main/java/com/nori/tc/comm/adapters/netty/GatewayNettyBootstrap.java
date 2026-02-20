@@ -7,6 +7,7 @@ import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
+import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
 import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -33,14 +34,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Gateway Netty 부트스트랩 관리자입니다.
+ * Gateway Netty 서버/클라이언트 부트스트랩 관리자입니다.
  *
- * <p>역할:
- * 1) PASSIVE 모드 수신 서버(HSMS/SOCKET) 기동
- * 2) ACTIVE 모드 장비 대상 클라이언트 연결/재연결 관리
- * 3) UI runtime 제어 요청에 따른 재연결 억제/재개/즉시 연결 제어</p>
+ * <p>핵심 동작:</p>
+ * <p>1) HSMS/SOCKET 서버 포트를 항상 열어 수신을 허용합니다.</p>
+ * <p>2) 설비 connectionMode가 PASSIVE인 설비에 대해서만 아웃바운드 접속을 시도합니다.</p>
+ * <p>3) 아웃바운드 연결 시도 실패가 설정 임계값 이상 누적되면 자동 재연결을 중단합니다.</p>
+ *
+ * <p>참고: 메서드 이름에 "Active"가 남아 있는 포트 시그니처는 하위 호환 목적입니다.
+ * 실제 의미는 "게이트웨이 아웃바운드 연결 제어"입니다.</p>
  */
 @Component
 public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionControlPort {
@@ -51,6 +56,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private final EquipmentInfoProvider equipmentInfoProvider;
     private final GatewayChannelHandlerFactory handlerFactory;
     private final KafkaShardOwnership shardOwnership;
+    private final EqpLifecycleStateMachine lifecycleStateMachine;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -58,31 +64,40 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private Channel socketServerChannel;
     private ScheduledExecutorService reconnectScheduler;
 
+    /**
+     * 동일 설비에 대해 중복 재연결 스케줄 등록을 방지합니다.
+     */
     private final ConcurrentHashMap<String, AtomicBoolean> reconnecting = new ConcurrentHashMap<>();
+    /**
+     * 자동 재연결 중단 대상 설비 목록입니다.
+     */
     private final Set<String> reconnectSuppressedEqpIds = ConcurrentHashMap.newKeySet();
+    /**
+     * 설비별 아웃바운드 연속 실패 횟수입니다.
+     */
+    private final ConcurrentHashMap<String, AtomicInteger> consecutiveOutboundFailures = new ConcurrentHashMap<>();
 
     private volatile boolean running = false;
 
     /**
-     * Netty 서버/클라이언트 부트스트랩 구성요소를 초기화합니다.
+     * Netty 부트스트랩 의존성을 주입받아 초기화합니다.
      */
     public GatewayNettyBootstrap(
             final GatewayNettyProperties nettyProperties,
             final EquipmentInfoProvider equipmentInfoProvider,
             final GatewayChannelHandlerFactory handlerFactory,
-            final KafkaShardOwnership shardOwnership
+            final KafkaShardOwnership shardOwnership,
+            final EqpLifecycleStateMachine lifecycleStateMachine
     ) {
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
         this.equipmentInfoProvider = Objects.requireNonNull(equipmentInfoProvider, "equipmentInfoProvider is null");
         this.handlerFactory = Objects.requireNonNull(handlerFactory, "handlerFactory is null");
         this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
+        this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
     }
 
     /**
-     * SmartLifecycle 시작 진입점입니다.
-     *
-     * <p>이벤트루프/재연결 스케줄러를 초기화하고
-     * PASSIVE 서버 + ACTIVE 초기 연결을 순차적으로 시작합니다.</p>
+     * 라이프사이클 시작 시 서버 포트와 아웃바운드 연결 스케줄러를 기동합니다.
      */
     @Override
     public void start() {
@@ -111,9 +126,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * SmartLifecycle 종료 진입점입니다.
-     *
-     * <p>서버 채널을 닫고 이벤트루프/스케줄러를 정리합니다.</p>
+     * 라이프사이클 종료 시 채널/스레드 자원을 정리합니다.
      */
     @Override
     public void stop() {
@@ -133,11 +146,15 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             reconnectScheduler.shutdown();
         }
 
+        reconnecting.clear();
+        reconnectSuppressedEqpIds.clear();
+        consecutiveOutboundFailures.clear();
+
         log.info("GatewayNettyBootstrap stopped.");
     }
 
     /**
-     * 현재 부트스트랩 실행 여부를 반환합니다.
+     * 현재 실행 여부를 반환합니다.
      */
     @Override
     public boolean isRunning() {
@@ -145,7 +162,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 라이프사이클 phase를 반환합니다.
+     * SmartLifecycle phase를 반환합니다.
      */
     @Override
     public int getPhase() {
@@ -153,9 +170,12 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * ACTIVE 모드 장비에 대해 즉시 연결 시도를 수행합니다.
+     * 지정 설비에 대해 아웃바운드 즉시 연결을 요청합니다.
      *
-     * <p>소유 shard, 장비 존재/활성 여부, connectionMode를 모두 통과할 때만 연결합니다.</p>
+     * <p>하위 호환 때문에 메서드명은 connectActiveIfPossible이지만,
+     * 실제로는 설비 connectionMode=PASSIVE 대상만 연결 시도합니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
      */
     @Override
     public void connectActiveIfPossible(final String eqpId) {
@@ -163,39 +183,44 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return;
         }
         if (!running) {
-            log.warn("Active connect skipped (gateway not running). eqpId={}", eqpId);
+            log.warn("Outbound connect skipped (gateway not running). eqpId={}", eqpId);
             return;
         }
         if (!shardOwnership.isOwned(eqpId)) {
             if (log.isDebugEnabled()) {
-                log.debug("Active connect skipped (not owned). eqpId={}", eqpId);
+                log.debug("Outbound connect skipped (not owned). eqpId={}", eqpId);
             }
             return;
         }
 
         final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
         if (info == null) {
-            log.warn("Active connect skipped (equipment not found). eqpId={}", eqpId);
+            log.warn("Outbound connect skipped (equipment not found). eqpId={}", eqpId);
             return;
         }
         if (!info.enabled()) {
-            log.warn("Active connect skipped (equipment disabled). eqpId={}", eqpId);
+            log.warn("Outbound connect skipped (equipment disabled). eqpId={}", eqpId);
             return;
         }
-        if (info.connectionMode() != ConnectionMode.ACTIVE) {
+        if (info.connectionMode() != ConnectionMode.PASSIVE) {
             if (log.isDebugEnabled()) {
-                log.debug("Active connect skipped (not ACTIVE mode). eqpId={}, mode={}", eqpId, info.connectionMode());
+                log.debug("Outbound connect skipped (equipment mode is not PASSIVE). eqpId={}, mode={}",
+                        eqpId,
+                        info.connectionMode());
             }
             return;
         }
 
         reconnectSuppressedEqpIds.remove(eqpId);
-        log.info("Active connect requested by runtime control. eqpId={}", eqpId);
-        connectActive(info);
+        resetOutboundFailureCounter(eqpId, "manual connect request");
+        log.info("Outbound connect requested by runtime control. eqpId={}", eqpId);
+        connectOutbound(info);
     }
 
     /**
-     * 장비별 ACTIVE 재연결을 억제합니다.
+     * 자동 재연결을 억제합니다.
+     *
+     * @param eqpId 대상 설비 ID
      */
     @Override
     public void suppressActiveReconnect(final String eqpId) {
@@ -203,11 +228,15 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return;
         }
         reconnectSuppressedEqpIds.add(eqpId);
-        log.info("Active reconnect suppressed. eqpId={}", eqpId);
+        log.info("Outbound reconnect suppressed. eqpId={}", eqpId);
     }
 
     /**
-     * 장비별 ACTIVE 재연결 억제를 해제합니다.
+     * 자동 재연결 억제를 해제합니다.
+     *
+     * <p>재개 시 연속 실패 카운터도 초기화하여 신규 시퀀스로 재시도합니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
      */
     @Override
     public void resumeActiveReconnect(final String eqpId) {
@@ -215,11 +244,12 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return;
         }
         reconnectSuppressedEqpIds.remove(eqpId);
-        log.info("Active reconnect resumed. eqpId={}", eqpId);
+        resetOutboundFailureCounter(eqpId, "manual reconnect resume");
+        log.info("Outbound reconnect resumed. eqpId={}", eqpId);
     }
 
     /**
-     * PASSIVE 수신 서버(HSMS/SOCKET)를 시작합니다.
+     * HSMS/SOCKET 서버 포트를 시작합니다.
      */
     private void startServers() {
         hsmsServerChannel = startServer(nettyProperties.getHsmsBindPort(), CommInterfaceType.HSMS);
@@ -227,7 +257,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 단일 인터페이스 타입용 Netty 서버를 기동합니다.
+     * 단일 인터페이스용 Netty 서버를 시작합니다.
+     *
+     * @param port 바인드 포트
+     * @param interfaceType 인터페이스 타입
+     * @return 서버 채널
      */
     private Channel startServer(final int port, final CommInterfaceType interfaceType) {
         try {
@@ -236,11 +270,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         /**
-                         * initChannel 기능을 수행합니다.
-                         *
-                         * @param ch 입력 값
+                         * 수신 채널 파이프라인에 PASSIVE 핸들러를 등록합니다.
                          */
-
                         @Override
                         protected void initChannel(final SocketChannel ch) {
                             ch.pipeline().addLast(handlerFactory.newPassiveHandler(interfaceType));
@@ -257,52 +288,54 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * ACTIVE 장비 목록을 조회해 초기 연결을 시도합니다.
+     * 전체 설비 목록 중 아웃바운드 대상(PASSIVE) 설비에 대해 초기 연결을 시도합니다.
      */
     private void startActiveConnections() {
         final List<GatewayEquipmentInfo> equipmentList = equipmentInfoProvider.findAll();
-        log.info("Active connection bootstrap started. totalEquipments={}", equipmentList.size());
+        log.info("Outbound connection bootstrap started. totalEquipments={}", equipmentList.size());
 
         for (GatewayEquipmentInfo info : equipmentList) {
             if (!info.enabled() || info.connectionMode() == null) {
                 continue;
             }
-            if (info.connectionMode() != ConnectionMode.ACTIVE) {
+            if (info.connectionMode() != ConnectionMode.PASSIVE) {
                 continue;
             }
             if (!shardOwnership.isOwned(info.equipmentId())) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Active connect skipped (not owned). eqpId={}", info.equipmentId());
+                    log.debug("Outbound connect skipped (not owned). eqpId={}", info.equipmentId());
                 }
                 continue;
             }
             if (reconnectSuppressedEqpIds.contains(info.equipmentId())) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Active connect skipped (suppressed). eqpId={}", info.equipmentId());
+                    log.debug("Outbound connect skipped (suppressed). eqpId={}", info.equipmentId());
                 }
                 continue;
             }
-            connectActive(info);
+            connectOutbound(info);
         }
     }
 
     /**
-     * ACTIVE 모드 단일 장비 연결을 수행합니다.
+     * 단일 설비에 대한 아웃바운드 연결을 시도합니다.
+     *
+     * @param info 설비 정보
      */
-    private void connectActive(final GatewayEquipmentInfo info) {
+    private void connectOutbound(final GatewayEquipmentInfo info) {
         final String eqpId = info.equipmentId();
         if (reconnectSuppressedEqpIds.contains(eqpId)) {
             if (log.isDebugEnabled()) {
-                log.debug("Active connect skipped (suppressed). eqpId={}", eqpId);
+                log.debug("Outbound connect skipped (suppressed). eqpId={}", eqpId);
             }
             return;
         }
         if (info.eqpIp() == null || info.eqpIp().isBlank()) {
-            log.warn("Active connect skipped (missing eqpIp). eqpId={}", eqpId);
+            log.warn("Outbound connect skipped (missing eqpIp). eqpId={}", eqpId);
             return;
         }
         if (info.eqpPort() == null || info.eqpPort() <= 0) {
-            log.warn("Active connect skipped (invalid eqpPort). eqpId={}", eqpId);
+            log.warn("Outbound connect skipped (invalid eqpPort). eqpId={}", eqpId);
             return;
         }
 
@@ -312,11 +345,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, nettyProperties.getConnectTimeoutMillis())
                 .handler(new ChannelInitializer<SocketChannel>() {
                     /**
-                     * initChannel 기능을 수행합니다.
-                     *
-                     * @param ch 입력 값
+                     * 아웃바운드 채널 파이프라인에 ACTIVE 핸들러를 등록합니다.
                      */
-
                     @Override
                     protected void initChannel(final SocketChannel ch) {
                         ch.pipeline().addLast(handlerFactory.newActiveHandler(info.commInterfaceType(), eqpId));
@@ -324,28 +354,114 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 });
 
         if (log.isDebugEnabled()) {
-            log.debug("Active connect attempt. eqpId={}, ip={}, port={}", eqpId, info.eqpIp(), info.eqpPort());
+            log.debug("Outbound connect attempt. eqpId={}, ip={}, port={}", eqpId, info.eqpIp(), info.eqpPort());
         }
         bootstrap.connect(info.eqpIp(), info.eqpPort()).addListener((ChannelFuture future) -> {
             if (!future.isSuccess()) {
-                log.warn("Active connect failed. eqpId={}, {}", eqpId,
-                        future.cause() == null ? "" : future.cause().getMessage());
-                scheduleReconnect(info);
+                final String errorMessage = future.cause() == null ? "unknown" : future.cause().getMessage();
+                handleOutboundAttemptFailure(info, "TCP_CONNECT_FAILED: " + errorMessage);
                 return;
             }
-            log.info("Active connect success. eqpId={}", eqpId);
-            future.channel().closeFuture().addListener(closeFuture -> scheduleReconnect(info));
+
+            log.info("Outbound TCP connect success. eqpId={}", eqpId);
+            final Channel channel = future.channel();
+            channel.closeFuture().addListener(closeFuture -> handleOutboundChannelClosed(info, channel));
         });
     }
 
     /**
-     * ACTIVE 연결 실패/종료 후 재연결을 예약합니다.
+     * 아웃바운드 채널 종료 시 바운드 여부에 따라 성공/실패를 분기 처리합니다.
+     *
+     * <p>BOUND 상태로 한 번이라도 정상 바인딩된 채널이면 연속 실패 카운터를 초기화하고 재연결합니다.</p>
+     * <p>BOUND 이전에 닫힌 채널이면 시도 실패로 간주해 연속 실패 카운터를 증가시킵니다.</p>
+     *
+     * @param info 설비 정보
+     * @param channel 종료된 채널
+     */
+    private void handleOutboundChannelClosed(final GatewayEquipmentInfo info, final Channel channel) {
+        final String eqpId = info.equipmentId();
+        final boolean boundAtLeastOnce = NettyChannelAttributes.getBindState(channel) == BindState.BOUND
+                || NettyChannelAttributes.getEqpId(channel) != null;
+
+        if (boundAtLeastOnce) {
+            resetOutboundFailureCounter(eqpId, "bound session closed");
+            scheduleReconnect(info);
+            return;
+        }
+
+        handleOutboundAttemptFailure(info, "CHANNEL_CLOSED_BEFORE_BIND");
+    }
+
+    /**
+     * 아웃바운드 연결 시도 실패를 기록하고 재연결/중단을 결정합니다.
+     *
+     * @param info 설비 정보
+     * @param reason 실패 사유
+     */
+    private void handleOutboundAttemptFailure(final GatewayEquipmentInfo info, final String reason) {
+        final String eqpId = info.equipmentId();
+        if (reconnectSuppressedEqpIds.contains(eqpId)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Outbound attempt failure ignored (suppressed). eqpId={}, reason={}", eqpId, reason);
+            }
+            return;
+        }
+
+        final int failureCount = consecutiveOutboundFailures
+                .computeIfAbsent(eqpId, key -> new AtomicInteger(0))
+                .incrementAndGet();
+        final int maxFailures = nettyProperties.getOutboundMaxConsecutiveFailures();
+
+        if (failureCount >= maxFailures) {
+            reconnectSuppressedEqpIds.add(eqpId);
+            lifecycleStateMachine.onStartFailedIfPending(
+                    eqpId,
+                    "SYSTEM",
+                    "OUTBOUND_RETRY_EXHAUSTED"
+            );
+            log.error(
+                    "Outbound reconnect stopped after consecutive failures. eqpId={}, failureCount={}, threshold={}, reason={}",
+                    eqpId,
+                    failureCount,
+                    maxFailures,
+                    reason
+            );
+            return;
+        }
+
+        log.info("Outbound attempt failed. eqpId={}, consecutiveFailureCount={}, reason={}",
+                eqpId,
+                failureCount,
+                reason);
+        scheduleReconnect(info);
+    }
+
+    /**
+     * 설비의 아웃바운드 연속 실패 카운터를 초기화합니다.
+     *
+     * @param eqpId 설비 ID
+     * @param reason 초기화 사유
+     */
+    private void resetOutboundFailureCounter(final String eqpId, final String reason) {
+        final AtomicInteger removed = consecutiveOutboundFailures.remove(eqpId);
+        if (removed != null && removed.get() > 0 && log.isDebugEnabled()) {
+            log.debug("Outbound failure counter reset. eqpId={}, previousCount={}, reason={}",
+                    eqpId,
+                    removed.get(),
+                    reason);
+        }
+    }
+
+    /**
+     * 아웃바운드 재연결을 예약합니다.
+     *
+     * @param info 설비 정보
      */
     private void scheduleReconnect(final GatewayEquipmentInfo info) {
         final String eqpId = info.equipmentId();
         if (reconnectSuppressedEqpIds.contains(eqpId)) {
             if (log.isDebugEnabled()) {
-                log.debug("Active reconnect skipped (suppressed). eqpId={}", eqpId);
+                log.debug("Outbound reconnect skipped (suppressed). eqpId={}", eqpId);
             }
             return;
         }
@@ -356,13 +472,14 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Scheduling active reconnect. eqpId={}, delayMs={}",
-                    eqpId, nettyProperties.getActiveReconnectDelayMs());
+            log.debug("Scheduling outbound reconnect. eqpId={}, delayMs={}",
+                    eqpId,
+                    nettyProperties.getActiveReconnectDelayMs());
         }
 
         reconnectScheduler.schedule(GatewayLogContext.wrap(() -> {
             try {
-                connectActive(info);
+                connectOutbound(info);
             } finally {
                 flag.set(false);
             }
@@ -370,7 +487,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 채널을 null-safe하게 닫습니다.
+     * 채널 null-safe 종료 헬퍼입니다.
+     *
+     * @param channel 종료 대상 채널
      */
     private void safeClose(final Channel channel) {
         if (channel != null) {

@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>1) START/END 요청을 비동기 ACCEPT 방식으로 전환</p>
  * <p>2) 채널 CONNECTED/DISCONNECTED 이벤트를 받아 완료 시점 확정</p>
  * <p>3) stateVersion 기반 stale timeout 이벤트 무시</p>
+ * <p>4) 외부 리스너로 전이 결과(outcome) 전달</p>
  */
 @Service
 public class EqpLifecycleStateMachine implements SmartLifecycle {
@@ -46,6 +47,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayProcessingService processingService;
     private final EquipmentStatePersistencePort statePersistencePort;
+    private final EqpLifecycleOutcomeListener outcomeListener;
 
     /**
      * eqpId별 이벤트 직렬 처리를 위한 공용 스케줄러입니다.
@@ -81,13 +83,15 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
             final EquipmentContextRegistry contextRegistry,
             final EquipmentChannelRegistry channelRegistry,
             final GatewayProcessingService processingService,
-            final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider
+            final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider,
+            final ObjectProvider<EqpLifecycleOutcomeListener> outcomeListenerProvider
     ) {
         this.lifecycleProperties = Objects.requireNonNull(lifecycleProperties, "lifecycleProperties is null");
         this.contextRegistry = Objects.requireNonNull(contextRegistry, "contextRegistry is null");
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.statePersistencePort = statePersistencePortProvider.getIfAvailable(() -> EquipmentStatePersistencePort.NO_OP);
+        this.outcomeListener = outcomeListenerProvider.getIfAvailable(EqpLifecycleOutcomeListener::noOp);
         this.eventScheduler = new MailboxScheduler<>(lifecycleProperties.getEventMailboxCapacity());
     }
 
@@ -139,6 +143,29 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     ) {
         final String normalizedEqpId = normalizeEqpId(eqpId);
         publish(EqpLifecycleEvent.channelDisconnected(normalizedEqpId, traceId, reason));
+    }
+
+    /**
+     * 현재 START pending 전이를 외부 실패 신호로 종료합니다.
+     *
+     * <p>대표적으로 아웃바운드 연결 재시도 한계 소진처럼,
+     * lifecycle timeout까지 기다릴 필요 없이 실패를 확정할 때 사용합니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId 연관 traceId
+     * @param reason 실패 사유 코드
+     */
+    public void onStartFailedIfPending(
+            final String eqpId,
+            final String traceId,
+            final String reason
+    ) {
+        final String normalizedEqpId = normalizeEqpId(eqpId);
+        final PendingTransition pending = pendingTransitionByEqp.get(normalizedEqpId);
+        final long stateVersion = pending != null && pending.type() == PendingType.START
+                ? pending.stateVersion()
+                : 0L;
+        publish(EqpLifecycleEvent.startFailed(normalizedEqpId, traceId, stateVersion, reason));
     }
 
     /**
@@ -278,6 +305,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                 case CHANNEL_CONNECTED -> handleChannelConnected(event);
                 case CHANNEL_DISCONNECTED -> handleChannelDisconnected(event);
                 case START_TIMEOUT -> handleStartTimeout(event);
+                case START_FAILED -> handleStartFailed(event);
                 case END_TIMEOUT -> handleEndTimeout(event);
             }
         } catch (Exception ex) {
@@ -325,6 +353,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     event.traceId(),
                     "Lifecycle start completed immediately (already connected)"
             );
+            emitOutcome(EqpLifecycleOutcome.startApplied(
+                    eqpId,
+                    event.traceId(),
+                    event.stateVersion(),
+                    "ALREADY_CONNECTED"
+            ));
             log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=START, stateVersion={}, result=CONNECTED",
                     eqpId,
                     event.stateVersion());
@@ -381,6 +415,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     event.traceId(),
                     "Lifecycle end completed immediately (already disconnected)"
             );
+            emitOutcome(EqpLifecycleOutcome.endApplied(
+                    eqpId,
+                    event.traceId(),
+                    event.stateVersion(),
+                    "ALREADY_DISCONNECTED"
+            ));
             log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=END, stateVersion={}, result=DISCONNECTED",
                     eqpId,
                     event.stateVersion());
@@ -433,6 +473,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     pending.traceId(),
                     "Lifecycle start completed by channel connected event"
             );
+            emitOutcome(EqpLifecycleOutcome.startApplied(
+                    eqpId,
+                    pending.traceId(),
+                    pending.stateVersion(),
+                    event.reason()
+            ));
             log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=START, stateVersion={}, reason={}",
                     eqpId,
                     pending.stateVersion(),
@@ -481,6 +527,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     pending.traceId(),
                     "Lifecycle end completed by channel disconnected event"
             );
+            emitOutcome(EqpLifecycleOutcome.endApplied(
+                    eqpId,
+                    pending.traceId(),
+                    pending.stateVersion(),
+                    event.reason()
+            ));
             log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=END, stateVersion={}, reason={}",
                     eqpId,
                     pending.stateVersion(),
@@ -533,6 +585,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     pending.traceId(),
                     "Lifecycle start completed by timeout recovery (channel already connected)"
             );
+            emitOutcome(EqpLifecycleOutcome.startApplied(
+                    eqpId,
+                    pending.traceId(),
+                    pending.stateVersion(),
+                    "TIMEOUT_RECOVERED"
+            ));
             log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=START, stateVersion={}, reason=TIMEOUT_RECOVERED",
                     eqpId,
                     pending.stateVersion());
@@ -544,11 +602,92 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
             context.updateRuntimeState(EquipmentRuntimeState.ERROR, "LIFECYCLE_START_TIMEOUT", pending.traceId());
         }
         pendingTransitionByEqp.remove(eqpId, pending);
+        emitOutcome(EqpLifecycleOutcome.startFailed(
+                eqpId,
+                pending.traceId(),
+                pending.stateVersion(),
+                "START_TIMEOUT"
+        ));
 
         log.warn("LIFECYCLE_TIMEOUT. eqpId={}, transition=START, stateVersion={}, timeoutMs={}",
                 eqpId,
                 pending.stateVersion(),
                 pending.timeoutMs());
+    }
+
+    /**
+     * 외부 신호로 전달된 START 실패 이벤트를 처리합니다.
+     */
+    private void handleStartFailed(final EqpLifecycleEvent event) {
+        final String eqpId = event.eqpId();
+        final PendingTransition pending = pendingTransitionByEqp.get(eqpId);
+        if (pending == null || pending.type() != PendingType.START) {
+            if (log.isDebugEnabled()) {
+                log.debug("START failed signal ignored because no START pending exists. eqpId={}, reason={}",
+                        eqpId,
+                        event.reason());
+            }
+            return;
+        }
+
+        if (event.stateVersion() > 0L
+                && !EqpLifecycleTransitionGuard.isMatchingTimeout(event.stateVersion(), pending.stateVersion())) {
+            if (log.isDebugEnabled()) {
+                log.debug("Stale START failed signal ignored. eqpId={}, failedStateVersion={}, pendingStateVersion={}, reason={}",
+                        eqpId,
+                        event.stateVersion(),
+                        pending.stateVersion(),
+                        event.reason());
+            }
+            return;
+        }
+
+        if (isChannelActive(eqpId)) {
+            final EquipmentContext context = findContextOrNull(eqpId);
+            if (context != null) {
+                context.updateRuntimeState(
+                        EquipmentRuntimeState.CONNECTED,
+                        "LIFECYCLE_START_FAILED_RECOVERED",
+                        pending.traceId()
+                );
+            }
+            pendingTransitionByEqp.remove(eqpId, pending);
+            statePersistencePort.recordStart(
+                    eqpId,
+                    pending.traceId(),
+                    "Lifecycle start completed by external failure recovery (channel already connected)"
+            );
+            emitOutcome(EqpLifecycleOutcome.startApplied(
+                    eqpId,
+                    pending.traceId(),
+                    pending.stateVersion(),
+                    "FAILED_SIGNAL_RECOVERED"
+            ));
+            log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=START, stateVersion={}, reason=FAILED_SIGNAL_RECOVERED",
+                    eqpId,
+                    pending.stateVersion());
+            return;
+        }
+
+        final EquipmentContext context = findContextOrNull(eqpId);
+        if (context != null) {
+            context.updateRuntimeState(EquipmentRuntimeState.ERROR, "LIFECYCLE_START_FAILED_SIGNAL", pending.traceId());
+        }
+
+        pendingTransitionByEqp.remove(eqpId, pending);
+        final String failureReason = (event.reason() == null || event.reason().isBlank())
+                ? "START_FAILED"
+                : event.reason();
+        emitOutcome(EqpLifecycleOutcome.startFailed(
+                eqpId,
+                pending.traceId(),
+                pending.stateVersion(),
+                failureReason
+        ));
+        log.warn("LIFECYCLE_FAILED. eqpId={}, transition=START, stateVersion={}, reason={}",
+                eqpId,
+                pending.stateVersion(),
+                failureReason);
     }
 
     /**
@@ -593,6 +732,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     pending.traceId(),
                     "Lifecycle end completed by timeout recovery (channel already disconnected)"
             );
+            emitOutcome(EqpLifecycleOutcome.endApplied(
+                    eqpId,
+                    pending.traceId(),
+                    pending.stateVersion(),
+                    "TIMEOUT_RECOVERED"
+            ));
             log.info("LIFECYCLE_TRANSITION_APPLIED. eqpId={}, transition=END, stateVersion={}, reason=TIMEOUT_RECOVERED",
                     eqpId,
                     pending.stateVersion());
@@ -600,6 +745,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
         }
 
         pendingTransitionByEqp.remove(eqpId, pending);
+        emitOutcome(EqpLifecycleOutcome.endFailed(
+                eqpId,
+                pending.traceId(),
+                pending.stateVersion(),
+                "END_TIMEOUT"
+        ));
         log.warn("LIFECYCLE_TIMEOUT. eqpId={}, transition=END, stateVersion={}, timeoutMs={}",
                 eqpId,
                 pending.stateVersion(),
@@ -644,6 +795,36 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                     pendingType,
                     requestEvent.stateVersion(),
                     boundedTimeoutMs);
+        }
+    }
+
+    /**
+     * lifecycle 전이 결과를 외부 리스너에 전달합니다.
+     *
+     * <p>리스너 실패가 상태머신 본처리에 영향을 주지 않도록 예외를 격리합니다.</p>
+     *
+     * @param outcome 전이 확정 결과
+     */
+    private void emitOutcome(final EqpLifecycleOutcome outcome) {
+        Objects.requireNonNull(outcome, "outcome is null");
+        try {
+            outcomeListener.onOutcome(outcome);
+            if (log.isDebugEnabled()) {
+                log.debug("Lifecycle outcome emitted. eqpId={}, transition={}, status={}, stateVersion={}, reason={}",
+                        outcome.eqpId(),
+                        outcome.transition(),
+                        outcome.status(),
+                        outcome.stateVersion(),
+                        outcome.reason());
+            }
+        } catch (Exception ex) {
+            log.error("Lifecycle outcome listener failed. eqpId={}, transition={}, status={}, stateVersion={}, reason={}",
+                    outcome.eqpId(),
+                    outcome.transition(),
+                    outcome.status(),
+                    outcome.stateVersion(),
+                    outcome.reason(),
+                    ex);
         }
     }
 

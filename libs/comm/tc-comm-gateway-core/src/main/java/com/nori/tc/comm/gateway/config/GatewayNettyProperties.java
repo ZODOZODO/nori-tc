@@ -70,6 +70,13 @@ public class GatewayNettyProperties {
     private Integer reconnectSchedulerThreads;
 
     /**
+     * 아웃바운드 연결의 연속 실패 허용 횟수입니다.
+     *
+     * <p>해당 횟수 이상 실패하면 자동 재연결을 중단하고 suppress 상태로 전환합니다.</p>
+     */
+    private Integer outboundMaxConsecutiveFailures;
+
+    /**
      * Whether to send "CMD=INITIALIZE" on socket connect.
      */
     private Boolean socketSendInitializeOnConnect;
@@ -132,6 +139,9 @@ public class GatewayNettyProperties {
         }
         if (reconnectSchedulerThreads == null || reconnectSchedulerThreads <= 0) {
             throw new IllegalStateException("tc.comm.gateway.netty.reconnect-scheduler-threads must be > 0");
+        }
+        if (outboundMaxConsecutiveFailures == null || outboundMaxConsecutiveFailures <= 0) {
+            throw new IllegalStateException("tc.comm.gateway.netty.outbound-max-consecutive-failures must be > 0");
         }
         if (socketSendInitializeOnConnect == null) {
             throw new IllegalStateException("tc.comm.gateway.netty.socket-send-initialize-on-connect is required");
@@ -391,7 +401,27 @@ public class GatewayNettyProperties {
         this.reconnectSchedulerThreads = reconnectSchedulerThreads;
     }
 
-    
+
+    /**
+     * 아웃바운드 연속 실패 허용 횟수를 조회합니다.
+     *
+     * @return 아웃바운드 연속 실패 허용 횟수
+     */
+    public int getOutboundMaxConsecutiveFailures() {
+        return outboundMaxConsecutiveFailures;
+    }
+
+
+    /**
+     * 아웃바운드 연속 실패 허용 횟수를 설정합니다.
+     *
+     * @param outboundMaxConsecutiveFailures 아웃바운드 연속 실패 허용 횟수
+     */
+    public void setOutboundMaxConsecutiveFailures(final int outboundMaxConsecutiveFailures) {
+        this.outboundMaxConsecutiveFailures = outboundMaxConsecutiveFailures;
+    }
+
+
     /**
      * 게이트웨이 Netty 어댑터의 현재 값을 조회합니다.
      *

@@ -16,10 +16,16 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 
 /**
- * EqpBindingService 클래스입니다.
+ * Netty 채널을 설비(eqpId)에 바인딩/해제하는 서비스입니다.
  *
- * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
- * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ * <p>주요 책임은 다음과 같습니다.</p>
+ * <p>1) 바인딩 전 공통 검증(shard ownership, DB 등록, enabled, interfaceType, connectionMode)</p>
+ * <p>2) channelRegistry 등록 및 mailbox 생성</p>
+ * <p>3) 연결/해제 라이프사이클 이벤트 발행</p>
+ *
+ * <p>중요: connectionMode는 설비 관점으로 해석합니다.</p>
+ * <p>- 설비 ACTIVE  : 설비가 접속 주체(게이트웨이는 수신 서버)</p>
+ * <p>- 설비 PASSIVE : 게이트웨이가 접속 주체(아웃바운드 클라이언트)</p>
  */
 @Service
 public class EqpBindingService {
@@ -32,7 +38,12 @@ public class EqpBindingService {
     private final EqpLifecycleStateMachine lifecycleStateMachine;
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 바인딩 서비스 의존성을 주입받아 초기화합니다.
+     *
+     * @param channelRegistry 설비 채널 레지스트리
+     * @param processingService mailbox/설비 조회 처리 서비스
+     * @param shardOwnership 현재 인스턴스 shard 소유 판단기
+     * @param lifecycleStateMachine 라이프사이클 상태머신
      */
     public EqpBindingService(
             final EquipmentChannelRegistry channelRegistry,
@@ -47,20 +58,16 @@ public class EqpBindingService {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 서버 수신(PASSIVE handler) 경로 채널을 바인딩합니다.
+     *
+     * <p>수신 경로는 "설비가 먼저 접속"한 경우이므로, 설비 connectionMode는 ACTIVE여야 합니다.</p>
+     *
+     * @param eqpId 파싱된 설비 ID
+     * @param interfaceType 통신 인터페이스(HSMS/SOCKET)
+     * @param channel Netty 채널
+     * @return 바인딩 결과 코드
      */
     public BindResult bindPassive(
-            final String eqpId,
-            final CommInterfaceType interfaceType,
-            final Channel channel
-    ) {
-        return bindInternal(eqpId, interfaceType, ConnectionMode.PASSIVE, channel);
-    }
-
-    /**
-     * UTF-8 형식으로 정리된 주석입니다.
-     */
-    public BindResult bindActive(
             final String eqpId,
             final CommInterfaceType interfaceType,
             final Channel channel
@@ -69,9 +76,30 @@ public class EqpBindingService {
     }
 
     /**
-     * unbind 기능을 수행합니다.
+     * 아웃바운드 클라이언트(ACTIVE handler) 경로 채널을 바인딩합니다.
      *
-     * @param channel 입력 값
+     * <p>발신 경로는 "게이트웨이가 먼저 접속"한 경우이므로, 설비 connectionMode는 PASSIVE여야 합니다.</p>
+     *
+     * @param eqpId 검증된 설비 ID
+     * @param interfaceType 통신 인터페이스(HSMS/SOCKET)
+     * @param channel Netty 채널
+     * @return 바인딩 결과 코드
+     */
+    public BindResult bindActive(
+            final String eqpId,
+            final CommInterfaceType interfaceType,
+            final Channel channel
+    ) {
+        return bindInternal(eqpId, interfaceType, ConnectionMode.PASSIVE, channel);
+    }
+
+    /**
+     * 채널 해제를 수행합니다.
+     *
+     * <p>채널에 저장된 eqpId를 기준으로 channelRegistry/mailbox를 정리하고,
+     * 상태머신에 disconnected 이벤트를 전달합니다.</p>
+     *
+     * @param channel 해제할 Netty 채널
      */
     public void unbind(final Channel channel) {
         if (channel == null) {
@@ -91,7 +119,20 @@ public class EqpBindingService {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 공통 바인딩 검증과 실제 레지스트리/메일박스 등록을 수행합니다.
+     *
+     * <p>검증 순서:</p>
+     * <p>1) eqpId 유효성</p>
+     * <p>2) shard ownership</p>
+     * <p>3) DB 등록 설비 조회</p>
+     * <p>4) enabled, interfaceType, connectionMode 일치</p>
+     * <p>5) 중복 연결 여부</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param interfaceType 채널 인터페이스 타입
+     * @param expectedMode 현재 바인딩 경로가 요구하는 설비 connectionMode
+     * @param channel Netty 채널
+     * @return 바인딩 결과 코드
      */
     private BindResult bindInternal(
             final String eqpId,
@@ -103,7 +144,8 @@ public class EqpBindingService {
             return BindResult.INVALID_EQP_ID;
         }
         if (log.isDebugEnabled()) {
-            log.debug("Bind attempt. eqpId={}, interfaceType={}, mode={}", eqpId, interfaceType, expectedMode);
+            log.debug("Bind attempt. eqpId={}, interfaceType={}, expectedEquipmentMode={}",
+                    eqpId, interfaceType, expectedMode);
         }
 
         if (!shardOwnership.isOwned(eqpId)) {
@@ -136,17 +178,13 @@ public class EqpBindingService {
         processingService.bindMailbox(info, equipmentChannel);
         lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
 
-        log.info("Bind success. eqpId={}, interfaceType={}, mode={}", eqpId, interfaceType, expectedMode);
+        log.info("Bind success. eqpId={}, interfaceType={}, equipmentMode={}", eqpId, interfaceType, expectedMode);
         return BindResult.OK;
     }
 
     /**
-     * BindResult 열거형입니다.
-     *
-     * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
-     * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+     * 채널 바인딩 결과 코드입니다.
      */
-
     public enum BindResult {
         OK,
         NOT_OWNED,

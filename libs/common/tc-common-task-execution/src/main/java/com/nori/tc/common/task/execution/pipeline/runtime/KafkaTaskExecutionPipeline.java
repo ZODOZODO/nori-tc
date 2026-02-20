@@ -13,6 +13,8 @@ import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistr
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskDispatchReport;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyStatus;
+import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyPublishMode;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +32,7 @@ import java.util.function.LongSupplier;
  * <p>1) 요청 필드(eventType/traceId/eqpId) 추출 및 검증</p>
  * <p>2) 처리기 조회 및 중복(traceId) 검사</p>
  * <p>3) 처리기 실행(재시도 포함)</p>
- * <p>4) 응답 발행(재시도 포함)</p>
+ * <p>4) 응답 발행(재시도 포함, 정책에 따라 PASS 지연 가능)</p>
  * <p>5) 최종 실패 시 DLQ 보고</p>
  *
  * @param <T> 요청 타입
@@ -103,6 +105,7 @@ public final class KafkaTaskExecutionPipeline<T> {
                 ? Optional.empty()
                 : registry.find(normalizedEventType);
         final String replyEventType = resolveReplyEventType(normalizedEventType, specOptional);
+        final KafkaTaskReplyPublishMode replyPublishMode = resolveReplyPublishMode(specOptional);
         final long nowEpochMs = nowSupplier.getAsLong();
 
         if (deduplicationStore.isProcessed(traceId, nowEpochMs)) {
@@ -110,7 +113,16 @@ public final class KafkaTaskExecutionPipeline<T> {
                     normalizedEventType,
                     eqpId,
                     traceId);
-            publishReplyWithRetry(request, replyEventType, KafkaTaskResult.pass(), normalizedEventType);
+            final KafkaTaskResult duplicateResult = KafkaTaskResult.pass();
+            if (shouldPublishReplyImmediately(replyPublishMode, duplicateResult)) {
+                publishReplyWithRetry(request, replyEventType, duplicateResult, normalizedEventType);
+            } else {
+                log.info("Kafka task 중복(traceId) 응답 즉시 발행 생략(DEFERRED_ON_PASS). eventType={}, eqpId={}, traceId={}, replyEventType={}",
+                        normalizedEventType,
+                        eqpId,
+                        traceId,
+                        replyEventType);
+            }
             return new KafkaTaskDispatchReport(KafkaTaskResult.pass(), replyEventType, true);
         }
 
@@ -150,7 +162,15 @@ public final class KafkaTaskExecutionPipeline<T> {
             );
         }
 
-        publishReplyWithRetry(request, replyEventType, result, normalizedEventType);
+        if (shouldPublishReplyImmediately(replyPublishMode, result)) {
+            publishReplyWithRetry(request, replyEventType, result, normalizedEventType);
+        } else {
+            log.info("Kafka task PASS 응답 즉시 발행 생략(DEFERRED_ON_PASS). eventType={}, eqpId={}, traceId={}, replyEventType={}",
+                    normalizedEventType,
+                    eqpId,
+                    traceId,
+                    replyEventType);
+        }
         deduplicationStore.markProcessed(traceId, duplicateTraceTtlMs, nowEpochMs);
         log.info("Kafka task dispatch 완료. eventType={}, eqpId={}, traceId={}, replyEventType={}, status={}, duplicateSkipped={}",
                 normalizedEventType,
@@ -160,6 +180,44 @@ public final class KafkaTaskExecutionPipeline<T> {
                 result.status(),
                 false);
         return new KafkaTaskDispatchReport(result, replyEventType, false);
+    }
+
+    /**
+     * 처리기 스펙에서 응답 발행 정책을 조회합니다.
+     *
+     * <p>처리기 미등록/라우팅 실패 케이스는 즉시 응답이 기본값입니다.</p>
+     *
+     * @param specOptional 처리기 스펙 optional
+     * @return 응답 발행 정책
+     */
+    private static KafkaTaskReplyPublishMode resolveReplyPublishMode(
+            final Optional<? extends KafkaTaskProcessorSpec<?>> specOptional
+    ) {
+        return specOptional
+                .map(KafkaTaskProcessorSpec::replyPublishMode)
+                .orElse(KafkaTaskReplyPublishMode.IMMEDIATE);
+    }
+
+    /**
+     * 현재 처리 결과를 파이프라인에서 즉시 응답 발행할지 판단합니다.
+     *
+     * <p>DEFERRED_ON_PASS 정책은 PASS만 지연하고, FAIL은 즉시 응답합니다.</p>
+     *
+     * @param replyPublishMode 응답 발행 정책
+     * @param result 처리 결과
+     * @return 즉시 응답 발행 여부
+     */
+    private static boolean shouldPublishReplyImmediately(
+            final KafkaTaskReplyPublishMode replyPublishMode,
+            final KafkaTaskResult result
+    ) {
+        Objects.requireNonNull(replyPublishMode, "replyPublishMode is null");
+        Objects.requireNonNull(result, "result is null");
+
+        if (replyPublishMode == KafkaTaskReplyPublishMode.DEFERRED_ON_PASS) {
+            return result.status() == KafkaTaskReplyStatus.FAIL;
+        }
+        return true;
     }
 
     /**
