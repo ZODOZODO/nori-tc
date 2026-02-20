@@ -13,7 +13,7 @@
     <springProperty scope="context" name="LOG_LEVEL_ROOT" source="logging.level.root" defaultValue="INFO"/>
     <springProperty scope="context" name="LOG_LEVEL_APP" source="logging.level.com.nori.tc" defaultValue="INFO"/>
     <springProperty scope="context" name="LOG_PATTERN" source="tc.logging.pattern"
-                    defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] app=${APP_NAME} traceId=%X{traceId} eqpId=%X{eqpId} %logger{36} - %msg%n"/>
+                    defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] app=%property{APP_NAME} traceId=%X{traceId} eqpId=%X{eqpId} %logger{36} - %msg%n"/>
     <springProperty scope="context" name="LOG_DIR" source="tc.logging.file-dir" defaultValue="logs"/>
     <springProperty scope="context" name="APP_LOG_MAX_HISTORY" source="tc.logging.app.max-history" defaultValue="14"/>
     <springProperty scope="context" name="APP_LOG_MAX_SIZE" source="tc.logging.app.max-size" defaultValue="100MB"/>
@@ -75,8 +75,8 @@
                     <!--
                       EQP 로그 파일 저장 규칙:
                       - logs/eqp/{eqpId}/ 하위에 앱 prefix별 파일을 분리 저장
-                      - 예) logs/eqp/EQP-01/gateway.2026-02-20.0.log
-                      - 예) logs/eqp/EQP-01/business.2026-02-20.0.log
+                      - 예) logs/eqp/EQP-01/gateway.EQP-01.2026-02-20.0.log
+                      - 예) logs/eqp/EQP-01/business.EQP-01.2026-02-20.0.log
                     -->
                     <fileNamePattern>${LOG_DIR}/eqp/${eqpId}/${EQP_LOG_FILE_PREFIX}.${eqpId}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
                     <maxFileSize>${EQP_LOG_MAX_SIZE}</maxFileSize>
