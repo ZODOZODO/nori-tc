@@ -10,6 +10,7 @@ import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.context.EquipmentDesiredState;
 import com.nori.tc.comm.gateway.context.EquipmentRuntimeState;
 import com.nori.tc.comm.gateway.context.EquipmentStatePersistencePort;
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.common.mailbox.Mailbox;
 import com.nori.tc.common.mailbox.MailboxScheduler;
 import org.slf4j.Logger;
@@ -25,16 +26,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 설비(eqpid) 단위 lifecycle 상태 전이를 직렬 처리하는 상태머신입니다.
+ * 설비(eqpId) 단위 라이프사이클 전이를 직렬 처리하는 상태머신입니다.
  *
- * <p>핵심 목적:</p>
- * <p>1) START/END 요청을 비동기 ACCEPT 방식으로 전환</p>
- * <p>2) 채널 CONNECTED/DISCONNECTED 이벤트를 받아 완료 시점 확정</p>
- * <p>3) stateVersion 기반 stale timeout 이벤트 무시</p>
+ * <p>핵심 목표는 다음과 같습니다.</p>
+ * <p>1) START/END 요청을 비동기 ACCEPT 흐름으로 전환</p>
+ * <p>2) CHANNEL CONNECTED/DISCONNECTED 이벤트로 전이 완료 시점 확정</p>
+ * <p>3) stateVersion 기반으로 stale timeout 이벤트 무시</p>
  * <p>4) 외부 리스너로 전이 결과(outcome) 전달</p>
  */
 @Service
@@ -50,19 +53,19 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     private final EqpLifecycleOutcomeListener outcomeListener;
 
     /**
-     * eqpId별 이벤트 직렬 처리를 위한 공용 스케줄러입니다.
+     * eqpId별 직렬 이벤트 처리를 보장하는 공유 스케줄러입니다.
      */
     private final MailboxScheduler<EqpLifecycleEvent> eventScheduler;
 
     /**
-     * eqpId별 stateVersion 시퀀스입니다.
+     * eqpId당 stateVersion 시퀀스입니다.
      */
     private final Map<String, AtomicLong> stateVersionSequenceByEqp = new ConcurrentHashMap<>();
 
     /**
-     * eqpId별 최신 stateVersion입니다.
+     * eqpId당 최근에 허용된 stateVersion입니다.
      *
-     * <p>timeout 지연 도착 등 stale 이벤트를 무시하기 위한 기준값입니다.</p>
+     * <p>오래된 시간 초과 이벤트를 무시하기 위한 기준으로 사용됩니다.</p>
      */
     private final Map<String, Long> latestStateVersionByEqp = new ConcurrentHashMap<>();
 
@@ -76,7 +79,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     private volatile boolean running = false;
 
     /**
-     * 상태머신 의존성을 초기화합니다.
+     * 상태머신 의존 객체를 초기화합니다.
      */
     public EqpLifecycleStateMachine(
             final GatewayLifecycleProperties lifecycleProperties,
@@ -92,7 +95,10 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.statePersistencePort = statePersistencePortProvider.getIfAvailable(() -> EquipmentStatePersistencePort.NO_OP);
         this.outcomeListener = outcomeListenerProvider.getIfAvailable(EqpLifecycleOutcomeListener::noOp);
-        this.eventScheduler = new MailboxScheduler<>(lifecycleProperties.getEventMailboxCapacity());
+        this.eventScheduler = new MailboxScheduler<>(
+                lifecycleProperties.getEventMailboxCapacity(),
+                this::openEqpLogContext
+        );
     }
 
     /**
@@ -122,7 +128,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
-     * 채널 CONNECTED 이벤트를 상태머신으로 전달합니다.
+     * CHANNEL_CONNECTED 이벤트를 상태머신으로 전달합니다.
      */
     public void onChannelConnected(
             final String eqpId,
@@ -134,7 +140,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
-     * 채널 DISCONNECTED 이벤트를 상태머신으로 전달합니다.
+     * CHANNEL_DISCONNECTED 이벤트를 상태머신으로 전달합니다.
      */
     public void onChannelDisconnected(
             final String eqpId,
@@ -146,10 +152,10 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
-     * 현재 START pending 전이를 외부 실패 신호로 종료합니다.
+     * 현재 START pending 전이에 대해 외부 실패 신호로 종료를 요청합니다.
      *
-     * <p>대표적으로 아웃바운드 연결 재시도 한계 소진처럼,
-     * lifecycle timeout까지 기다릴 필요 없이 실패를 확정할 때 사용합니다.</p>
+     * <p>대표적으로 아웃바운드 연결 재시도 한계 소진처럼, lifecycle timeout까지
+     * 기다릴 필요 없이 실패를 즉시 확정해야 할 때 사용합니다.</p>
      *
      * @param eqpId 대상 설비 ID
      * @param traceId 연관 traceId
@@ -174,14 +180,20 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     @Override
     public synchronized void start() {
         if (running) {
+            if (log.isDebugEnabled()) {
+                log.debug("EqpLifecycleStateMachine start skipped because it is already running.");
+            }
             return;
         }
         running = true;
 
         final int workerThreads = lifecycleProperties.getWorkerThreads();
         final int timeoutSchedulerThreads = lifecycleProperties.getTimeoutSchedulerThreads();
-        workerPool = Executors.newFixedThreadPool(workerThreads);
-        timeoutScheduler = Executors.newScheduledThreadPool(timeoutSchedulerThreads);
+        workerPool = Executors.newFixedThreadPool(workerThreads, namedThreadFactory("gateway-lifecycle-worker-"));
+        timeoutScheduler = Executors.newScheduledThreadPool(
+                timeoutSchedulerThreads,
+                namedThreadFactory("gateway-lifecycle-timeout-")
+        );
 
         for (int i = 0; i < workerThreads; i++) {
             workerPool.execute(this::runWorkerLoop);
@@ -201,6 +213,12 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
      */
     @Override
     public synchronized void stop() {
+        if (!running) {
+            if (log.isDebugEnabled()) {
+                log.debug("EqpLifecycleStateMachine stop skipped because it is already stopped.");
+            }
+            return;
+        }
         running = false;
 
         if (workerPool != null) {
@@ -216,11 +234,10 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
-     * isRunning 기능을 수행합니다.
+     * 상태머신 실행 상태를 반환합니다.
      *
-     * @return 처리 결과
+     * @return 실행 중이면 true
      */
-
     @Override
     public boolean isRunning() {
         return running;
@@ -240,29 +257,32 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
      * <p>상태머신이 시작되기 전 들어온 이벤트는 유실 방지를 위해 즉시 처리합니다.</p>
      */
     private void publish(final EqpLifecycleEvent event) {
-        if (!running) {
-            if (log.isDebugEnabled()) {
-                log.debug("Lifecycle event processed inline because state machine is not running yet. eqpId={}, eventType={}",
-                        event.eqpId(),
-                        event.eventType());
+        Objects.requireNonNull(event, "event is null");
+        withEqpLogContext(event.eqpId(), () -> {
+            if (!running) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Lifecycle event processed inline because state machine is not running yet. eqpId={}, eventType={}",
+                            event.eqpId(),
+                            event.eventType());
+                }
+                processEvent(event);
+                return;
             }
-            processEvent(event);
-            return;
-        }
 
-        final boolean offered = eventScheduler.enqueue(event, System.currentTimeMillis());
-        if (!offered) {
-            log.warn("Lifecycle event mailbox overflow. processing inline. eqpId={}, eventType={}, stateVersion={}",
-                    event.eqpId(),
-                    event.eventType(),
-                    event.stateVersion());
-            processEvent(event);
-        } else if (log.isDebugEnabled()) {
-            log.debug("Lifecycle event enqueued. eqpId={}, eventType={}, stateVersion={}",
-                    event.eqpId(),
-                    event.eventType(),
-                    event.stateVersion());
-        }
+            final boolean offered = eventScheduler.enqueue(event, System.currentTimeMillis());
+            if (!offered) {
+                log.warn("Lifecycle event mailbox overflow. processing inline. eqpId={}, eventType={}, stateVersion={}",
+                        event.eqpId(),
+                        event.eventType(),
+                        event.stateVersion());
+                processEvent(event);
+            } else if (log.isDebugEnabled()) {
+                log.debug("Lifecycle event enqueued. eqpId={}, eventType={}, stateVersion={}",
+                        event.eqpId(),
+                        event.eventType(),
+                        event.stateVersion());
+            }
+        });
     }
 
     /**
@@ -274,14 +294,22 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
                 final String eqpId = eventScheduler.takeReadyKey();
                 final Mailbox<EqpLifecycleEvent> mailbox = eventScheduler.tryAcquire(eqpId);
                 if (mailbox == null) {
+                    if (log.isDebugEnabled()) {
+                        withEqpLogContext(eqpId, () -> log.debug(
+                                "Lifecycle worker skipped because mailbox acquire returned null. eqpId={}",
+                                eqpId
+                        ));
+                    }
                     continue;
                 }
 
                 try {
-                    EqpLifecycleEvent event;
-                    while ((event = mailbox.poll()) != null) {
-                        processEvent(event);
-                    }
+                    withEqpLogContext(eqpId, () -> {
+                        EqpLifecycleEvent event;
+                        while ((event = mailbox.poll()) != null) {
+                            processEvent(event);
+                        }
+                    });
                 } finally {
                     eventScheduler.release(mailbox);
                 }
@@ -298,6 +326,9 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
      * 이벤트 타입별 상태 전이를 처리합니다.
      */
     private void processEvent(final EqpLifecycleEvent event) {
+        if (event == null) {
+            return;
+        }
         try {
             switch (event.eventType()) {
                 case START_REQUESTED -> handleStartRequested(event);
@@ -540,7 +571,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
             return;
         }
 
-        // START pending 중 연결이 끊기면 timeout 또는 재연결 흐름으로 판단하여 pending 유지합니다.
+        // START pending 중 연결이 끊기면 timeout 또는 지연된 이벤트 흐름으로 판단하여 pending 유지합니다.
         if (log.isDebugEnabled()) {
             log.debug("CHANNEL_DISCONNECTED received while START transition is pending. eqpId={}, pendingStateVersion={}, reason={}",
                     eqpId,
@@ -855,6 +886,22 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
+     * lifecycle worker/timeout 스레드의 이름을 부여하는 ThreadFactory를 생성합니다.
+     *
+     * @param prefix 스레드 이름 접두사
+     * @return 이름이 지정된 ThreadFactory
+     */
+    private static ThreadFactory namedThreadFactory(final String prefix) {
+        final AtomicInteger sequence = new AtomicInteger(0);
+        return runnable -> {
+            final Thread thread = new Thread(runnable);
+            thread.setDaemon(true);
+            thread.setName(prefix + sequence.incrementAndGet());
+            return thread;
+        };
+    }
+
+    /**
      * timeout 입력값을 보정합니다.
      */
     private long normalizeTimeoutMs(final long timeoutMs) {
@@ -871,7 +918,43 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
-     * pending 전이 타입입니다.
+     * eqpId 기반 로그 컨텍스트를 생성합니다.
+     *
+     * <p>MailboxScheduler의 routingKey=eqpId 로그가 EQP 로그 파일로 분리되도록 사용합니다.</p>
+     *
+     * @param eqpId 장비 ID
+     * @return 해제 가능한 로그 컨텍스트
+     */
+    private AutoCloseable openEqpLogContext(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return NoOpCloseable.INSTANCE;
+        }
+        return GatewayLogContext.withEqpId(eqpId);
+    }
+
+    /**
+     * eqpId MDC를 적용한 상태로 작업을 실행합니다.
+     *
+     * <p>범위 C 로그 분리 정책에 따라 상태머신 내부 처리 로그를 EQP 로그 파일로 라우팅합니다.</p>
+     *
+     * @param eqpId 설비 ID
+     * @param task 실행 작업
+     */
+    private void withEqpLogContext(final String eqpId, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (eqpId == null || eqpId.isBlank()) {
+            task.run();
+            return;
+        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            task.run();
+        }
+    }
+
+    /**
+     * 보류 중인 전환 유형입니다.
      */
     private enum PendingType {
         START,
@@ -879,7 +962,7 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
     }
 
     /**
-     * eqpId별 pending 전이 메타데이터입니다.
+     * eqpId당 보류 중인 전환 메타데이터입니다.
      */
     private record PendingTransition(
             PendingType type,
@@ -887,5 +970,17 @@ public class EqpLifecycleStateMachine implements SmartLifecycle {
             String traceId,
             long timeoutMs
     ) {
+    }
+
+    /**
+     * 무작동 종료 가능 구현.
+     */
+    private enum NoOpCloseable implements AutoCloseable {
+        INSTANCE;
+
+        @Override
+        public void close() {
+            // no-op
+        }
     }
 }

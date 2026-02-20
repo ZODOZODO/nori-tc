@@ -1,10 +1,10 @@
 package com.nori.tc.comm.adapters.netty;
 
 /**
- * Connection bind state.
+ * 채널의 설비 바인딩 상태입니다.
  *
- * UNBOUND: eqpId 미등록 상태 (등록 메시지 대기)
- * BOUND  : eqpId 확정 + registry/mailbox 등록 완료 상태
+ * <p>UNBOUND: eqpId 미등록 상태(초기 등록 메시지 대기)</p>
+ * <p>BOUND: eqpId 확정 및 registry/mailbox 등록 완료 상태</p>
  */
 public enum BindState {
     UNBOUND,

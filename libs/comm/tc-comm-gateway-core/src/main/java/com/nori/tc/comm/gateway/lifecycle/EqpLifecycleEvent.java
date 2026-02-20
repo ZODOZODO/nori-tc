@@ -5,9 +5,11 @@ import com.nori.tc.common.mailbox.MailboxTask;
 import java.util.Objects;
 
 /**
- * 설비(eqpid) 단위 lifecycle 상태 전이를 표현하는 내부 이벤트입니다.
+ * 설비(`eqpId`) 단위 lifecycle 상태 전이를 전달하는 내부 이벤트입니다.
  *
- * <p>이벤트는 상태머신의 mailbox 스케줄러를 통해 eqpId 단위로 직렬 처리됩니다.</p>
+ * <p>이 이벤트는 `MailboxTask`를 구현하므로 `routingKey=eqpId` 기준 직렬 처리 대상이 됩니다.</p>
+ * <p>즉, 동일 설비에 대한 START/END/CHANNEL 이벤트는 순서를 보장하면서 처리되고,
+ * 서로 다른 설비 이벤트는 병렬로 처리할 수 있습니다.</p>
  */
 public record EqpLifecycleEvent(
         String eqpId,
@@ -20,12 +22,35 @@ public record EqpLifecycleEvent(
 ) implements MailboxTask {
 
     /**
-     * 생성 시 공통 검증/정규화를 수행합니다.
+     * traceId 미지정 시 사용하는 기본 값입니다.
+     */
+    private static final String DEFAULT_TRACE_ID = "N/A";
+
+    /**
+     * 사유(reason) 상수입니다.
+     */
+    private static final String REASON_UI_START = "UI_START";
+    private static final String REASON_UI_END = "UI_END";
+    private static final String REASON_START_TIMEOUT = "START_TIMEOUT";
+    private static final String REASON_END_TIMEOUT = "END_TIMEOUT";
+
+    /**
+     * 이벤트 생성 시 공통 검증/정규화를 수행합니다.
+     *
+     * <p>검증 항목:</p>
+     * <p>1) eqpId/eventType 필수 여부</p>
+     * <p>2) traceId/reason 기본값 정규화</p>
+     * <p>3) stateVersion/timeoutMs 음수 방지</p>
+     * <p>4) createdAtEpochMs 미지정 시 현재 시각 대체</p>
      */
     public EqpLifecycleEvent {
+        // 설비 식별자는 mailbox 라우팅 키로 직접 사용되므로 공백/blank를 허용하지 않습니다.
         eqpId = normalizeEqpId(eqpId);
+        // 이벤트 타입은 상태머신 분기 기준이므로 null을 허용하지 않습니다.
         eventType = Objects.requireNonNull(eventType, "eventType is null");
+        // traceId는 빈 값이 들어와도 추적 가능하도록 기본값으로 정규화합니다.
         traceId = normalizeTraceId(traceId);
+        // reason은 null 방지 목적의 최소 정규화만 수행합니다.
         reason = reason == null ? "" : reason;
         if (stateVersion < 0L) {
             throw new IllegalArgumentException("stateVersion must be >= 0");
@@ -39,7 +64,9 @@ public record EqpLifecycleEvent(
     }
 
     /**
-     * MailboxScheduler 라우팅 키로 eqpId를 반환합니다.
+     * MailboxScheduler 라우팅 키를 반환합니다.
+     *
+     * <p>동일 eqpId 이벤트가 단일 실행 흐름으로 직렬화되도록 `eqpId`를 그대로 반환합니다.</p>
      */
     @Override
     public String routingKey() {
@@ -47,7 +74,13 @@ public record EqpLifecycleEvent(
     }
 
     /**
-     * START 요청 이벤트를 생성합니다.
+     * UI START 요청 이벤트를 생성합니다.
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId UI 요청 추적 ID
+     * @param stateVersion 요청 시점 상태 버전
+     * @param timeoutMs START 완료 제한 시간(ms)
+     * @return START_REQUESTED 이벤트
      */
     public static EqpLifecycleEvent startRequested(
             final String eqpId,
@@ -61,13 +94,19 @@ public record EqpLifecycleEvent(
                 traceId,
                 stateVersion,
                 timeoutMs,
-                "UI_START",
+                REASON_UI_START,
                 System.currentTimeMillis()
         );
     }
 
     /**
-     * END 요청 이벤트를 생성합니다.
+     * UI END 요청 이벤트를 생성합니다.
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId UI 요청 추적 ID
+     * @param stateVersion 요청 시점 상태 버전
+     * @param timeoutMs END 완료 제한 시간(ms)
+     * @return END_REQUESTED 이벤트
      */
     public static EqpLifecycleEvent endRequested(
             final String eqpId,
@@ -81,13 +120,18 @@ public record EqpLifecycleEvent(
                 traceId,
                 stateVersion,
                 timeoutMs,
-                "UI_END",
+                REASON_UI_END,
                 System.currentTimeMillis()
         );
     }
 
     /**
-     * START timeout 이벤트를 생성합니다.
+     * START 타임아웃 이벤트를 생성합니다.
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId 요청 추적 ID
+     * @param stateVersion 타임아웃 대상 상태 버전
+     * @return START_TIMEOUT 이벤트
      */
     public static EqpLifecycleEvent startTimeout(
             final String eqpId,
@@ -100,7 +144,7 @@ public record EqpLifecycleEvent(
                 traceId,
                 stateVersion,
                 0L,
-                "START_TIMEOUT",
+                REASON_START_TIMEOUT,
                 System.currentTimeMillis()
         );
     }
@@ -108,7 +152,13 @@ public record EqpLifecycleEvent(
     /**
      * START 실패 이벤트를 생성합니다.
      *
-     * <p>예: 아웃바운드 재시도 소진 등으로 더 이상 START 전이 진행이 불가능한 경우</p>
+     * <p>예: 아웃바운드 재시도 소진 등으로 더 이상 START 전이를 진행할 수 없는 경우</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId 요청 추적 ID
+     * @param stateVersion 실패 시점 상태 버전
+     * @param reason 실패 사유
+     * @return START_FAILED 이벤트
      */
     public static EqpLifecycleEvent startFailed(
             final String eqpId,
@@ -128,7 +178,12 @@ public record EqpLifecycleEvent(
     }
 
     /**
-     * END timeout 이벤트를 생성합니다.
+     * END 타임아웃 이벤트를 생성합니다.
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId 요청 추적 ID
+     * @param stateVersion 타임아웃 대상 상태 버전
+     * @return END_TIMEOUT 이벤트
      */
     public static EqpLifecycleEvent endTimeout(
             final String eqpId,
@@ -141,13 +196,18 @@ public record EqpLifecycleEvent(
                 traceId,
                 stateVersion,
                 0L,
-                "END_TIMEOUT",
+                REASON_END_TIMEOUT,
                 System.currentTimeMillis()
         );
     }
 
     /**
      * 채널 CONNECTED 이벤트를 생성합니다.
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId 연관 trace ID
+     * @param reason 연결 사유(예: INITIALIZE_REP_PASS)
+     * @return CHANNEL_CONNECTED 이벤트
      */
     public static EqpLifecycleEvent channelConnected(
             final String eqpId,
@@ -167,6 +227,11 @@ public record EqpLifecycleEvent(
 
     /**
      * 채널 DISCONNECTED 이벤트를 생성합니다.
+     *
+     * @param eqpId 대상 설비 ID
+     * @param traceId 연관 trace ID
+     * @param reason 종료 사유(예: UI_END, START_TIMEOUT)
+     * @return CHANNEL_DISCONNECTED 이벤트
      */
     public static EqpLifecycleEvent channelDisconnected(
             final String eqpId,
@@ -185,12 +250,13 @@ public record EqpLifecycleEvent(
     }
 
     /**
-     * normalizeEqpId 기능을 수행합니다.
+     * eqpId를 정규화합니다.
      *
-     * @param eqpId 입력 값
-     * @return 처리 결과
+     * <p>blank 허용 시 mailbox 라우팅/상태 저장 키가 깨지므로 즉시 예외를 발생시킵니다.</p>
+     *
+     * @param eqpId 입력 eqpId
+     * @return trim 처리된 eqpId
      */
-
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null || eqpId.isBlank()) {
             throw new IllegalArgumentException("eqpId is required");
@@ -199,21 +265,24 @@ public record EqpLifecycleEvent(
     }
 
     /**
-     * normalizeTraceId 기능을 수행합니다.
+     * traceId를 정규화합니다.
      *
-     * @param traceId 입력 값
-     * @return 처리 결과
+     * <p>traceId가 비어 있으면 공통 기본값(`N/A`)을 사용합니다.</p>
+     *
+     * @param traceId 입력 traceId
+     * @return trim 처리된 traceId 또는 기본값
      */
-
     private static String normalizeTraceId(final String traceId) {
         if (traceId == null || traceId.isBlank()) {
-            return "N/A";
+            return DEFAULT_TRACE_ID;
         }
         return traceId.trim();
     }
 
     /**
-     * lifecycle 상태머신 이벤트 타입입니다.
+     * lifecycle 상태머신 이벤트 타입 정의입니다.
+     *
+     * <p>각 타입은 상태머신 전이 조건 및 UI 응답 생성 분기에서 사용됩니다.</p>
      */
     public enum EqpLifecycleEventType {
         START_REQUESTED,

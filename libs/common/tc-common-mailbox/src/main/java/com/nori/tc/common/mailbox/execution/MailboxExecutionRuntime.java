@@ -13,71 +13,88 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
- * Mailbox 기반 실행 루프를 공통화한 런타임입니다.
+ * Mailbox 실행 런타임입니다.
  *
- * <p>이 클래스는 다음 공통 책임을 담당합니다.</p>
- * <p>1) dispatcher/worker 스레드풀 생성 및 종료</p>
- * <p>2) ReadyQueue 토큰 소비 -> mailbox 획득 -> task 전달 루프</p>
- * <p>3) task 처리 후 mailbox release 보장</p>
- * <p>4) task 거부/실패/루프 예외를 훅으로 앱 계층에 전달</p>
+ * <p>공통 책임은 다음과 같습니다.</p>
+ * <p>1) dispatcher/worker 스레드 생성 및 종료</p>
+ * <p>2) ReadyQueue 소비 -> Mailbox 획득 -> task 디스패치</p>
+ * <p>3) task 처리 후 Mailbox release 보장</p>
+ * <p>4) 거절/실패/루프 예외를 전용 핸들러로 위임</p>
  *
- * <p>앱 계층(gateway/business)은 도메인 처리 로직만 {@link TaskProcessor}로 주입하면 됩니다.</p>
+ * <p>또한 `routingKey` 기반 로그 컨텍스트를 선택적으로 적용해
+ * 모듈별 MDC 전파 정책을 지원합니다.</p>
  *
- * @param <T> mailbox task 타입
+ * @param <T> Mailbox task 타입
  */
 public final class MailboxExecutionRuntime<T extends MailboxTask> {
 
     private static final Logger log = LoggerFactory.getLogger(MailboxExecutionRuntime.class);
 
     /**
-     * 런타임 식별자입니다.
-     *
-     * <p>로그 라벨 용도로 사용합니다.</p>
+     * no-op closeable입니다.
+     */
+    private static final AutoCloseable NO_OP_CLOSEABLE = () -> {
+        // no-op
+    };
+
+    /**
+     * 라우팅 키를 알 수 없을 때 로그 표시에 사용하는 기본 값입니다.
+     */
+    private static final String UNKNOWN_ROUTING_KEY = "N/A";
+
+    /**
+     * 런타임 이름(로그 식별용)입니다.
      */
     private final String runtimeName;
 
     /**
-     * 공통 mailbox 스케줄러입니다.
+     * Mailbox 스케줄러입니다.
      */
     private final MailboxScheduler<T> mailboxScheduler;
 
     /**
-     * 실행 옵션입니다.
+     * 런타임 설정입니다.
      */
     private final Config config;
 
     /**
-     * 앱 계층의 실제 task 처리기입니다.
+     * task 처리기입니다.
      */
     private final TaskProcessor<T> taskProcessor;
 
     /**
-     * worker 큐 거부 시 호출되는 훅입니다.
+     * worker 큐 거절 핸들러입니다.
      */
     private final TaskRejectedHandler<T> taskRejectedHandler;
 
     /**
-     * task 처리 실패 시 호출되는 훅입니다.
+     * task 실패 핸들러입니다.
      */
     private final TaskFailureHandler<T> taskFailureHandler;
 
     /**
-     * dispatcher 루프 레벨 예외 훅입니다.
+     * dispatcher 루프 실패 핸들러입니다.
      */
     private final LoopFailureHandler loopFailureHandler;
+
+    /**
+     * 라우팅 키 로그 컨텍스트 전략입니다.
+     */
+    private final MailboxScheduler.RoutingKeyLogContext routingKeyLogContext;
 
     private volatile boolean running = false;
     private ExecutorService dispatcherPool;
     private ExecutorService workerPool;
 
     /**
-     * 기본 훅(로그 출력)으로 런타임을 생성합니다.
+     * 기본 핸들러(로그 출력)로 런타임을 생성합니다.
      *
      * @param runtimeName 런타임 이름
-     * @param mailboxScheduler mailbox 스케줄러
-     * @param config 실행 옵션
+     * @param mailboxScheduler Mailbox 스케줄러
+     * @param config 런타임 설정
      * @param taskProcessor task 처리기
      */
     public MailboxExecutionRuntime(
@@ -98,15 +115,15 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     }
 
     /**
-     * 모든 훅을 주입받아 런타임을 생성합니다.
+     * 커스텀 핸들러를 포함해 런타임을 생성합니다.
      *
      * @param runtimeName 런타임 이름
-     * @param mailboxScheduler mailbox 스케줄러
-     * @param config 실행 옵션
+     * @param mailboxScheduler Mailbox 스케줄러
+     * @param config 런타임 설정
      * @param taskProcessor task 처리기
-     * @param taskRejectedHandler worker 큐 거부 훅
-     * @param taskFailureHandler task 처리 실패 훅
-     * @param loopFailureHandler 루프 실패 훅
+     * @param taskRejectedHandler worker 큐 거절 핸들러
+     * @param taskFailureHandler task 실패 핸들러
+     * @param loopFailureHandler 루프 실패 핸들러
      */
     public MailboxExecutionRuntime(
             final String runtimeName,
@@ -124,10 +141,11 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
         this.taskRejectedHandler = taskRejectedHandler == null ? this::defaultRejectedHandler : taskRejectedHandler;
         this.taskFailureHandler = taskFailureHandler == null ? this::defaultTaskFailureHandler : taskFailureHandler;
         this.loopFailureHandler = loopFailureHandler == null ? this::defaultLoopFailureHandler : loopFailureHandler;
+        this.routingKeyLogContext = this.config.routingKeyLogContext();
     }
 
     /**
-     * dispatcher/worker 루프를 시작합니다.
+     * 런타임을 시작합니다.
      */
     public synchronized void start() {
         if (running) {
@@ -168,6 +186,9 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
      */
     public synchronized void stop() {
         if (!running) {
+            if (log.isDebugEnabled()) {
+                log.debug("Mailbox runtime already stopped. runtime={}", runtimeName);
+            }
             return;
         }
         running = false;
@@ -191,21 +212,32 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
 
     /**
      * dispatcher 루프 본문입니다.
-     *
-     * <p>ReadyQueue 토큰을 소비하고 mailbox 단위로 task를 꺼내 처리기로 전달합니다.</p>
      */
     private void runDispatcherLoop() {
         while (running) {
             try {
                 final String routingKey = mailboxScheduler.takeReadyKey();
-                final Mailbox<T> mailbox = mailboxScheduler.tryAcquire(routingKey);
+                final Mailbox<T> mailbox = callWithRoutingKeyLogContext(
+                        routingKey,
+                        () -> mailboxScheduler.tryAcquire(routingKey)
+                );
                 if (mailbox == null) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Dispatcher skipped because mailbox acquire returned null. runtime={}, routingKey={}",
+                                runtimeName,
+                                routingKey);
+                    }
                     continue;
                 }
 
                 final T task = mailbox.poll();
                 if (task == null) {
-                    mailboxScheduler.release(mailbox);
+                    if (log.isDebugEnabled()) {
+                        log.debug("Dispatcher acquired mailbox without task. runtime={}, routingKey={}",
+                                runtimeName,
+                                mailbox.routingKey());
+                    }
+                    releaseMailbox(mailbox);
                     continue;
                 }
 
@@ -222,7 +254,7 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     /**
      * task를 direct 또는 worker pool로 전달합니다.
      *
-     * @param mailbox 실행 권한을 획득한 mailbox
+     * @param mailbox 획득된 Mailbox
      * @param task 처리 대상 task
      */
     private void dispatchTask(final Mailbox<T> mailbox, final T task) {
@@ -236,29 +268,43 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
                     .decorate(() -> processTask(mailbox, task));
             workerPool.execute(processRunnable);
         } catch (RejectedExecutionException rejected) {
-            taskRejectedHandler.onRejected(task, rejected);
-            mailboxScheduler.release(mailbox);
+            final String routingKey = resolveRoutingKey(mailbox, task);
+            withRoutingKeyLogContext(routingKey, () -> taskRejectedHandler.onRejected(task, rejected));
+            releaseMailbox(mailbox);
         }
     }
 
     /**
-     * 단일 task를 처리하고 mailbox release를 보장합니다.
+     * 단일 task를 처리하고 Mailbox release를 보장합니다.
      *
-     * @param mailbox 처리 대상 mailbox
+     * @param mailbox 처리 대상 Mailbox
      * @param task 처리 대상 task
      */
     private void processTask(final Mailbox<T> mailbox, final T task) {
+        final String routingKey = resolveRoutingKey(mailbox, task);
         try {
             taskProcessor.process(task);
         } catch (Exception ex) {
-            taskFailureHandler.onTaskFailure(task, ex);
+            withRoutingKeyLogContext(routingKey, () -> taskFailureHandler.onTaskFailure(task, ex));
         } finally {
-            mailboxScheduler.release(mailbox);
+            releaseMailbox(mailbox);
         }
     }
 
     /**
-     * 스레드풀을 종료합니다.
+     * Mailbox release를 라우팅 키 컨텍스트와 함께 수행합니다.
+     *
+     * @param mailbox release 대상 Mailbox
+     */
+    private void releaseMailbox(final Mailbox<T> mailbox) {
+        if (mailbox == null) {
+            return;
+        }
+        withRoutingKeyLogContext(mailbox.routingKey(), () -> mailboxScheduler.release(mailbox));
+    }
+
+    /**
+     * executor를 종료합니다.
      *
      * @param executor 종료 대상 executor
      * @param executorName 로그 출력용 executor 이름
@@ -283,7 +329,7 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     }
 
     /**
-     * thread name prefix 기반 데몬 스레드 팩토리를 생성합니다.
+     * 이름 prefix 기반 데몬 스레드 팩토리를 생성합니다.
      *
      * @param threadPrefix 스레드 이름 prefix
      * @return thread factory
@@ -299,16 +345,19 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     }
 
     /**
-     * 기본 worker 거부 핸들러입니다.
+     * 기본 worker 거절 핸들러입니다.
      *
-     * @param task 거부된 task
-     * @param rejected 거부 예외
+     * @param task 거절된 task
+     * @param rejected 거절 예외
      */
     private void defaultRejectedHandler(final T task, final RejectedExecutionException rejected) {
-        log.error("Mailbox task rejected by worker pool. runtime={}, routingKey={}",
+        final String routingKey = taskRoutingKey(task);
+        withRoutingKeyLogContext(routingKey, () -> log.error(
+                "Mailbox task rejected by worker pool. runtime={}, routingKey={}",
                 runtimeName,
-                task == null ? "N/A" : task.routingKey(),
-                rejected);
+                routingKey == null ? UNKNOWN_ROUTING_KEY : routingKey,
+                rejected
+        ));
     }
 
     /**
@@ -318,10 +367,13 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
      * @param ex 처리 예외
      */
     private void defaultTaskFailureHandler(final T task, final Exception ex) {
-        log.error("Mailbox task processing failed. runtime={}, routingKey={}",
+        final String routingKey = taskRoutingKey(task);
+        withRoutingKeyLogContext(routingKey, () -> log.error(
+                "Mailbox task processing failed. runtime={}, routingKey={}",
                 runtimeName,
-                task == null ? "N/A" : task.routingKey(),
-                ex);
+                routingKey == null ? UNKNOWN_ROUTING_KEY : routingKey,
+                ex
+        ));
     }
 
     /**
@@ -334,10 +386,133 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     }
 
     /**
+     * task/ mailbox 정보에서 routingKey를 해석합니다.
+     *
+     * @param mailbox 처리 mailbox
+     * @param task 처리 task
+     * @return 해석된 routingKey
+     */
+    private String resolveRoutingKey(final Mailbox<T> mailbox, final T task) {
+        final String taskRoutingKey = taskRoutingKey(task);
+        if (taskRoutingKey != null && !taskRoutingKey.isBlank()) {
+            return taskRoutingKey;
+        }
+        if (mailbox == null) {
+            return null;
+        }
+        return mailbox.routingKey();
+    }
+
+    /**
+     * task에서 routingKey를 안전하게 추출합니다.
+     *
+     * @param task 대상 task
+     * @return routingKey, 없으면 null
+     */
+    private String taskRoutingKey(final T task) {
+        if (task == null) {
+            return null;
+        }
+        return task.routingKey();
+    }
+
+    /**
+     * 라우팅 키 로그 컨텍스트를 적용한 상태로 작업을 실행합니다.
+     *
+     * @param routingKey 라우팅 키
+     * @param task 실행 작업
+     */
+    private void withRoutingKeyLogContext(final String routingKey, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+
+        final AutoCloseable context;
+        try {
+            context = safeContext(routingKeyLogContext.open(routingKey));
+        } catch (Exception openException) {
+            if (log.isDebugEnabled()) {
+                log.debug("RoutingKey log context open failed. runtime={}, routingKey={}",
+                        runtimeName,
+                        routingKey,
+                        openException);
+            }
+            task.run();
+            return;
+        }
+
+        try (AutoCloseable ignored = context) {
+            task.run();
+        } catch (RuntimeException runtimeException) {
+            throw runtimeException;
+        } catch (Exception closeException) {
+            if (log.isDebugEnabled()) {
+                log.debug("RoutingKey log context close failed. runtime={}, routingKey={}",
+                        runtimeName,
+                        routingKey,
+                        closeException);
+            }
+        }
+    }
+
+    /**
+     * 라우팅 키 로그 컨텍스트를 적용한 상태로 값을 반환합니다.
+     *
+     * <p>supplier는 최대 한 번만 실행되도록 보장합니다.
+     * 컨텍스트 close 예외가 발생하더라도 supplier를 재실행하지 않습니다.</p>
+     *
+     * @param routingKey 라우팅 키
+     * @param supplier 실행 함수
+     * @return 반환값
+     * @param <R> 반환 타입
+     */
+    private <R> R callWithRoutingKeyLogContext(final String routingKey, final Supplier<R> supplier) {
+        Objects.requireNonNull(supplier, "supplier is null");
+
+        final AutoCloseable context;
+        try {
+            context = safeContext(routingKeyLogContext.open(routingKey));
+        } catch (Exception openException) {
+            if (log.isDebugEnabled()) {
+                log.debug("RoutingKey log context open failed. runtime={}, routingKey={}",
+                        runtimeName,
+                        routingKey,
+                        openException);
+            }
+            return supplier.get();
+        }
+
+        try {
+            return supplier.get();
+        } finally {
+            try {
+                context.close();
+            } catch (Exception closeException) {
+                if (log.isDebugEnabled()) {
+                    log.debug("RoutingKey log context close failed. runtime={}, routingKey={}",
+                            runtimeName,
+                            routingKey,
+                            closeException);
+                }
+            }
+        }
+    }
+
+    /**
+     * null 컨텍스트를 no-op 컨텍스트로 치환합니다.
+     *
+     * @param context 원본 컨텍스트
+     * @return null-safe 컨텍스트
+     */
+    private static AutoCloseable safeContext(final AutoCloseable context) {
+        return context == null ? NO_OP_CLOSEABLE : context;
+    }
+
+    /**
      * 런타임 이름을 정규화합니다.
      *
      * @param runtimeName 입력 런타임 이름
-     * @return 정규화된 이름
+     * @return 정규화된 런타임 이름
      */
     private static String normalizeRuntimeName(final String runtimeName) {
         if (runtimeName == null || runtimeName.isBlank()) {
@@ -347,15 +522,16 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     }
 
     /**
-     * Mailbox 실행 런타임 옵션입니다.
+     * Mailbox 실행 설정입니다.
      *
      * @param dispatcherThreads dispatcher 스레드 수
-     * @param workerThreads worker 스레드 수(0 이하면 direct 모드)
+     * @param workerThreads worker 스레드 수(0이면 direct 모드)
      * @param shutdownWaitMs 종료 대기 시간(ms)
-     * @param dispatcherThreadPrefix dispatcher 스레드 이름 prefix
-     * @param workerThreadPrefix worker 스레드 이름 prefix
+     * @param dispatcherThreadPrefix dispatcher 스레드 prefix
+     * @param workerThreadPrefix worker 스레드 prefix
      * @param dispatcherRunnableDecorator dispatcher runnable 데코레이터
      * @param workerRunnableDecorator worker runnable 데코레이터
+     * @param routingKeyLogContext 라우팅 키 로그 컨텍스트 전략
      */
     public record Config(
             int dispatcherThreads,
@@ -364,11 +540,12 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
             String dispatcherThreadPrefix,
             String workerThreadPrefix,
             RunnableDecorator dispatcherRunnableDecorator,
-            RunnableDecorator workerRunnableDecorator
+            RunnableDecorator workerRunnableDecorator,
+            MailboxScheduler.RoutingKeyLogContext routingKeyLogContext
     ) {
 
         /**
-         * 입력 옵션을 검증하고 기본값을 보정합니다.
+         * 설정값을 검증하고 기본값을 보정합니다.
          */
         public Config {
             if (dispatcherThreads <= 0) {
@@ -393,15 +570,18 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
             if (workerRunnableDecorator == null) {
                 workerRunnableDecorator = RunnableDecorator.identity();
             }
+            if (routingKeyLogContext == null) {
+                routingKeyLogContext = MailboxScheduler.RoutingKeyLogContext.noOp();
+            }
         }
 
         /**
-         * worker pool 없이 direct 처리 모드 설정을 생성합니다.
+         * direct 모드 설정을 생성합니다.
          *
          * @param dispatcherThreads dispatcher 스레드 수
-         * @param shutdownWaitMs 종료 대기 시간(ms)
-         * @param dispatcherThreadPrefix dispatcher 스레드 prefix
-         * @return direct 모드 설정
+         * @param shutdownWaitMs 종료 대기(ms)
+         * @param dispatcherThreadPrefix dispatcher prefix
+         * @return direct 설정
          */
         public static Config direct(
                 final int dispatcherThreads,
@@ -415,19 +595,20 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
                     dispatcherThreadPrefix,
                     "mailbox-worker-",
                     RunnableDecorator.identity(),
-                    RunnableDecorator.identity()
+                    RunnableDecorator.identity(),
+                    MailboxScheduler.RoutingKeyLogContext.noOp()
             );
         }
 
         /**
-         * worker pool 비동기 처리 모드 설정을 생성합니다.
+         * async 모드 설정을 생성합니다.
          *
          * @param dispatcherThreads dispatcher 스레드 수
          * @param workerThreads worker 스레드 수
-         * @param shutdownWaitMs 종료 대기 시간(ms)
-         * @param dispatcherThreadPrefix dispatcher 스레드 prefix
-         * @param workerThreadPrefix worker 스레드 prefix
-         * @return 비동기 모드 설정
+         * @param shutdownWaitMs 종료 대기(ms)
+         * @param dispatcherThreadPrefix dispatcher prefix
+         * @param workerThreadPrefix worker prefix
+         * @return async 설정
          */
         public static Config async(
                 final int dispatcherThreads,
@@ -443,24 +624,25 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
                     dispatcherThreadPrefix,
                     workerThreadPrefix,
                     RunnableDecorator.identity(),
-                    RunnableDecorator.identity()
+                    RunnableDecorator.identity(),
+                    MailboxScheduler.RoutingKeyLogContext.noOp()
             );
         }
 
         /**
-         * worker pool 비동기 모드 여부를 반환합니다.
+         * worker pool 사용 여부를 반환합니다.
          *
-         * @return workerThreads > 0이면 true
+         * @return workerThreads > 0 이면 true
          */
         public boolean useWorkerPool() {
             return workerThreads > 0;
         }
 
         /**
-         * dispatcher runnable 데코레이터를 교체한 새 설정을 반환합니다.
+         * dispatcher 데코레이터를 교체한 설정을 반환합니다.
          *
          * @param decorator 적용할 데코레이터
-         * @return 변경된 설정
+         * @return 새 설정
          */
         public Config withDispatcherDecorator(final RunnableDecorator decorator) {
             return new Config(
@@ -470,15 +652,16 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
                     dispatcherThreadPrefix,
                     workerThreadPrefix,
                     decorator,
-                    workerRunnableDecorator
+                    workerRunnableDecorator,
+                    routingKeyLogContext
             );
         }
 
         /**
-         * worker runnable 데코레이터를 교체한 새 설정을 반환합니다.
+         * worker 데코레이터를 교체한 설정을 반환합니다.
          *
          * @param decorator 적용할 데코레이터
-         * @return 변경된 설정
+         * @return 새 설정
          */
         public Config withWorkerDecorator(final RunnableDecorator decorator) {
             return new Config(
@@ -488,13 +671,33 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
                     dispatcherThreadPrefix,
                     workerThreadPrefix,
                     dispatcherRunnableDecorator,
-                    decorator
+                    decorator,
+                    routingKeyLogContext
+            );
+        }
+
+        /**
+         * 라우팅 키 로그 컨텍스트 전략을 교체한 설정을 반환합니다.
+         *
+         * @param logContext 로그 컨텍스트 전략
+         * @return 새 설정
+         */
+        public Config withRoutingKeyLogContext(final MailboxScheduler.RoutingKeyLogContext logContext) {
+            return new Config(
+                    dispatcherThreads,
+                    workerThreads,
+                    shutdownWaitMs,
+                    dispatcherThreadPrefix,
+                    workerThreadPrefix,
+                    dispatcherRunnableDecorator,
+                    workerRunnableDecorator,
+                    logContext
             );
         }
     }
 
     /**
-     * task 처리 훅입니다.
+     * task 처리 함수형 인터페이스입니다.
      *
      * @param <T> task 타입
      */
@@ -504,14 +707,14 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
         /**
          * 단일 task를 처리합니다.
          *
-         * @param task 처리 대상 task
-         * @throws Exception 처리 실패 시 예외
+         * @param task 처리 대상
+         * @throws Exception 처리 실패 예외
          */
         void process(T task) throws Exception;
     }
 
     /**
-     * worker queue 거부 훅입니다.
+     * worker 큐 거절 핸들러 인터페이스입니다.
      *
      * @param <T> task 타입
      */
@@ -519,16 +722,16 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     public interface TaskRejectedHandler<T extends MailboxTask> {
 
         /**
-         * task 거부 시 호출됩니다.
+         * task 거절 시 호출됩니다.
          *
-         * @param task 거부된 task
-         * @param rejected 거부 예외
+         * @param task 거절된 task
+         * @param rejected 거절 예외
          */
         void onRejected(T task, RejectedExecutionException rejected);
     }
 
     /**
-     * task 처리 실패 훅입니다.
+     * task 실패 핸들러 인터페이스입니다.
      *
      * @param <T> task 타입
      */
@@ -539,13 +742,13 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
          * task 처리 실패 시 호출됩니다.
          *
          * @param task 실패 task
-         * @param ex 처리 예외
+         * @param ex 실패 예외
          */
         void onTaskFailure(T task, Exception ex);
     }
 
     /**
-     * 루프 예외 훅입니다.
+     * 루프 실패 핸들러 인터페이스입니다.
      */
     @FunctionalInterface
     public interface LoopFailureHandler {
@@ -559,9 +762,7 @@ public final class MailboxExecutionRuntime<T extends MailboxTask> {
     }
 
     /**
-     * runnable 데코레이터입니다.
-     *
-     * <p>MDC/GatewayLogContext 같은 컨텍스트 전파가 필요할 때 사용합니다.</p>
+     * Runnable 데코레이터 인터페이스입니다.
      */
     @FunctionalInterface
     public interface RunnableDecorator {

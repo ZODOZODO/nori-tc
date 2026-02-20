@@ -8,43 +8,50 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
+import java.util.Objects;
 
 /**
- * HSMS S1F2 기반 eqpId 추출기.
+ * HSMS UNBOUND 프레임에서 eqpId를 추출하기 위한 파서입니다.
  *
- * - UNBOUND 상태에서만 사용
- * - S1F2 payload에서 eqpId를 추출
+ * <p>현재는 HSMS S1F2 기반 eqpId 추출 규격이 확정되지 않아
+ * 프레임을 소비만 하고 eqpId는 반환하지 않습니다.</p>
  */
 public final class HsmsEqpIdExtractor implements EqpIdExtractor {
 
     private static final Logger log = LoggerFactory.getLogger(HsmsEqpIdExtractor.class);
 
+    /**
+     * HSMS raw frame 추출기입니다.
+     */
     private final HsmsFrameExtractor frameExtractor;
+
+    /**
+     * 향후 S1F2 payload 파싱 구현 시 사용할 디코더입니다.
+     */
     private final Secs2Decoder secs2Decoder;
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 구성 요소를 초기화합니다.
+     * HSMS eqpId 추출기를 초기화합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param frameExtractor 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param secs2Decoder 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
+     * @param frameExtractor HSMS 프레임 추출기
+     * @param secs2Decoder HSMS SECS-II 디코더(향후 사용)
      */
     public HsmsEqpIdExtractor(
             final HsmsFrameExtractor frameExtractor,
             final Secs2Decoder secs2Decoder
     ) {
-        this.frameExtractor = frameExtractor;
-        this.secs2Decoder = secs2Decoder;
+        this.frameExtractor = Objects.requireNonNull(frameExtractor, "frameExtractor is null");
+        this.secs2Decoder = Objects.requireNonNull(secs2Decoder, "secs2Decoder is null");
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * UNBOUND 버퍼에서 HSMS 프레임을 소비하며 eqpId를 탐색합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param buffer 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @return 조회 결과(Optional)
+     * <p>현 구현은 eqpId 파싱 로직이 없으므로, 프레임이 존재하면 소비 후 계속 반복하고
+     * 더 이상 프레임이 없으면 Optional.empty()를 반환합니다.</p>
+     *
+     * @param buffer UNBOUND 누적 버퍼
+     * @return 항상 Optional.empty()
      */
     @Override
     public Optional<String> tryExtractEqpId(final ReassemblyBuffer buffer) {
@@ -64,5 +71,5 @@ public final class HsmsEqpIdExtractor implements EqpIdExtractor {
         }
     }
 
-    // TODO: HSMS S1F2 payload format 확정 후 eqpId 파싱 로직 구현
+    // TODO: HSMS S1F2 payload format 확정 후 secs2Decoder를 이용한 eqpId 파싱 로직 구현
 }

@@ -8,6 +8,7 @@ import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
 import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,16 +17,16 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 
 /**
- * Netty 채널을 설비(eqpId)에 바인딩/해제하는 서비스입니다.
+ * Netty 채널을 설비(eqpId)에 바인딩/언바인딩하는 서비스입니다.
  *
- * <p>주요 책임은 다음과 같습니다.</p>
- * <p>1) 바인딩 전 공통 검증(shard ownership, DB 등록, enabled, interfaceType, connectionMode)</p>
- * <p>2) channelRegistry 등록 및 mailbox 생성</p>
- * <p>3) 연결/해제 라이프사이클 이벤트 발행</p>
+ * <p>핵심 책임은 다음과 같습니다.</p>
+ * <p>1) 바인딩 전 공통 검증(shard ownership, DB 등록, enabled, 인터페이스, 모드)을 수행합니다.</p>
+ * <p>2) 채널 레지스트리 등록 및 mailbox 바인딩을 수행합니다.</p>
+ * <p>3) 연결/해제 라이프사이클 이벤트를 상태머신으로 전달합니다.</p>
  *
- * <p>중요: connectionMode는 설비 관점으로 해석합니다.</p>
- * <p>- 설비 ACTIVE  : 설비가 접속 주체(게이트웨이는 수신 서버)</p>
- * <p>- 설비 PASSIVE : 게이트웨이가 접속 주체(아웃바운드 클라이언트)</p>
+ * <p>connectionMode는 설비 기준 의미를 사용합니다.</p>
+ * <p>- ACTIVE: 설비가 접속 주체(게이트웨이는 수신 서버)</p>
+ * <p>- PASSIVE: 게이트웨이가 접속 주체(아웃바운드 클라이언트)</p>
  */
 @Service
 public class EqpBindingService {
@@ -38,11 +39,11 @@ public class EqpBindingService {
     private final EqpLifecycleStateMachine lifecycleStateMachine;
 
     /**
-     * 바인딩 서비스 의존성을 주입받아 초기화합니다.
+     * 바인딩 서비스 의존 객체를 초기화합니다.
      *
      * @param channelRegistry 설비 채널 레지스트리
-     * @param processingService mailbox/설비 조회 처리 서비스
-     * @param shardOwnership 현재 인스턴스 shard 소유 판단기
+     * @param processingService 처리 서비스
+     * @param shardOwnership 샤드 소유권 판별기
      * @param lifecycleStateMachine 라이프사이클 상태머신
      */
     public EqpBindingService(
@@ -58,14 +59,14 @@ public class EqpBindingService {
     }
 
     /**
-     * 서버 수신(PASSIVE handler) 경로 채널을 바인딩합니다.
+     * 수신 경로(PASSIVE handler) 바인딩을 수행합니다.
      *
-     * <p>수신 경로는 "설비가 먼저 접속"한 경우이므로, 설비 connectionMode는 ACTIVE여야 합니다.</p>
+     * <p>수신 경로는 설비가 먼저 붙는 경로이므로 설비 모드는 ACTIVE여야 합니다.</p>
      *
-     * @param eqpId 파싱된 설비 ID
-     * @param interfaceType 통신 인터페이스(HSMS/SOCKET)
+     * @param eqpId 대상 설비 ID
+     * @param interfaceType 인터페이스 타입
      * @param channel Netty 채널
-     * @return 바인딩 결과 코드
+     * @return 바인딩 결과
      */
     public BindResult bindPassive(
             final String eqpId,
@@ -76,14 +77,14 @@ public class EqpBindingService {
     }
 
     /**
-     * 아웃바운드 클라이언트(ACTIVE handler) 경로 채널을 바인딩합니다.
+     * 발신 경로(ACTIVE handler) 바인딩을 수행합니다.
      *
-     * <p>발신 경로는 "게이트웨이가 먼저 접속"한 경우이므로, 설비 connectionMode는 PASSIVE여야 합니다.</p>
+     * <p>발신 경로는 게이트웨이가 먼저 붙는 경로이므로 설비 모드는 PASSIVE여야 합니다.</p>
      *
-     * @param eqpId 검증된 설비 ID
-     * @param interfaceType 통신 인터페이스(HSMS/SOCKET)
+     * @param eqpId 대상 설비 ID
+     * @param interfaceType 인터페이스 타입
      * @param channel Netty 채널
-     * @return 바인딩 결과 코드
+     * @return 바인딩 결과
      */
     public BindResult bindActive(
             final String eqpId,
@@ -94,12 +95,12 @@ public class EqpBindingService {
     }
 
     /**
-     * 채널 해제를 수행합니다.
+     * 채널 언바인딩을 수행합니다.
      *
-     * <p>채널에 저장된 eqpId를 기준으로 channelRegistry/mailbox를 정리하고,
-     * 상태머신에 disconnected 이벤트를 전달합니다.</p>
+     * <p>채널에 기록된 eqpId를 기준으로 채널/메일박스를 정리하고,
+     * 상태머신에 DISCONNECTED 이벤트를 전달합니다.</p>
      *
-     * @param channel 해제할 Netty 채널
+     * @param channel 해제 대상 Netty 채널
      */
     public void unbind(final Channel channel) {
         if (channel == null) {
@@ -111,28 +112,30 @@ public class EqpBindingService {
             return;
         }
 
-        channelRegistry.unregister(new EquipmentId(eqpId));
-        processingService.removeMailbox(eqpId);
-        lifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND");
+        withEqpLogContext(eqpId, () -> {
+            channelRegistry.unregister(new EquipmentId(eqpId));
+            processingService.removeMailbox(eqpId);
+            lifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND");
 
-        log.info("Channel unbound. eqpId={}", eqpId);
+            log.info("Channel unbound. eqpId={}", eqpId);
+        });
     }
 
     /**
-     * 공통 바인딩 검증과 실제 레지스트리/메일박스 등록을 수행합니다.
+     * 공통 바인딩 검증 및 실제 바인딩을 수행합니다.
      *
-     * <p>검증 순서:</p>
+     * <p>검증 순서는 다음과 같습니다.</p>
      * <p>1) eqpId 유효성</p>
      * <p>2) shard ownership</p>
-     * <p>3) DB 등록 설비 조회</p>
-     * <p>4) enabled, interfaceType, connectionMode 일치</p>
-     * <p>5) 중복 연결 여부</p>
+     * <p>3) 설비 조회</p>
+     * <p>4) enabled / 인터페이스 / 모드 일치</p>
+     * <p>5) 중복 채널 여부</p>
      *
      * @param eqpId 대상 설비 ID
      * @param interfaceType 채널 인터페이스 타입
-     * @param expectedMode 현재 바인딩 경로가 요구하는 설비 connectionMode
+     * @param expectedMode 현재 경로에서 기대하는 설비 connectionMode
      * @param channel Netty 채널
-     * @return 바인딩 결과 코드
+     * @return 바인딩 결과
      */
     private BindResult bindInternal(
             final String eqpId,
@@ -143,47 +146,50 @@ public class EqpBindingService {
         if (eqpId == null || eqpId.isBlank()) {
             return BindResult.INVALID_EQP_ID;
         }
-        if (log.isDebugEnabled()) {
-            log.debug("Bind attempt. eqpId={}, interfaceType={}, expectedEquipmentMode={}",
-                    eqpId, interfaceType, expectedMode);
-        }
 
-        if (!shardOwnership.isOwned(eqpId)) {
-            return BindResult.NOT_OWNED;
-        }
+        return executeWithEqpLogContext(eqpId, () -> {
+            if (log.isDebugEnabled()) {
+                log.debug("Bind attempt. eqpId={}, interfaceType={}, expectedEquipmentMode={}",
+                        eqpId, interfaceType, expectedMode);
+            }
 
-        final GatewayEquipmentInfo info;
-        try {
-            info = processingService.resolveEquipment(eqpId);
-        } catch (Exception ex) {
-            return BindResult.UNKNOWN_EQUIPMENT;
-        }
+            if (!shardOwnership.isOwned(eqpId)) {
+                return BindResult.NOT_OWNED;
+            }
 
-        if (!info.enabled()) {
-            return BindResult.DISABLED;
-        }
-        if (info.commInterfaceType() != interfaceType) {
-            return BindResult.COMM_INTERFACE_MISMATCH;
-        }
-        if (info.connectionMode() != expectedMode) {
-            return BindResult.CONNECTION_MODE_MISMATCH;
-        }
+            final GatewayEquipmentInfo info;
+            try {
+                info = processingService.resolveEquipment(eqpId);
+            } catch (Exception ex) {
+                return BindResult.UNKNOWN_EQUIPMENT;
+            }
 
-        final NettyEquipmentChannel equipmentChannel = new NettyEquipmentChannel(channel);
-        final boolean bound = channelRegistry.tryBind(new EquipmentId(eqpId), equipmentChannel);
-        if (!bound) {
-            return BindResult.DUPLICATE_CONNECTION;
-        }
+            if (!info.enabled()) {
+                return BindResult.DISABLED;
+            }
+            if (info.commInterfaceType() != interfaceType) {
+                return BindResult.COMM_INTERFACE_MISMATCH;
+            }
+            if (info.connectionMode() != expectedMode) {
+                return BindResult.CONNECTION_MODE_MISMATCH;
+            }
 
-        processingService.bindMailbox(info, equipmentChannel);
-        lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
+            final NettyEquipmentChannel equipmentChannel = new NettyEquipmentChannel(channel);
+            final boolean bound = channelRegistry.tryBind(new EquipmentId(eqpId), equipmentChannel);
+            if (!bound) {
+                return BindResult.DUPLICATE_CONNECTION;
+            }
 
-        log.info("Bind success. eqpId={}, interfaceType={}, equipmentMode={}", eqpId, interfaceType, expectedMode);
-        return BindResult.OK;
+            processingService.bindMailbox(info, equipmentChannel);
+            lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
+
+            log.info("Bind success. eqpId={}, interfaceType={}, equipmentMode={}", eqpId, interfaceType, expectedMode);
+            return BindResult.OK;
+        });
     }
 
     /**
-     * 채널 바인딩 결과 코드입니다.
+     * 바인딩 결과 코드입니다.
      */
     public enum BindResult {
         OK,
@@ -194,5 +200,42 @@ public class EqpBindingService {
         INVALID_EQP_ID,
         COMM_INTERFACE_MISMATCH,
         CONNECTION_MODE_MISMATCH
+    }
+
+    /**
+     * eqpId MDC를 적용한 상태로 단순 작업을 실행합니다.
+     *
+     * @param eqpId 설비 ID
+     * @param task 실행 작업
+     */
+    private void withEqpLogContext(final String eqpId, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (eqpId == null || eqpId.isBlank()) {
+            task.run();
+            return;
+        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            task.run();
+        }
+    }
+
+    /**
+     * eqpId MDC를 적용한 상태로 값을 반환하는 작업을 실행합니다.
+     *
+     * @param eqpId 설비 ID
+     * @param supplier 실행 작업
+     * @return 실행 결과
+     * @param <T> 반환 타입
+     */
+    private <T> T executeWithEqpLogContext(final String eqpId, final java.util.function.Supplier<T> supplier) {
+        Objects.requireNonNull(supplier, "supplier is null");
+        if (eqpId == null || eqpId.isBlank()) {
+            return supplier.get();
+        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            return supplier.get();
+        }
     }
 }

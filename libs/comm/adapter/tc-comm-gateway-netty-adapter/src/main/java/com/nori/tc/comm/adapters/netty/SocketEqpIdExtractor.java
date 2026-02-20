@@ -2,6 +2,7 @@ package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
@@ -14,13 +15,17 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Objects;
 
 /**
- * SOCKET 초기화 응답에서 eqpId 추출.
+ * SOCKET `INITIALIZE_REP` 프레임에서 eqpId를 추출하는 파서입니다.
  *
- * 예시:
- * - Gateway -> "CMD=INITIALIZE"
- * - Client -> "CMD=INITIALIZE_REP EQPID=TEST001"
+ * <p>UNBOUND 단계에서 수신되는 프레임 중 초기화 응답만 선별하여
+ * `EQPID=<value>` 키를 파싱합니다.</p>
+ *
+ * <p>예시:</p>
+ * <p>- Gateway -> `CMD=INITIALIZE`</p>
+ * <p>- Client -> `CMD=INITIALIZE_REP EQPID=TEST001`</p>
  */
 public final class SocketEqpIdExtractor implements EqpIdExtractor {
 
@@ -30,32 +35,33 @@ public final class SocketEqpIdExtractor implements EqpIdExtractor {
     private final GatewayNettyProperties nettyProperties;
     private final SocketTypeRegistry socketTypeRegistry;
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 구성 요소를 초기화합니다.
+     * SOCKET eqpId 추출기를 초기화합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param socketProperties 통신 채널/세션 정보
-     * @param nettyProperties 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param socketTypeRegistry 통신 채널/세션 정보
+     * @param socketProperties SOCKET 프레임 추출/제한 설정
+     * @param nettyProperties 초기화 응답 prefix, eqpId key 설정
+     * @param socketTypeRegistry socket type별 프레임 핸들러 레지스트리
      */
     public SocketEqpIdExtractor(
             final GatewaySocketProperties socketProperties,
             final GatewayNettyProperties nettyProperties,
             final SocketTypeRegistry socketTypeRegistry
     ) {
-        this.socketProperties = socketProperties;
-        this.nettyProperties = nettyProperties;
-        this.socketTypeRegistry = socketTypeRegistry;
+        this.socketProperties = Objects.requireNonNull(socketProperties, "socketProperties is null");
+        this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
+        this.socketTypeRegistry = Objects.requireNonNull(socketTypeRegistry, "socketTypeRegistry is null");
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 버퍼에 누적된 SOCKET 프레임에서 eqpId를 추출합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param buffer 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @return 조회 결과(Optional)
+     * <p>동작 규칙:</p>
+     * <p>1) 프레임 디코딩 실패 프레임은 드롭하고 다음 프레임을 검사합니다.</p>
+     * <p>2) `socketInitializeReplyPrefix`와 messageName이 일치하는 프레임만 대상으로 삼습니다.</p>
+     * <p>3) `socketEqpIdKey` 기준으로 eqpId를 추출하면 즉시 반환합니다.</p>
+     *
+     * @param buffer UNBOUND 누적 버퍼
+     * @return eqpId가 추출되면 Optional.of(eqpId), 아니면 Optional.empty()
      */
     @Override
     public Optional<String> tryExtractEqpId(final ReassemblyBuffer buffer) {
@@ -73,17 +79,17 @@ public final class SocketEqpIdExtractor implements EqpIdExtractor {
             try {
                 decoded = handler.decode(frame.bytes());
             } catch (Exception ex) {
-                // 디코딩 실패 프레임은 드롭하고 다음 프레임을 계속 탐색합니다.
+                // 형식이 맞지 않는 프레임은 바인딩 대상이 아니므로 버리고 다음 프레임을 확인합니다.
                 continue;
             }
 
             final String messageName = decoded.messageName();
             if (!messageName.equalsIgnoreCase(expected)) {
-                // 등록 메시지가 아니면 드롭 (UNBOUND 단계 처리 금지)
+                // 초기화 응답이 아니면 UNBOUND 단계에서 처리하지 않고 버립니다.
                 continue;
             }
 
-            // body 또는 rawLine에서 EQPID 추출
+            // socket type 구현에 따라 rawLine/body 중 값이 존재하는 쪽을 사용합니다.
             final String rawLine = decoded.attributes().getOrDefault("rawLine", "");
             final String body = decoded.body() == null ? "" : decoded.body().toString();
             final String candidate = !rawLine.isBlank() ? rawLine : body;
@@ -91,26 +97,32 @@ public final class SocketEqpIdExtractor implements EqpIdExtractor {
             final Optional<String> eqpId = parseEqpId(candidate, nettyProperties.getSocketEqpIdKey());
             if (eqpId.isPresent()) {
                 if (log.isDebugEnabled()) {
-                    log.debug("SOCKET eqpId extracted. eqpId={}", eqpId.get());
+                    try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId.get())) {
+                        log.debug("SOCKET eqpId extracted from INITIALIZE_REP. eqpId={}", eqpId.get());
+                    }
                 }
                 return eqpId;
             }
-            // EQPID가 없으면 해당 프레임은 드롭하고 다음 프레임을 계속 탐색합니다.
+            if (log.isDebugEnabled()) {
+                log.debug("SOCKET INITIALIZE_REP does not contain eqpId token. key={}",
+                        nettyProperties.getSocketEqpIdKey());
+            }
+            // 키가 없으면 해당 프레임은 바인딩에 사용할 수 없으므로 버리고 다음 프레임을 탐색합니다.
         }
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * 문자열에서 `key=value` 형태의 eqpId를 파싱합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param text 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     * @param key 대상 키 값
-     * @return 조회 결과(Optional)
+     * @param text 파싱 대상 원문
+     * @param key eqpId 키(예: `EQPID`)
+     * @return 파싱 성공 시 eqpId
      */
     private Optional<String> parseEqpId(final String text, final String key) {
-        // 파싱 단계: 입력 포맷을 해석해 필요한 필드만 안전하게 추출합니다.
         if (text == null || text.isBlank()) {
+            return Optional.empty();
+        }
+        if (key == null || key.isBlank()) {
             return Optional.empty();
         }
 
@@ -129,12 +141,10 @@ public final class SocketEqpIdExtractor implements EqpIdExtractor {
         return Optional.of(eqpId);
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 실행 환경을 초기화하고 기동합니다.
+     * 게이트웨이가 송신할 SOCKET initialize 명령 바이트를 생성합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @return 게이트웨이 Netty 어댑터 처리 결과
+     * @return UTF-8 인코딩된 initialize 명령 바이트
      */
     public byte[] initializeCommandBytes() {
         return nettyProperties.getSocketInitializeCommand().getBytes(StandardCharsets.UTF_8);

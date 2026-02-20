@@ -7,6 +7,7 @@ import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
 import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
 import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -23,25 +24,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Netty 인바운드 채널 핸들러입니다.
  *
- * <p>ACTIVE/ PASSIVE 채널 경로를 공통 처리하며, 바인딩 전후 상태를 다음처럼 관리합니다.</p>
- * <p>1) UNBOUND: eqpId 미확정 상태(핸드셰이크/등록 대기)</p>
- * <p>2) BOUND: eqpId 확정 상태(메일박스 enqueue 가능)</p>
+ * <p>ACTIVE/PASSIVE 연결 경로를 공통으로 처리하며, 바인딩 전/후 상태를 관리합니다.</p>
+ * <p>1) UNBOUND: eqpId가 확정되지 않은 상태(초기 프레임 수집/파싱 단계)</p>
+ * <p>2) BOUND: eqpId가 확정된 상태(메일박스 enqueue 가능)</p>
  *
- * <p>성능 원칙:</p>
- * <p>- channelRead에서는 byte[] 복사 + enqueue까지만 수행합니다.</p>
- * <p>- 파싱/검증/실처리는 worker/바인딩 executor에서 수행합니다.</p>
+ * <p>성능 관점에서 I/O 스레드에서는 최소 작업(바이트 복사 + 큐 적재)만 수행하고,
+ * 바인딩 파싱/검증은 별도 executor에서 수행합니다.</p>
  */
 public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayChannelHandler.class);
 
-    private final CommInterfaceType interfaceType;
     /**
-     * 아웃바운드 채널(게이트웨이 발신)인 경우 미리 알고 있는 대상 eqpId입니다.
+     * 채널이 담당하는 인터페이스 타입입니다.
+     */
+    private final CommInterfaceType interfaceType;
+
+    /**
+     * 아웃바운드 채널(게이트웨이가 먼저 접속)에서 미리 알고 있는 목표 eqpId입니다.
      *
-     * <p>null이면 서버 수신 채널(게이트웨이 수신)로 동작합니다.</p>
+     * <p>null이면 수신 채널이며, initialize 응답/초기 프레임 파싱으로 eqpId를 결정합니다.</p>
      */
     private final String presetEqpId;
+
     private final GatewayNettyProperties nettyProperties;
     private final GatewayProcessingService processingService;
     private final EqpBindingService bindingService;
@@ -52,27 +57,28 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     private final BindAttemptExecutor bindExecutor;
 
     /**
-     * 동일 채널에서 동시 바인딩 시도가 중첩되지 않도록 보호합니다.
+     * 동일 채널에서 바인딩 시도가 중복으로 예약되지 않도록 제어합니다.
      */
     private final AtomicBoolean bindScheduled = new AtomicBoolean(false);
+
     /**
-     * UNBOUND 상태에서 수신된 raw bytes를 임시 보관하는 inbox입니다.
+     * UNBOUND 상태에서 수신한 raw bytes를 임시 보관하는 버퍼입니다.
      */
     private final UnboundInbox unboundInbox;
 
     /**
      * 채널 핸들러를 생성합니다.
      *
-     * @param interfaceType 통신 인터페이스 타입
-     * @param presetEqpId 아웃바운드 대상 eqpId(수신 채널이면 null)
-     * @param nettyProperties netty 런타임 설정
-     * @param processingService inbound/outbound enqueue 진입점
-     * @param bindingService 설비 바인딩 서비스
-     * @param metrics 게이트웨이 메트릭 수집기
+     * @param interfaceType 인터페이스 타입
+     * @param presetEqpId 아웃바운드 경로의 목표 eqpId(수신 채널이면 null)
+     * @param nettyProperties Netty 설정
+     * @param processingService inbound enqueue 진입점
+     * @param bindingService 바인딩 서비스
+     * @param metrics 메트릭 수집기
      * @param logSampler 로그 샘플링 정책
      * @param hsmsExtractor HSMS eqpId 추출기
      * @param socketExtractor SOCKET eqpId 추출기
-     * @param bindExecutor 바인딩 전용 executor
+     * @param bindExecutor 바인딩 시도 실행기
      */
     public GatewayChannelHandler(
             final CommInterfaceType interfaceType,
@@ -103,14 +109,13 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
-     * 채널 활성화 시 초기 상태를 UNBOUND로 세팅하고 바인딩 준비를 시작합니다.
+     * 채널 활성화 시 UNBOUND 상태를 기록하고 바인딩 준비 절차를 시작합니다.
      *
-     * <p>동작 정책:</p>
-     * <p>1) 아웃바운드 HSMS는 preset eqpId를 즉시 바인딩합니다(기존 정책 유지).</p>
-     * <p>2) SOCKET(inbound/outbound)은 모두 initialize 핸드셰이크를 수행합니다.</p>
-     * <p>3) 핸드셰이크/등록 타임아웃을 예약합니다.</p>
+     * <p>정책은 다음과 같습니다.</p>
+     * <p>1) HSMS 아웃바운드(preset eqpId 있음)는 즉시 바인딩 시도</p>
+     * <p>2) 그 외 경로는 bind timeout을 예약하고, SOCKET이면 initialize를 송신</p>
      *
-     * @param ctx Netty 핸들러 컨텍스트
+     * @param ctx Netty 채널 컨텍스트
      */
     @Override
     public void channelActive(final ChannelHandlerContext ctx) {
@@ -119,21 +124,19 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         metrics.incrementActiveConnections();
         metrics.incrementUnboundConnections();
 
-        // HSMS 아웃바운드는 현재 설계에서 preset eqpId 즉시 바인딩으로 유지합니다.
         if (shouldBindImmediatelyOnChannelActive()) {
             bindImmediatelyWithPresetEqpId(channel);
             return;
         }
 
-        // SOCKET(inbound/outbound) + HSMS inbound는 UNBOUND 타임아웃 감시를 공통 적용합니다.
         scheduleBindTimeout(channel);
         sendInitializeIfNeeded(channel);
     }
 
     /**
-     * 채널 비활성화 시 메트릭/바인딩 상태를 정리합니다.
+     * 채널 비활성화 시 bind timeout을 해제하고 메트릭/바인딩 상태를 정리합니다.
      *
-     * @param ctx Netty 핸들러 컨텍스트
+     * @param ctx Netty 채널 컨텍스트
      */
     @Override
     public void channelInactive(final ChannelHandlerContext ctx) {
@@ -147,17 +150,18 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             metrics.decrementUnboundConnections();
         }
         metrics.decrementActiveConnections();
+
         bindingService.unbind(channel);
     }
 
     /**
      * 수신 메시지를 바인딩 상태에 따라 처리합니다.
      *
-     * <p>BOUND 상태면 eqp mailbox로 inbound enqueue하고,
-     * UNBOUND 상태면 unbound inbox에 쌓은 뒤 바인딩 시도를 예약합니다.</p>
+     * <p>BOUND 상태면 즉시 설비 mailbox로 enqueue하고,
+     * UNBOUND 상태면 unbound inbox에 저장 후 바인딩 시도를 예약합니다.</p>
      *
-     * @param ctx Netty 핸들러 컨텍스트
-     * @param msg 수신 객체(ByteBuf 기대)
+     * @param ctx Netty 채널 컨텍스트
+     * @param msg 수신 메시지(ByteBuf 기대)
      */
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
@@ -167,7 +171,6 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         }
 
         try {
-            // IO 스레드에서는 최소 작업(복사 + enqueue)만 수행합니다.
             final byte[] bytes = new byte[buf.readableBytes()];
             buf.readBytes(bytes);
 
@@ -183,37 +186,37 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             }
 
             if (!unboundInbox.offer(bytes)) {
-                log.warn("Unbound inbox overflow. closing channel. remote={}", channel.remoteAddress());
+                withEqpLogContext(resolveLogEqpId(channel),
+                        () -> log.warn("Unbound inbox overflow. closing channel. remote={}", channel.remoteAddress()));
                 channel.close();
                 return;
             }
-            scheduleBindAttempt(channel);
 
+            scheduleBindAttempt(channel);
         } finally {
             ReferenceCountUtil.release(buf);
         }
     }
 
     /**
-     * 채널 예외 발생 시 경고 로그를 남기고 채널을 닫습니다.
+     * 채널 예외 발생 시 로그를 남기고 채널을 종료합니다.
      *
-     * @param ctx Netty 핸들러 컨텍스트
-     * @param cause 예외
+     * @param ctx Netty 채널 컨텍스트
+     * @param cause 예외 원인
      */
     @Override
     public void exceptionCaught(final ChannelHandlerContext ctx, final Throwable cause) {
-        log.warn("Netty channel error", cause);
+        final Channel channel = ctx.channel();
+        withEqpLogContext(resolveLogEqpId(channel), () -> log.warn("Netty channel error", cause));
         ctx.close();
     }
 
     /**
-     * 채널 활성화 직후 즉시 바인딩할지 여부를 판단합니다.
+     * 채널 활성 직후 즉시 바인딩 가능 여부를 반환합니다.
      *
-     * <p>현재 정책:</p>
-     * <p>- preset eqpId가 있고, 인터페이스가 SOCKET이 아닌 경우(즉, HSMS 아웃바운드) 즉시 바인딩</p>
-     * <p>- SOCKET은 inbound/outbound 모두 핸드셰이크 후 바인딩</p>
+     * <p>현재 정책: preset eqpId가 있고 인터페이스가 SOCKET이 아닌 경우 즉시 바인딩합니다.</p>
      *
-     * @return 즉시 바인딩 여부
+     * @return 즉시 바인딩 대상이면 true
      */
     private boolean shouldBindImmediatelyOnChannelActive() {
         return presetEqpId != null && interfaceType != CommInterfaceType.SOCKET;
@@ -221,8 +224,6 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
     /**
      * preset eqpId 기반 즉시 바인딩을 수행합니다.
-     *
-     * <p>즉시 바인딩 실패 시 채널을 종료하고, 성공 시 BOUND 상태로 전환합니다.</p>
      *
      * @param channel 대상 채널
      */
@@ -242,16 +243,15 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         metrics.decrementUnboundConnections();
         metrics.incrementBoundConnections();
 
-        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(presetEqpId)) {
-            log.info("ACTIVE_BIND_OK. eqpId={}, remote={}", presetEqpId, channel.remoteAddress());
-        }
+        withEqpLogContext(presetEqpId,
+                () -> log.info("ACTIVE_BIND_OK. eqpId={}, remote={}", presetEqpId, channel.remoteAddress()));
 
-        // HSMS 즉시 바인딩 경로에서는 no-op이지만, 구조 일관성을 위해 호출합니다.
+        // HSMS 경로에서는 no-op이며, SOCKET 경로와 호출 구조를 통일하기 위해 유지합니다.
         sendInitializeIfNeeded(channel);
     }
 
     /**
-     * 바인딩 시도 작업을 executor에 예약합니다.
+     * 바인딩 시도를 executor에 예약합니다.
      *
      * <p>동일 채널에서 동시 예약은 1건만 허용합니다.</p>
      *
@@ -262,19 +262,22 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        bindExecutor.submit(() -> {
+        final Runnable bindTask = () -> {
             try {
                 attemptBind(channel);
             } finally {
                 bindScheduled.set(false);
             }
-        });
+        };
+
+        final String eqpIdForLog = resolveLogEqpId(channel);
+        withEqpLogContext(eqpIdForLog, () -> bindExecutor.submit(GatewayLogContext.wrap(bindTask)));
     }
 
     /**
-     * UNBOUND 채널의 바인딩 시도를 수행합니다.
+     * UNBOUND 채널에 대한 바인딩 시도를 수행합니다.
      *
-     * <p>SOCKET outbound의 경우 추가 검증으로 preset eqpId와 rep eqpId 일치 여부를 확인합니다.</p>
+     * <p>SOCKET 아웃바운드의 경우 initialize 응답의 eqpId가 preset eqpId와 일치해야 합니다.</p>
      *
      * @param channel 대상 채널
      */
@@ -288,14 +291,14 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
         final Optional<String> extractedEqpIdOpt;
         try {
-            // 별도 executor에서 unbound inbox를 버퍼로 드레인하고 프레임 파싱을 수행합니다.
             unboundInbox.drainToBuffer();
             extractedEqpIdOpt = switch (interfaceType) {
                 case HSMS -> hsmsExtractor.tryExtractEqpId(unboundInbox.buffer());
                 case SOCKET -> socketExtractor.tryExtractEqpId(unboundInbox.buffer());
             };
         } catch (Exception ex) {
-            log.warn("Bind parsing failed. closing channel. remote={}", channel.remoteAddress(), ex);
+            withEqpLogContext(resolveLogEqpId(channel),
+                    () -> log.warn("Bind parsing failed. closing channel. remote={}", channel.remoteAddress(), ex));
             channel.close();
             return;
         }
@@ -307,14 +310,15 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         final String extractedEqpId = extractedEqpIdOpt.get();
         final boolean outboundChannel = presetEqpId != null;
 
-        // SOCKET 아웃바운드는 핸드셰이크 응답 eqpId가 목표 설비와 같아야만 바인딩합니다.
         if (outboundChannel
                 && interfaceType == CommInterfaceType.SOCKET
                 && !presetEqpId.equals(extractedEqpId)) {
-            log.warn("SOCKET_INITIALIZE_EQPID_MISMATCH. expectedEqpId={}, replyEqpId={}, remote={}",
+            withEqpLogContext(presetEqpId, () -> log.warn(
+                    "SOCKET_INITIALIZE_EQPID_MISMATCH. expectedEqpId={}, replyEqpId={}, remote={}",
                     presetEqpId,
                     extractedEqpId,
-                    channel.remoteAddress());
+                    channel.remoteAddress()
+            ));
             channel.close();
             return;
         }
@@ -336,15 +340,15 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         metrics.decrementUnboundConnections();
         metrics.incrementBoundConnections();
 
-        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(bindEqpId)) {
+        withEqpLogContext(bindEqpId, () -> {
             if (outboundChannel) {
                 log.info("ACTIVE_BIND_OK. eqpId={}, remote={}", bindEqpId, channel.remoteAddress());
             } else {
                 log.info("PASSIVE_BIND_OK. eqpId={}, remote={}", bindEqpId, channel.remoteAddress());
             }
-        }
+        });
 
-        // 등록 완료 후 UNBOUND 버퍼를 비웁니다.
+        // 바인딩 성공 후 UNBOUND 임시 버퍼를 비웁니다.
         unboundInbox.clear();
     }
 
@@ -352,9 +356,9 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
      * 바인딩 거절 결과를 코드별로 로깅합니다.
      *
      * @param result 바인딩 결과
-     * @param eqpId 대상 eqpId
+     * @param eqpId 설비 ID
      * @param channel 대상 채널
-     * @param bindPath 로깅용 바인딩 경로 명
+     * @param bindPath 바인딩 경로 구분 문자열
      */
     private void logBindRejected(
             final EqpBindingService.BindResult result,
@@ -362,38 +366,38 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             final Channel channel,
             final String bindPath
     ) {
-        if (result == EqpBindingService.BindResult.DUPLICATE_CONNECTION) {
-            metrics.incrementDuplicateEqpReject();
-            if (logSampler.shouldLogDuplicateReject()) {
-                log.warn("DUPLICATE_EQP_REJECT. bindPath={}, eqpId={}, remote={}",
-                        bindPath,
-                        eqpId,
-                        channel.remoteAddress());
+        withEqpLogContext(eqpId, () -> {
+            if (result == EqpBindingService.BindResult.DUPLICATE_CONNECTION) {
+                metrics.incrementDuplicateEqpReject();
+                if (logSampler.shouldLogDuplicateReject()) {
+                    log.warn("DUPLICATE_EQP_REJECT. bindPath={}, eqpId={}, remote={}",
+                            bindPath,
+                            eqpId,
+                            channel.remoteAddress());
+                }
+                return;
             }
-            return;
-        }
 
-        if (result == EqpBindingService.BindResult.NOT_OWNED) {
-            if (logSampler.shouldLogNotOwnerReject()) {
-                log.warn("NOT_OWNER_PARTITION. bindPath={}, eqpId={}, remote={}",
-                        bindPath,
-                        eqpId,
-                        channel.remoteAddress());
+            if (result == EqpBindingService.BindResult.NOT_OWNED) {
+                if (logSampler.shouldLogNotOwnerReject()) {
+                    log.warn("NOT_OWNER_PARTITION. bindPath={}, eqpId={}, remote={}",
+                            bindPath,
+                            eqpId,
+                            channel.remoteAddress());
+                }
+                return;
             }
-            return;
-        }
 
-        log.warn("Bind rejected. bindPath={}, eqpId={}, result={}, remote={}",
-                bindPath,
-                eqpId,
-                result,
-                channel.remoteAddress());
+            log.warn("Bind rejected. bindPath={}, eqpId={}, result={}, remote={}",
+                    bindPath,
+                    eqpId,
+                    result,
+                    channel.remoteAddress());
+        });
     }
 
     /**
-     * UNBOUND 타임아웃 감시 작업을 채널 이벤트 루프에 예약합니다.
-     *
-     * <p>타임아웃 내에 BOUND 전환이 일어나지 않으면 채널을 닫습니다.</p>
+     * UNBOUND 타임아웃 감시 작업을 예약합니다.
      *
      * @param channel 대상 채널
      */
@@ -409,11 +413,13 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             if (state == BindState.UNBOUND) {
                 metrics.incrementBindTimeout();
                 if (logSampler.shouldLogBindTimeout()) {
-                    log.warn("BIND_TIMEOUT. closing channel. seconds={}, interfaceType={}, presetEqpId={}, remote={}",
+                    withEqpLogContext(resolveLogEqpId(channel), () -> log.warn(
+                            "BIND_TIMEOUT. closing channel. seconds={}, interfaceType={}, presetEqpId={}, remote={}",
                             nettyProperties.getBindTimeoutSeconds(),
                             interfaceType,
                             presetEqpId,
-                            channel.remoteAddress());
+                            channel.remoteAddress()
+                    ));
                 }
                 channel.close();
             }
@@ -421,16 +427,18 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
         NettyChannelAttributes.setBindTimeoutTask(channel, task);
         if (log.isDebugEnabled()) {
-            log.debug("Bind timeout scheduled. seconds={}, interfaceType={}, presetEqpId={}, remote={}",
+            withEqpLogContext(resolveLogEqpId(channel), () -> log.debug(
+                    "Bind timeout scheduled. seconds={}, interfaceType={}, presetEqpId={}, remote={}",
                     nettyProperties.getBindTimeoutSeconds(),
                     interfaceType,
                     presetEqpId,
-                    channel.remoteAddress());
+                    channel.remoteAddress()
+            ));
         }
     }
 
     /**
-     * 예약된 바인딩 타임아웃 작업을 취소합니다.
+     * 예약된 bind timeout 작업을 취소합니다.
      *
      * @param channel 대상 채널
      */
@@ -443,9 +451,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
-     * SOCKET 채널일 때 initialize 명령을 전송합니다.
-     *
-     * <p>설정값이 비활성화면 전송하지 않습니다.</p>
+     * SOCKET 채널에서 initialize 명령을 송신합니다.
      *
      * @param channel 대상 채널
      */
@@ -459,10 +465,50 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
         final byte[] cmd = socketExtractor.initializeCommandBytes();
         if (log.isDebugEnabled()) {
-            log.debug("SOCKET initialize command sent. presetEqpId={}, remote={}",
+            withEqpLogContext(resolveLogEqpId(channel), () -> log.debug(
+                    "SOCKET initialize command sent. presetEqpId={}, remote={}",
                     presetEqpId,
-                    channel.remoteAddress());
+                    channel.remoteAddress()
+            ));
         }
-        channel.writeAndFlush(io.netty.buffer.Unpooled.wrappedBuffer(cmd));
+        channel.writeAndFlush(Unpooled.wrappedBuffer(cmd));
+    }
+
+    /**
+     * 로깅에 사용할 eqpId를 채널 상태에서 추론합니다.
+     *
+     * <p>우선순위: 채널 attribute eqpId -> presetEqpId</p>
+     *
+     * @param channel 대상 채널
+     * @return 로깅용 eqpId(없으면 null)
+     */
+    private String resolveLogEqpId(final Channel channel) {
+        if (channel == null) {
+            return presetEqpId;
+        }
+        final String boundEqpId = NettyChannelAttributes.getEqpId(channel);
+        if (boundEqpId != null && !boundEqpId.isBlank()) {
+            return boundEqpId;
+        }
+        return presetEqpId;
+    }
+
+    /**
+     * eqpId MDC를 적용한 상태로 작업을 실행합니다.
+     *
+     * @param eqpId 설비 ID
+     * @param task 실행 작업
+     */
+    private void withEqpLogContext(final String eqpId, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (eqpId == null || eqpId.isBlank()) {
+            task.run();
+            return;
+        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            task.run();
+        }
     }
 }

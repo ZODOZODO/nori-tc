@@ -6,12 +6,12 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * UNBOUND 상태 전용 inbox.
+ * UNBOUND 상태 전용 바이트 임시 저장소입니다.
  *
- * 설계 의도
- * - Netty channelRead에서는 "byte[] enqueue"만 수행합니다.
- * - 실제 buffer append/parse는 별도 스레드(bind executor)에서 수행합니다.
- * - UNBOUND 단계에서 메모리 폭주를 막기 위해 총 누적 바이트를 제한합니다.
+ * <p>설계 의도:</p>
+ * <p>1) Netty `channelRead`에서는 `byte[]` enqueue만 수행해 I/O 스레드 점유 시간을 최소화합니다.</p>
+ * <p>2) 실제 버퍼 병합/파싱은 bind executor 스레드에서 수행합니다.</p>
+ * <p>3) UNBOUND 단계 메모리 폭주를 막기 위해 총 누적 바이트를 제한합니다.</p>
  */
 public final class UnboundInbox {
 
@@ -21,13 +21,11 @@ public final class UnboundInbox {
 
     private int queuedBytes = 0;
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 구성 요소를 초기화합니다.
+     * UNBOUND inbox를 생성합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param initialBytes 처리할 원본 데이터
-     * @param maxBytes 처리할 원본 데이터
+     * @param initialBytes 내부 재조립 버퍼 초기 크기
+     * @param maxBytes 허용 가능한 최대 누적 바이트 수
      */
     public UnboundInbox(final int initialBytes, final int maxBytes) {
         if (initialBytes <= 0) {
@@ -44,10 +42,12 @@ public final class UnboundInbox {
     }
 
     /**
-     * Netty IO 스레드에서 호출.
-     * - enqueue만 수행
+     * Netty I/O 스레드에서 raw 바이트를 큐에 적재합니다.
      *
-     * @return true if accepted, false if overflow
+     * <p>최대 허용 바이트를 초과하면 `false`를 반환해 상위에서 채널 종료 판단을 할 수 있게 합니다.</p>
+     *
+     * @param bytes 수신 raw 바이트
+     * @return 적재 성공 여부
      */
     public synchronized boolean offer(final byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
@@ -62,10 +62,9 @@ public final class UnboundInbox {
     }
 
     /**
-     * Bind executor에서 호출.
+     * bind executor에서 큐 적재 데이터를 재조립 버퍼로 이동합니다.
      *
-     * - 큐에 쌓인 바이트들을 ReassemblyBuffer로 이동합니다.
-     * - ReassemblyBuffer overflow는 예외를 던집니다.
+     * <p>이 단계에서 `ReassemblyBuffer` overflow가 발생하면 예외를 상위로 전달합니다.</p>
      */
     public synchronized void drainToBuffer() {
         while (!chunks.isEmpty()) {
@@ -78,12 +77,10 @@ public final class UnboundInbox {
         }
     }
 
-    
     /**
-     * 게이트웨이 Netty 어댑터 도메인 처리 로직을 수행합니다.
+     * UNBOUND 재조립 버퍼를 반환합니다.
      *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @return 게이트웨이 Netty 어댑터 처리 결과
+     * @return 재조립 버퍼
      */
     public ReassemblyBuffer buffer() {
         return reassemblyBuffer;

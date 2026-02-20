@@ -8,66 +8,109 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 공통 mailbox 스케줄링 알고리즘을 제공하는 도메인 중립 코디네이터입니다.
+ * 라우팅 키 단위로 Mailbox를 스케줄링하는 공통 컴포넌트입니다.
  *
- * <p>구현 의도는 gateway/business-core가 동일한 알고리즘을 재사용하되,
- * 실제 작업 실행 내용은 외부 handler로 위임하는 것입니다.</p>
+ * <p>핵심 역할은 다음과 같습니다.</p>
+ * <p>1) `routingKey` 별 Mailbox를 생성/관리합니다.</p>
+ * <p>2) enqueue 시 실행 가능한 라우팅 키를 ReadyQueue에 등록합니다.</p>
+ * <p>3) `tryAcquire`로 in-flight 권한을 단일하게 부여합니다.</p>
+ * <p>4) `release`에서 잔여 작업을 확인해 재스케줄 여부를 결정합니다.</p>
  *
- * @param <T> 처리할 작업 타입
+ * <p>필요 시 `routingKey`를 로그 컨텍스트(MDC)로 승격할 수 있도록
+ * `RoutingKeyLogContext` 확장 포인트를 제공합니다.</p>
+ *
+ * @param <T> Mailbox에 적재되는 작업 타입
  */
 public final class MailboxScheduler<T extends MailboxTask> {
 
     private static final Logger log = LoggerFactory.getLogger(MailboxScheduler.class);
 
     /**
-     * 라우팅 키별 mailbox 저장소입니다.
+     * 라우팅 키별 Mailbox 저장소입니다.
      */
     private final Map<String, Mailbox<T>> mailboxMap = new ConcurrentHashMap<>();
 
     /**
-     * 처리 준비된 라우팅 키를 전달하는 ReadyQueue입니다.
+     * 실행 준비된 라우팅 키를 담는 ReadyQueue입니다.
      */
     private final ReadyQueue readyQueue = new ReadyQueue();
 
     /**
-     * 신규 mailbox 생성 시 사용할 기본 queue capacity입니다.
+     * 신규 Mailbox 생성 시 사용할 기본 큐 용량입니다.
      */
     private final int mailboxCapacity;
 
     /**
-     * 스케줄러를 생성합니다.
+     * 라우팅 키 기반 로그 컨텍스트 적용 전략입니다.
+     */
+    private final RoutingKeyLogContext routingKeyLogContext;
+
+    /**
+     * no-op closeable 싱글턴입니다.
+     */
+    private static final AutoCloseable NO_OP_CLOSEABLE = () -> {
+        // no-op
+    };
+
+    /**
+     * 기본 생성자입니다.
      *
-     * @param mailboxCapacity mailbox 기본 capacity
+     * <p>로그 컨텍스트 전략은 no-op으로 동작합니다.</p>
+     *
+     * @param mailboxCapacity Mailbox 기본 용량
      */
     public MailboxScheduler(final int mailboxCapacity) {
+        this(mailboxCapacity, RoutingKeyLogContext.noOp());
+    }
+
+    /**
+     * 로그 컨텍스트 전략을 포함해 스케줄러를 생성합니다.
+     *
+     * @param mailboxCapacity Mailbox 기본 용량
+     * @param routingKeyLogContext 라우팅 키 로그 컨텍스트 전략
+     */
+    public MailboxScheduler(
+            final int mailboxCapacity,
+            final RoutingKeyLogContext routingKeyLogContext
+    ) {
         if (mailboxCapacity <= 0) {
             throw new IllegalArgumentException("mailboxCapacity must be > 0");
         }
         this.mailboxCapacity = mailboxCapacity;
+        this.routingKeyLogContext = routingKeyLogContext == null
+                ? RoutingKeyLogContext.noOp()
+                : routingKeyLogContext;
     }
 
     /**
-     * 작업을 mailbox에 enqueue합니다.
+     * 작업을 해당 라우팅 키 Mailbox에 enqueue 합니다.
      *
-     * <p>enqueue 이후 inFlight가 비어있으면 ReadyQueue 등록을 시도합니다.</p>
+     * <p>enqueue 성공 후 in-flight=false, scheduled=false 조건이면
+     * ReadyQueue에 라우팅 키를 등록해 dispatcher가 처리할 수 있게 합니다.</p>
+     * <p>task.routingKey는 필수 값이며, null/blank이면 예외를 발생시켜 잘못된 사용을 즉시 차단합니다.</p>
      *
      * @param task enqueue 대상 작업
-     * @param nowEpochMillis 현재 시각
+     * @param nowEpochMillis 현재 시각(epoch millis)
      * @return enqueue 성공 여부
      */
     public boolean enqueue(final T task, final long nowEpochMillis) {
         Objects.requireNonNull(task, "task is null");
 
         final String routingKey = task.routingKey();
+        if (routingKey == null || routingKey.isBlank()) {
+            throw new IllegalArgumentException("task.routingKey() is required");
+        }
         final Mailbox<T> mailbox = mailboxMap.computeIfAbsent(routingKey, this::newMailbox);
 
         final boolean offered = mailbox.offer(task, nowEpochMillis);
         if (!offered) {
             if (log.isDebugEnabled()) {
-                log.debug("메일박스 enqueue 거부(capacity 초과). routingKey={}, mailboxSize={}, mailboxCapacity={}",
+                withRoutingKeyLogContext(routingKey, () -> log.debug(
+                        "Mailbox enqueue rejected by capacity. routingKey={}, mailboxSize={}, mailboxCapacity={}",
                         routingKey,
                         mailbox.size(),
-                        mailboxCapacity);
+                        mailboxCapacity
+                ));
             }
             return false;
         }
@@ -75,16 +118,18 @@ public final class MailboxScheduler<T extends MailboxTask> {
         if (!mailbox.inFlightFlag().get() && mailbox.scheduledFlag().compareAndSet(false, true)) {
             readyQueue.offer(routingKey);
             if (log.isDebugEnabled()) {
-                log.debug("라우팅 키를 ReadyQueue에 등록했습니다. routingKey={}, mailboxSize={}",
+                withRoutingKeyLogContext(routingKey, () -> log.debug(
+                        "Routing key registered to ReadyQueue. routingKey={}, mailboxSize={}",
                         routingKey,
-                        mailbox.size());
+                        mailbox.size()
+                ));
             }
         }
         return true;
     }
 
     /**
-     * dispatcher/worker가 다음 라우팅 키를 가져오기 위해 호출합니다.
+     * 다음 실행 라우팅 키를 블로킹 대기 후 반환합니다.
      *
      * @return 다음 라우팅 키
      * @throws InterruptedException 인터럽트 발생 시
@@ -94,10 +139,10 @@ public final class MailboxScheduler<T extends MailboxTask> {
     }
 
     /**
-     * 라우팅 키에 대한 실행 권한(in-flight)을 획득합니다.
+     * 라우팅 키 Mailbox의 in-flight 실행 권한을 획득합니다.
      *
-     * @param routingKey 라우팅 키
-     * @return 실행 가능한 mailbox, 실패 시 null
+     * @param routingKey 대상 라우팅 키
+     * @return 획득된 Mailbox, 실패 시 null
      */
     public Mailbox<T> tryAcquire(final String routingKey) {
         if (routingKey == null || routingKey.isBlank()) {
@@ -107,7 +152,10 @@ public final class MailboxScheduler<T extends MailboxTask> {
         final Mailbox<T> mailbox = mailboxMap.get(routingKey);
         if (mailbox == null) {
             if (log.isDebugEnabled()) {
-                log.debug("실행 권한 획득 대상 메일박스가 없습니다. routingKey={}", routingKey);
+                withRoutingKeyLogContext(routingKey, () -> log.debug(
+                        "Mailbox acquire skipped because mailbox does not exist. routingKey={}",
+                        routingKey
+                ));
             }
             return null;
         }
@@ -115,52 +163,63 @@ public final class MailboxScheduler<T extends MailboxTask> {
         mailbox.scheduledFlag().set(false);
         if (!mailbox.inFlightFlag().compareAndSet(false, true)) {
             if (log.isDebugEnabled()) {
-                log.debug("이미 실행 중인 메일박스입니다. routingKey={}", routingKey);
+                withRoutingKeyLogContext(routingKey, () -> log.debug(
+                        "Mailbox acquire skipped because mailbox is already in-flight. routingKey={}",
+                        routingKey
+                ));
             }
             return null;
         }
+
         if (log.isDebugEnabled()) {
-            log.debug("메일박스 실행 권한을 획득했습니다. routingKey={}, mailboxSize={}",
+            withRoutingKeyLogContext(routingKey, () -> log.debug(
+                    "Mailbox acquire granted. routingKey={}, mailboxSize={}",
                     routingKey,
-                    mailbox.size());
+                    mailbox.size()
+            ));
         }
         return mailbox;
     }
 
     /**
-     * 작업 실행 종료 후 mailbox 상태를 해제하고, 잔여 작업이 있으면 재스케줄합니다.
+     * 작업 처리 후 in-flight를 해제하고 필요 시 재스케줄합니다.
      *
-     * @param mailbox 해제 대상 mailbox
+     * @param mailbox 해제 대상 Mailbox
      */
     public void release(final Mailbox<T> mailbox) {
         if (mailbox == null) {
             return;
         }
 
+        final String routingKey = mailbox.routingKey();
         mailbox.inFlightFlag().set(false);
 
         if (!mailbox.isEmpty() && mailbox.scheduledFlag().compareAndSet(false, true)) {
-            readyQueue.offer(mailbox.routingKey());
+            readyQueue.offer(routingKey);
             if (log.isDebugEnabled()) {
-                log.debug("메일박스 후속 작업을 ReadyQueue에 재등록했습니다. routingKey={}, remainingSize={}",
-                        mailbox.routingKey(),
-                        mailbox.size());
+                withRoutingKeyLogContext(routingKey, () -> log.debug(
+                        "Mailbox re-scheduled to ReadyQueue after release. routingKey={}, remainingSize={}",
+                        routingKey,
+                        mailbox.size()
+                ));
             }
             return;
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("메일박스 실행 권한을 해제했습니다. routingKey={}, remainingSize={}",
-                    mailbox.routingKey(),
-                    mailbox.size());
+            withRoutingKeyLogContext(routingKey, () -> log.debug(
+                    "Mailbox release completed. routingKey={}, remainingSize={}",
+                    routingKey,
+                    mailbox.size()
+            ));
         }
     }
 
     /**
-     * 라우팅 키에 연결된 mailbox를 조회합니다.
+     * 라우팅 키로 Mailbox를 조회합니다.
      *
-     * @param routingKey 라우팅 키
-     * @return mailbox, 없으면 null
+     * @param routingKey 조회 라우팅 키
+     * @return Mailbox, 없으면 null
      */
     public Mailbox<T> getMailbox(final String routingKey) {
         if (routingKey == null || routingKey.isBlank()) {
@@ -170,30 +229,29 @@ public final class MailboxScheduler<T extends MailboxTask> {
     }
 
     /**
-     * 전체 mailbox 수를 반환합니다.
+     * 현재 등록된 Mailbox 수를 반환합니다.
      *
-     * @return mailbox 개수
+     * @return Mailbox 개수
      */
     public int mailboxCount() {
         return mailboxMap.size();
     }
 
     /**
-     * ReadyQueue 길이를 반환합니다.
+     * ReadyQueue 크기를 반환합니다.
      *
-     * @return ready queue size
+     * @return ReadyQueue size
      */
     public int readyQueueSize() {
         return readyQueue.size();
     }
 
     /**
-     * 특정 라우팅 키의 스케줄러 mailbox 상태를 제거합니다.
+     * 특정 라우팅 키의 스케줄러 상태를 제거합니다.
      *
-     * <p>설비 삭제/언바인드처럼 더 이상 해당 키를 사용하지 않을 때 호출합니다.
-     * ReadyQueue에 이미 들어간 토큰은 이후 {@link #tryAcquire(String)} 단계에서 자연스럽게 무시됩니다.</p>
+     * <p>이미 ReadyQueue에 들어간 토큰은 이후 `tryAcquire` 단계에서 자연스럽게 무시됩니다.</p>
      *
-     * @param routingKey 제거할 라우팅 키
+     * @param routingKey 제거 대상 라우팅 키
      */
     public void removeMailbox(final String routingKey) {
         if (routingKey == null || routingKey.isBlank()) {
@@ -201,20 +259,94 @@ public final class MailboxScheduler<T extends MailboxTask> {
         }
         final Mailbox<T> removed = mailboxMap.remove(routingKey);
         if (removed != null && log.isDebugEnabled()) {
-            log.debug("메일박스 스케줄러 상태를 제거했습니다. routingKey={}", routingKey);
+            withRoutingKeyLogContext(routingKey, () -> log.debug(
+                    "Mailbox scheduler state removed. routingKey={}",
+                    routingKey
+            ));
         }
     }
 
     /**
-     * 신규 라우팅 키에 대한 메일박스를 생성합니다.
+     * 신규 라우팅 키용 Mailbox를 생성합니다.
      *
      * @param routingKey 라우팅 키
-     * @return 생성된 메일박스
+     * @return 생성된 Mailbox
      */
     private Mailbox<T> newMailbox(final String routingKey) {
         if (log.isDebugEnabled()) {
-            log.debug("신규 메일박스를 생성합니다. routingKey={}, mailboxCapacity={}", routingKey, mailboxCapacity);
+            withRoutingKeyLogContext(routingKey, () -> log.debug(
+                    "Creating new mailbox. routingKey={}, mailboxCapacity={}",
+                    routingKey,
+                    mailboxCapacity
+            ));
         }
         return new Mailbox<>(routingKey, mailboxCapacity);
+    }
+
+    /**
+     * 라우팅 키 로그 컨텍스트를 적용한 상태로 작업을 실행합니다.
+     *
+     * @param routingKey 라우팅 키
+     * @param task 실행 작업
+     */
+    private void withRoutingKeyLogContext(final String routingKey, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+
+        final AutoCloseable context;
+        try {
+            context = safeContext(routingKeyLogContext.open(routingKey));
+        } catch (Exception ex) {
+            if (log.isDebugEnabled()) {
+                log.debug("RoutingKey log context open failed. routingKey={}", routingKey, ex);
+            }
+            task.run();
+            return;
+        }
+
+        try (AutoCloseable ignored = context) {
+            task.run();
+        } catch (RuntimeException runtimeException) {
+            throw runtimeException;
+        } catch (Exception closeException) {
+            if (log.isDebugEnabled()) {
+                log.debug("RoutingKey log context close failed. routingKey={}", routingKey, closeException);
+            }
+        }
+    }
+
+    /**
+     * null 컨텍스트를 no-op 컨텍스트로 치환합니다.
+     *
+     * @param context 반환된 컨텍스트
+     * @return null-safe 컨텍스트
+     */
+    private static AutoCloseable safeContext(final AutoCloseable context) {
+        return context == null ? NO_OP_CLOSEABLE : context;
+    }
+
+    /**
+     * 라우팅 키 기반 로그 컨텍스트 확장 포인트입니다.
+     */
+    @FunctionalInterface
+    public interface RoutingKeyLogContext {
+
+        /**
+         * 라우팅 키 컨텍스트를 오픈합니다.
+         *
+         * @param routingKey 라우팅 키
+         * @return 해제 가능한 컨텍스트
+         */
+        AutoCloseable open(String routingKey);
+
+        /**
+         * 컨텍스트를 적용하지 않는 no-op 전략을 반환합니다.
+         *
+         * @return no-op 라우팅 키 컨텍스트
+         */
+        static RoutingKeyLogContext noOp() {
+            return routingKey -> NO_OP_CLOSEABLE;
+        }
     }
 }
