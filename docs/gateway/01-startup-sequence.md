@@ -23,13 +23,11 @@
 
 1. 앱 진입점
    - `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/TcCommGatewayApplication.java`
-2. 부트스트랩 러너
-   - `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/comm/GatewayBootstrapRunner.java`
-3. 자동구성
+2. 자동구성
    - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/TcCommGatewayAutoConfiguration.java`
-4. 자동구성 등록
+3. 자동구성 등록
    - `libs/comm/starter/tc-comm-gateway-starter/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
-5. 핵심 설정 클래스
+4. 핵심 설정 클래스
    - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayCommConfiguration.java`
    - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayProcessingConfiguration.java`
 
@@ -37,7 +35,7 @@
 
 한 줄 요약:
 
-`Spring Boot 시작 -> AutoConfiguration 로딩 -> Bean 생성/초기화 -> SmartLifecycle 시작 -> ApplicationRunner 실행`
+`Spring Boot 시작 -> AutoConfiguration 로딩 -> Bean 생성/초기화 -> SmartLifecycle 시작 -> 컨텍스트 기동 완료`
 
 조금 더 풀어서 보면:
 
@@ -45,7 +43,7 @@
 2. starter의 `AutoConfiguration`가 로딩되어 gateway Bean들이 등록됨
 3. 프로퍼티 바인딩/검증 + `@PostConstruct` 초기화 수행
 4. `SmartLifecycle` 컴포넌트들이 phase 순서대로 시작됨
-5. 마지막에 `GatewayBootstrapRunner`(`ApplicationRunner`)가 실행됨
+5. `TcCommGatewayApplication`에서 기동 완료 로그 출력 (`SpringApplication.run(...)` 반환 이후)
 
 ## 2. 앱 진입점 단계
 
@@ -275,19 +273,19 @@ UI 이벤트 Kafka subscriber 자체는 phase 0이지만, 실제 UI task 처리�
 1. subscriber는 계약 검증/디스패치 중심
 2. 실제 처리는 상태머신/디스패처/command dispatcher/processing service로 위임
 
-## 6. `ApplicationRunner` 단계 (`GatewayBootstrapRunner`)
+## 6. 컨텍스트 기동 완료 단계 (현재 별도 `ApplicationRunner` 없음)
 
-`GatewayBootstrapRunner`는 `ApplicationRunner`이므로 일반적으로 `SmartLifecycle` 시작 이후 실행됩니다.
+현재 `tc-comm-gateway-app`에는 별도 `ApplicationRunner` 구현이 없습니다.
 
 의미:
 
-1. 최종 기동 로그 포인트
-2. 의존성(`GatewayProcessingService`) 주입 확인
-3. "애플리케이션 프로세스가 준비되었다"는 운영 시점 확인
+1. 실제 통신 런타임 시작의 핵심은 이미 `SmartLifecycle` 단계에서 수행됩니다.
+2. 앱 레벨에서는 `TcCommGatewayApplication`의 시작/기동 완료 로그가 기본 관측 포인트입니다.
+3. 향후 운영/점검용 훅이 필요하면 `ApplicationRunner`를 추가할 수 있습니다.
 
 초급 개발자 포인트:
 
-`GatewayBootstrapRunner`가 실제 통신 런타임을 직접 시작하는 것은 아닙니다. 이미 대부분의 시작은 `SmartLifecycle`에서 수행되었습니다.
+`ApplicationRunner`가 없어도 Netty/Kafka/처리 런타임 시작에는 문제가 없습니다. 핵심은 `SmartLifecycle` 컴포넌트들입니다.
 
 ## 7. 전체 시퀀스 다이어그램
 
@@ -302,8 +300,6 @@ sequenceDiagram
     participant Netty as GatewayNettyBootstrap
     participant Proc as EqpProcessingCoordinator
     participant Kafka as Kafka Subscribers
-    participant Runner as GatewayBootstrapRunner
-
     Main->>Boot: run()
     Boot->>Auto: AutoConfiguration import
     Auto->>Ctx: ComponentScan + @Import(config)
@@ -314,7 +310,7 @@ sequenceDiagram
     Ctx->>Netty: start() (phase 0)
     Ctx->>Proc: start() (phase 0)
     Ctx->>Kafka: start() (phase 0)
-    Boot->>Runner: ApplicationRunner.run()
+    Boot-->>Main: SpringApplication.run() 반환
 ```
 
 ## 8. 시작 실패/이상 동작 시 확인 순서
@@ -338,9 +334,9 @@ sequenceDiagram
 
 `enabled`는 "원하는 상태"입니다. 실제 `CONNECTED`는 Netty connect/listener 시작 + bind 성공 이벤트까지 완료되어야 됩니다.
 
-### Q2. `GatewayBootstrapRunner`가 제일 중요해 보이는데 맞나요?
+### Q2. 별도 `ApplicationRunner`가 없으면 문제 아닌가요?
 
-부트스트랩 완료 로그 관점에서는 중요하지만, 실제 시작 동작의 핵심은 `SmartLifecycle` 컴포넌트들입니다.
+문제 아닙니다. 이 프로젝트의 실제 시작 동작 핵심은 `SmartLifecycle` 컴포넌트들이고, `ApplicationRunner`는 필요할 때만 앱 레벨 훅으로 추가하면 됩니다.
 
 ### Q3. phase가 같으면 순서를 신경 안 써도 되나요?
 

@@ -26,14 +26,13 @@
 1. Spring Boot 진입점
 2. starter 의존성 조립
 3. 외부 설정 로딩
-4. 부트스트랩 로그
+4. 앱 시작/종료 로그
 
 대표 파일:
 
 1. `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/TcCommGatewayApplication.java`
-2. `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/comm/GatewayBootstrapRunner.java`
-3. `apps/tc-comm-gateway-app/build.gradle.kts`
-4. `apps/tc-comm-gateway-app/src/main/resources/application.yaml`
+2. `apps/tc-comm-gateway-app/build.gradle.kts`
+3. `apps/tc-comm-gateway-app/src/main/resources/application.yaml`
 
 핵심 포인트:
 
@@ -533,4 +532,3 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
 ## 10. 다음 문서 안내
 
 다음 문서 [`03-lifecycle-state-machine-overview.md`](./03-lifecycle-state-machine-overview.md)에서는 START/END 요청과 채널 이벤트를 어떻게 상태머신이 묶어서 최종 판정하는지 자세히 설명합니다.
-

@@ -59,7 +59,7 @@
 ## 필수 문서 목록과 역할
 
 1. `01-startup-sequence.md`
-   - 애플리케이션 구동 순서, AutoConfiguration, `SmartLifecycle phase`, `ApplicationRunner` 실행 시점
+   - 애플리케이션 구동 순서, AutoConfiguration, `SmartLifecycle phase`, 컨텍스트 기동 완료 시점
 2. `02-context-bean-map.md`
    - 주요 Bean 생성 위치, 역할, 의존 관계, 계층(앱/스타터/코어/어댑터)
 3. `03-lifecycle-state-machine-overview.md`
@@ -77,7 +77,6 @@
 
 1. 앱 진입점
    - `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/TcCommGatewayApplication.java`
-   - `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/comm/GatewayBootstrapRunner.java`
 2. 자동구성
    - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/TcCommGatewayAutoConfiguration.java`
 3. 코어 설정
@@ -112,7 +111,7 @@
 
 ## 빠른 디버깅 시작 순서 (입문자용)
 
-1. 앱 시작 로그 (`TcCommGatewayApplication`, `GatewayBootstrapRunner`)
+1. 앱 시작 로그 (`TcCommGatewayApplication`)
 2. Kafka 불변조건 검사 실패 여부 (`GatewayKafkaOperationalInvariantChecker`)
 3. `EqpLifecycleStateMachine` 요청/결과 로그
 4. Netty bind/connect/reconnect 로그
