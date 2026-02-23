@@ -4,6 +4,7 @@ import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
 import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.context.EquipmentContext;
 import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
@@ -29,6 +30,7 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,6 +64,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private static final String ACTIVE_LISTENER_BIND_IP = "127.0.0.1";
 
     private final GatewayNettyProperties nettyProperties;
+    private final GatewaySocketProperties socketProperties;
     private final EquipmentInfoProvider equipmentInfoProvider;
     private final EquipmentContextRegistry equipmentContextRegistry;
     private final GatewayChannelHandlerFactory handlerFactory;
@@ -98,6 +101,14 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private final ConcurrentHashMap<String, ActiveListenerKey> activeListenerKeyByEqpId = new ConcurrentHashMap<>();
 
     /**
+     * ACTIVE SOCKET 공유 listener별 socketType 제약값입니다.
+     *
+     * <p>정책상 동일 ACTIVE 포트에는 하나의 socketType만 허용하므로,
+     * listener 생성/멤버 추가 시 이 맵을 사용하여 충돌을 즉시 차단합니다.</p>
+     */
+    private final ConcurrentHashMap<ActiveListenerKey, String> activeListenerSocketTypeConstraints = new ConcurrentHashMap<>();
+
+    /**
      * 동일 설비에 대한 중복 재연결 스케줄 등록을 방지하는 플래그 맵입니다.
      */
     private final ConcurrentHashMap<String, AtomicBoolean> reconnecting = new ConcurrentHashMap<>();
@@ -128,6 +139,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      */
     public GatewayNettyBootstrap(
             final GatewayNettyProperties nettyProperties,
+            final GatewaySocketProperties socketProperties,
             final EquipmentInfoProvider equipmentInfoProvider,
             final EquipmentContextRegistry equipmentContextRegistry,
             final GatewayChannelHandlerFactory handlerFactory,
@@ -135,6 +147,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             final EqpLifecycleStateMachine lifecycleStateMachine
     ) {
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
+        this.socketProperties = Objects.requireNonNull(socketProperties, "socketProperties is null");
         this.equipmentInfoProvider = Objects.requireNonNull(equipmentInfoProvider, "equipmentInfoProvider is null");
         this.equipmentContextRegistry = Objects.requireNonNull(equipmentContextRegistry, "equipmentContextRegistry is null");
         this.handlerFactory = Objects.requireNonNull(handlerFactory, "handlerFactory is null");
@@ -212,6 +225,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         activeListenerChannels.clear();
         activeListenerMembers.clear();
         activeListenerKeyByEqpId.clear();
+        activeListenerSocketTypeConstraints.clear();
 
         log.info("GatewayNettyBootstrap stopped.");
     }
@@ -264,7 +278,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 return;
             }
 
-            final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
+            final GatewayEquipmentInfo info = resolveRuntimeEquipmentInfo(eqpId);
             if (info == null) {
                 log.warn("Transport runtime start skipped (equipment not found). eqpId={}", eqpId);
                 return;
@@ -326,7 +340,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         }
 
         withEqpLogContext(eqpId, () -> {
-            final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
+            final GatewayEquipmentInfo info = resolveRuntimeEquipmentInfo(eqpId);
             final ConnectionMode mode = info == null ? null : info.connectionMode();
 
             if (mode == ConnectionMode.ACTIVE) {
@@ -368,7 +382,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 return;
             }
 
-            final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
+            final GatewayEquipmentInfo info = resolveRuntimeEquipmentInfo(eqpId);
             if (info == null) {
                 log.warn("Outbound connect skipped (equipment not found). eqpId={}", eqpId);
                 return;
@@ -439,6 +453,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         int enabledCount = 0;
 
         log.info("Transport runtime bootstrap started from EquipmentContextRegistry. totalContexts={}", contexts.size());
+        validateActiveSocketListenerConstraintsOnBootstrap(contexts);
 
         for (EquipmentContext context : contexts) {
             if (context == null) {
@@ -477,6 +492,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
 
         final String eqpId = info.equipmentId();
         final ActiveListenerKey nextKey = ActiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
+        final String resolvedSocketType = resolveSocketTypeOrDefault(info);
 
         /**
          * ACTIVE 모드에서는 DB의 eqp_ip를 bind IP로 사용하지 않고 정책상 고정값(127.0.0.1)을 사용합니다.
@@ -499,6 +515,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             releaseActiveListenerMembership(eqpId, "ACTIVE_LISTENER_KEY_CHANGED");
         }
 
+        validateAndRegisterActiveListenerSocketTypeConstraint(nextKey, eqpId, resolvedSocketType, reason);
+
         final Set<String> members = activeListenerMembers.computeIfAbsent(nextKey, key -> ConcurrentHashMap.newKeySet());
         members.add(eqpId);
         activeListenerKeyByEqpId.put(eqpId, nextKey);
@@ -511,6 +529,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                         nextKey,
                         members.size(),
                         reason);
+                if (nextKey.interfaceType() == CommInterfaceType.SOCKET) {
+                    log.debug("ACTIVE SOCKET listener 제약 유지. listenerKey={}, socketType={}",
+                            nextKey,
+                            activeListenerSocketTypeConstraints.get(nextKey));
+                }
             }
             return;
         }
@@ -525,10 +548,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
 
         final Channel started = startActiveListenerServer(nextKey);
         activeListenerChannels.put(nextKey, started);
-        log.info("ACTIVE shared listener ensured. eqpId={}, listenerKey={}, memberCount={}, reason={}",
+        log.info("ACTIVE shared listener ensured. eqpId={}, listenerKey={}, memberCount={}, socketType={}, reason={}",
                 eqpId,
                 nextKey,
                 members.size(),
+                nextKey.interfaceType() == CommInterfaceType.SOCKET ? activeListenerSocketTypeConstraints.get(nextKey) : null,
                 reason);
     }
 
@@ -553,6 +577,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         final Set<String> members = activeListenerMembers.get(key);
         if (members == null) {
             activeListenerMembers.remove(key);
+            activeListenerSocketTypeConstraints.remove(key);
             return;
         }
 
@@ -569,11 +594,13 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         }
 
         activeListenerMembers.remove(key, members);
+        final String removedSocketType = activeListenerSocketTypeConstraints.remove(key);
         final Channel channel = activeListenerChannels.remove(key);
         safeClose(channel);
-        log.info("ACTIVE shared listener stopped (last member removed). eqpId={}, listenerKey={}, reason={}",
+        log.info("ACTIVE shared listener stopped (last member removed). eqpId={}, listenerKey={}, socketType={}, reason={}",
                 eqpId,
                 key,
+                key.interfaceType() == CommInterfaceType.SOCKET ? removedSocketType : null,
                 reason);
     }
 
@@ -592,6 +619,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 log.debug("ACTIVE shared listener closed during gateway stop. listenerKey={}", key);
             }
         }
+        activeListenerSocketTypeConstraints.clear();
     }
 
     /**
@@ -605,6 +633,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      */
     private Channel startActiveListenerServer(final ActiveListenerKey key) {
         Objects.requireNonNull(key, "key is null");
+        final String listenerSocketType = key.interfaceType() == CommInterfaceType.SOCKET
+                ? requireActiveListenerSocketTypeConstraint(key)
+                : null;
 
         if (bossGroup == null || workerGroup == null) {
             throw new IllegalStateException("Netty event loop groups are not initialized");
@@ -621,15 +652,16 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                          */
                         @Override
                         protected void initChannel(final SocketChannel ch) {
-                            ch.pipeline().addLast(handlerFactory.newPassiveHandler(key.interfaceType()));
+                            ch.pipeline().addLast(handlerFactory.newPassiveHandler(key.interfaceType(), listenerSocketType));
                         }
                     });
 
             final ChannelFuture future = bootstrap.bind(ACTIVE_LISTENER_BIND_IP, key.port()).sync();
-            log.info("ACTIVE shared listener started. listenerKey={}, bindIp={}, bindPort={}",
+            log.info("ACTIVE shared listener started. listenerKey={}, bindIp={}, bindPort={}, socketType={}",
                     key,
                     ACTIVE_LISTENER_BIND_IP,
-                    key.port());
+                    key.port(),
+                    listenerSocketType);
             return future.channel();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -647,6 +679,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private void connectOutbound(final GatewayEquipmentInfo info) {
         final String eqpId = info.equipmentId();
         withEqpLogContext(eqpId, () -> {
+            final GatewayEquipmentInfo runtimeInfo = resolveLatestRuntimeEquipmentInfo(info);
+            final String resolvedSocketType = resolveSocketTypeOrDefault(runtimeInfo);
+
             if (!running) {
                 if (log.isDebugEnabled()) {
                     log.debug("Outbound connect skipped because gateway is stopping or stopped. eqpId={}", eqpId);
@@ -663,11 +698,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 }
                 return;
             }
-            if (info.eqpIp() == null || info.eqpIp().isBlank()) {
+            if (runtimeInfo.eqpIp() == null || runtimeInfo.eqpIp().isBlank()) {
                 log.warn("Outbound connect skipped (missing eqpIp). eqpId={}", eqpId);
                 return;
             }
-            if (info.eqpPort() == null || info.eqpPort() <= 0) {
+            if (runtimeInfo.eqpPort() == null || runtimeInfo.eqpPort() <= 0) {
                 log.warn("Outbound connect skipped (invalid eqpPort). eqpId={}", eqpId);
                 return;
             }
@@ -682,25 +717,33 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                          */
                         @Override
                         protected void initChannel(final SocketChannel ch) {
-                            ch.pipeline().addLast(handlerFactory.newActiveHandler(info.commInterfaceType(), eqpId));
+                            ch.pipeline().addLast(handlerFactory.newActiveHandler(
+                                    runtimeInfo.commInterfaceType(),
+                                    eqpId,
+                                    resolvedSocketType
+                            ));
                         }
                     });
 
             if (log.isDebugEnabled()) {
-                log.debug("Outbound connect attempt. eqpId={}, ip={}, port={}", eqpId, info.eqpIp(), info.eqpPort());
+                log.debug("Outbound connect attempt. eqpId={}, ip={}, port={}, socketType={}",
+                        eqpId,
+                        runtimeInfo.eqpIp(),
+                        runtimeInfo.eqpPort(),
+                        resolvedSocketType);
             }
 
-            bootstrap.connect(info.eqpIp(), info.eqpPort()).addListener((ChannelFuture future) ->
+            bootstrap.connect(runtimeInfo.eqpIp(), runtimeInfo.eqpPort()).addListener((ChannelFuture future) ->
                     withEqpLogContext(eqpId, () -> {
                         if (!future.isSuccess()) {
                             final String errorMessage = future.cause() == null ? "unknown" : future.cause().getMessage();
-                            handleOutboundAttemptFailure(info, "TCP_CONNECT_FAILED: " + errorMessage);
+                            handleOutboundAttemptFailure(runtimeInfo, "TCP_CONNECT_FAILED: " + errorMessage);
                             return;
                         }
 
-                        log.info("Outbound TCP connect success. eqpId={}", eqpId);
+                        log.info("Outbound TCP connect success. eqpId={}, socketType={}", eqpId, resolvedSocketType);
                         final Channel channel = future.channel();
-                        channel.closeFuture().addListener(closeFuture -> handleOutboundChannelClosed(info, channel));
+                        channel.closeFuture().addListener(closeFuture -> handleOutboundChannelClosed(runtimeInfo, channel));
                     })
             );
         });
@@ -866,6 +909,221 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      * <p>bind IP는 정책상 127.0.0.1 고정이므로 키에는 포함하지 않고,
      * interface + port 조합으로 공유 여부를 판단합니다.</p>
      */
+    /**
+     * 부팅 직후 메모리 컨텍스트 기준으로 ACTIVE SOCKET 포트/socketType 제약 위반이 없는지 검증합니다.
+     *
+     * <p>정책상 동일 ACTIVE 포트에는 하나의 socketType만 허용하므로, 부팅 시점에 충돌을 먼저 탐지하여
+     * 리스너 생성 도중 뒤늦게 문제를 발견하지 않도록 fail-fast 합니다.</p>
+     *
+     * @param contexts 부팅 시점 컨텍스트 스냅샷
+     */
+    private void validateActiveSocketListenerConstraintsOnBootstrap(final List<EquipmentContext> contexts) {
+        if (contexts == null || contexts.isEmpty()) {
+            return;
+        }
+
+        final Map<ActiveListenerKey, String> socketTypeByListenerKey = new ConcurrentHashMap<>();
+        for (EquipmentContext context : contexts) {
+            if (context == null || context.profile() == null || context.profile().equipmentInfo() == null) {
+                continue;
+            }
+
+            final GatewayEquipmentInfo info = context.profile().equipmentInfo();
+            if (!info.enabled()
+                    || info.commInterfaceType() != CommInterfaceType.SOCKET
+                    || info.connectionMode() != ConnectionMode.ACTIVE) {
+                continue;
+            }
+
+            final ActiveListenerKey key = ActiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
+            final String resolvedSocketType = resolveSocketTypeOrDefault(info);
+            final String existing = socketTypeByListenerKey.putIfAbsent(key, resolvedSocketType);
+            if (existing != null && !existing.equals(resolvedSocketType)) {
+                log.error("ACTIVE SOCKET listener 정책 위반(부팅 검증). listenerKey={}, existingSocketType={}, incomingSocketType={}, eqpId={}",
+                        key,
+                        existing,
+                        resolvedSocketType,
+                        info.equipmentId());
+                throw new IllegalStateException(
+                        "ACTIVE SOCKET listener port conflict: different socketType on same port. key=" + key
+                );
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("ACTIVE SOCKET listener 부팅 제약 검증 완료. listenerKeyCount={}", socketTypeByListenerKey.size());
+        }
+    }
+
+    /**
+     * ACTIVE 공유 listener에 SOCKET socketType 제약값을 등록/검증합니다.
+     *
+     * <p>동일 listenerKey(interface+port)에 다른 socketType 설비가 합류하려고 하면 즉시 예외를 발생시켜
+     * 운영 정책 위반을 fail-fast 처리합니다.</p>
+     *
+     * @param key 공유 listener 키
+     * @param eqpId 설비 ID(로그용)
+     * @param resolvedSocketType 해석 완료된 socketType
+     * @param reason 호출 사유(로그용)
+     */
+    private void validateAndRegisterActiveListenerSocketTypeConstraint(
+            final ActiveListenerKey key,
+            final String eqpId,
+            final String resolvedSocketType,
+            final String reason
+    ) {
+        if (key.interfaceType() != CommInterfaceType.SOCKET) {
+            return;
+        }
+        if (resolvedSocketType == null || resolvedSocketType.isBlank()) {
+            throw new IllegalStateException("ACTIVE SOCKET listener requires socketType. eqpId=" + eqpId + ", key=" + key);
+        }
+
+        final String existing = activeListenerSocketTypeConstraints.putIfAbsent(key, resolvedSocketType);
+        if (existing == null) {
+            if (log.isDebugEnabled()) {
+                log.debug("ACTIVE SOCKET listener socketType 제약 등록. eqpId={}, listenerKey={}, socketType={}, reason={}",
+                        eqpId,
+                        key,
+                        resolvedSocketType,
+                        reason);
+            }
+            return;
+        }
+
+        if (!existing.equals(resolvedSocketType)) {
+            log.error("ACTIVE SOCKET listener 정책 위반. eqpId={}, listenerKey={}, existingSocketType={}, incomingSocketType={}, reason={}",
+                    eqpId,
+                    key,
+                    existing,
+                    resolvedSocketType,
+                    reason);
+            throw new IllegalStateException(
+                    "ACTIVE SOCKET listener socketType mismatch on same port. key=" + key
+                            + ", existing=" + existing
+                            + ", incoming=" + resolvedSocketType
+            );
+        }
+    }
+
+    /**
+     * ACTIVE SOCKET 공유 listener의 socketType 제약값을 조회합니다.
+     *
+     * @param key 공유 listener 키
+     * @return 등록된 socketType
+     */
+    private String requireActiveListenerSocketTypeConstraint(final ActiveListenerKey key) {
+        if (key.interfaceType() != CommInterfaceType.SOCKET) {
+            return null;
+        }
+
+        final String socketType = activeListenerSocketTypeConstraints.get(key);
+        if (socketType == null || socketType.isBlank()) {
+            throw new IllegalStateException("Missing ACTIVE SOCKET listener socketType constraint. key=" + key);
+        }
+        return socketType;
+    }
+
+    /**
+     * 런타임 소스 오브 트루스(메모리 컨텍스트)를 우선하여 설비 정보를 조회합니다.
+     *
+     * <p>컨텍스트가 존재하면 DB 재조회 대신 메모리 스냅샷을 사용하고, 없을 때만 DB provider로 fallback 합니다.</p>
+     *
+     * @param eqpId 설비 ID
+     * @return 설비 정보, 없으면 null
+     */
+    private GatewayEquipmentInfo resolveRuntimeEquipmentInfo(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return null;
+        }
+
+        final EquipmentContext context = equipmentContextRegistry.find(eqpId).orElse(null);
+        if (context != null && context.profile() != null && context.profile().equipmentInfo() != null) {
+            final GatewayEquipmentInfo info = context.profile().equipmentInfo();
+            if (log.isDebugEnabled()) {
+                log.debug("런타임 설비 정보 조회(메모리 컨텍스트 사용). eqpId={}, interfaceType={}, mode={}",
+                        eqpId,
+                        info.commInterfaceType(),
+                        info.connectionMode());
+            }
+            return info;
+        }
+
+        final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
+        if (log.isDebugEnabled() && info != null) {
+            log.debug("런타임 설비 정보 조회(DB provider fallback). eqpId={}, interfaceType={}, mode={}",
+                    eqpId,
+                    info.commInterfaceType(),
+                    info.connectionMode());
+        }
+        return info;
+    }
+
+    /**
+     * 기존 설비 정보(fallback)와 현재 메모리 컨텍스트 값을 비교하여 최신 런타임 설비 정보를 선택합니다.
+     *
+     * <p>재연결 스케줄링 등 비동기 경로에서는 과거 스냅샷이 전달될 수 있으므로,
+     * 실제 연결 시도 직전에 최신 런타임 컨텍스트로 한 번 더 보정합니다.</p>
+     *
+     * @param fallbackInfo 기존 호출 경로에서 전달된 설비 정보
+     * @return 최신 런타임 설비 정보(없으면 fallbackInfo)
+     */
+    private GatewayEquipmentInfo resolveLatestRuntimeEquipmentInfo(final GatewayEquipmentInfo fallbackInfo) {
+        Objects.requireNonNull(fallbackInfo, "fallbackInfo is null");
+
+        final GatewayEquipmentInfo latest = resolveRuntimeEquipmentInfo(fallbackInfo.equipmentId());
+        if (latest == null) {
+            return fallbackInfo;
+        }
+        return latest;
+    }
+
+    /**
+     * 설비 정보에서 SOCKET socketType을 해석합니다.
+     *
+     * <p>SOCKET 설비는 `info.socketType()` 우선, 미설정이면 `default-socket-type` fallback을 적용합니다.
+     * HSMS 설비는 socketType이 의미 없으므로 null을 반환합니다.</p>
+     *
+     * @param info 설비 정보
+     * @return 해석된 socketType (HSMS면 null)
+     */
+    private String resolveSocketTypeOrDefault(final GatewayEquipmentInfo info) {
+        Objects.requireNonNull(info, "info is null");
+        if (info.commInterfaceType() != CommInterfaceType.SOCKET) {
+            return null;
+        }
+
+        final String fromEquipment = normalizeText(info.socketType());
+        if (fromEquipment != null) {
+            return fromEquipment;
+        }
+
+        final String fallback = normalizeText(socketProperties.getDefaultSocketType());
+        if (fallback == null) {
+            throw new IllegalStateException("Default SOCKET socketType is not configured");
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("설비 socketType 미설정으로 기본값 fallback 적용. eqpId={}, socketType={}",
+                    info.equipmentId(),
+                    fallback);
+        }
+        return fallback;
+    }
+
+    /**
+     * 문자열 정규화 유틸리티입니다.
+     *
+     * @param text 입력 문자열
+     * @return trim 결과가 비어 있지 않으면 해당 문자열, 아니면 null
+     */
+    private String normalizeText(final String text) {
+        if (text == null) {
+            return null;
+        }
+        final String trimmed = text.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private record ActiveListenerKey(
             CommInterfaceType interfaceType,
             int port

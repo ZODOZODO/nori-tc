@@ -3,6 +3,7 @@ package com.nori.tc.comm.adapters.netty;
 import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -178,6 +180,72 @@ class GatewayNettyBootstrapTest {
     }
 
     /**
+     * ACTIVE SOCKET 설비가 동일 포트를 공유하면서 socketType이 다르면 정책 위반으로 두 번째 시작이 거부되는지 검증합니다.
+     *
+     * <p>검증 포인트:</p>
+     * <p>1) 첫 번째 SOCKET ACTIVE 설비는 정상적으로 listener를 생성합니다.</p>
+     * <p>2) 같은 포트/다른 socketType 설비 시작 시 fail-fast 처리되어 listener 멤버십에 합류하지 못합니다.</p>
+     * <p>3) lifecycleStateMachine에 시작 실패 콜백이 전달됩니다.</p>
+     */
+    @Test
+    void activeSocketEquipmentsWithSamePortButDifferentSocketTypeShouldBeRejected() throws Exception {
+        final int sharedPort = findAvailablePort();
+
+        when(equipmentContextRegistry.snapshot()).thenReturn(java.util.List.of());
+        when(shardOwnership.isOwned(anyString())).thenReturn(true);
+
+        final GatewayEquipmentInfo socketEqpA = new GatewayEquipmentInfo(
+                101L,
+                "SOCKET_A",
+                CommInterfaceType.SOCKET,
+                "LINE_DELIMITED",
+                null,
+                "10.10.10.11",
+                sharedPort,
+                201L,
+                ConnectionMode.ACTIVE,
+                true
+        );
+        final GatewayEquipmentInfo socketEqpB = new GatewayEquipmentInfo(
+                102L,
+                "SOCKET_B",
+                CommInterfaceType.SOCKET,
+                "REGEX_DELIMITED",
+                null,
+                "10.10.10.12",
+                sharedPort,
+                202L,
+                ConnectionMode.ACTIVE,
+                true
+        );
+
+        when(equipmentInfoProvider.findById("SOCKET_A")).thenReturn(Optional.of(socketEqpA));
+        when(equipmentInfoProvider.findById("SOCKET_B")).thenReturn(Optional.of(socketEqpB));
+
+        bootstrapUnderTest = newBootstrapAndStart();
+
+        bootstrapUnderTest.startRuntimeIfPossible("SOCKET_A");
+        bootstrapUnderTest.startRuntimeIfPossible("SOCKET_B");
+
+        final Map<?, ?> listenerChannelMap = getPrivateMapField(bootstrapUnderTest, "activeListenerChannels");
+        final Map<?, ?> listenerMembersMap = getPrivateMapField(bootstrapUnderTest, "activeListenerMembers");
+        final Map<?, ?> listenerSocketTypeConstraintMap = getPrivateMapField(bootstrapUnderTest, "activeListenerSocketTypeConstraints");
+
+        Assertions.assertEquals(1, listenerChannelMap.size(),
+                "첫 번째 SOCKET ACTIVE 설비가 생성한 listener 1개만 유지되어야 합니다.");
+        Assertions.assertEquals(1, listenerMembersMap.size(),
+                "정책 위반 설비는 멤버십에 합류하지 못하므로 listener key는 1개여야 합니다.");
+        Assertions.assertEquals(1, firstMemberSetSize(listenerMembersMap),
+                "동일 포트/다른 socketType 설비는 거부되어 멤버 수는 1명이어야 합니다.");
+        Assertions.assertEquals(1, listenerSocketTypeConstraintMap.size(),
+                "ACTIVE SOCKET listener socketType 제약값은 최초 설비 기준 1개만 유지되어야 합니다.");
+        Assertions.assertTrue(listenerSocketTypeConstraintMap.values().contains("LINE_DELIMITED"),
+                "listener socketType 제약값은 첫 번째 설비의 socketType이어야 합니다.");
+
+        verify(lifecycleStateMachine).onStartFailedIfPending("SOCKET_B", "SYSTEM", "ACTIVE_LISTENER_START_FAILED");
+    }
+
+    /**
      * PASSIVE 장비 런타임 시작 시 아웃바운드 연결을 실제로 시도하는지 검증합니다.
      *
      * <p>테스트 방식:</p>
@@ -194,7 +262,7 @@ class GatewayNettyBootstrapTest {
          * PASSIVE 아웃바운드 연결 성공 시 Netty pipeline 에 ACTIVE handler 가 필요합니다.
          * GatewayChannelHandler 는 final 클래스이므로 inline mock maker(mockito-inline)로 mock 생성합니다.
          */
-        when(handlerFactory.newActiveHandler(any(CommInterfaceType.class), anyString()))
+        when(handlerFactory.newActiveHandler(any(CommInterfaceType.class), anyString(), any()))
                 .thenReturn(mock(GatewayChannelHandler.class));
 
         bootstrapUnderTest = newBootstrapAndStart();
@@ -268,9 +336,12 @@ class GatewayNettyBootstrapTest {
     private GatewayNettyBootstrap newBootstrapAndStart() {
         final GatewayNettyProperties properties = new GatewayNettyProperties();
         configureTestNettyProperties(properties);
+        final GatewaySocketProperties socketProperties = new GatewaySocketProperties();
+        socketProperties.setDefaultSocketType("LINE_DELIMITED");
 
         final GatewayNettyBootstrap bootstrap = new GatewayNettyBootstrap(
                 properties,
+                socketProperties,
                 equipmentInfoProvider,
                 equipmentContextRegistry,
                 handlerFactory,

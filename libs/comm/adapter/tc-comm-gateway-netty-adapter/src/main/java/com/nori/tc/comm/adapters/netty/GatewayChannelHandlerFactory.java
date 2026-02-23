@@ -29,6 +29,7 @@ public class GatewayChannelHandlerFactory {
     private static final Logger log = LoggerFactory.getLogger(GatewayChannelHandlerFactory.class);
 
     private final GatewayNettyProperties nettyProperties;
+    private final GatewaySocketProperties socketProperties;
     private final GatewayProcessingService processingService;
     private final EqpBindingService bindingService;
     private final BindAttemptExecutor bindExecutor;
@@ -65,6 +66,7 @@ public class GatewayChannelHandlerFactory {
             final SocketTypeRegistry socketTypeRegistry
     ) {
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
+        this.socketProperties = Objects.requireNonNull(socketProperties, "socketProperties is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.bindingService = Objects.requireNonNull(bindingService, "bindingService is null");
         this.bindExecutor = Objects.requireNonNull(bindExecutor, "bindExecutor is null");
@@ -81,13 +83,18 @@ public class GatewayChannelHandlerFactory {
      * @param interfaceType 인터페이스 타입
      * @return 생성된 채널 핸들러
      */
-    public GatewayChannelHandler newPassiveHandler(final CommInterfaceType interfaceType) {
+    public GatewayChannelHandler newPassiveHandler(
+            final CommInterfaceType interfaceType,
+            final String socketType
+    ) {
+        final String resolvedSocketType = resolveSocketTypeForChannel(interfaceType, socketType);
         if (log.isDebugEnabled()) {
-            log.debug("Create PASSIVE handler. interfaceType={}", interfaceType);
+            log.debug("Create PASSIVE handler. interfaceType={}, socketType={}", interfaceType, resolvedSocketType);
         }
         return new GatewayChannelHandler(
                 interfaceType,
                 null,
+                resolvedSocketType,
                 nettyProperties,
                 processingService,
                 bindingService,
@@ -108,20 +115,32 @@ public class GatewayChannelHandlerFactory {
      * @param eqpId 설비 ID
      * @return 생성된 채널 핸들러
      */
-    public GatewayChannelHandler newActiveHandler(final CommInterfaceType interfaceType, final String eqpId) {
+    public GatewayChannelHandler newActiveHandler(
+            final CommInterfaceType interfaceType,
+            final String eqpId,
+            final String socketType
+    ) {
+        final String resolvedSocketType = resolveSocketTypeForChannel(interfaceType, socketType);
         if (eqpId != null && !eqpId.isBlank()) {
             try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Create ACTIVE handler. interfaceType={}, eqpId={}", interfaceType, eqpId);
+                    log.debug("Create ACTIVE handler. interfaceType={}, eqpId={}, socketType={}",
+                            interfaceType,
+                            eqpId,
+                            resolvedSocketType);
                 }
             }
         } else if (log.isDebugEnabled()) {
-            log.debug("Create ACTIVE handler. interfaceType={}, eqpId={}", interfaceType, eqpId);
+            log.debug("Create ACTIVE handler. interfaceType={}, eqpId={}, socketType={}",
+                    interfaceType,
+                    eqpId,
+                    resolvedSocketType);
         }
 
         return new GatewayChannelHandler(
                 interfaceType,
                 eqpId,
+                resolvedSocketType,
                 nettyProperties,
                 processingService,
                 bindingService,
@@ -131,5 +150,52 @@ public class GatewayChannelHandlerFactory {
                 socketExtractor,
                 bindExecutor
         );
+    }
+
+    /**
+     * 채널 생성 시 사용할 socketType을 해석합니다.
+     *
+     * <p>HSMS 채널은 socketType이 의미 없으므로 null을 반환하고,
+     * SOCKET 채널은 전달값 우선 -> 기본값 fallback 순서로 확정합니다.</p>
+     *
+     * @param interfaceType 채널 인터페이스 타입
+     * @param requestedSocketType 외부에서 전달한 socketType(설비/리스너 기준)
+     * @return 채널에 주입할 socketType (HSMS면 null)
+     */
+    private String resolveSocketTypeForChannel(
+            final CommInterfaceType interfaceType,
+            final String requestedSocketType
+    ) {
+        if (interfaceType != CommInterfaceType.SOCKET) {
+            return null;
+        }
+
+        final String normalized = normalizeText(requestedSocketType);
+        if (normalized != null) {
+            return normalized;
+        }
+
+        final String fallback = normalizeText(socketProperties.getDefaultSocketType());
+        if (fallback == null) {
+            throw new IllegalStateException("Default SOCKET socketType is not configured");
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("SOCKET handler 생성 시 socketType 미지정으로 기본값 fallback 적용. socketType={}", fallback);
+        }
+        return fallback;
+    }
+
+    /**
+     * 문자열 정규화 유틸리티입니다.
+     *
+     * @param text 입력 문자열
+     * @return trim 결과가 비어 있지 않으면 해당 문자열, 아니면 null
+     */
+    private String normalizeText(final String text) {
+        if (text == null) {
+            return null;
+        }
+        final String trimmed = text.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

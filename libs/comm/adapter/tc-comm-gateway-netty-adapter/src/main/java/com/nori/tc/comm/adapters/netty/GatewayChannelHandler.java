@@ -46,6 +46,13 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
      * <p>null이면 수신 채널이며, initialize 응답/초기 프레임 파싱으로 eqpId를 결정합니다.</p>
      */
     private final String presetEqpId;
+    /**
+     * 채널 생성 시 확정된 SOCKET socketType 입니다.
+     *
+     * <p>SOCKET 채널은 initialize 송신/응답 파싱 단계부터 이 값을 사용하여
+     * 프레이밍/디코드/인코드 핸들러를 일관되게 선택합니다.</p>
+     */
+    private final String socketType;
 
     private final GatewayNettyProperties nettyProperties;
     private final GatewayProcessingService processingService;
@@ -83,6 +90,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     public GatewayChannelHandler(
             final CommInterfaceType interfaceType,
             final String presetEqpId,
+            final String socketType,
             final GatewayNettyProperties nettyProperties,
             final GatewayProcessingService processingService,
             final EqpBindingService bindingService,
@@ -94,6 +102,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     ) {
         this.interfaceType = Objects.requireNonNull(interfaceType, "interfaceType is null");
         this.presetEqpId = (presetEqpId == null || presetEqpId.isBlank()) ? null : presetEqpId;
+        this.socketType = normalizeSocketType(interfaceType, socketType);
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");
         this.bindingService = Objects.requireNonNull(bindingService, "bindingService is null");
@@ -106,6 +115,9 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
                 nettyProperties.getUnboundBufferInitialBytes(),
                 nettyProperties.getUnboundBufferMaxBytes()
         );
+        if (log.isDebugEnabled() && interfaceType == CommInterfaceType.SOCKET) {
+            log.debug("SOCKET 채널 핸들러 생성. presetEqpId={}, socketType={}", this.presetEqpId, this.socketType);
+        }
     }
 
     /**
@@ -294,11 +306,15 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             unboundInbox.drainToBuffer();
             extractedEqpIdOpt = switch (interfaceType) {
                 case HSMS -> hsmsExtractor.tryExtractEqpId(unboundInbox.buffer());
-                case SOCKET -> socketExtractor.tryExtractEqpId(unboundInbox.buffer());
+                case SOCKET -> socketExtractor.tryExtractEqpId(unboundInbox.buffer(), socketType);
             };
         } catch (Exception ex) {
             withEqpLogContext(resolveLogEqpId(channel),
-                    () -> log.warn("Bind parsing failed. closing channel. remote={}", channel.remoteAddress(), ex));
+                    () -> log.warn("Bind parsing failed. closing channel. remote={}, interfaceType={}, socketType={}",
+                            channel.remoteAddress(),
+                            interfaceType,
+                            socketType,
+                            ex));
             channel.close();
             return;
         }
@@ -314,9 +330,10 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
                 && interfaceType == CommInterfaceType.SOCKET
                 && !presetEqpId.equals(extractedEqpId)) {
             withEqpLogContext(presetEqpId, () -> log.warn(
-                    "SOCKET_INITIALIZE_EQPID_MISMATCH. expectedEqpId={}, replyEqpId={}, remote={}",
+                    "SOCKET_INITIALIZE_EQPID_MISMATCH. expectedEqpId={}, replyEqpId={}, socketType={}, remote={}",
                     presetEqpId,
                     extractedEqpId,
+                    socketType,
                     channel.remoteAddress()
             ));
             channel.close();
@@ -463,11 +480,12 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        final byte[] cmd = socketExtractor.initializeCommandBytes();
+        final byte[] cmd = socketExtractor.initializeCommandBytes(socketType);
         if (log.isDebugEnabled()) {
             withEqpLogContext(resolveLogEqpId(channel), () -> log.debug(
-                    "SOCKET initialize command sent. presetEqpId={}, remote={}",
+                    "SOCKET initialize command sent. presetEqpId={}, socketType={}, remote={}",
                     presetEqpId,
+                    socketType,
                     channel.remoteAddress()
             ));
         }
@@ -497,6 +515,34 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
      * eqpId MDC를 적용한 상태로 작업을 실행합니다.
      *
      * @param eqpId 설비 ID
+     * @param task 실행 작업
+     */
+    /**
+     * 채널 생성 시 전달된 socketType을 인터페이스 타입 기준으로 정규화/검증합니다.
+     *
+     * <p>HSMS 채널은 socketType이 의미 없으므로 null을 유지하고,
+     * SOCKET 채널은 blank 입력을 허용하지 않아 초기 바인딩 단계의 핸들러 선택 오류를 사전에 차단합니다.</p>
+     *
+     * @param interfaceType 채널 인터페이스 타입
+     * @param socketType 외부에서 주입한 socketType
+     * @return 정규화된 socketType (HSMS면 null)
+     */
+    private String normalizeSocketType(final CommInterfaceType interfaceType, final String socketType) {
+        if (interfaceType != CommInterfaceType.SOCKET) {
+            return null;
+        }
+        if (socketType == null || socketType.isBlank()) {
+            throw new IllegalArgumentException("socketType is required for SOCKET channel");
+        }
+        return socketType.trim();
+    }
+
+    /**
+     * eqpId MDC 컨텍스트를 적용한 상태로 작업을 실행합니다.
+     *
+     * <p>eqpId가 비어 있으면 MDC를 건드리지 않고 그대로 실행합니다.</p>
+     *
+     * @param eqpId 로그 MDC에 넣을 설비 ID
      * @param task 실행 작업
      */
     private void withEqpLogContext(final String eqpId, final Runnable task) {
