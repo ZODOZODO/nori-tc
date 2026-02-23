@@ -1,9 +1,9 @@
 package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.core.eqp.EquipmentId;
-import com.nori.tc.comm.gateway.comm.ConnectionMode;
-import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
-import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.db.ConnectionMode;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
+import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
@@ -34,7 +34,7 @@ public class EqpBindingService {
     private static final Logger log = LoggerFactory.getLogger(EqpBindingService.class);
 
     private final EquipmentChannelRegistry channelRegistry;
-    private final GatewayProcessingService processingService;
+    private final GatewayIngressService processingService;
     private final KafkaShardOwnership shardOwnership;
     private final EquipmentLifecycleStateMachine lifecycleStateMachine;
 
@@ -48,7 +48,7 @@ public class EqpBindingService {
      */
     public EqpBindingService(
             final EquipmentChannelRegistry channelRegistry,
-            final GatewayProcessingService processingService,
+            final GatewayIngressService processingService,
             final KafkaShardOwnership shardOwnership,
             final EquipmentLifecycleStateMachine lifecycleStateMachine
     ) {

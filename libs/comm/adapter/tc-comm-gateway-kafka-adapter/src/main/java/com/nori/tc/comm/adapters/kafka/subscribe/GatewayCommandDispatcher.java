@@ -8,8 +8,8 @@ import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.DlqPublisherPort;
 import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
-import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
-import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
+import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
@@ -20,7 +20,7 @@ import com.nori.tc.comm.gateway.observability.metrics.GatewayDispositionMetrics;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogSampler;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
-import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeProvider;
+import com.nori.tc.comm.gateway.socket.plugin.spi.GatewaySocketPluginRuntimeProvider;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeEncodeResult;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
@@ -90,7 +90,7 @@ public class GatewayCommandDispatcher {
     private static final long UNKNOWN_OFFSET = -1L;
 
     private final EquipmentChannelRegistry channelRegistry;
-    private final GatewayProcessingService processingService;
+    private final GatewayIngressService processingService;
     private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
     private final GatewayDispositionMetrics dispositionMetrics;
@@ -110,7 +110,7 @@ public class GatewayCommandDispatcher {
      */
     public GatewayCommandDispatcher(
             final EquipmentChannelRegistry channelRegistry,
-            final GatewayProcessingService processingService,
+            final GatewayIngressService processingService,
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler,
             final GatewayDispositionMetrics dispositionMetrics,

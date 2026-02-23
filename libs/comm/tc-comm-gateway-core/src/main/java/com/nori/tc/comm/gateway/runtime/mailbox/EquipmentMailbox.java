@@ -1,7 +1,8 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.runtime.mailbox;
 
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
 
 import java.util.Objects;
 
@@ -17,7 +18,7 @@ import java.util.Objects;
  * <p>- 스케줄링 상태(in-flight/scheduled)는 공통 {@code tc-common-mailbox}에서 관리합니다.</p>
  * <p>- 본 객체는 데이터 보관과 채널 참조에만 집중합니다.</p>
  */
-public final class EqpMailbox {
+public final class EquipmentMailbox {
 
     private final String eqpId;
     private final CommInterfaceType commInterfaceType;
@@ -36,7 +37,7 @@ public final class EqpMailbox {
      * @param inboundQueue inbound bounded 큐
      * @param outboundQueue outbound bounded 큐
      */
-    public EqpMailbox(
+    public EquipmentMailbox(
             final String eqpId,
             final CommInterfaceType commInterfaceType,
             final EquipmentRuntimeContext context,

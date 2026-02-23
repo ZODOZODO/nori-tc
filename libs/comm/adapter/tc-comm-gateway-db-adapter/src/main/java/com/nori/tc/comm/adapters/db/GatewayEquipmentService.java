@@ -1,7 +1,7 @@
 package com.nori.tc.comm.adapters.db;
 
-import com.nori.tc.comm.gateway.comm.ConnectionMode;
-import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
+import com.nori.tc.comm.gateway.db.ConnectionMode;
+import com.nori.tc.comm.gateway.equipment.port.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.context.model.EquipmentContextProfile;
 import com.nori.tc.comm.gateway.context.port.EquipmentContextProfileProvider;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;

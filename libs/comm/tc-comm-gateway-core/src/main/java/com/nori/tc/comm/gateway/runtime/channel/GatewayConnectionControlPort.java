@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.runtime.channel;
 
 /**
  * 게이트웨이 Netty 통신 런타임 제어 포트입니다.

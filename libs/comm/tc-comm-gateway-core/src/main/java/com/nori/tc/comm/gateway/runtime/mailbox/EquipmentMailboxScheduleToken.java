@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.runtime.mailbox;
 
 import com.nori.tc.common.mailbox.MailboxTask;
 
@@ -7,13 +7,13 @@ import java.util.Objects;
 /**
  * 게이트웨이 설비 단위 스케줄링 신호(task)입니다.
  *
- * <p>실제 비즈니스 데이터는 {@link EqpMailbox} 내부 큐(inbound/outbound)에 저장되고,
+ * <p>실제 비즈니스 데이터는 {@link EquipmentMailbox} 내부 큐(inbound/outbound)에 저장되고,
  * 본 task는 "해당 eqpId를 worker가 한 번 처리해야 한다"는 스케줄링 토큰 역할만 수행합니다.</p>
  *
  * @param eqpId 설비 식별자(라우팅 키)
  * @param createdAtEpochMs 스케줄링 요청 시각(epoch millis)
  */
-public record EqpMailboxScheduleTask(
+public record EquipmentMailboxScheduleToken(
         String eqpId,
         long createdAtEpochMs
 ) implements MailboxTask {
@@ -21,7 +21,7 @@ public record EqpMailboxScheduleTask(
     /**
      * 생성 시 입력 유효성을 검증합니다.
      */
-    public EqpMailboxScheduleTask {
+    public EquipmentMailboxScheduleToken {
         if (eqpId == null || eqpId.isBlank()) {
             throw new IllegalArgumentException("eqpId is required");
         }

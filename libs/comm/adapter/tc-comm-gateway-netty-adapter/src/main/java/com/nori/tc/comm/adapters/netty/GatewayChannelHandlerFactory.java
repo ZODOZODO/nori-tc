@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.netty;
 
-import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
@@ -30,7 +30,7 @@ public class GatewayChannelHandlerFactory {
 
     private final GatewayNettyProperties nettyProperties;
     private final GatewaySocketProperties socketProperties;
-    private final GatewayProcessingService processingService;
+    private final GatewayIngressService processingService;
     private final EqpBindingService bindingService;
     private final BindAttemptExecutor bindExecutor;
     private final GatewayMetrics metrics;
@@ -55,7 +55,7 @@ public class GatewayChannelHandlerFactory {
      */
     public GatewayChannelHandlerFactory(
             final GatewayNettyProperties nettyProperties,
-            final GatewayProcessingService processingService,
+            final GatewayIngressService processingService,
             final EqpBindingService bindingService,
             final BindAttemptExecutor bindExecutor,
             final GatewayMetrics metrics,

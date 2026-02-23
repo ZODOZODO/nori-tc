@@ -1,7 +1,7 @@
 package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.core.message.OutboundRawFrame;
-import com.nori.tc.comm.gateway.comm.EquipmentChannel;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;

@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.socket.plugin;
+package com.nori.tc.comm.gateway.socket.plugin.spi;
 
 /**
  * 설비별 SOCKET 플러그인 런타임 갱신 포트입니다.

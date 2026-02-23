@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.socket.plugin;
+package com.nori.tc.comm.gateway.socket.plugin.spi;
 
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 

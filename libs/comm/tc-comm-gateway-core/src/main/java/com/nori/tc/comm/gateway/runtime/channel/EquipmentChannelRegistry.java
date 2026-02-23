@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.runtime.channel;
 
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import org.slf4j.Logger;
@@ -9,10 +9,14 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * eqpId -> EquipmentChannel 매핑
+ * 설비 ID(`eqpId`) 기준 활성 통신 채널 레지스트리입니다.
  *
- * - 채널 등록/해제는 Netty acceptor/connector 레이어에서 수행합니다.
- * - 검색은 낮은 지연을 위해 ConcurrentHashMap 기반으로 단순화합니다.
+ * <p>채널 등록/해제는 Netty acceptor/connector 어댑터 레이어에서 수행하고,
+ * 코어는 이 레지스트리를 통해 채널 조회/교체/해제를 수행합니다.</p>
+ *
+ * <p>구현 메모:</p>
+ * <p>- 조회 지연 최소화를 위해 {@link ConcurrentHashMap} 기반으로 단순 구성</p>
+ * <p>- 중복 연결 시 기존 채널 활성 상태를 확인하여 비활성 채널만 교체 허용</p>
  */
 public final class EquipmentChannelRegistry {
 
@@ -20,9 +24,13 @@ public final class EquipmentChannelRegistry {
     private final Map<String, EquipmentChannel> channels = new ConcurrentHashMap<>();
 
     /**
-     * Bind eqpId to channel if not already bound.
+     * 설비 ID에 채널을 바인딩합니다.
      *
-     * @return true if bound, false if duplicate connection detected.
+     * <p>이미 동일 eqpId가 바인딩되어 있더라도 기존 채널이 비활성 상태이면 교체를 허용합니다.</p>
+     *
+     * @param equipmentId 설비 ID
+     * @param channel 새로 바인딩할 채널
+     * @return 바인딩/재바인딩 성공 시 {@code true}, 활성 중복 연결이면 {@code false}
      */
     public boolean tryBind(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
@@ -35,7 +43,7 @@ public final class EquipmentChannelRegistry {
             return true;
         }
 
-        // If the existing channel is inactive, allow replacement.
+        // 기존 채널이 이미 죽은 상태라면 stale mapping으로 간주하고 교체를 허용합니다.
         if (!existing.isActive()) {
             channels.remove(eqpId, existing);
             final boolean rebound = channels.putIfAbsent(eqpId, channel) == null;
@@ -52,12 +60,13 @@ public final class EquipmentChannelRegistry {
     }
 
     /**
-     * Timeout hook for a specific eqpId/channel pair.
+     * timeout/health-check 경로에서 특정 (eqpId, channel) 쌍만 안전하게 제거합니다.
      *
-     * This is used by timeout/health-check paths to evict a stale mapping
-     * without accidentally removing a newer channel that replaced it.
+     * <p>새 채널이 이미 재바인딩된 경우 잘못 제거하지 않도록 "키+값 일치" 조건으로 삭제합니다.</p>
      *
-     * @return true if the mapping was removed, false otherwise.
+     * @param equipmentId 설비 ID
+     * @param channel 제거 대상 채널(기대한 기존 채널)
+     * @return 실제로 해당 매핑이 제거되었으면 {@code true}
      */
     public boolean timeout(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
@@ -69,12 +78,10 @@ public final class EquipmentChannelRegistry {
         return removed;
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     * 설비 ID 기준으로 채널 매핑을 제거합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param equipmentId 설비 식별 정보
+     * @param equipmentId 설비 ID
      */
     public void unregister(final EquipmentId equipmentId) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
@@ -82,13 +89,11 @@ public final class EquipmentChannelRegistry {
         log.info("Channel unregistered. eqpId={}", equipmentId.value());
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈 도메인 처리 로직을 수행합니다.
+     * 설비 ID와 채널이 모두 일치하는 경우에만 채널 매핑을 제거합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param equipmentId 설비 식별 정보
-     * @param channel 통신 채널/세션 정보
+     * @param equipmentId 설비 ID
+     * @param channel 제거 대상 채널
      */
     public void unregister(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
@@ -97,16 +102,18 @@ public final class EquipmentChannelRegistry {
         log.info("Channel unregistered (match). eqpId={}", equipmentId.value());
     }
 
-    
     /**
-     * 게이트웨이 코어 모듈의 현재 값을 조회합니다.
+     * 설비 ID에 바인딩된 현재 채널을 조회합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param equipmentId 설비 식별 정보
-     * @return 게이트웨이 코어 모듈 처리 결과
+     * @param equipmentId 설비 ID
+     * @return 바인딩된 채널, 없으면 {@code null}
      */
     public EquipmentChannel get(final EquipmentId equipmentId) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
-        return channels.get(equipmentId.value());
+        final EquipmentChannel channel = channels.get(equipmentId.value());
+        if (channel == null && log.isDebugEnabled()) {
+            log.debug("Channel lookup missed. eqpId={}", equipmentId.value());
+        }
+        return channel;
     }
 }

@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.equipment.port;
 
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 

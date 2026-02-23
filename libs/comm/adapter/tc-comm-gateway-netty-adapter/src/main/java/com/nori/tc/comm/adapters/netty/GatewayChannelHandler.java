@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.netty;
 
-import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
@@ -55,7 +55,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     private final String socketType;
 
     private final GatewayNettyProperties nettyProperties;
-    private final GatewayProcessingService processingService;
+    private final GatewayIngressService processingService;
     private final EqpBindingService bindingService;
     private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
@@ -92,7 +92,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             final String presetEqpId,
             final String socketType,
             final GatewayNettyProperties nettyProperties,
-            final GatewayProcessingService processingService,
+            final GatewayIngressService processingService,
             final EqpBindingService bindingService,
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler,

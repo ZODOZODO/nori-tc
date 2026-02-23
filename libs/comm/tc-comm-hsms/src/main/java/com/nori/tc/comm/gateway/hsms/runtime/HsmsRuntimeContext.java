@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.hsms.pipeline;
+package com.nori.tc.comm.gateway.hsms.runtime;
 
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.gateway.hsms.session.HsmsSessionStateMachine;

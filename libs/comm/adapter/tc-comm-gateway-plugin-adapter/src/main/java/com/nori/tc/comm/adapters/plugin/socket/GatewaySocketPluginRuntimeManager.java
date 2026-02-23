@@ -1,7 +1,7 @@
 package com.nori.tc.comm.adapters.plugin.socket;
 
-import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeMutationPort;
-import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeProvider;
+import com.nori.tc.comm.gateway.socket.plugin.spi.GatewaySocketPluginRuntimeMutationPort;
+import com.nori.tc.comm.gateway.socket.plugin.spi.GatewaySocketPluginRuntimeProvider;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;

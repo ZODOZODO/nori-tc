@@ -2,7 +2,7 @@ package com.nori.tc.comm.adapters.kafka.ui;
 
 import com.nori.tc.comm.gateway.config.props.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
-import com.nori.tc.comm.gateway.socket.plugin.GatewaySocketPluginRuntimeMutationPort;
+import com.nori.tc.comm.gateway.socket.plugin.spi.GatewaySocketPluginRuntimeMutationPort;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyPublishMode;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;

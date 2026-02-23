@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.application.processing;
 
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.port.OutboundSenderPort;
@@ -6,6 +6,11 @@ import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.gateway.config.props.GatewayRuntimeProperties;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
+import com.nori.tc.comm.gateway.runtime.mailbox.EquipmentMailbox;
+import com.nori.tc.comm.gateway.runtime.mailbox.EquipmentMailboxRegistry;
+import com.nori.tc.comm.gateway.runtime.mailbox.EquipmentMailboxScheduleToken;
+import com.nori.tc.comm.gateway.runtime.mailbox.OutboundQueueCommand;
 import com.nori.tc.common.mailbox.MailboxScheduler;
 import com.nori.tc.common.mailbox.execution.MailboxExecutionRuntime;
 import org.slf4j.Logger;
@@ -31,9 +36,9 @@ import java.util.concurrent.TimeUnit;
  * <p>범위 C 정책에 따라 `routingKey=eqpId` 로그를 공통 mailbox 계층에서도 EQP MDC 컨텍스트로 연결합니다.</p>
  */
 @Service
-public class EqpProcessingCoordinator implements SmartLifecycle {
+public class EquipmentProcessingCoordinator implements SmartLifecycle {
 
-    private static final Logger log = LoggerFactory.getLogger(EqpProcessingCoordinator.class);
+    private static final Logger log = LoggerFactory.getLogger(EquipmentProcessingCoordinator.class);
 
     /**
      * 스케줄 토큰 전용 mailbox 용량입니다.
@@ -47,7 +52,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      */
     private static final long MAILBOX_RUNTIME_SHUTDOWN_WAIT_MS = 3_000L;
 
-    private final EqpMailboxRegistry mailboxRegistry;
+    private final EquipmentMailboxRegistry mailboxRegistry;
     private final EqpSequentialProcessor sequentialProcessor;
     private final OutboundSenderPort outboundSenderPort;
     private final QuarantinePort quarantinePort;
@@ -56,12 +61,12 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     /**
      * EQP 스케줄링 전용 메일박스 스케줄러입니다.
      */
-    private final MailboxScheduler<EqpMailboxScheduleTask> mailboxScheduler;
+    private final MailboxScheduler<EquipmentMailboxScheduleToken> mailboxScheduler;
 
     /**
      * 공통 mailbox 실행 런타임입니다.
      */
-    private final MailboxExecutionRuntime<EqpMailboxScheduleTask> mailboxExecutionRuntime;
+    private final MailboxExecutionRuntime<EquipmentMailboxScheduleToken> mailboxExecutionRuntime;
 
     /**
      * outbound 재시도 스케줄러입니다.
@@ -82,8 +87,8 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      * @param quarantinePort 설비 격리 포트
      * @param runtimeProperties 게이트웨이 런타임 설정
      */
-    public EqpProcessingCoordinator(
-            final EqpMailboxRegistry mailboxRegistry,
+    public EquipmentProcessingCoordinator(
+            final EquipmentMailboxRegistry mailboxRegistry,
             final EqpSequentialProcessor sequentialProcessor,
             final OutboundSenderPort outboundSenderPort,
             final QuarantinePort quarantinePort,
@@ -128,7 +133,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      *
      * @param mailbox 처리 대상 설비 mailbox
      */
-    public void schedule(final EqpMailbox mailbox) {
+    public void schedule(final EquipmentMailbox mailbox) {
         if (mailbox == null) {
             return;
         }
@@ -136,7 +141,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         final long now = nowEpochMillis();
         withEqpLogContext(mailbox.eqpId(), () -> {
             final boolean offered = mailboxScheduler.enqueue(
-                    new EqpMailboxScheduleTask(mailbox.eqpId(), now),
+                    new EquipmentMailboxScheduleToken(mailbox.eqpId(), now),
                     now
             );
             if (!offered && log.isDebugEnabled()) {
@@ -171,7 +176,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     public synchronized void start() {
         if (running) {
             if (log.isDebugEnabled()) {
-                log.debug("EqpProcessingCoordinator start skipped because it is already running.");
+                log.debug("EquipmentProcessingCoordinator start skipped because it is already running.");
             }
             return;
         }
@@ -180,7 +185,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         retryScheduler = Executors.newScheduledThreadPool(runtimeProperties.getOutboundRetrySchedulerThreads());
         mailboxExecutionRuntime.start();
 
-        log.info("EqpProcessingCoordinator started. dispatcherThreads={}, retrySchedulerThreads={}, schedulerMailboxCapacity={}",
+        log.info("EquipmentProcessingCoordinator started. dispatcherThreads={}, retrySchedulerThreads={}, schedulerMailboxCapacity={}",
                 runtimeProperties.getWorkerThreads(),
                 runtimeProperties.getOutboundRetrySchedulerThreads(),
                 SCHEDULER_MAILBOX_CAPACITY);
@@ -193,7 +198,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
     public synchronized void stop() {
         if (!running) {
             if (log.isDebugEnabled()) {
-                log.debug("EqpProcessingCoordinator stop skipped because it is already stopped.");
+                log.debug("EquipmentProcessingCoordinator stop skipped because it is already stopped.");
             }
             return;
         }
@@ -205,7 +210,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
             retryScheduler = null;
         }
 
-        log.info("EqpProcessingCoordinator stopped.");
+        log.info("EquipmentProcessingCoordinator stopped.");
     }
 
     /**
@@ -233,7 +238,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      *
      * @param scheduleTask 처리 대상 task
      */
-    private void handleScheduledMailboxTask(final EqpMailboxScheduleTask scheduleTask) {
+    private void handleScheduledMailboxTask(final EquipmentMailboxScheduleToken scheduleTask) {
         if (scheduleTask == null) {
             return;
         }
@@ -256,7 +261,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
         }
 
         try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
-            final EqpMailbox mailbox = mailboxRegistry.get(eqpId);
+            final EquipmentMailbox mailbox = mailboxRegistry.get(eqpId);
             if (mailbox == null) {
                 if (log.isDebugEnabled()) {
                     log.debug("Processing skipped because mailbox does not exist. eqpId={}", eqpId);
@@ -283,12 +288,12 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      *
      * @param mailbox 설비 mailbox
      */
-    private void drainOutbound(final EqpMailbox mailbox) {
+    private void drainOutbound(final EquipmentMailbox mailbox) {
         int processed = 0;
         final int maxOutbound = runtimeProperties.getMaxOutboundPerDrain();
 
         while (processed < maxOutbound) {
-            final OutboundCommand command = mailbox.outboundQueue().poll();
+            final OutboundQueueCommand command = mailbox.outboundQueue().poll();
             if (command == null) {
                 return;
             }
@@ -315,13 +320,13 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      * @param ex 송신 예외
      */
     private void handleOutboundFailure(
-            final EqpMailbox mailbox,
-            final OutboundCommand command,
+            final EquipmentMailbox mailbox,
+            final OutboundQueueCommand command,
             final Exception ex
     ) {
         final int maxRetry = runtimeProperties.getOutboundRetryMax();
         if (command.attempt() < maxRetry) {
-            final OutboundCommand retry = command.nextAttempt();
+            final OutboundQueueCommand retry = command.nextAttempt();
             final int delayMs = runtimeProperties.getOutboundRetryBackoffMs();
 
             final ScheduledExecutorService scheduler = retryScheduler;
@@ -375,7 +380,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      *
      * @param mailbox 설비 mailbox
      */
-    private void safeClose(final EqpMailbox mailbox) {
+    private void safeClose(final EquipmentMailbox mailbox) {
         final EquipmentChannel channel = mailbox.channel();
         if (channel != null) {
             channel.close();
@@ -387,7 +392,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      *
      * @param mailbox 설비 mailbox
      */
-    private void safeQuarantine(final EqpMailbox mailbox) {
+    private void safeQuarantine(final EquipmentMailbox mailbox) {
         try {
             quarantinePort.quarantine(
                     new EquipmentId(mailbox.eqpId()),
@@ -405,7 +410,7 @@ public class EqpProcessingCoordinator implements SmartLifecycle {
      * @param mailbox 설비 mailbox
      * @return 잔여 데이터가 있으면 true
      */
-    private boolean hasPending(final EqpMailbox mailbox) {
+    private boolean hasPending(final EquipmentMailbox mailbox) {
         return mailbox.inboundQueue().size() > 0 || mailbox.outboundQueue().size() > 0;
     }
 

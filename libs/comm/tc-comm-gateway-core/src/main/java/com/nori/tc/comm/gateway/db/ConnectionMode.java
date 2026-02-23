@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.comm;
+package com.nori.tc.comm.gateway.db;
 
 /**
  * 게이트웨이 기준 연결 모드(ACTIVE | PASSIVE)입니다.

@@ -1,9 +1,9 @@
 package com.nori.tc.comm.gateway.lifecycle.service;
 
 import com.nori.tc.comm.core.eqp.EquipmentId;
-import com.nori.tc.comm.gateway.comm.EquipmentChannel;
-import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
-import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
+import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewayLifecycleProperties;
 import com.nori.tc.comm.gateway.context.model.EquipmentContext;
 import com.nori.tc.comm.gateway.context.model.EquipmentDesiredState;
@@ -55,7 +55,7 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
     private final GatewayLifecycleProperties lifecycleProperties;
     private final EquipmentContextRegistry contextRegistry;
     private final EquipmentChannelRegistry channelRegistry;
-    private final GatewayProcessingService processingService;
+    private final GatewayIngressService processingService;
     private final EquipmentStatePersistencePort statePersistencePort;
     private final EquipmentLifecycleOutcomeListener outcomeListener;
 
@@ -92,7 +92,7 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
             final GatewayLifecycleProperties lifecycleProperties,
             final EquipmentContextRegistry contextRegistry,
             final EquipmentChannelRegistry channelRegistry,
-            final GatewayProcessingService processingService,
+            final GatewayIngressService processingService,
             final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider,
             final ObjectProvider<EquipmentLifecycleOutcomeListener> outcomeListenerProvider
     ) {

@@ -1,4 +1,4 @@
-package com.nori.tc.comm.gateway.socket.pipeline;
+package com.nori.tc.comm.gateway.socket.runtime;
 
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
@@ -16,21 +16,21 @@ import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
  */
 public interface SocketRuntimeContext extends EquipmentRuntimeContext {
 
-    
     /**
-     * 소켓 통신 모듈 도메인 처리 로직을 수행합니다.
+     * 현재 설비에 적용되는 socketType 설정을 반환합니다.
      *
-     * <p>소켓 타입 분기, 인코딩/디코딩, 연결 상태 관리를 기준으로 동작합니다.</p>
-     * @return 소켓 통신 모듈 처리 결과
+     * <p>SOCKET 파이프라인은 이 설정을 사용해 프레임 길이 제한, 빈 프레임 허용 여부, 타입명 등을 결정합니다.</p>
+     *
+     * @return 설비별 socketType 설정
      */
     SocketTypeConfig socketTypeConfig();
 
-    
     /**
-     * 소켓 통신 모듈 도메인 처리 로직을 수행합니다.
+     * socketType 핸들러 조회 레지스트리를 반환합니다.
      *
-     * <p>소켓 타입 분기, 인코딩/디코딩, 연결 상태 관리를 기준으로 동작합니다.</p>
-     * @return 소켓 통신 모듈 처리 결과
+     * <p>파이프라인은 이 레지스트리를 통해 설비별 socketType에 맞는 핸들러를 조회합니다.</p>
+     *
+     * @return socketType 핸들러 레지스트리
      */
     SocketTypeRegistry socketTypeRegistry();
 }

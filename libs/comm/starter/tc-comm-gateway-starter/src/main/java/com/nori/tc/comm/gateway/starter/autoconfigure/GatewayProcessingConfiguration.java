@@ -1,10 +1,10 @@
 package com.nori.tc.comm.gateway.starter.autoconfigure;
 
-import com.nori.tc.comm.gateway.comm.ChannelBasedOutboundSender;
-import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
-import com.nori.tc.comm.gateway.comm.EqpMailboxRegistry;
-import com.nori.tc.comm.gateway.comm.EquipmentContextFactory;
-import com.nori.tc.comm.gateway.comm.GatewayInboundPipelineRouter;
+import com.nori.tc.comm.gateway.runtime.channel.ChannelBasedOutboundSender;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
+import com.nori.tc.comm.gateway.runtime.mailbox.EquipmentMailboxRegistry;
+import com.nori.tc.comm.gateway.runtime.context.EquipmentRuntimeContextFactory;
+import com.nori.tc.comm.gateway.application.routing.ProtocolInboundPipelineRouter;
 import com.nori.tc.comm.gateway.config.props.GatewayRuntimeProperties;
 import com.nori.tc.comm.gateway.hsms.pipeline.HsmsInboundPipeline;
 import com.nori.tc.comm.gateway.socket.pipeline.SocketInboundPipeline;
@@ -56,16 +56,16 @@ public class GatewayProcessingConfiguration {
      * @return 설비 메일박스 레지스트리
      */
     @Bean
-    public EqpMailboxRegistry eqpMailboxRegistry(
-            final EquipmentContextFactory contextFactory,
+    public EquipmentMailboxRegistry eqpMailboxRegistry(
+            final EquipmentRuntimeContextFactory contextFactory,
             final GatewayRuntimeProperties runtimeProperties
     ) {
         if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: EqpMailboxRegistry. inboundQueueCapacity={}, outboundQueueCapacity={}",
+            log.debug("처리 파이프라인 Bean 생성: EquipmentMailboxRegistry. inboundQueueCapacity={}, outboundQueueCapacity={}",
                     runtimeProperties.getInboundQueueCapacity(),
                     runtimeProperties.getOutboundQueueCapacity());
         }
-        return new EqpMailboxRegistry(contextFactory, runtimeProperties);
+        return new EquipmentMailboxRegistry(contextFactory, runtimeProperties);
     }
 
     /**
@@ -95,9 +95,9 @@ public class GatewayProcessingConfiguration {
             final SocketInboundPipeline socketInboundPipeline
     ) {
         if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: InboundPipelinePort(GatewayInboundPipelineRouter)");
+            log.debug("처리 파이프라인 Bean 생성: InboundPipelinePort(ProtocolInboundPipelineRouter)");
         }
-        return new GatewayInboundPipelineRouter(hsmsInboundPipeline, socketInboundPipeline);
+        return new ProtocolInboundPipelineRouter(hsmsInboundPipeline, socketInboundPipeline);
     }
 
     /**

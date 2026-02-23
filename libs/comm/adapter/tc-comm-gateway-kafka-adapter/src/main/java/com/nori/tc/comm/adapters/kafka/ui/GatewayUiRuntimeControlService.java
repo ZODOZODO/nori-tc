@@ -3,11 +3,11 @@ package com.nori.tc.comm.adapters.kafka.ui;
 import com.nori.tc.comm.adapters.kafka.contract.GatewayBusinessCommandMessage;
 import com.nori.tc.comm.adapters.kafka.subscribe.GatewayCommandDispatcher;
 import com.nori.tc.comm.core.eqp.EquipmentId;
-import com.nori.tc.comm.gateway.comm.ConnectionMode;
-import com.nori.tc.comm.gateway.comm.EquipmentChannel;
-import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
-import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
-import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
+import com.nori.tc.comm.gateway.db.ConnectionMode;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
+import com.nori.tc.comm.gateway.runtime.channel.GatewayConnectionControlPort;
+import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewayLifecycleProperties;
 import com.nori.tc.comm.gateway.context.model.EquipmentContext;
 import com.nori.tc.comm.gateway.context.model.EquipmentContextProfile;
@@ -60,7 +60,7 @@ public class GatewayUiRuntimeControlService {
     private final EquipmentStatePersistencePort statePersistencePort;
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayConnectionControlPort connectionControlPort;
-    private final GatewayProcessingService processingService;
+    private final GatewayIngressService processingService;
     private final GatewayLifecycleProperties lifecycleProperties;
     private final EquipmentLifecycleStateMachine lifecycleStateMachine;
     private final GatewayCommandDispatcher commandDispatcher;
@@ -84,7 +84,7 @@ public class GatewayUiRuntimeControlService {
             final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider,
             final EquipmentChannelRegistry channelRegistry,
             final GatewayConnectionControlPort connectionControlPort,
-            final GatewayProcessingService processingService,
+            final GatewayIngressService processingService,
             final GatewayLifecycleProperties lifecycleProperties,
             final EquipmentLifecycleStateMachine lifecycleStateMachine,
             final GatewayCommandDispatcher commandDispatcher

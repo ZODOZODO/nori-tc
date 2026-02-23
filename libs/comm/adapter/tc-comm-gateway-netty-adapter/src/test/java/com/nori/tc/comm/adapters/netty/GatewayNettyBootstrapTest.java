@@ -1,7 +1,7 @@
 package com.nori.tc.comm.adapters.netty;
 
-import com.nori.tc.comm.gateway.comm.ConnectionMode;
-import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
+import com.nori.tc.comm.gateway.db.ConnectionMode;
+import com.nori.tc.comm.gateway.equipment.port.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;

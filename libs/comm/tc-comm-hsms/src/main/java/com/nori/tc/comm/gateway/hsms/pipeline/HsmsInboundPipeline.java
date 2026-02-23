@@ -13,6 +13,7 @@ import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.hsms.frame.HsmsFrame;
 import com.nori.tc.comm.gateway.hsms.frame.HsmsFrameEncoder;
 import com.nori.tc.comm.gateway.hsms.frame.HsmsFrameExtractor;
+import com.nori.tc.comm.gateway.hsms.runtime.HsmsRuntimeContext;
 import com.nori.tc.comm.gateway.hsms.secs.Secs2Decoder;
 import com.nori.tc.comm.gateway.hsms.secs.Secs2Message;
 import com.nori.tc.comm.gateway.hsms.session.SessionHandleResult;
