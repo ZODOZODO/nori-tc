@@ -1,4 +1,4 @@
-﻿# 04. gateway 기준 PASSIVE 이벤트 생명주기 안내서
+﻿# 05. gateway 기준 PASSIVE 이벤트 생명주기 안내서
 
 ## 문서 목적
 
@@ -17,7 +17,7 @@
 관련 문서:
 
 1. 상태머신 공통 개념: [`03-lifecycle-state-machine-overview.md`](./03-lifecycle-state-machine-overview.md)
-2. gateway 기준 ACTIVE: [`05-gateway-active-eqp-event-lifecycle.md`](./05-gateway-active-eqp-event-lifecycle.md)
+2. gateway 기준 ACTIVE: [`04-gateway-active-eqp-event-lifecycle.md`](./04-gateway-active-eqp-event-lifecycle.md)
 
 ## 1. 가장 중요한 전제: PASSIVE는 "gateway 기준"
 
@@ -495,4 +495,4 @@ sequenceDiagram
 
 ## 14. 다음 문서 안내
 
-다음 문서 [`05-gateway-active-eqp-event-lifecycle.md`](./05-gateway-active-eqp-event-lifecycle.md)에서는 gateway 기준 ACTIVE 장비의 outbound connect/reconnect 중심 생명주기를 설명합니다.
+다음 문서 [`06-kafka-tc-eqp-commands-to-equipment-lifecycle.md`](./06-kafka-tc-eqp-commands-to-equipment-lifecycle.md)에서는 `tc.eqp.commands` 메시지가 Kafka에서 들어와 설비로 송신되기까지의 전체 경로를 설명합니다.

@@ -27,7 +27,7 @@
 
 주의:
 
-1. `04-gateway-passive-eqp-event-lifecycle.md`, `05-gateway-active-eqp-event-lifecycle.md`도 gateway 기준 파일명/내용으로 정리되어 있습니다.
+1. `04-gateway-active-eqp-event-lifecycle.md`, `05-gateway-passive-eqp-event-lifecycle.md`도 gateway 기준 파일명/내용으로 정리되어 있습니다.
 2. listener/server = `PASSIVE`, outbound/client = `ACTIVE` 기준으로 문서를 읽으면 됩니다.
 
 ### 2) 라이프사이클 요청 성공과 실제 연결 성공은 다를 수 있습니다
@@ -47,8 +47,8 @@
 1. [`01-startup-sequence.md`](./01-startup-sequence.md)
 2. [`02-context-bean-map.md`](./02-context-bean-map.md)
 3. [`03-lifecycle-state-machine-overview.md`](./03-lifecycle-state-machine-overview.md)
-4. [`04-gateway-passive-eqp-event-lifecycle.md`](./04-gateway-passive-eqp-event-lifecycle.md)
-5. [`05-gateway-active-eqp-event-lifecycle.md`](./05-gateway-active-eqp-event-lifecycle.md)
+4. [`04-gateway-active-eqp-event-lifecycle.md`](./04-gateway-active-eqp-event-lifecycle.md)
+5. [`05-gateway-passive-eqp-event-lifecycle.md`](./05-gateway-passive-eqp-event-lifecycle.md)
 6. [`06-kafka-tc-eqp-commands-to-equipment-lifecycle.md`](./06-kafka-tc-eqp-commands-to-equipment-lifecycle.md)
 7. [`07-config-runtime-topics-checklist.md`](./07-config-runtime-topics-checklist.md)
 
@@ -64,10 +64,10 @@
    - 주요 Bean 생성 위치, 역할, 의존 관계, 계층(앱/스타터/코어/어댑터)
 3. `03-lifecycle-state-machine-overview.md`
    - `EqpLifecycleStateMachine`의 이벤트/상태/timeout/pending/outcome 공통 개념
-4. `04-gateway-passive-eqp-event-lifecycle.md`
-   - gateway 기준 PASSIVE(listener/server) 장비의 START/END/bind/unbind 생명주기
-5. `05-gateway-active-eqp-event-lifecycle.md`
+4. `04-gateway-active-eqp-event-lifecycle.md`
    - gateway 기준 ACTIVE(outbound/client) 장비의 START/END/connect/reconnect 생명주기
+5. `05-gateway-passive-eqp-event-lifecycle.md`
+   - gateway 기준 PASSIVE(listener/server) 장비의 START/END/bind/unbind 생명주기
 6. `06-kafka-tc-eqp-commands-to-equipment-lifecycle.md`
    - `tc.eqp.commands` 구독 후 설비 송신까지의 흐름, DLQ/Quarantine 포함
 7. `07-config-runtime-topics-checklist.md`

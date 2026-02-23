@@ -13,7 +13,7 @@
 관련 문서:
 
 1. Bean 구조: [`02-context-bean-map.md`](./02-context-bean-map.md)
-2. gateway 기준 PASSIVE/ACTIVE 채널 생명주기: [`04-gateway-passive-eqp-event-lifecycle.md`](./04-gateway-passive-eqp-event-lifecycle.md), [`05-gateway-active-eqp-event-lifecycle.md`](./05-gateway-active-eqp-event-lifecycle.md)
+2. gateway 기준 ACTIVE/PASSIVE 채널 생명주기: [`04-gateway-active-eqp-event-lifecycle.md`](./04-gateway-active-eqp-event-lifecycle.md), [`05-gateway-passive-eqp-event-lifecycle.md`](./05-gateway-passive-eqp-event-lifecycle.md)
 3. 운영 설정 체크리스트: [`07-config-runtime-topics-checklist.md`](./07-config-runtime-topics-checklist.md)
 
 ## 1. 먼저 알아야 할 사실 (매우 중요)
