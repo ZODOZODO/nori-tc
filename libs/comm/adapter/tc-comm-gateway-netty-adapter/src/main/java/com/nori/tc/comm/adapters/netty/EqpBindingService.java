@@ -34,7 +34,7 @@ public class EqpBindingService {
     private static final Logger log = LoggerFactory.getLogger(EqpBindingService.class);
 
     private final EquipmentChannelRegistry channelRegistry;
-    private final GatewayIngressService processingService;
+    private final GatewayIngressService gatewayIngressService;
     private final KafkaShardOwnership shardOwnership;
     private final EquipmentLifecycleStateMachine lifecycleStateMachine;
 
@@ -42,20 +42,22 @@ public class EqpBindingService {
      * 바인딩 서비스 의존 객체를 초기화합니다.
      *
      * @param channelRegistry 설비 채널 레지스트리
-     * @param processingService 처리 서비스
+     * @param gatewayIngressService 게이트웨이 인입/출력 큐 적재 진입 서비스
      * @param shardOwnership 샤드 소유권 판별기
      * @param lifecycleStateMachine 라이프사이클 상태머신
      */
     public EqpBindingService(
             final EquipmentChannelRegistry channelRegistry,
-            final GatewayIngressService processingService,
+            final GatewayIngressService gatewayIngressService,
             final KafkaShardOwnership shardOwnership,
             final EquipmentLifecycleStateMachine lifecycleStateMachine
     ) {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
-        this.processingService = Objects.requireNonNull(processingService, "processingService is null");
+        this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
         this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
         this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
+
+        log.info("EqpBindingService initialized. gatewayModeInterpretation=GATEWAY_SIDE");
     }
 
     /**
@@ -116,7 +118,7 @@ public class EqpBindingService {
 
         withEqpLogContext(eqpId, () -> {
             channelRegistry.unregister(new EquipmentId(eqpId));
-            processingService.removeMailbox(eqpId);
+            gatewayIngressService.removeMailbox(eqpId);
             lifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND");
 
             log.info("Channel unbound. eqpId={}", eqpId);
@@ -161,7 +163,7 @@ public class EqpBindingService {
 
             final GatewayEquipmentInfo info;
             try {
-                info = processingService.resolveEquipment(eqpId);
+                info = gatewayIngressService.resolveEquipment(eqpId);
             } catch (Exception ex) {
                 return BindResult.UNKNOWN_EQUIPMENT;
             }
@@ -189,7 +191,7 @@ public class EqpBindingService {
                 return BindResult.DUPLICATE_CONNECTION;
             }
 
-            processingService.bindMailbox(info, equipmentChannel);
+            gatewayIngressService.bindMailbox(info, equipmentChannel);
             lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
 
             log.info("Bind success. eqpId={}, interfaceType={}, gatewayMode={}", eqpId, interfaceType, expectedMode);

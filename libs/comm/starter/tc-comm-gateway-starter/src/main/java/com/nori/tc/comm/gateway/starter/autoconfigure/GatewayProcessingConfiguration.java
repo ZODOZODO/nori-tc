@@ -56,7 +56,7 @@ public class GatewayProcessingConfiguration {
      * @return 설비 메일박스 레지스트리
      */
     @Bean
-    public EquipmentMailboxRegistry eqpMailboxRegistry(
+    public EquipmentMailboxRegistry equipmentMailboxRegistry(
             final EquipmentRuntimeContextFactory contextFactory,
             final GatewayRuntimeProperties runtimeProperties
     ) {

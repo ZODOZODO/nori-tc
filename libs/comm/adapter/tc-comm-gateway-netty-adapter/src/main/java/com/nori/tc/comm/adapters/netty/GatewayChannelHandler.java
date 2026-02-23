@@ -55,7 +55,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
     private final String socketType;
 
     private final GatewayNettyProperties nettyProperties;
-    private final GatewayIngressService processingService;
+    private final GatewayIngressService gatewayIngressService;
     private final EqpBindingService bindingService;
     private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
@@ -79,7 +79,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
      * @param interfaceType 인터페이스 타입
      * @param presetEqpId 아웃바운드 경로의 목표 eqpId(수신 채널이면 null)
      * @param nettyProperties Netty 설정
-     * @param processingService inbound enqueue 진입점
+     * @param gatewayIngressService inbound/outbound 큐 적재 진입 서비스
      * @param bindingService 바인딩 서비스
      * @param metrics 메트릭 수집기
      * @param logSampler 로그 샘플링 정책
@@ -92,7 +92,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             final String presetEqpId,
             final String socketType,
             final GatewayNettyProperties nettyProperties,
-            final GatewayIngressService processingService,
+            final GatewayIngressService gatewayIngressService,
             final EqpBindingService bindingService,
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler,
@@ -104,7 +104,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         this.presetEqpId = (presetEqpId == null || presetEqpId.isBlank()) ? null : presetEqpId;
         this.socketType = normalizeSocketType(interfaceType, socketType);
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
-        this.processingService = Objects.requireNonNull(processingService, "processingService is null");
+        this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
         this.bindingService = Objects.requireNonNull(bindingService, "bindingService is null");
         this.metrics = Objects.requireNonNull(metrics, "metrics is null");
         this.logSampler = Objects.requireNonNull(logSampler, "logSampler is null");
@@ -192,7 +192,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             if (state == BindState.BOUND) {
                 final String eqpId = NettyChannelAttributes.getEqpId(channel);
                 if (eqpId != null) {
-                    processingService.enqueueInbound(eqpId, bytes);
+                    gatewayIngressService.enqueueInbound(eqpId, bytes);
                 }
                 return;
             }

@@ -116,6 +116,7 @@ public class GatewayUiTaskPolicyProperties {
      */
     @PostConstruct
     public void validate() {
+        // 이벤트 타입별 처리 timeout은 모두 양수여야 작업 스케줄링/타임아웃 판정이 정상 동작합니다.
         requirePositive("tc.comm.gateway.ui-task.create-timeout-ms", createTimeoutMs);
         requirePositive("tc.comm.gateway.ui-task.update-timeout-ms", updateTimeoutMs);
         requirePositive("tc.comm.gateway.ui-task.delete-timeout-ms", deleteTimeoutMs);
@@ -124,14 +125,18 @@ public class GatewayUiTaskPolicyProperties {
         requirePositive("tc.comm.gateway.ui-task.send-message-timeout-ms", sendMessageTimeoutMs);
         requirePositive("tc.comm.gateway.ui-task.update-jarfile-timeout-ms", updateJarfileTimeoutMs);
 
+        // 재시도 횟수/백오프는 0(재시도 안 함) 이상을 허용합니다.
         requireNonNegative("tc.comm.gateway.ui-task.task-retry-max", taskRetryMax);
         requireNonNegative("tc.comm.gateway.ui-task.task-retry-backoff-ms", taskRetryBackoffMs);
         requireNonNegative("tc.comm.gateway.ui-task.reply-publish-retry-max", replyPublishRetryMax);
         requireNonNegative("tc.comm.gateway.ui-task.reply-publish-retry-backoff-ms", replyPublishRetryBackoffMs);
+
+        // traceId 중복 차단 정책은 캐시 TTL/최대 보관 개수가 모두 양수여야 합니다.
         requirePositive("tc.comm.gateway.ui-task.duplicate-trace-ttl-ms", duplicateTraceTtlMs);
         requirePositive("tc.comm.gateway.ui-task.duplicate-trace-max-size", duplicateTraceMaxSize);
         requireNonNegative("tc.comm.gateway.ui-task.failed-record-retry-backoff-ms", failedRecordRetryBackoffMs);
 
+        // UI task 런타임 mailbox/스레드/종료대기는 0보다 커야 안전하게 동작합니다.
         requirePositive("tc.comm.gateway.ui-task.mailbox-capacity", mailboxCapacity);
         requirePositive("tc.comm.gateway.ui-task.dispatcher-threads", dispatcherThreads);
         requirePositive("tc.comm.gateway.ui-task.worker-threads", workerThreads);
@@ -165,11 +170,21 @@ public class GatewayUiTaskPolicyProperties {
                     duplicateTraceMaxSize,
                     failedRecordRetryBackoffMs
             );
+            log.debug(
+                    "Gateway UI task runtime policy. mailboxCapacity={}, dispatcherThreads={}, workerThreads={}, runtimeShutdownWaitMs={}",
+                    mailboxCapacity,
+                    dispatcherThreads,
+                    workerThreads,
+                    runtimeShutdownWaitMs
+            );
         }
     }
 
     /**
      * 양수 조건을 검증합니다.
+     *
+     * @param key 검증 실패 메시지에 포함할 프로퍼티 키
+     * @param value 검증 대상 숫자 값
      */
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
@@ -179,6 +194,9 @@ public class GatewayUiTaskPolicyProperties {
 
     /**
      * 0 이상 조건을 검증합니다.
+     *
+     * @param key 검증 실패 메시지에 포함할 프로퍼티 키
+     * @param value 검증 대상 숫자 값
      */
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {
@@ -187,361 +205,325 @@ public class GatewayUiTaskPolicyProperties {
     }
 
     /**
-     * getCreateTimeoutMs 기능을 수행합니다.
+     * getCreateTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getCreateTimeoutMs() {
         return createTimeoutMs;
     }
 
     /**
-     * setCreateTimeoutMs 기능을 수행합니다.
+     * setCreateTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param createTimeoutMs 입력 값
+     * @param createTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setCreateTimeoutMs(final long createTimeoutMs) {
         this.createTimeoutMs = createTimeoutMs;
     }
 
     /**
-     * getUpdateTimeoutMs 기능을 수행합니다.
+     * getUpdateTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getUpdateTimeoutMs() {
         return updateTimeoutMs;
     }
 
     /**
-     * setUpdateTimeoutMs 기능을 수행합니다.
+     * setUpdateTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param updateTimeoutMs 입력 값
+     * @param updateTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setUpdateTimeoutMs(final long updateTimeoutMs) {
         this.updateTimeoutMs = updateTimeoutMs;
     }
 
     /**
-     * getDeleteTimeoutMs 기능을 수행합니다.
+     * getDeleteTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getDeleteTimeoutMs() {
         return deleteTimeoutMs;
     }
 
     /**
-     * setDeleteTimeoutMs 기능을 수행합니다.
+     * setDeleteTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param deleteTimeoutMs 입력 값
+     * @param deleteTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setDeleteTimeoutMs(final long deleteTimeoutMs) {
         this.deleteTimeoutMs = deleteTimeoutMs;
     }
 
     /**
-     * getStartTimeoutMs 기능을 수행합니다.
+     * getStartTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getStartTimeoutMs() {
         return startTimeoutMs;
     }
 
     /**
-     * setStartTimeoutMs 기능을 수행합니다.
+     * setStartTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param startTimeoutMs 입력 값
+     * @param startTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setStartTimeoutMs(final long startTimeoutMs) {
         this.startTimeoutMs = startTimeoutMs;
     }
 
     /**
-     * getEndTimeoutMs 기능을 수행합니다.
+     * getEndTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getEndTimeoutMs() {
         return endTimeoutMs;
     }
 
     /**
-     * setEndTimeoutMs 기능을 수행합니다.
+     * setEndTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param endTimeoutMs 입력 값
+     * @param endTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setEndTimeoutMs(final long endTimeoutMs) {
         this.endTimeoutMs = endTimeoutMs;
     }
 
     /**
-     * getSendMessageTimeoutMs 기능을 수행합니다.
+     * getSendMessageTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getSendMessageTimeoutMs() {
         return sendMessageTimeoutMs;
     }
 
     /**
-     * setSendMessageTimeoutMs 기능을 수행합니다.
+     * setSendMessageTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param sendMessageTimeoutMs 입력 값
+     * @param sendMessageTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setSendMessageTimeoutMs(final long sendMessageTimeoutMs) {
         this.sendMessageTimeoutMs = sendMessageTimeoutMs;
     }
 
     /**
-     * getUpdateJarfileTimeoutMs 기능을 수행합니다.
+     * getUpdateJarfileTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getUpdateJarfileTimeoutMs() {
         return updateJarfileTimeoutMs;
     }
 
     /**
-     * setUpdateJarfileTimeoutMs 기능을 수행합니다.
+     * setUpdateJarfileTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param updateJarfileTimeoutMs 입력 값
+     * @param updateJarfileTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setUpdateJarfileTimeoutMs(final long updateJarfileTimeoutMs) {
         this.updateJarfileTimeoutMs = updateJarfileTimeoutMs;
     }
 
     /**
-     * getTaskRetryMax 기능을 수행합니다.
+     * getTaskRetryMax 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getTaskRetryMax() {
         return taskRetryMax;
     }
 
     /**
-     * setTaskRetryMax 기능을 수행합니다.
+     * setTaskRetryMax 프로퍼티 값을 설정합니다.
      *
-     * @param taskRetryMax 입력 값
+     * @param taskRetryMax 설정할 프로퍼티 값
      */
-
     public void setTaskRetryMax(final int taskRetryMax) {
         this.taskRetryMax = taskRetryMax;
     }
 
     /**
-     * getTaskRetryBackoffMs 기능을 수행합니다.
+     * getTaskRetryBackoffMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getTaskRetryBackoffMs() {
         return taskRetryBackoffMs;
     }
 
     /**
-     * setTaskRetryBackoffMs 기능을 수행합니다.
+     * setTaskRetryBackoffMs 프로퍼티 값을 설정합니다.
      *
-     * @param taskRetryBackoffMs 입력 값
+     * @param taskRetryBackoffMs 설정할 프로퍼티 값
      */
-
     public void setTaskRetryBackoffMs(final long taskRetryBackoffMs) {
         this.taskRetryBackoffMs = taskRetryBackoffMs;
     }
 
     /**
-     * getReplyPublishRetryMax 기능을 수행합니다.
+     * getReplyPublishRetryMax 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getReplyPublishRetryMax() {
         return replyPublishRetryMax;
     }
 
     /**
-     * setReplyPublishRetryMax 기능을 수행합니다.
+     * setReplyPublishRetryMax 프로퍼티 값을 설정합니다.
      *
-     * @param replyPublishRetryMax 입력 값
+     * @param replyPublishRetryMax 설정할 프로퍼티 값
      */
-
     public void setReplyPublishRetryMax(final int replyPublishRetryMax) {
         this.replyPublishRetryMax = replyPublishRetryMax;
     }
 
     /**
-     * getReplyPublishRetryBackoffMs 기능을 수행합니다.
+     * getReplyPublishRetryBackoffMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getReplyPublishRetryBackoffMs() {
         return replyPublishRetryBackoffMs;
     }
 
     /**
-     * setReplyPublishRetryBackoffMs 기능을 수행합니다.
+     * setReplyPublishRetryBackoffMs 프로퍼티 값을 설정합니다.
      *
-     * @param replyPublishRetryBackoffMs 입력 값
+     * @param replyPublishRetryBackoffMs 설정할 프로퍼티 값
      */
-
     public void setReplyPublishRetryBackoffMs(final long replyPublishRetryBackoffMs) {
         this.replyPublishRetryBackoffMs = replyPublishRetryBackoffMs;
     }
 
     /**
-     * getDuplicateTraceTtlMs 기능을 수행합니다.
+     * getDuplicateTraceTtlMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getDuplicateTraceTtlMs() {
         return duplicateTraceTtlMs;
     }
 
     /**
-     * setDuplicateTraceTtlMs 기능을 수행합니다.
+     * setDuplicateTraceTtlMs 프로퍼티 값을 설정합니다.
      *
-     * @param duplicateTraceTtlMs 입력 값
+     * @param duplicateTraceTtlMs 설정할 프로퍼티 값
      */
-
     public void setDuplicateTraceTtlMs(final long duplicateTraceTtlMs) {
         this.duplicateTraceTtlMs = duplicateTraceTtlMs;
     }
 
     /**
-     * getDuplicateTraceMaxSize 기능을 수행합니다.
+     * getDuplicateTraceMaxSize 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getDuplicateTraceMaxSize() {
         return duplicateTraceMaxSize;
     }
 
     /**
-     * setDuplicateTraceMaxSize 기능을 수행합니다.
+     * setDuplicateTraceMaxSize 프로퍼티 값을 설정합니다.
      *
-     * @param duplicateTraceMaxSize 입력 값
+     * @param duplicateTraceMaxSize 설정할 프로퍼티 값
      */
-
     public void setDuplicateTraceMaxSize(final int duplicateTraceMaxSize) {
         this.duplicateTraceMaxSize = duplicateTraceMaxSize;
     }
 
     /**
-     * getFailedRecordRetryBackoffMs 기능을 수행합니다.
+     * getFailedRecordRetryBackoffMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getFailedRecordRetryBackoffMs() {
         return failedRecordRetryBackoffMs;
     }
 
     /**
-     * setFailedRecordRetryBackoffMs 기능을 수행합니다.
+     * setFailedRecordRetryBackoffMs 프로퍼티 값을 설정합니다.
      *
-     * @param failedRecordRetryBackoffMs 입력 값
+     * @param failedRecordRetryBackoffMs 설정할 프로퍼티 값
      */
-
     public void setFailedRecordRetryBackoffMs(final long failedRecordRetryBackoffMs) {
         this.failedRecordRetryBackoffMs = failedRecordRetryBackoffMs;
     }
 
     /**
-     * getMailboxCapacity 기능을 수행합니다.
+     * getMailboxCapacity 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getMailboxCapacity() {
         return mailboxCapacity;
     }
 
     /**
-     * setMailboxCapacity 기능을 수행합니다.
+     * setMailboxCapacity 프로퍼티 값을 설정합니다.
      *
-     * @param mailboxCapacity 입력 값
+     * @param mailboxCapacity 설정할 프로퍼티 값
      */
-
     public void setMailboxCapacity(final int mailboxCapacity) {
         this.mailboxCapacity = mailboxCapacity;
     }
 
     /**
-     * getDispatcherThreads 기능을 수행합니다.
+     * getDispatcherThreads 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getDispatcherThreads() {
         return dispatcherThreads;
     }
 
     /**
-     * setDispatcherThreads 기능을 수행합니다.
+     * setDispatcherThreads 프로퍼티 값을 설정합니다.
      *
-     * @param dispatcherThreads 입력 값
+     * @param dispatcherThreads 설정할 프로퍼티 값
      */
-
     public void setDispatcherThreads(final int dispatcherThreads) {
         this.dispatcherThreads = dispatcherThreads;
     }
 
     /**
-     * getWorkerThreads 기능을 수행합니다.
+     * getWorkerThreads 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getWorkerThreads() {
         return workerThreads;
     }
 
     /**
-     * setWorkerThreads 기능을 수행합니다.
+     * setWorkerThreads 프로퍼티 값을 설정합니다.
      *
-     * @param workerThreads 입력 값
+     * @param workerThreads 설정할 프로퍼티 값
      */
-
     public void setWorkerThreads(final int workerThreads) {
         this.workerThreads = workerThreads;
     }
 
     /**
-     * getRuntimeShutdownWaitMs 기능을 수행합니다.
+     * getRuntimeShutdownWaitMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getRuntimeShutdownWaitMs() {
         return runtimeShutdownWaitMs;
     }
 
     /**
-     * setRuntimeShutdownWaitMs 기능을 수행합니다.
+     * setRuntimeShutdownWaitMs 프로퍼티 값을 설정합니다.
      *
-     * @param runtimeShutdownWaitMs 입력 값
+     * @param runtimeShutdownWaitMs 설정할 프로퍼티 값
      */
-
     public void setRuntimeShutdownWaitMs(final long runtimeShutdownWaitMs) {
         this.runtimeShutdownWaitMs = runtimeShutdownWaitMs;
     }

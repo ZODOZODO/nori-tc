@@ -93,8 +93,11 @@ public class GatewayKafkaShardProperties {
      */
     @PostConstruct
     public void validate() {
+        // 샤딩 불변식 검증: 전체 파티션 수와 소유 파티션 목록이 먼저 유효해야 후속 범위 검사가 가능합니다.
         requirePositive("tc.comm.gateway.kafka.commands-partition-count", commandsPartitionCount);
         requireNotEmpty("tc.comm.gateway.kafka.owned-partitions", ownedPartitions);
+
+        // 소유 파티션 목록은 commandsPartitionCount 범위 내 값만 허용합니다.
         for (Integer partition : ownedPartitions) {
             requireNonNegative("tc.comm.gateway.kafka.owned-partitions element", partition);
             if (partition >= commandsPartitionCount) {
@@ -104,6 +107,7 @@ public class GatewayKafkaShardProperties {
             }
         }
 
+        // Kafka poll/commit/lag/종료 대기 시간 관련 기본 운영 정책을 검증합니다.
         requirePositive("tc.comm.gateway.kafka.poll-timeout-ms", pollTimeoutMs);
         requirePositive("tc.comm.gateway.kafka.ui-poll-timeout-ms", uiPollTimeoutMs);
         requireNonNegative("tc.comm.gateway.kafka.commit-retry-max", commitRetryMax);
@@ -112,6 +116,7 @@ public class GatewayKafkaShardProperties {
         requirePositive("tc.comm.gateway.kafka.consumer-shutdown-wait-ms", consumerShutdownWaitMs);
         requirePositive("tc.comm.gateway.kafka.admin-timeout-seconds", adminTimeoutSeconds);
 
+        // 비동기 레코드 처리 모드 on/off 및 워커/버퍼 정책을 검증합니다.
         requireNotNull("tc.comm.gateway.kafka.async-record-processing-enabled", asyncRecordProcessingEnabled);
         requirePositive("tc.comm.gateway.kafka.record-worker-threads", recordWorkerThreads);
         requirePositive("tc.comm.gateway.kafka.ack-drain-max-batch", ackDrainMaxBatch);
@@ -126,275 +131,260 @@ public class GatewayKafkaShardProperties {
                 ackDrainMaxBatch,
                 maxInFlightRecords
         );
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Gateway Kafka consumer timing policy validated. pollTimeoutMs={}, uiPollTimeoutMs={}, commitRetryMax={}, commitRetryBackoffMs={}, lagSampleIntervalMs={}, consumerShutdownWaitMs={}, adminTimeoutSeconds={}",
+                    pollTimeoutMs,
+                    uiPollTimeoutMs,
+                    commitRetryMax,
+                    commitRetryBackoffMs,
+                    lagSampleIntervalMs,
+                    consumerShutdownWaitMs,
+                    adminTimeoutSeconds
+            );
+        }
     }
 
     /**
-     * getCommandsPartitionCount 기능을 수행합니다.
+     * getCommandsPartitionCount 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getCommandsPartitionCount() {
         return commandsPartitionCount;
     }
 
     /**
-     * setCommandsPartitionCount 기능을 수행합니다.
+     * setCommandsPartitionCount 프로퍼티 값을 설정합니다.
      *
-     * @param commandsPartitionCount 입력 값
+     * @param commandsPartitionCount 설정할 프로퍼티 값
      */
-
     public void setCommandsPartitionCount(final int commandsPartitionCount) {
         this.commandsPartitionCount = commandsPartitionCount;
     }
 
     /**
-     * getOwnedPartitions 기능을 수행합니다.
+     * getOwnedPartitions 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public List<Integer> getOwnedPartitions() {
         return ownedPartitions;
     }
 
     /**
-     * setOwnedPartitions 기능을 수행합니다.
+     * setOwnedPartitions 프로퍼티 값을 설정합니다.
      *
-     * @param ownedPartitions 입력 값
+     * @param ownedPartitions 설정할 프로퍼티 값
      */
-
     public void setOwnedPartitions(final List<Integer> ownedPartitions) {
         this.ownedPartitions = ownedPartitions == null ? null : new ArrayList<>(ownedPartitions);
     }
 
     /**
-     * getPollTimeoutMs 기능을 수행합니다.
+     * getPollTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getPollTimeoutMs() {
         return pollTimeoutMs;
     }
 
     /**
-     * setPollTimeoutMs 기능을 수행합니다.
+     * setPollTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param pollTimeoutMs 입력 값
+     * @param pollTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setPollTimeoutMs(final long pollTimeoutMs) {
         this.pollTimeoutMs = pollTimeoutMs;
     }
 
     /**
-     * getUiPollTimeoutMs 기능을 수행합니다.
+     * getUiPollTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getUiPollTimeoutMs() {
         return uiPollTimeoutMs;
     }
 
     /**
-     * setUiPollTimeoutMs 기능을 수행합니다.
+     * setUiPollTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param uiPollTimeoutMs 입력 값
+     * @param uiPollTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setUiPollTimeoutMs(final long uiPollTimeoutMs) {
         this.uiPollTimeoutMs = uiPollTimeoutMs;
     }
 
     /**
-     * getCommitRetryMax 기능을 수행합니다.
+     * getCommitRetryMax 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getCommitRetryMax() {
         return commitRetryMax;
     }
 
     /**
-     * setCommitRetryMax 기능을 수행합니다.
+     * setCommitRetryMax 프로퍼티 값을 설정합니다.
      *
-     * @param commitRetryMax 입력 값
+     * @param commitRetryMax 설정할 프로퍼티 값
      */
-
     public void setCommitRetryMax(final int commitRetryMax) {
         this.commitRetryMax = commitRetryMax;
     }
 
     /**
-     * getCommitRetryBackoffMs 기능을 수행합니다.
+     * getCommitRetryBackoffMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getCommitRetryBackoffMs() {
         return commitRetryBackoffMs;
     }
 
     /**
-     * setCommitRetryBackoffMs 기능을 수행합니다.
+     * setCommitRetryBackoffMs 프로퍼티 값을 설정합니다.
      *
-     * @param commitRetryBackoffMs 입력 값
+     * @param commitRetryBackoffMs 설정할 프로퍼티 값
      */
-
     public void setCommitRetryBackoffMs(final long commitRetryBackoffMs) {
         this.commitRetryBackoffMs = commitRetryBackoffMs;
     }
 
     /**
-     * getLagSampleIntervalMs 기능을 수행합니다.
+     * getLagSampleIntervalMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getLagSampleIntervalMs() {
         return lagSampleIntervalMs;
     }
 
     /**
-     * setLagSampleIntervalMs 기능을 수행합니다.
+     * setLagSampleIntervalMs 프로퍼티 값을 설정합니다.
      *
-     * @param lagSampleIntervalMs 입력 값
+     * @param lagSampleIntervalMs 설정할 프로퍼티 값
      */
-
     public void setLagSampleIntervalMs(final long lagSampleIntervalMs) {
         this.lagSampleIntervalMs = lagSampleIntervalMs;
     }
 
     /**
-     * getConsumerShutdownWaitMs 기능을 수행합니다.
+     * getConsumerShutdownWaitMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getConsumerShutdownWaitMs() {
         return consumerShutdownWaitMs;
     }
 
     /**
-     * setConsumerShutdownWaitMs 기능을 수행합니다.
+     * setConsumerShutdownWaitMs 프로퍼티 값을 설정합니다.
      *
-     * @param consumerShutdownWaitMs 입력 값
+     * @param consumerShutdownWaitMs 설정할 프로퍼티 값
      */
-
     public void setConsumerShutdownWaitMs(final long consumerShutdownWaitMs) {
         this.consumerShutdownWaitMs = consumerShutdownWaitMs;
     }
 
     /**
-     * getAdminTimeoutSeconds 기능을 수행합니다.
+     * getAdminTimeoutSeconds 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getAdminTimeoutSeconds() {
         return adminTimeoutSeconds;
     }
 
     /**
-     * setAdminTimeoutSeconds 기능을 수행합니다.
+     * setAdminTimeoutSeconds 프로퍼티 값을 설정합니다.
      *
-     * @param adminTimeoutSeconds 입력 값
+     * @param adminTimeoutSeconds 설정할 프로퍼티 값
      */
-
     public void setAdminTimeoutSeconds(final long adminTimeoutSeconds) {
         this.adminTimeoutSeconds = adminTimeoutSeconds;
     }
 
     /**
-     * isAsyncRecordProcessingEnabled 기능을 수행합니다.
+     * isAsyncRecordProcessingEnabled 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public boolean isAsyncRecordProcessingEnabled() {
         return asyncRecordProcessingEnabled;
     }
 
     /**
-     * setAsyncRecordProcessingEnabled 기능을 수행합니다.
+     * setAsyncRecordProcessingEnabled 프로퍼티 값을 설정합니다.
      *
-     * @param asyncRecordProcessingEnabled 입력 값
+     * @param asyncRecordProcessingEnabled 설정할 프로퍼티 값
      */
-
     public void setAsyncRecordProcessingEnabled(final boolean asyncRecordProcessingEnabled) {
         this.asyncRecordProcessingEnabled = asyncRecordProcessingEnabled;
     }
 
     /**
-     * getRecordWorkerThreads 기능을 수행합니다.
+     * getRecordWorkerThreads 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getRecordWorkerThreads() {
         return recordWorkerThreads;
     }
 
     /**
-     * setRecordWorkerThreads 기능을 수행합니다.
+     * setRecordWorkerThreads 프로퍼티 값을 설정합니다.
      *
-     * @param recordWorkerThreads 입력 값
+     * @param recordWorkerThreads 설정할 프로퍼티 값
      */
-
     public void setRecordWorkerThreads(final int recordWorkerThreads) {
         this.recordWorkerThreads = recordWorkerThreads;
     }
 
     /**
-     * getAckDrainMaxBatch 기능을 수행합니다.
+     * getAckDrainMaxBatch 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getAckDrainMaxBatch() {
         return ackDrainMaxBatch;
     }
 
     /**
-     * setAckDrainMaxBatch 기능을 수행합니다.
+     * setAckDrainMaxBatch 프로퍼티 값을 설정합니다.
      *
-     * @param ackDrainMaxBatch 입력 값
+     * @param ackDrainMaxBatch 설정할 프로퍼티 값
      */
-
     public void setAckDrainMaxBatch(final int ackDrainMaxBatch) {
         this.ackDrainMaxBatch = ackDrainMaxBatch;
     }
 
     /**
-     * getMaxInFlightRecords 기능을 수행합니다.
+     * getMaxInFlightRecords 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getMaxInFlightRecords() {
         return maxInFlightRecords;
     }
 
     /**
-     * setMaxInFlightRecords 기능을 수행합니다.
+     * setMaxInFlightRecords 프로퍼티 값을 설정합니다.
      *
-     * @param maxInFlightRecords 입력 값
+     * @param maxInFlightRecords 설정할 프로퍼티 값
      */
-
     public void setMaxInFlightRecords(final int maxInFlightRecords) {
         this.maxInFlightRecords = maxInFlightRecords;
     }
 
     /**
-     * requireNotNull 기능을 수행합니다.
+     * 필수 설정이 null 인지 검증합니다.
      *
-     * @param key 입력 값
-     * @param value 입력 값
+     * @param key 설정 키
+     * @param value 설정 값
      */
-
     private static void requireNotNull(final String key, final Object value) {
         if (value == null) {
             throw new IllegalStateException(key + " is required");
@@ -402,12 +392,11 @@ public class GatewayKafkaShardProperties {
     }
 
     /**
-     * requireNotEmpty 기능을 수행합니다.
+     * 컬렉션 설정이 비어 있지 않은지 검증합니다.
      *
-     * @param key 입력 값
-     * @param value 입력 값
+     * @param key 설정 키
+     * @param value 컬렉션 설정 값
      */
-
     private static void requireNotEmpty(final String key, final List<?> value) {
         if (value == null || value.isEmpty()) {
             throw new IllegalStateException(key + " must not be empty");
@@ -415,12 +404,11 @@ public class GatewayKafkaShardProperties {
     }
 
     /**
-     * requirePositive 기능을 수행합니다.
+     * 숫자 설정이 양수(> 0)인지 검증합니다.
      *
-     * @param key 입력 값
-     * @param value 입력 값
+     * @param key 설정 키
+     * @param value 숫자 설정 값
      */
-
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
             throw new IllegalStateException(key + " must be > 0");
@@ -428,12 +416,11 @@ public class GatewayKafkaShardProperties {
     }
 
     /**
-     * requireNonNegative 기능을 수행합니다.
+     * 숫자 설정이 0 이상(>= 0)인지 검증합니다.
      *
-     * @param key 입력 값
-     * @param value 입력 값
+     * @param key 설정 키
+     * @param value 숫자 설정 값
      */
-
     private static void requireNonNegative(final String key, final Number value) {
         if (value == null || value.longValue() < 0L) {
             throw new IllegalStateException(key + " must be >= 0");

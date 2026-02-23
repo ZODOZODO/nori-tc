@@ -42,10 +42,14 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * GatewayCommandDispatcher 클래스입니다.
+ * 게이트웨이 Business Command(Kafka 수신)를 설비별 outbound 큐로 변환/전달하는 디스패처입니다.
  *
- * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
- * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
+ * <p>핵심 책임:</p>
+ * <p>1) 메시지 스키마/필수 필드 검증</p>
+ * <p>2) 설비/연결 상태 검증</p>
+ * <p>3) SOCKET payload 인코딩(socketType/plugin 반영)</p>
+ * <p>4) {@link GatewayIngressService}를 통한 outbound 큐 적재</p>
+ * <p>5) 실패 시 DLQ/Quarantine/Disposition 메트릭 기록</p>
  */
 @Component
 public class GatewayCommandDispatcher {
@@ -53,44 +57,46 @@ public class GatewayCommandDispatcher {
     private static final Logger log = LoggerFactory.getLogger(GatewayCommandDispatcher.class);
 
     /**
-     * UNKNOWN_EQP_ID 필드입니다.
+     * eqpId를 식별할 수 없을 때 로그/DLQ 태그에 사용하는 기본값입니다.
      */
     private static final String UNKNOWN_EQP_ID = "UNKNOWN_EQP";
 
     /**
-     * BUSINESS_MESSAGE_TYPE 필드입니다.
+     * Task 처리 정책 평가 시 사용하는 메시지 타입 식별자입니다.
      */
     private static final String BUSINESS_MESSAGE_TYPE = "BUSINESS";
 
     /**
-     * DLQ_EXCEPTION_MESSAGE_MAX_LENGTH 필드입니다.
+     * DLQ 레코드에 저장할 예외 메시지 최대 길이입니다.
      */
     private static final int DLQ_EXCEPTION_MESSAGE_MAX_LENGTH = 300;
 
     /**
-     * COMMAND_FAILURE_MAX_ATTEMPTS 필드입니다.
+     * Business Command 실패 처리 정책의 최대 재시도 횟수입니다.
+     *
+     * <p>현재는 재처리보다 DLQ 전환을 우선하므로 1회(즉시 실패 처리) 정책을 사용합니다.</p>
      */
     private static final int COMMAND_FAILURE_MAX_ATTEMPTS = 1;
 
     /**
-     * FLOW_COMMAND 필드입니다.
+     * disposition 메트릭/로그에서 사용하는 처리 흐름 식별자입니다.
      */
     private static final String FLOW_COMMAND = "COMMAND";
     /**
-     * UNKNOWN_TOPIC 필드입니다.
+     * 토픽 정보가 없을 때 사용하는 기본 토픽명입니다.
      */
     private static final String UNKNOWN_TOPIC = "UNKNOWN_TOPIC";
     /**
-     * UNKNOWN_PARTITION 필드입니다.
+     * 파티션 정보가 없을 때 사용하는 기본 파티션 값입니다.
      */
     private static final int UNKNOWN_PARTITION = -1;
     /**
-     * UNKNOWN_OFFSET 필드입니다.
+     * 오프셋 정보가 없을 때 사용하는 기본 오프셋 값입니다.
      */
     private static final long UNKNOWN_OFFSET = -1L;
 
     private final EquipmentChannelRegistry channelRegistry;
-    private final GatewayIngressService processingService;
+    private final GatewayIngressService gatewayIngressService;
     private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
     private final GatewayDispositionMetrics dispositionMetrics;
@@ -106,11 +112,27 @@ public class GatewayCommandDispatcher {
     private final TaskHandlingPolicyEvaluator commandTaskHandlingPolicy;
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command 디스패처 의존성을 초기화합니다.
+     *
+     * <p>생성 시점에 실패 처리 정책 평가기와 DLQ 레코드 팩토리를 함께 구성합니다.</p>
+     *
+     * @param channelRegistry 활성 설비 채널 레지스트리
+     * @param gatewayIngressService 게이트웨이 인입/출력 큐 적재 진입 서비스
+     * @param metrics 게이트웨이 공통 메트릭 수집기
+     * @param logSampler 경고 로그 샘플링 정책
+     * @param dispositionMetrics disposition 집계 메트릭
+     * @param clockPort 현재 시각 제공 포트
+     * @param traceIdGeneratorPort traceId 생성 포트
+     * @param dlqPublisherPort DLQ 발행 포트
+     * @param quarantinePort 설비 격리 포트
+     * @param socketProperties SOCKET 기본 설정
+     * @param socketTypeRegistry socketType 핸들러 레지스트리
+     * @param socketPluginRuntimeProvider 설비별 SOCKET 플러그인 핸들러 조회 포트
+     * @param topicProperties Kafka 토픽 설정
      */
     public GatewayCommandDispatcher(
             final EquipmentChannelRegistry channelRegistry,
-            final GatewayIngressService processingService,
+            final GatewayIngressService gatewayIngressService,
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler,
             final GatewayDispositionMetrics dispositionMetrics,
@@ -124,7 +146,7 @@ public class GatewayCommandDispatcher {
             final GatewayKafkaTopicProperties topicProperties
     ) {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
-        this.processingService = Objects.requireNonNull(processingService, "processingService is null");
+        this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
         this.metrics = Objects.requireNonNull(metrics, "metrics is null");
         this.logSampler = Objects.requireNonNull(logSampler, "logSampler is null");
         this.dispositionMetrics = Objects.requireNonNull(dispositionMetrics, "dispositionMetrics is null");
@@ -145,12 +167,19 @@ public class GatewayCommandDispatcher {
                 dlqRecordFactory,
                 true
         );
+
+        log.info("GatewayCommandDispatcher initialized. flow={}, maxFailureAttempts={}, socketDefaultType={}",
+                FLOW_COMMAND,
+                COMMAND_FAILURE_MAX_ATTEMPTS,
+                socketProperties.getDefaultSocketType());
     }
 
     /**
-     * dispatchBusinessCommand 기능을 수행합니다.
+     * Kafka consumer가 topic/partition/offset 메타 정보 없이 전달하는 기본 경로를 처리합니다.
      *
-     * @param message 입력 값
+     * <p>토픽/파티션/오프셋은 알 수 없는 값으로 보정하여 공통 처리 메서드에 위임합니다.</p>
+     *
+     * @param message 수신된 Business Command 메시지
      */
     public void dispatchBusinessCommand(final GatewayBusinessCommandMessage message) {
         dispatchBusinessCommand(
@@ -162,7 +191,19 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command 메시지를 검증/인코딩한 뒤 설비 outbound 큐로 전달합니다.
+     *
+     * <p>처리 흐름:</p>
+     * <p>1) dispatch context 및 traceId 정규화</p>
+     * <p>2) envelope 검증</p>
+     * <p>3) 활성 채널/설비 메타 정보 검증</p>
+     * <p>4) SOCKET payload 인코딩</p>
+     * <p>5) outbound 큐 적재 또는 DLQ/격리 처리</p>
+     *
+     * @param message Kafka에서 수신한 Business Command 메시지
+     * @param topic 원본 토픽명
+     * @param partition 원본 파티션
+     * @param offset 원본 오프셋
      */
     public void dispatchBusinessCommand(
             final GatewayBusinessCommandMessage message,
@@ -201,9 +242,7 @@ public class GatewayCommandDispatcher {
             }
 
             if (envelope.interfaceType() == CommInterfaceType.HSMS) {
-                /**
-                 * UTF-8 형식으로 정리된 주석입니다.
-                 */
+                // 현재 Phase 범위에서는 HSMS business command 송신 경로를 구현하지 않았으므로 DLQ로 전환합니다.
                 log.info("HSMS business command is not implemented yet. eqpId={}, traceId={}, eventType={}",
                         envelope.eqpId(),
                         traceId,
@@ -275,7 +314,7 @@ public class GatewayCommandDispatcher {
             );
 
             try {
-                processingService.enqueueOutbound(frame);
+                gatewayIngressService.enqueueOutbound(frame);
                 recordCommandDisposition(
                         dispatchContext,
                         envelope.eqpId(),
@@ -308,7 +347,14 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command 메시지에서 공통 검증/정규화를 수행하고 내부 처리용 envelope를 생성합니다.
+     *
+     * <p>검증 실패 시 예외를 던지지 않고 DLQ를 발행한 뒤 {@code null}을 반환합니다.</p>
+     *
+     * @param message 원본 Business Command 메시지
+     * @param traceId 처리 traceId
+     * @param dispatchContext 토픽/파티션/오프셋 정보
+     * @return 검증 성공 시 envelope, 실패 시 {@code null}
      */
     private CommandEnvelope validateEnvelope(
             final GatewayBusinessCommandMessage message,
@@ -413,7 +459,13 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 설비 메타 정보를 조회하고 실패 시 DLQ를 발행합니다.
+     *
+     * @param message 원본 Business Command 메시지
+     * @param envelope 검증된 명령 envelope
+     * @param traceId 처리 traceId
+     * @param dispatchContext 토픽/파티션/오프셋 정보
+     * @return 설비 메타 정보, 조회 실패 시 {@code null}
      */
     private GatewayEquipmentInfo resolveEquipmentOrPublishDlq(
             final GatewayBusinessCommandMessage message,
@@ -422,8 +474,14 @@ public class GatewayCommandDispatcher {
             final DispatchContext dispatchContext
     ) {
         try {
-            return processingService.resolveEquipment(envelope.eqpId());
+            return gatewayIngressService.resolveEquipment(envelope.eqpId());
         } catch (Exception ex) {
+            if (log.isDebugEnabled()) {
+                log.debug("Equipment lookup failed during business command dispatch. eqpId={}, traceId={}",
+                        envelope.eqpId(),
+                        traceId,
+                        ex);
+            }
             publishBusinessDlq(
                     message,
                     DlqMessage.STAGE_ROUTING,
@@ -439,7 +497,14 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * rawMessage를 socketType 핸들러로 인코딩하고 실패 시 DLQ를 발행합니다.
+     *
+     * @param message 원본 Business Command 메시지
+     * @param envelope 검증된 명령 envelope
+     * @param socketType 사용할 socketType
+     * @param traceId 처리 traceId
+     * @param dispatchContext 토픽/파티션/오프셋 정보
+     * @return 인코딩된 payload 바이트 배열, 실패 시 {@code null}
      */
     private byte[] encodePayloadOrPublishDlq(
             final GatewayBusinessCommandMessage message,
@@ -478,10 +543,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * hasActiveChannel 기능을 수행합니다.
+     * 설비에 활성 채널이 존재하는지 확인합니다.
      *
-     * @param equipmentId 입력 값
-     * @return 처리 결과
+     * @param equipmentId 설비 ID
+     * @return 활성 채널이 존재하면 {@code true}
      */
     private boolean hasActiveChannel(final EquipmentId equipmentId) {
         final var channel = channelRegistry.get(equipmentId);
@@ -489,7 +554,14 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * SOCKET rawMessage를 실제 전송 바이트 배열로 인코딩합니다.
+     *
+     * <p>설비별 플러그인 핸들러가 있으면 우선 사용하고, 없으면 공통 {@link SocketTypeRegistry}를 사용합니다.</p>
+     *
+     * @param eqpId 설비 ID
+     * @param rawMessage UI/Kafka에서 전달된 원본 문자열 메시지
+     * @param socketType 설비에 적용할 socketType
+     * @return 인코딩된 바이트 배열
      */
     private byte[] encodeSocketRawMessage(
             final String eqpId,
@@ -516,21 +588,39 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * resolveSocketType 기능을 수행합니다.
+     * 설비 메타 정보에서 socketType을 해석합니다.
      *
-     * @param equipmentInfo 입력 값
-     * @return 처리 결과
+     * <p>설비별 socketType이 없으면 gateway 기본 socketType으로 fallback 합니다.</p>
+     *
+     * @param equipmentInfo 설비 메타 정보
+     * @return 해석된 socketType
      */
     private String resolveSocketType(final GatewayEquipmentInfo equipmentInfo) {
         final String fromEquipment = normalizeText(equipmentInfo.socketType());
         if (fromEquipment != null) {
             return fromEquipment;
         }
+        if (log.isDebugEnabled()) {
+            log.debug("Equipment socketType not set. fallback to default socketType. eqpId={}, fallbackSocketType={}",
+                    equipmentInfo.equipmentId(),
+                    socketProperties.getDefaultSocketType());
+        }
         return socketProperties.getDefaultSocketType();
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command 실패 정보를 DLQ 메시지로 변환해 발행합니다.
+     *
+     * <p>Task 실패 정책 평가 결과(DLQ record)를 반영하여 표준 DLQ 메시지를 구성합니다.</p>
+     *
+     * @param message 원본 Business Command 메시지
+     * @param stage 실패 단계
+     * @param reasonCode DLQ 사유 코드
+     * @param reasonMessage 사유 메시지
+     * @param traceId traceId
+     * @param socketTypeForLog socketType(로그/DLQ 태그용)
+     * @param cause 예외 원인(없으면 null)
+     * @param dispatchContext 토픽/파티션/오프셋 정보
      */
     private void publishBusinessDlq(
             final GatewayBusinessCommandMessage message,
@@ -583,7 +673,14 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command 실패 상황을 정책 평가용 {@link TaskFailureContext}로 변환합니다.
+     *
+     * @param message 원본 Business Command 메시지
+     * @param reasonCode 실패 사유 코드
+     * @param reasonMessage 실패 사유 메시지
+     * @param traceId traceId
+     * @param cause 예외 원인(없으면 null)
+     * @return 정책 평가용 실패 컨텍스트
      */
     private TaskFailureContext buildBusinessFailureContext(
             final GatewayBusinessCommandMessage message,
@@ -609,10 +706,12 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * resolveDlqRecord 기능을 수행합니다.
+     * 실패 처리 정책을 평가해 DLQ 레코드를 확정합니다.
      *
-     * @param failureContext 입력 값
-     * @return 처리 결과
+     * <p>정책이 DLQ 이외 액션을 반환하더라도 현재 구현은 fallback으로 DLQ 레코드를 생성합니다.</p>
+     *
+     * @param failureContext 실패 컨텍스트
+     * @return 최종 DLQ 레코드
      */
     private DlqRecord resolveDlqRecord(final TaskFailureContext failureContext) {
         final TaskHandlingDecision decision = commandTaskHandlingPolicy.decide(failureContext);
@@ -636,7 +735,11 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command DLQ 메시지에 첨부할 태그 맵을 구성합니다.
+     *
+     * @param message 원본 Business Command 메시지
+     * @param dlqRecord 정책 평가 결과 DLQ 레코드
+     * @return DLQ 태그 맵
      */
     private Map<String, String> buildBusinessDlqTags(
             final GatewayBusinessCommandMessage message,
@@ -665,10 +768,12 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * publishDlqSafely 기능을 수행합니다.
+     * DLQ 발행을 안전하게 수행하고 disposition/메트릭을 함께 기록합니다.
      *
-     * @param dlqMessage 입력 값
-     * @param dispatchContext 입력 값
+     * <p>DLQ 발행 실패도 주 처리 흐름을 멈추지 않으며, 실패 disposition을 별도로 기록합니다.</p>
+     *
+     * @param dlqMessage 발행할 DLQ 메시지
+     * @param dispatchContext 토픽/파티션/오프셋 정보
      */
     private void publishDlqSafely(final DlqMessage dlqMessage, final DispatchContext dispatchContext) {
         try {
@@ -706,11 +811,13 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * buildBusinessPayloadRef 기능을 수행합니다.
+     * Business Command payload를 식별하는 참조 문자열을 생성합니다.
      *
-     * @param message 입력 값
-     * @param traceId 입력 값
-     * @return 처리 결과
+     * <p>현재는 실제 저장소 위치가 아닌 traceId + payload 길이를 기반으로 한 논리 참조를 사용합니다.</p>
+     *
+     * @param message 원본 Business Command 메시지
+     * @param traceId traceId
+     * @return payload 참조 문자열
      */
     private String buildBusinessPayloadRef(final GatewayBusinessCommandMessage message, final String traceId) {
         final String rawMessage = message.data() == null ? null : message.data().rawMessage();
@@ -719,10 +826,12 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * resolveBusinessMessageName 기능을 수행합니다.
+     * Business Command 메시지명을 해석합니다.
      *
-     * @param message 입력 값
-     * @return 처리 결과
+     * <p>현재는 metadata.eventType을 메시지명으로 사용하며, 없으면 {@code UNKNOWN_EVENT}를 반환합니다.</p>
+     *
+     * @param message 원본 Business Command 메시지
+     * @return 메시지명
      */
     private String resolveBusinessMessageName(final GatewayBusinessCommandMessage message) {
         final String eventType = message.metadata() == null ? null : message.metadata().eventType();
@@ -731,10 +840,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * mapFailureCategory 기능을 수행합니다.
+     * DLQ 사유 코드를 공통 task 실패 카테고리로 매핑합니다.
      *
-     * @param reasonCode 입력 값
-     * @return 처리 결과
+     * @param reasonCode DLQ 사유 코드
+     * @return 정책 평가용 실패 카테고리
      */
     private TaskFailureCategory mapFailureCategory(final DlqReasonCode reasonCode) {
         if (reasonCode == null) {
@@ -749,10 +858,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * normalizeEqpId 기능을 수행합니다.
+     * eqpId를 로그/DLQ 안전 문자열로 정규화합니다.
      *
-     * @param eqpId 입력 값
-     * @return 처리 결과
+     * @param eqpId 원본 eqpId
+     * @return 정규화된 eqpId, 없으면 {@link #UNKNOWN_EQP_ID}
      */
     private String normalizeEqpId(final String eqpId) {
         final String normalized = normalizeText(eqpId);
@@ -760,11 +869,11 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * putIfHasText 기능을 수행합니다.
+     * 값이 비어 있지 않을 때만 태그 맵에 추가합니다.
      *
-     * @param tags 입력 값
-     * @param key 입력 값
-     * @param value 입력 값
+     * @param tags 대상 태그 맵
+     * @param key 태그 키
+     * @param value 태그 값(정규화 후 비어 있으면 추가하지 않음)
      */
     private void putIfHasText(final Map<String, String> tags, final String key, final String value) {
         final String normalized = normalizeText(value);
@@ -774,10 +883,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * resolveTraceId 기능을 수행합니다.
+     * traceId를 정규화하고 없으면 새 traceId를 발급합니다.
      *
-     * @param traceId 입력 값
-     * @return 처리 결과
+     * @param traceId 외부에서 전달된 traceId
+     * @return 사용할 traceId
      */
     private String resolveTraceId(final String traceId) {
         final String normalized = normalizeText(traceId);
@@ -785,7 +894,11 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 인터페이스 타입 문자열을 파싱하고 실패 시 지정한 기본값으로 대체합니다.
+     *
+     * @param interfaceType 원본 인터페이스 타입 문자열
+     * @param fallback 파싱 실패 시 사용할 기본값
+     * @return 파싱 결과 또는 기본값
      */
     private CommInterfaceType parseInterfaceTypeOrDefault(
             final String interfaceType,
@@ -799,11 +912,11 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * safeReason 기능을 수행합니다.
+     * 사유 메시지를 정규화하고 비어 있으면 기본 메시지로 대체합니다.
      *
-     * @param reasonMessage 입력 값
-     * @param fallback 입력 값
-     * @return 처리 결과
+     * @param reasonMessage 원본 사유 메시지
+     * @param fallback 기본 사유 메시지
+     * @return 최종 사유 메시지
      */
     private String safeReason(final String reasonMessage, final String fallback) {
         final String normalized = normalizeText(reasonMessage);
@@ -811,10 +924,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * normalizeText 기능을 수행합니다.
+     * 문자열을 trim 후 비어 있으면 {@code null}로 정규화합니다.
      *
-     * @param value 입력 값
-     * @return 처리 결과
+     * @param value 원본 문자열
+     * @return 정규화된 문자열 또는 {@code null}
      */
     private String normalizeText(final String value) {
         if (value == null) {
@@ -825,7 +938,13 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 설비 격리 요청을 안전하게 수행합니다.
+     *
+     * <p>격리 실패는 주 처리 흐름을 중단하지 않되, 운영 추적을 위해 debug 로그로 남깁니다.</p>
+     *
+     * @param equipmentId 격리 대상 설비 ID
+     * @param reasonCode 격리 사유 코드
+     * @param reasonMessage 격리 사유 메시지
      */
     private void safeQuarantine(
             final EquipmentId equipmentId,
@@ -835,12 +954,25 @@ public class GatewayCommandDispatcher {
         try {
             quarantinePort.quarantine(equipmentId, reasonCode.name(), reasonMessage);
         } catch (Exception ignored) {
-            // 격리(Quarantine) 실패는 주 처리 흐름을 중단하지 않기 위해 무시합니다.
+            if (log.isDebugEnabled()) {
+                log.debug("Business command quarantine failed. eqpId={}, reasonCode={}",
+                        equipmentId == null ? null : equipmentId.value(),
+                        reasonCode,
+                        ignored);
+            }
         }
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * Business Command disposition 메트릭과 운영 로그를 기록합니다.
+     *
+     * <p>ACCEPTED는 고빈도 경로이므로 debug, 그 외 disposition은 info로 기록합니다.</p>
+     *
+     * @param dispatchContext 토픽/파티션/오프셋 정보
+     * @param eqpId 설비 ID
+     * @param traceId traceId
+     * @param disposition disposition 결과
+     * @param reason disposition 사유
      */
     private void recordCommandDisposition(
             final DispatchContext dispatchContext,
@@ -878,7 +1010,12 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 토픽/파티션/오프셋 메타 정보를 로그/DLQ 기록용으로 정규화합니다.
+     *
+     * @param topic 원본 토픽명
+     * @param partition 원본 파티션
+     * @param offset 원본 오프셋
+     * @return 정규화된 dispatch context
      */
     private DispatchContext normalizeDispatchContext(
             final String topic,
@@ -893,10 +1030,10 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * safeTraceIdForLog 기능을 수행합니다.
+     * 로그 출력용 traceId를 반환합니다.
      *
-     * @param traceId 입력 값
-     * @return 처리 결과
+     * @param traceId 원본 traceId
+     * @return 정규화된 traceId, 없으면 {@code N/A}
      */
     private String safeTraceIdForLog(final String traceId) {
         final String normalized = normalizeText(traceId);
@@ -904,7 +1041,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 디스패치 메타 정보(토픽/파티션/오프셋)를 묶는 내부 레코드입니다.
      */
     private record DispatchContext(
             String topic,
@@ -914,7 +1051,7 @@ public class GatewayCommandDispatcher {
     }
 
     /**
-     * UTF-8 형식으로 정리된 주석입니다.
+     * 검증/정규화가 완료된 Business Command 핵심 필드를 보관하는 내부 레코드입니다.
      */
     private record CommandEnvelope(
             EquipmentId equipmentId,
@@ -925,4 +1062,3 @@ public class GatewayCommandDispatcher {
     ) {
     }
 }
-

@@ -60,7 +60,7 @@ public class GatewayUiRuntimeControlService {
     private final EquipmentStatePersistencePort statePersistencePort;
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayConnectionControlPort connectionControlPort;
-    private final GatewayIngressService processingService;
+    private final GatewayIngressService gatewayIngressService;
     private final GatewayLifecycleProperties lifecycleProperties;
     private final EquipmentLifecycleStateMachine lifecycleStateMachine;
     private final GatewayCommandDispatcher commandDispatcher;
@@ -73,7 +73,7 @@ public class GatewayUiRuntimeControlService {
      * @param statePersistencePortProvider 상태 이력 저장 포트 Provider
      * @param channelRegistry 설비 채널 레지스트리
      * @param connectionControlPort 연결 제어 포트
-     * @param processingService 메시지 처리/메일박스 서비스
+     * @param gatewayIngressService 게이트웨이 인입/출력 큐 적재 진입 서비스
      * @param lifecycleProperties lifecycle 상태머신 운영 정책
      * @param lifecycleStateMachine 비동기 lifecycle 상태머신
      * @param commandDispatcher gateway command 디스패처
@@ -84,7 +84,7 @@ public class GatewayUiRuntimeControlService {
             final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider,
             final EquipmentChannelRegistry channelRegistry,
             final GatewayConnectionControlPort connectionControlPort,
-            final GatewayIngressService processingService,
+            final GatewayIngressService gatewayIngressService,
             final GatewayLifecycleProperties lifecycleProperties,
             final EquipmentLifecycleStateMachine lifecycleStateMachine,
             final GatewayCommandDispatcher commandDispatcher
@@ -94,7 +94,7 @@ public class GatewayUiRuntimeControlService {
         this.statePersistencePort = statePersistencePortProvider.getIfAvailable(() -> EquipmentStatePersistencePort.NO_OP);
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.connectionControlPort = Objects.requireNonNull(connectionControlPort, "connectionControlPort is null");
-        this.processingService = Objects.requireNonNull(processingService, "processingService is null");
+        this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
         this.lifecycleProperties = Objects.requireNonNull(lifecycleProperties, "lifecycleProperties is null");
         this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
         this.commandDispatcher = Objects.requireNonNull(commandDispatcher, "commandDispatcher is null");
@@ -378,7 +378,7 @@ public class GatewayUiRuntimeControlService {
              * 삭제 전에 통신 런타임을 먼저 정리하여 공유 listener/재연결 상태가 남지 않도록 합니다.
              */
             connectionControlPort.stopRuntimeIfPossible(normalizedEqpId);
-            processingService.removeMailbox(normalizedEqpId);
+            gatewayIngressService.removeMailbox(normalizedEqpId);
             contextRegistry.remove(normalizedEqpId, "EQP_DELETE", traceId);
             statePersistencePort.recordDelete(normalizedEqpId, traceId, "UI delete request processed");
 

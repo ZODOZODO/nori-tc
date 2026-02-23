@@ -46,9 +46,13 @@ public class GatewayLifecycleProperties {
      */
     @PostConstruct
     public void validate() {
+        // 라이프사이클 이벤트 적재 큐 용량이 0이면 요청 수용 자체가 불가능합니다.
         requirePositive("tc.comm.gateway.lifecycle.event-mailbox-capacity", eventMailboxCapacity);
+        // 상태머신 worker가 0이면 이벤트가 처리되지 못하므로 양수 강제합니다.
         requirePositive("tc.comm.gateway.lifecycle.worker-threads", workerThreads);
+        // timeout 감시용 스케줄러도 최소 1개 이상 필요합니다.
         requirePositive("tc.comm.gateway.lifecycle.timeout-scheduler-threads", timeoutSchedulerThreads);
+        // 비정상 timeout 입력 fallback 값은 실제 타임아웃 계산에 쓰이므로 양수여야 합니다.
         requirePositive("tc.comm.gateway.lifecycle.default-timeout-ms", defaultTimeoutMs);
 
         log.info(
@@ -58,13 +62,22 @@ public class GatewayLifecycleProperties {
                 timeoutSchedulerThreads,
                 defaultTimeoutMs
         );
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Gateway lifecycle runtime policy validated. eventMailboxCapacity={}, workerThreads={}, timeoutSchedulerThreads={}, defaultTimeoutMs={}",
+                    eventMailboxCapacity,
+                    workerThreads,
+                    timeoutSchedulerThreads,
+                    defaultTimeoutMs
+            );
+        }
     }
 
     /**
      * 양수 여부를 검증합니다.
      *
      * @param key 설정 키
-     * @param value 설정 값
+     * @param value 검증할 숫자 설정 값
      */
     private static void requirePositive(final String key, final Number value) {
         if (value == null || value.longValue() <= 0L) {
@@ -73,81 +86,73 @@ public class GatewayLifecycleProperties {
     }
 
     /**
-     * getEventMailboxCapacity 기능을 수행합니다.
+     * getEventMailboxCapacity 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getEventMailboxCapacity() {
         return eventMailboxCapacity;
     }
 
     /**
-     * setEventMailboxCapacity 기능을 수행합니다.
+     * setEventMailboxCapacity 프로퍼티 값을 설정합니다.
      *
-     * @param eventMailboxCapacity 입력 값
+     * @param eventMailboxCapacity 설정할 프로퍼티 값
      */
-
     public void setEventMailboxCapacity(final int eventMailboxCapacity) {
         this.eventMailboxCapacity = eventMailboxCapacity;
     }
 
     /**
-     * getWorkerThreads 기능을 수행합니다.
+     * getWorkerThreads 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getWorkerThreads() {
         return workerThreads;
     }
 
     /**
-     * setWorkerThreads 기능을 수행합니다.
+     * setWorkerThreads 프로퍼티 값을 설정합니다.
      *
-     * @param workerThreads 입력 값
+     * @param workerThreads 설정할 프로퍼티 값
      */
-
     public void setWorkerThreads(final int workerThreads) {
         this.workerThreads = workerThreads;
     }
 
     /**
-     * getTimeoutSchedulerThreads 기능을 수행합니다.
+     * getTimeoutSchedulerThreads 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public int getTimeoutSchedulerThreads() {
         return timeoutSchedulerThreads;
     }
 
     /**
-     * setTimeoutSchedulerThreads 기능을 수행합니다.
+     * setTimeoutSchedulerThreads 프로퍼티 값을 설정합니다.
      *
-     * @param timeoutSchedulerThreads 입력 값
+     * @param timeoutSchedulerThreads 설정할 프로퍼티 값
      */
-
     public void setTimeoutSchedulerThreads(final int timeoutSchedulerThreads) {
         this.timeoutSchedulerThreads = timeoutSchedulerThreads;
     }
 
     /**
-     * getDefaultTimeoutMs 기능을 수행합니다.
+     * getDefaultTimeoutMs 프로퍼티 값을 반환합니다.
      *
-     * @return 처리 결과
+     * @return 프로퍼티 값
      */
-
     public long getDefaultTimeoutMs() {
         return defaultTimeoutMs;
     }
 
     /**
-     * setDefaultTimeoutMs 기능을 수행합니다.
+     * setDefaultTimeoutMs 프로퍼티 값을 설정합니다.
      *
-     * @param defaultTimeoutMs 입력 값
+     * @param defaultTimeoutMs 설정할 프로퍼티 값
      */
-
     public void setDefaultTimeoutMs(final long defaultTimeoutMs) {
         this.defaultTimeoutMs = defaultTimeoutMs;
     }

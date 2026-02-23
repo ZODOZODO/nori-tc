@@ -30,7 +30,7 @@ public class GatewayChannelHandlerFactory {
 
     private final GatewayNettyProperties nettyProperties;
     private final GatewaySocketProperties socketProperties;
-    private final GatewayIngressService processingService;
+    private final GatewayIngressService gatewayIngressService;
     private final EqpBindingService bindingService;
     private final BindAttemptExecutor bindExecutor;
     private final GatewayMetrics metrics;
@@ -43,7 +43,7 @@ public class GatewayChannelHandlerFactory {
      * 핸들러 팩토리 의존 객체를 초기화합니다.
      *
      * @param nettyProperties Netty 설정
-     * @param processingService 처리 서비스
+     * @param gatewayIngressService 게이트웨이 인입/출력 큐 적재 진입 서비스
      * @param bindingService 바인딩 서비스
      * @param bindExecutor 바인딩 시도 실행기
      * @param metrics 메트릭 수집기
@@ -55,7 +55,7 @@ public class GatewayChannelHandlerFactory {
      */
     public GatewayChannelHandlerFactory(
             final GatewayNettyProperties nettyProperties,
-            final GatewayIngressService processingService,
+            final GatewayIngressService gatewayIngressService,
             final EqpBindingService bindingService,
             final BindAttemptExecutor bindExecutor,
             final GatewayMetrics metrics,
@@ -67,7 +67,7 @@ public class GatewayChannelHandlerFactory {
     ) {
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
         this.socketProperties = Objects.requireNonNull(socketProperties, "socketProperties is null");
-        this.processingService = Objects.requireNonNull(processingService, "processingService is null");
+        this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
         this.bindingService = Objects.requireNonNull(bindingService, "bindingService is null");
         this.bindExecutor = Objects.requireNonNull(bindExecutor, "bindExecutor is null");
         this.metrics = Objects.requireNonNull(metrics, "metrics is null");
@@ -75,6 +75,8 @@ public class GatewayChannelHandlerFactory {
 
         this.hsmsExtractor = new HsmsEqpIdExtractor(frameExtractor, secs2Decoder);
         this.socketExtractor = new SocketEqpIdExtractor(socketProperties, nettyProperties, socketTypeRegistry);
+
+        log.info("GatewayChannelHandlerFactory initialized. supportedInterfaces=[HSMS, SOCKET]");
     }
 
     /**
@@ -96,7 +98,7 @@ public class GatewayChannelHandlerFactory {
                 null,
                 resolvedSocketType,
                 nettyProperties,
-                processingService,
+                gatewayIngressService,
                 bindingService,
                 metrics,
                 logSampler,
@@ -142,7 +144,7 @@ public class GatewayChannelHandlerFactory {
                 eqpId,
                 resolvedSocketType,
                 nettyProperties,
-                processingService,
+                gatewayIngressService,
                 bindingService,
                 metrics,
                 logSampler,
