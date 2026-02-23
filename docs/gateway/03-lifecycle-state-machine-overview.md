@@ -1,4 +1,4 @@
-# 03. Lifecycle State Machine 공통 안내서
+﻿# 03. Lifecycle State Machine 공통 안내서
 
 ## 문서 목적
 
@@ -366,8 +366,8 @@ sequenceDiagram
 
 ## 17. 다음 문서 안내
 
-1. 설비 기준 ACTIVE 이벤트 생명주기: [`04-active-eqp-event-lifecycle.md`](./04-active-eqp-event-lifecycle.md)
-2. 설비 기준 PASSIVE 이벤트 생명주기: [`05-passive-eqp-event-lifecycle.md`](./05-passive-eqp-event-lifecycle.md)
+1. gateway 기준 PASSIVE 이벤트 생명주기(listener/server): [`04-gateway-passive-eqp-event-lifecycle.md`](./04-gateway-passive-eqp-event-lifecycle.md)
+2. gateway 기준 ACTIVE 이벤트 생명주기(outbound/client): [`05-gateway-active-eqp-event-lifecycle.md`](./05-gateway-active-eqp-event-lifecycle.md)
 
 두 문서는 이 문서의 용어와 상태 정의를 그대로 사용합니다.
 

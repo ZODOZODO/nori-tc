@@ -218,9 +218,9 @@ public class GatewayUiRuntimeControlService {
         lifecycleStateMachine.requestStart(normalizedEqpId, traceId, boundedTimeoutMs);
 
         /**
-         * 장비 기준 모드(ACTIVE/PASSIVE)에 따라 Netty 런타임 구현체가 적절한 실행 방식을 선택합니다.
-         * - ACTIVE  : 공유 listener 보장
-         * - PASSIVE : 아웃바운드 연결/재연결 시작
+         * 게이트웨이 기준 모드(ACTIVE/PASSIVE)에 따라 Netty 런타임 구현체가 적절한 실행 방식을 선택합니다.
+         * - ACTIVE  : 아웃바운드 연결/재연결 시작
+         * - PASSIVE : 공유 listener 보장
          */
         connectionControlPort.startRuntimeIfPossible(normalizedEqpId);
 
@@ -275,10 +275,13 @@ public class GatewayUiRuntimeControlService {
         final boolean channelActive = channel != null && channel.isActive();
 
         /**
-         * 장비 기준 PASSIVE는 채널이 없으면 기존 정책대로 "이미 종료됨"으로 간주합니다.
-         * 장비 기준 ACTIVE는 listener만 떠 있고 접속 채널이 없을 수 있으므로 END를 허용합니다.
+         * 게이트웨이 기준 ACTIVE는 아웃바운드 연결 대상이므로 활성 채널이 없으면 기존 정책대로
+         * "이미 종료됨"으로 간주합니다.
+         *
+         * <p>반대로 게이트웨이 기준 PASSIVE는 listener만 떠 있고 실제 설비 접속 채널이 아직 없을 수 있으므로
+         * END 요청을 허용합니다.</p>
          */
-        if (!channelActive && equipmentInfo.connectionMode() == ConnectionMode.PASSIVE) {
+        if (!channelActive && equipmentInfo.connectionMode() == ConnectionMode.ACTIVE) {
             throw new ProcessingException(
                     ErrorCode.EQP_ALREADY_DISCONNECTED,
                     "Equipment channel is already disconnected"
@@ -287,14 +290,16 @@ public class GatewayUiRuntimeControlService {
 
         /**
          * 통신 런타임 정지:
-         * - ACTIVE  : 공유 listener 멤버십 정리 및 필요 시 listener 종료
-         * - PASSIVE : 자동 재연결 억제
+         * - ACTIVE  : 자동 재연결 억제 (아웃바운드 중단)
+         * - PASSIVE : 공유 listener 멤버십 정리 및 필요 시 listener 종료
          */
         connectionControlPort.stopRuntimeIfPossible(normalizedEqpId);
 
         /**
          * 실제 장비 채널 close는 기존 흐름을 유지합니다.
-         * ACTIVE 장비는 아직 연결되지 않았을 수 있으므로 채널 존재 시에만 close 합니다.
+         *
+         * <p>게이트웨이 기준 PASSIVE(listener) 모드는 listener만 열려 있고 아직 설비 접속 채널이 없을 수 있으므로
+         * 채널이 존재할 때만 close 합니다.</p>
          */
         if (channelActive) {
             channel.close();
@@ -492,15 +497,15 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * PASSIVE 모드 설비에 대해 아웃바운드 연결 재개/즉시 시도를 트리거합니다.
+     * 통신 런타임 시작을 요청합니다.
+     *
+     * <p>메서드명은 기존 호환성을 위해 유지했지만, 현재 구현은 gateway ACTIVE/PASSIVE 구분 없이
+     * 내부 Netty 런타임이 모드를 해석하여 적절한 시작 경로(아웃바운드/리스너)를 선택하도록 위임합니다.</p>
      *
      * @param equipmentInfo 설비 정보
      */
     public void startActiveIfNeeded(final GatewayEquipmentInfo equipmentInfo) {
         Objects.requireNonNull(equipmentInfo, "equipmentInfo is null");
-        /**
-         * 메서드명은 기존 호환을 위해 유지하지만 실제 동작은 모드 공통 시작 요청입니다.
-         */
         connectionControlPort.startRuntimeIfPossible(equipmentInfo.equipmentId());
         log.info("Transport runtime start requested. eqpId={}, mode={}",
                 equipmentInfo.equipmentId(),

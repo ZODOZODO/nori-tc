@@ -1,4 +1,4 @@
-# 02. Context / Bean 정리 안내서
+﻿# 02. Context / Bean 정리 안내서
 
 ## 문서 목적
 
@@ -375,15 +375,15 @@ START 시 핵심 흐름:
 
 주의:
 
-메서드 이름 중 `connectActiveIfPossible` 등은 역사적인 naming이 남아 있어 혼동될 수 있습니다. 문서 해석은 반드시 설비 기준 `ConnectionMode`를 기준으로 해야 합니다.
+메서드 이름 중 `connectActiveIfPossible` 등은 gateway 기준 ACTIVE(outbound) 의미로 해석합니다. 문서 해석 기준도 `ConnectionMode` gateway 기준입니다.
 
 ### `GatewayNettyBootstrap` (`SmartLifecycle`, phase `0`)
 
 역할:
 
 1. Netty event loop / reconnect scheduler 관리
-2. 설비 기준 ACTIVE 장비용 공유 listener 관리
-3. 설비 기준 PASSIVE 장비용 outbound connect/reconnect 관리
+2. gateway 기준 PASSIVE 장비용 공유 listener 관리
+3. gateway 기준 ACTIVE 장비용 outbound connect/reconnect 관리
 4. `GatewayConnectionControlPort` 구현
 
 내부적으로 관리하는 중요한 상태(예시):

@@ -1,4 +1,4 @@
-# TC Comm Gateway 안내서
+﻿# TC Comm Gateway 안내서
 
 ## 문서 목적
 
@@ -12,18 +12,23 @@
 
 ## 먼저 꼭 알아야 하는 용어
 
-### 1) ACTIVE / PASSIVE 는 "설비 기준"입니다
+### 1) ACTIVE / PASSIVE 는 "gateway 기준"입니다
 
-이 프로젝트에서 `ConnectionMode.ACTIVE`, `ConnectionMode.PASSIVE`는 게이트웨이 기준이 아니라 설비 기준입니다.
+이 프로젝트에서 `ConnectionMode.ACTIVE`, `ConnectionMode.PASSIVE`는 gateway 기준으로 해석합니다.
 
 정리하면 다음과 같습니다.
 
-1. 설비 기준 `ACTIVE`
-   - 설비가 먼저 연결을 시도합니다.
-   - 게이트웨이 입장에서는 서버(listener)를 열고 연결을 받아야 합니다.
-2. 설비 기준 `PASSIVE`
-   - 설비가 연결을 기다립니다.
-   - 게이트웨이 입장에서는 클라이언트(outbound connect)로 접속을 시도해야 합니다.
+1. gateway 기준 `ACTIVE`
+   - 게이트웨이가 먼저 연결을 시도합니다.
+   - 게이트웨이는 클라이언트(outbound connect)로 접속을 시도합니다.
+2. gateway 기준 `PASSIVE`
+   - 게이트웨이가 listener를 열고 설비 접속을 기다립니다.
+   - 게이트웨이는 서버(listener) 역할을 수행합니다.
+
+주의:
+
+1. `04-gateway-passive-eqp-event-lifecycle.md`, `05-gateway-active-eqp-event-lifecycle.md`도 gateway 기준 파일명/내용으로 정리되어 있습니다.
+2. listener/server = `PASSIVE`, outbound/client = `ACTIVE` 기준으로 문서를 읽으면 됩니다.
 
 ### 2) 라이프사이클 요청 성공과 실제 연결 성공은 다를 수 있습니다
 
@@ -42,10 +47,14 @@
 1. [`01-startup-sequence.md`](./01-startup-sequence.md)
 2. [`02-context-bean-map.md`](./02-context-bean-map.md)
 3. [`03-lifecycle-state-machine-overview.md`](./03-lifecycle-state-machine-overview.md)
-4. [`04-active-eqp-event-lifecycle.md`](./04-active-eqp-event-lifecycle.md)
-5. [`05-passive-eqp-event-lifecycle.md`](./05-passive-eqp-event-lifecycle.md)
+4. [`04-gateway-passive-eqp-event-lifecycle.md`](./04-gateway-passive-eqp-event-lifecycle.md)
+5. [`05-gateway-active-eqp-event-lifecycle.md`](./05-gateway-active-eqp-event-lifecycle.md)
 6. [`06-kafka-tc-eqp-commands-to-equipment-lifecycle.md`](./06-kafka-tc-eqp-commands-to-equipment-lifecycle.md)
 7. [`07-config-runtime-topics-checklist.md`](./07-config-runtime-topics-checklist.md)
+
+주의:
+
+1. 모든 문서의 ACTIVE/PASSIVE 해석은 gateway 기준입니다. (listener/server = PASSIVE, outbound/client = ACTIVE)
 
 ## 필수 문서 목록과 역할
 
@@ -55,10 +64,10 @@
    - 주요 Bean 생성 위치, 역할, 의존 관계, 계층(앱/스타터/코어/어댑터)
 3. `03-lifecycle-state-machine-overview.md`
    - `EqpLifecycleStateMachine`의 이벤트/상태/timeout/pending/outcome 공통 개념
-4. `04-active-eqp-event-lifecycle.md`
-   - 설비 기준 ACTIVE 장비의 이벤트 기반 생명주기 (공유 listener 중심)
-5. `05-passive-eqp-event-lifecycle.md`
-   - 설비 기준 PASSIVE 장비의 이벤트 기반 생명주기 (outbound connect/reconnect 중심)
+4. `04-gateway-passive-eqp-event-lifecycle.md`
+   - gateway 기준 PASSIVE(listener/server) 장비의 START/END/bind/unbind 생명주기
+5. `05-gateway-active-eqp-event-lifecycle.md`
+   - gateway 기준 ACTIVE(outbound/client) 장비의 START/END/connect/reconnect 생명주기
 6. `06-kafka-tc-eqp-commands-to-equipment-lifecycle.md`
    - `tc.eqp.commands` 구독 후 설비 송신까지의 흐름, DLQ/Quarantine 포함
 7. `07-config-runtime-topics-checklist.md`
@@ -97,7 +106,7 @@
 1. 게이트웨이 앱의 기동/조립 구조
 2. Spring Context/Bean 구조
 3. 장비 라이프사이클 상태머신
-4. ACTIVE/PASSIVE 장비 이벤트 생명주기
+4. gateway 기준 ACTIVE/PASSIVE 장비 이벤트 생명주기
 5. `tc.eqp.commands` 소비 후 설비 송신 경로
 6. 설정/운영 체크리스트
 

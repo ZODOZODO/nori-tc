@@ -1,4 +1,4 @@
-# 07. 설정 / 런타임 / 토픽 체크리스트 안내서
+﻿# 07. 설정 / 런타임 / 토픽 체크리스트 안내서
 
 ## 문서 목적
 
@@ -16,6 +16,11 @@
 
 1. 구동 순서: [`01-startup-sequence.md`](./01-startup-sequence.md)
 2. Kafka command 경로: [`06-kafka-tc-eqp-commands-to-equipment-lifecycle.md`](./06-kafka-tc-eqp-commands-to-equipment-lifecycle.md)
+
+주의:
+
+1. 이 문서의 `connectionMode` ACTIVE/PASSIVE 해석은 gateway 기준입니다.
+2. 상세 생명주기 문서(`04`, `05`)도 gateway 기준 파일명/내용으로 정리되어 있습니다.
 
 ## 1. 설정 파일 구조를 먼저 이해하기
 
@@ -183,7 +188,7 @@ timeout을 너무 짧게 잡으면 정상 장비도 `START_TIMEOUT`이 많이 �
 
 운영 관점 팁:
 
-PASSIVE 장비가 많으면 connect timeout / reconnect delay / max failures 조합이 START 실패 패턴(`OUTBOUND_RETRY_EXHAUSTED`)에 직접 영향을 줍니다.
+ACTIVE 장비가 많으면 connect timeout / reconnect delay / max failures 조합이 START 실패 패턴(`OUTBOUND_RETRY_EXHAUSTED`)에 직접 영향을 줍니다.
 
 ## 3-7. `tc.comm.gateway.socket` (`GatewaySocketProperties`)
 
@@ -311,25 +316,11 @@ publish 정책 오류는 "수신은 되는데 이벤트 발행이 기대와 다�
 
 ACTIVE/PASSIVE 문제는 설정 정합성 문제로 자주 발생합니다.
 
-## 5-1. 설비 기준 ACTIVE 장비
+## 5-1. gateway 기준 ACTIVE 장비 (outbound/client)
 
 체크포인트:
 
 1. 장비 `connectionMode = ACTIVE`인지
-2. interfaceType/port 설정이 올바른지
-3. 같은 ACTIVE SOCKET 포트를 공유하는 장비들의 `socketType`가 동일한지
-4. 부팅 시 shared listener 제약 위반이 없는지
-
-실패 증상 예시:
-
-1. `ACTIVE_LISTENER_START_FAILED`
-2. START 요청 후 `START_TIMEOUT`
-
-## 5-2. 설비 기준 PASSIVE 장비
-
-체크포인트:
-
-1. 장비 `connectionMode = PASSIVE`인지
 2. 설비 IP/port가 올바른지
 3. connect timeout / reconnect delay / max failures 설정이 현실적인지
 4. END 시 suppress가 적용되는지
@@ -337,8 +328,21 @@ ACTIVE/PASSIVE 문제는 설정 정합성 문제로 자주 발생합니다.
 실패 증상 예시:
 
 1. `OUTBOUND_RETRY_EXHAUSTED`
-2. `START_TIMEOUT`
-3. END 후 재연결 반복 (suppress 누락/오작동 확인 필요)
+2. START 요청 후 `START_TIMEOUT`
+
+## 5-2. gateway 기준 PASSIVE 장비 (listener/server)
+
+체크포인트:
+
+1. 장비 `connectionMode = PASSIVE`인지
+2. interfaceType/port 설정이 올바른지
+3. 같은 PASSIVE SOCKET 포트를 공유하는 장비들의 `socketType`가 동일한지
+4. 부팅 시 shared listener 제약 위반이 없는지
+
+실패 증상 예시:
+
+1. `PASSIVE_LISTENER_START_FAILED`
+2. START 요청 후 `START_TIMEOUT`
 
 ## 6. 라이프사이클 timeout 설정 체크리스트
 
@@ -347,7 +351,7 @@ ACTIVE/PASSIVE 문제는 설정 정합성 문제로 자주 발생합니다.
 추천 점검 항목:
 
 1. START timeout >= (connect timeout + 재시도 간격 * 예상 재시도 횟수) 관점으로 검토
-2. ACTIVE 장비는 설비가 실제 접속할 때까지 걸릴 수 있는 시간을 고려
+2. PASSIVE 장비는 설비가 실제 접속할 때까지 걸릴 수 있는 시간을 고려
 3. END timeout은 channel close 및 unbind 지연 가능성을 고려
 
 초급 개발자 주의:
@@ -388,8 +392,8 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 1. `GatewayKafkaOperationalInvariantChecker` 통과 로그 확인
 2. `GatewayNettyBootstrap` start 로그 확인 (event loop/reconnect scheduler)
 3. enabled 장비 런타임 시작 시도 로그 확인
-4. ACTIVE 장비 listener 생성/재사용 로그 확인
-5. PASSIVE 장비 outbound connect/reconnect 로그 확인
+4. PASSIVE 장비 listener 생성/재사용 로그 확인
+5. ACTIVE 장비 outbound connect/reconnect 로그 확인
 6. `EqpLifecycleStateMachine` START/END outcome 로그 확인
 7. Kafka subscriber assign/poll 로그 및 lag 메트릭 확인
 8. `GATEWAY_TASK_DISPOSITION` 로그로 command/UI 처리 상태 확인
@@ -419,18 +423,18 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 
 1. Kafka 실제 토픽 파티션 수와 설정 기대값이 다름
 
-## 10-3. ACTIVE SOCKET 동일 포트 `socketType` 충돌
+## 10-3. PASSIVE SOCKET 동일 포트 `socketType` 충돌
 
 증상:
 
-1. ACTIVE listener start 실패
-2. START 요청 후 `ACTIVE_LISTENER_START_FAILED`
+1. PASSIVE listener start 실패
+2. START 요청 후 `PASSIVE_LISTENER_START_FAILED`
 
 원인:
 
-1. 같은 포트를 공유하는 ACTIVE SOCKET 장비들의 `socketType` 불일치
+1. 같은 포트를 공유하는 PASSIVE SOCKET 장비들의 `socketType` 불일치
 
-## 10-4. PASSIVE connect timeout / retry 정책 과도하게 공격적
+## 10-4. ACTIVE connect timeout / retry 정책 과도하게 공격적
 
 증상:
 
@@ -463,7 +467,7 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 3. Kafka command는 읽는데 설비로 안 감
    - `GatewayCommandDispatcher` disposition, 채널 활성 여부, interfaceType/HSMS 미구현 여부
 4. END 후 다시 연결됨
-   - PASSIVE suppress 설정/cleanup, `GatewayNettyBootstrap` reconnect 로그
+   - ACTIVE suppress 설정/cleanup, `GatewayNettyBootstrap` reconnect 로그
 5. 로그가 너무 많거나 너무 적음
    - `tc.comm.gateway.observability.*`, `tc-log.properties`
 
@@ -493,8 +497,8 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 
 1. Kafka topic 존재/파티션 수
 2. `ownedPartitions` 정합성
-3. ACTIVE SOCKET 포트/`socketType` 충돌 없음
-4. PASSIVE IP/port/connect timeout 정책 점검
+3. PASSIVE SOCKET 포트/`socketType` 충돌 없음
+4. ACTIVE IP/port/connect timeout 정책 점검
 5. START/END outcome 로그 확인
 6. `GATEWAY_TASK_DISPOSITION` 확인
 
@@ -505,4 +509,3 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 1. 장애 대응 플레이북 (failure reason별 대응 절차)
 2. 로그 키워드/메트릭 대시보드 가이드
 3. 통합 테스트 시나리오 및 검증 절차
-

@@ -24,9 +24,9 @@ import java.util.Objects;
  * <p>2) 채널 레지스트리 등록 및 mailbox 바인딩을 수행합니다.</p>
  * <p>3) 연결/해제 라이프사이클 이벤트를 상태머신으로 전달합니다.</p>
  *
- * <p>connectionMode는 설비 기준 의미를 사용합니다.</p>
- * <p>- ACTIVE: 설비가 접속 주체(게이트웨이는 수신 서버)</p>
- * <p>- PASSIVE: 게이트웨이가 접속 주체(아웃바운드 클라이언트)</p>
+ * <p>connectionMode는 게이트웨이 기준 의미를 사용합니다.</p>
+ * <p>- ACTIVE : 게이트웨이가 접속 주체(아웃바운드 클라이언트)</p>
+ * <p>- PASSIVE: 게이트웨이가 수신 주체(리스너 서버)</p>
  */
 @Service
 public class EqpBindingService {
@@ -61,7 +61,8 @@ public class EqpBindingService {
     /**
      * 수신 경로(PASSIVE handler) 바인딩을 수행합니다.
      *
-     * <p>수신 경로는 설비가 먼저 붙는 경로이므로 설비 모드는 ACTIVE여야 합니다.</p>
+     * <p>수신 경로(PASSIVE handler)는 게이트웨이 리스너로 들어오는 경로이므로
+     * 게이트웨이 기준 connectionMode는 PASSIVE여야 합니다.</p>
      *
      * @param eqpId 대상 설비 ID
      * @param interfaceType 인터페이스 타입
@@ -73,13 +74,14 @@ public class EqpBindingService {
             final CommInterfaceType interfaceType,
             final Channel channel
     ) {
-        return bindInternal(eqpId, interfaceType, ConnectionMode.ACTIVE, channel);
+        return bindInternal(eqpId, interfaceType, ConnectionMode.PASSIVE, channel);
     }
 
     /**
      * 발신 경로(ACTIVE handler) 바인딩을 수행합니다.
      *
-     * <p>발신 경로는 게이트웨이가 먼저 붙는 경로이므로 설비 모드는 PASSIVE여야 합니다.</p>
+     * <p>발신 경로(ACTIVE handler)는 게이트웨이가 먼저 설비로 붙는 경로이므로
+     * 게이트웨이 기준 connectionMode는 ACTIVE여야 합니다.</p>
      *
      * @param eqpId 대상 설비 ID
      * @param interfaceType 인터페이스 타입
@@ -91,7 +93,7 @@ public class EqpBindingService {
             final CommInterfaceType interfaceType,
             final Channel channel
     ) {
-        return bindInternal(eqpId, interfaceType, ConnectionMode.PASSIVE, channel);
+        return bindInternal(eqpId, interfaceType, ConnectionMode.ACTIVE, channel);
     }
 
     /**
@@ -133,7 +135,7 @@ public class EqpBindingService {
      *
      * @param eqpId 대상 설비 ID
      * @param interfaceType 채널 인터페이스 타입
-     * @param expectedMode 현재 경로에서 기대하는 설비 connectionMode
+     * @param expectedMode 현재 채널 경로에서 기대하는 게이트웨이 기준 connectionMode
      * @param channel Netty 채널
      * @return 바인딩 결과
      */
@@ -149,7 +151,7 @@ public class EqpBindingService {
 
         return executeWithEqpLogContext(eqpId, () -> {
             if (log.isDebugEnabled()) {
-                log.debug("Bind attempt. eqpId={}, interfaceType={}, expectedEquipmentMode={}",
+                log.debug("Bind attempt. eqpId={}, interfaceType={}, expectedGatewayMode={}",
                         eqpId, interfaceType, expectedMode);
             }
 
@@ -171,6 +173,13 @@ public class EqpBindingService {
                 return BindResult.COMM_INTERFACE_MISMATCH;
             }
             if (info.connectionMode() != expectedMode) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Bind rejected by connectionMode mismatch. eqpId={}, interfaceType={}, expectedGatewayMode={}, actualGatewayMode={}",
+                            eqpId,
+                            interfaceType,
+                            expectedMode,
+                            info.connectionMode());
+                }
                 return BindResult.CONNECTION_MODE_MISMATCH;
             }
 
@@ -183,7 +192,7 @@ public class EqpBindingService {
             processingService.bindMailbox(info, equipmentChannel);
             lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
 
-            log.info("Bind success. eqpId={}, interfaceType={}, equipmentMode={}", eqpId, interfaceType, expectedMode);
+            log.info("Bind success. eqpId={}, interfaceType={}, gatewayMode={}", eqpId, interfaceType, expectedMode);
             return BindResult.OK;
         });
     }

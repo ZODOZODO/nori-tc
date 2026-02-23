@@ -1,4 +1,4 @@
-# 01. 구동 순서 안내서 (Startup Sequence)
+﻿# 01. 구동 순서 안내서 (Startup Sequence)
 
 ## 문서 목적
 
@@ -13,6 +13,11 @@
 
 1. Bean 상세: [`02-context-bean-map.md`](./02-context-bean-map.md)
 2. 라이프사이클 상태머신: [`03-lifecycle-state-machine-overview.md`](./03-lifecycle-state-machine-overview.md)
+
+주의:
+
+1. 이 문서의 ACTIVE/PASSIVE 설명은 gateway 기준 해석을 따릅니다.
+2. 상세 생명주기 문서(`04`, `05`)도 gateway 기준 파일명/내용으로 정리되어 있습니다.
 
 ## 먼저 보는 핵심 파일
 
@@ -237,12 +242,12 @@ UI 이벤트 Kafka subscriber 자체는 phase 0이지만, 실제 UI task 처리�
 2. reconnect scheduler 생성
 3. `EquipmentContextRegistry` 스냅샷 조회
 4. enabled 장비 런타임 시작 시도 (`startEnabledRuntimesFromContextRegistry()`)
-5. ACTIVE SOCKET 공유 listener 제약 검증 (포트/소켓타입 충돌 fail-fast)
+5. PASSIVE SOCKET 공유 listener 제약 검증 (포트/소켓타입 충돌 fail-fast)
 
 초급 개발자 포인트:
 
 1. 부팅 후 "왜 어떤 장비는 바로 동작하려고 하나요?" -> enabled 장비 자동 시작 시도 때문입니다.
-2. ACTIVE/PASSIVE에 따라 내부 처리 경로가 다릅니다.
+2. gateway 기준 ACTIVE/PASSIVE에 따라 내부 처리 경로가 다릅니다.
 
 ## 5-5. `EqpProcessingCoordinator.start()`
 
@@ -321,11 +326,11 @@ sequenceDiagram
 2. `GatewayKafkaOperationalInvariantChecker` 실패 여부
    - topic 존재, partition 수, ownedPartitions 범위
 3. `GatewayNettyBootstrap` fail-fast 여부
-   - ACTIVE SOCKET 공유 listener 제약 위반
+   - PASSIVE SOCKET 공유 listener 제약 위반
 4. `SmartLifecycle` start 단계 예외 여부
    - 어떤 클래스에서 start 예외가 났는지 로그 확인
 5. 부팅 직후 enabled 장비 start 시도 실패 로그
-   - PASSIVE outbound connect 실패, ACTIVE listener 생성 실패 등
+   - ACTIVE outbound connect 실패, PASSIVE listener 생성 실패 등
 
 ## 9. 초급 개발자 FAQ
 
@@ -344,4 +349,3 @@ sequenceDiagram
 ## 10. 다음 문서 안내
 
 다음 문서 [`02-context-bean-map.md`](./02-context-bean-map.md)에서는 "누가 어디서 생성되고 무엇을 하는지"를 Bean 기준으로 정리합니다.
-

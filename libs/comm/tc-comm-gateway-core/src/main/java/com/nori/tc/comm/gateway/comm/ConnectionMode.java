@@ -1,17 +1,18 @@
 package com.nori.tc.comm.gateway.comm;
 
 /**
- * 설비 기준 연결 모드(ACTIVE | PASSIVE)입니다.
+ * 게이트웨이 기준 연결 모드(ACTIVE | PASSIVE)입니다.
  *
- * <p>중요: 이 enum은 <b>게이트웨이 관점</b>이 아니라 <b>설비 관점</b>입니다.</p>
+ * <p>중요: 이 enum은 <b>게이트웨이 관점</b> 기준으로 해석합니다.</p>
+ * <p>즉, DB의 {@code connection_mode} 값도 이 enum으로 읽히는 순간 게이트웨이 기준 의미로 사용됩니다.</p>
  *
- * <p>ACTIVE 의미:</p>
- * <p>- 설비가 먼저 게이트웨이로 접속을 시도합니다.</p>
- * <p>- 게이트웨이는 서버(리스너) 역할을 수행합니다.</p>
- *
- * <p>PASSIVE 의미:</p>
- * <p>- 설비는 대기하고, 게이트웨이가 설비로 접속을 시도합니다.</p>
+ * <p>ACTIVE 의미(게이트웨이 ACTIVE):</p>
+ * <p>- 게이트웨이가 먼저 설비로 아웃바운드 연결을 시도합니다.</p>
  * <p>- 게이트웨이는 클라이언트(아웃바운드 커넥터) 역할을 수행합니다.</p>
+ *
+ * <p>PASSIVE 의미(게이트웨이 PASSIVE):</p>
+ * <p>- 게이트웨이가 수신 대기(listener)를 열고 설비 접속을 기다립니다.</p>
+ * <p>- 게이트웨이는 서버(리스너) 역할을 수행합니다.</p>
  */
 public enum ConnectionMode {
     ACTIVE,

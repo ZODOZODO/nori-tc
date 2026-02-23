@@ -40,8 +40,8 @@ import static org.mockito.Mockito.when;
  * {@link GatewayNettyBootstrap}의 DB/컨텍스트 기반 런타임 동작을 검증하는 테스트입니다.
  *
  * <p>검증 범위:</p>
- * <p>1) 장비 기준 ACTIVE 공유 listener(interface + port) 생성/공유/정지</p>
- * <p>2) 장비 기준 PASSIVE 런타임 시작 시 아웃바운드 연결 시도</p>
+ * <p>1) 게이트웨이 기준 PASSIVE 공유 listener(interface + port) 생성/공유/정지</p>
+ * <p>2) 게이트웨이 기준 ACTIVE 런타임 시작 시 아웃바운드 연결 시도</p>
  *
  * <p>주의:</p>
  * <p>- Netty event loop 및 실제 localhost 소켓 바인딩을 사용합니다.</p>
@@ -100,16 +100,16 @@ class GatewayNettyBootstrapTest {
     }
 
     /**
-     * 동일한 interface + port 를 가진 ACTIVE 장비 2대는 공유 listener 1개를 사용해야 함을 검증합니다.
+     * 동일한 interface + port 를 가진 PASSIVE 장비 2대는 공유 listener 1개를 사용해야 함을 검증합니다.
      *
      * <p>검증 포인트:</p>
-     * <p>1) 첫 번째 ACTIVE 장비 시작 시 listener 생성</p>
-     * <p>2) 두 번째 ACTIVE 장비 시작 시 listener 재사용 (채널 수 1 유지)</p>
+     * <p>1) 첫 번째 PASSIVE 장비 시작 시 listener 생성</p>
+     * <p>2) 두 번째 PASSIVE 장비 시작 시 listener 재사용 (채널 수 1 유지)</p>
      * <p>3) 첫 번째 장비 정지 시 listener 유지 (멤버 1명 남음)</p>
      * <p>4) 마지막 장비 정지 시 listener 종료</p>
      */
     @Test
-    void activeEquipmentsWithSameInterfaceAndPortShouldShareSingleListener() throws Exception {
+    void passiveEquipmentsWithSameInterfaceAndPortShouldShareSingleListener() throws Exception {
         final int sharedPort = findAvailablePort();
 
         when(equipmentContextRegistry.snapshot()).thenReturn(java.util.List.of());
@@ -124,7 +124,7 @@ class GatewayNettyBootstrapTest {
                 "10.10.10.1",
                 sharedPort,
                 101L,
-                ConnectionMode.ACTIVE,
+                ConnectionMode.PASSIVE,
                 true
         );
         final GatewayEquipmentInfo eqpB = new GatewayEquipmentInfo(
@@ -136,7 +136,7 @@ class GatewayNettyBootstrapTest {
                 "10.10.10.2",
                 sharedPort,
                 102L,
-                ConnectionMode.ACTIVE,
+                ConnectionMode.PASSIVE,
                 true
         );
 
@@ -148,20 +148,20 @@ class GatewayNettyBootstrapTest {
         bootstrapUnderTest.startRuntimeIfPossible("EQP_A");
         bootstrapUnderTest.startRuntimeIfPossible("EQP_B");
 
-        final Map<?, ?> listenerChannelMapAfterStart = getPrivateMapField(bootstrapUnderTest, "activeListenerChannels");
-        final Map<?, ?> listenerMembersMapAfterStart = getPrivateMapField(bootstrapUnderTest, "activeListenerMembers");
+        final Map<?, ?> listenerChannelMapAfterStart = getPrivateMapField(bootstrapUnderTest, "passiveListenerChannels");
+        final Map<?, ?> listenerMembersMapAfterStart = getPrivateMapField(bootstrapUnderTest, "passiveListenerMembers");
 
         Assertions.assertEquals(1, listenerChannelMapAfterStart.size(),
-                "동일 interface+port ACTIVE 장비는 listener 1개만 생성되어야 합니다.");
+                "동일 interface+port PASSIVE 장비는 listener 1개만 생성되어야 합니다.");
         Assertions.assertEquals(1, listenerMembersMapAfterStart.size(),
                 "공유 listener key 는 1개만 유지되어야 합니다.");
         Assertions.assertEquals(2, firstMemberSetSize(listenerMembersMapAfterStart),
-                "공유 listener 멤버십에는 ACTIVE 장비 2대가 등록되어야 합니다.");
+                "공유 listener 멤버십에는 PASSIVE 장비 2대가 등록되어야 합니다.");
 
         bootstrapUnderTest.stopRuntimeIfPossible("EQP_A");
 
-        final Map<?, ?> listenerChannelMapAfterFirstStop = getPrivateMapField(bootstrapUnderTest, "activeListenerChannels");
-        final Map<?, ?> listenerMembersMapAfterFirstStop = getPrivateMapField(bootstrapUnderTest, "activeListenerMembers");
+        final Map<?, ?> listenerChannelMapAfterFirstStop = getPrivateMapField(bootstrapUnderTest, "passiveListenerChannels");
+        final Map<?, ?> listenerMembersMapAfterFirstStop = getPrivateMapField(bootstrapUnderTest, "passiveListenerMembers");
 
         Assertions.assertEquals(1, listenerChannelMapAfterFirstStop.size(),
                 "공유 listener 멤버가 남아 있으면 listener 는 유지되어야 합니다.");
@@ -170,20 +170,20 @@ class GatewayNettyBootstrapTest {
 
         bootstrapUnderTest.stopRuntimeIfPossible("EQP_B");
 
-        final Map<?, ?> listenerChannelMapAfterLastStop = getPrivateMapField(bootstrapUnderTest, "activeListenerChannels");
-        final Map<?, ?> listenerMembersMapAfterLastStop = getPrivateMapField(bootstrapUnderTest, "activeListenerMembers");
+        final Map<?, ?> listenerChannelMapAfterLastStop = getPrivateMapField(bootstrapUnderTest, "passiveListenerChannels");
+        final Map<?, ?> listenerMembersMapAfterLastStop = getPrivateMapField(bootstrapUnderTest, "passiveListenerMembers");
 
         Assertions.assertEquals(0, listenerChannelMapAfterLastStop.size(),
-                "마지막 ACTIVE 장비 정지 후 공유 listener 는 종료되어야 합니다.");
+                "마지막 PASSIVE 장비 정지 후 공유 listener 는 종료되어야 합니다.");
         Assertions.assertEquals(0, listenerMembersMapAfterLastStop.size(),
-                "마지막 ACTIVE 장비 정지 후 멤버십 맵도 비워져야 합니다.");
+                "마지막 PASSIVE 장비 정지 후 멤버십 맵도 비워져야 합니다.");
     }
 
     /**
-     * ACTIVE SOCKET 설비가 동일 포트를 공유하면서 socketType이 다르면 정책 위반으로 두 번째 시작이 거부되는지 검증합니다.
+     * PASSIVE SOCKET 설비가 동일 포트를 공유하면서 socketType이 다르면 정책 위반으로 두 번째 시작이 거부되는지 검증합니다.
      *
      * <p>검증 포인트:</p>
-     * <p>1) 첫 번째 SOCKET ACTIVE 설비는 정상적으로 listener를 생성합니다.</p>
+     * <p>1) 첫 번째 SOCKET PASSIVE 설비는 정상적으로 listener를 생성합니다.</p>
      * <p>2) 같은 포트/다른 socketType 설비 시작 시 fail-fast 처리되어 listener 멤버십에 합류하지 못합니다.</p>
      * <p>3) lifecycleStateMachine에 시작 실패 콜백이 전달됩니다.</p>
      */
@@ -203,7 +203,7 @@ class GatewayNettyBootstrapTest {
                 "10.10.10.11",
                 sharedPort,
                 201L,
-                ConnectionMode.ACTIVE,
+                ConnectionMode.PASSIVE,
                 true
         );
         final GatewayEquipmentInfo socketEqpB = new GatewayEquipmentInfo(
@@ -215,7 +215,7 @@ class GatewayNettyBootstrapTest {
                 "10.10.10.12",
                 sharedPort,
                 202L,
-                ConnectionMode.ACTIVE,
+                ConnectionMode.PASSIVE,
                 true
         );
 
@@ -227,39 +227,39 @@ class GatewayNettyBootstrapTest {
         bootstrapUnderTest.startRuntimeIfPossible("SOCKET_A");
         bootstrapUnderTest.startRuntimeIfPossible("SOCKET_B");
 
-        final Map<?, ?> listenerChannelMap = getPrivateMapField(bootstrapUnderTest, "activeListenerChannels");
-        final Map<?, ?> listenerMembersMap = getPrivateMapField(bootstrapUnderTest, "activeListenerMembers");
-        final Map<?, ?> listenerSocketTypeConstraintMap = getPrivateMapField(bootstrapUnderTest, "activeListenerSocketTypeConstraints");
+        final Map<?, ?> listenerChannelMap = getPrivateMapField(bootstrapUnderTest, "passiveListenerChannels");
+        final Map<?, ?> listenerMembersMap = getPrivateMapField(bootstrapUnderTest, "passiveListenerMembers");
+        final Map<?, ?> listenerSocketTypeConstraintMap = getPrivateMapField(bootstrapUnderTest, "passiveListenerSocketTypeConstraints");
 
         Assertions.assertEquals(1, listenerChannelMap.size(),
-                "첫 번째 SOCKET ACTIVE 설비가 생성한 listener 1개만 유지되어야 합니다.");
+                "첫 번째 SOCKET PASSIVE 설비가 생성한 listener 1개만 유지되어야 합니다.");
         Assertions.assertEquals(1, listenerMembersMap.size(),
                 "정책 위반 설비는 멤버십에 합류하지 못하므로 listener key는 1개여야 합니다.");
         Assertions.assertEquals(1, firstMemberSetSize(listenerMembersMap),
                 "동일 포트/다른 socketType 설비는 거부되어 멤버 수는 1명이어야 합니다.");
         Assertions.assertEquals(1, listenerSocketTypeConstraintMap.size(),
-                "ACTIVE SOCKET listener socketType 제약값은 최초 설비 기준 1개만 유지되어야 합니다.");
+                "PASSIVE SOCKET listener socketType 제약값은 최초 설비 기준 1개만 유지되어야 합니다.");
         Assertions.assertTrue(listenerSocketTypeConstraintMap.values().contains("LINE_DELIMITED"),
                 "listener socketType 제약값은 첫 번째 설비의 socketType이어야 합니다.");
 
-        verify(lifecycleStateMachine).onStartFailedIfPending("SOCKET_B", "SYSTEM", "ACTIVE_LISTENER_START_FAILED");
+        verify(lifecycleStateMachine).onStartFailedIfPending("SOCKET_B", "SYSTEM", "PASSIVE_LISTENER_START_FAILED");
     }
 
     /**
-     * PASSIVE 장비 런타임 시작 시 아웃바운드 연결을 실제로 시도하는지 검증합니다.
+     * ACTIVE 장비 런타임 시작 시 아웃바운드 연결을 실제로 시도하는지 검증합니다.
      *
      * <p>테스트 방식:</p>
      * <p>1) localhost 임시 서버를 띄웁니다.</p>
-     * <p>2) PASSIVE 장비 런타임 시작(startRuntimeIfPossible)을 호출합니다.</p>
+     * <p>2) ACTIVE 장비 런타임 시작(startRuntimeIfPossible)을 호출합니다.</p>
      * <p>3) 서버 측 accept 가 발생하면 아웃바운드 연결 시도가 수행된 것으로 판단합니다.</p>
      */
     @Test
-    void passiveRuntimeStartShouldAttemptOutboundConnection() throws Exception {
+    void activeRuntimeStartShouldAttemptOutboundConnection() throws Exception {
         when(equipmentContextRegistry.snapshot()).thenReturn(java.util.List.of());
         when(shardOwnership.isOwned(anyString())).thenReturn(true);
 
         /**
-         * PASSIVE 아웃바운드 연결 성공 시 Netty pipeline 에 ACTIVE handler 가 필요합니다.
+         * ACTIVE(게이트웨이 기준) 아웃바운드 연결 성공 시 Netty pipeline 에 ACTIVE handler 가 필요합니다.
          * GatewayChannelHandler 는 final 클래스이므로 inline mock maker(mockito-inline)로 mock 생성합니다.
          */
         when(handlerFactory.newActiveHandler(any(CommInterfaceType.class), anyString(), any()))
@@ -289,32 +289,32 @@ class GatewayNettyBootstrapTest {
             acceptThread.setDaemon(true);
             acceptThread.start();
 
-            final GatewayEquipmentInfo passiveEqp = new GatewayEquipmentInfo(
+            final GatewayEquipmentInfo activeEqp = new GatewayEquipmentInfo(
                     10L,
-                    "PASSIVE_EQP",
+                    "ACTIVE_EQP",
                     CommInterfaceType.HSMS,
                     null,
                     22,
                     "127.0.0.1",
                     remotePort,
                     110L,
-                    ConnectionMode.PASSIVE,
+                    ConnectionMode.ACTIVE,
                     true
             );
-            when(equipmentInfoProvider.findById("PASSIVE_EQP")).thenReturn(Optional.of(passiveEqp));
+            when(equipmentInfoProvider.findById("ACTIVE_EQP")).thenReturn(Optional.of(activeEqp));
 
-            bootstrapUnderTest.startRuntimeIfPossible("PASSIVE_EQP");
+            bootstrapUnderTest.startRuntimeIfPossible("ACTIVE_EQP");
 
             final boolean accepted = acceptedLatch.await(5, TimeUnit.SECONDS);
             Assertions.assertTrue(accepted,
-                    "PASSIVE 런타임 시작 시 localhost 테스트 서버로 아웃바운드 연결이 수립되어야 합니다.");
+                    "ACTIVE 런타임 시작 시 localhost 테스트 서버로 아웃바운드 연결이 수립되어야 합니다.");
             Assertions.assertNull(acceptErrorRef.get(),
-                    "PASSIVE 연결 검증 중 서버 accept 단계에서 예외가 발생하면 안 됩니다.");
+                    "ACTIVE(outbound) 연결 검증 중 서버 accept 단계에서 예외가 발생하면 안 됩니다.");
 
             /**
-             * 이후 close 이벤트가 발생하더라도 재연결이 반복되지 않도록 PASSIVE 런타임을 먼저 정지합니다.
+             * 이후 close 이벤트가 발생하더라도 재연결이 반복되지 않도록 ACTIVE 런타임을 먼저 정지합니다.
              */
-            bootstrapUnderTest.stopRuntimeIfPossible("PASSIVE_EQP");
+            bootstrapUnderTest.stopRuntimeIfPossible("ACTIVE_EQP");
 
             final Socket acceptedSocket = acceptedSocketRef.get();
             if (acceptedSocket != null) {
@@ -380,7 +380,7 @@ class GatewayNettyBootstrapTest {
     /**
      * private 맵 필드를 리플렉션으로 조회합니다.
      *
-     * <p>공유 listener 내부 상태(activeListenerChannels / activeListenerMembers)를 검증하기 위해 사용합니다.</p>
+     * <p>공유 listener 내부 상태(passiveListenerChannels / passiveListenerMembers)를 검증하기 위해 사용합니다.</p>
      *
      * @param target 대상 객체
      * @param fieldName 필드명
@@ -397,7 +397,7 @@ class GatewayNettyBootstrapTest {
     /**
      * 공유 listener 멤버십 맵의 첫 번째 멤버 Set 크기를 반환합니다.
      *
-     * @param membersMap activeListenerMembers 리플렉션 조회 결과
+     * @param membersMap passiveListenerMembers 리플렉션 조회 결과
      * @return 첫 번째 멤버십 Set 크기
      */
     private int firstMemberSetSize(final Map<?, ?> membersMap) {
@@ -412,7 +412,7 @@ class GatewayNettyBootstrapTest {
         if (firstValue instanceof Collection<?> collection) {
             return collection.size();
         }
-        throw new IllegalStateException("Unexpected activeListenerMembers value type: " + firstValue);
+        throw new IllegalStateException("Unexpected passiveListenerMembers value type: " + firstValue);
     }
 
     /**

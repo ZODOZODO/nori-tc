@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>핵심 책임은 다음과 같습니다.</p>
  * <p>1) HSMS/SOCKET 수신 서버 포트를 열고 채널 파이프라인을 구성합니다.</p>
- * <p>2) 설비 모드가 PASSIVE인 경우(게이트웨이가 접속 주체) 아웃바운드 연결을 시도합니다.</p>
+ * <p>2) 게이트웨이 기준 모드가 ACTIVE인 경우(게이트웨이가 접속 주체) 아웃바운드 연결을 시도합니다.</p>
  * <p>3) 아웃바운드 연속 실패 횟수를 추적해 임계치 도달 시 자동 재연결을 중단합니다.</p>
  *
  * <p>주의: 메서드명의 "Active"는 기존 인터페이스 호환 용어이며,
@@ -57,11 +57,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
 
     private static final Logger log = LoggerFactory.getLogger(GatewayNettyBootstrap.class);
     /**
-     * 장비 기준 ACTIVE(장비가 접속) 리스너의 게이트웨이 바인드 IP 정책 상수입니다.
+     * 게이트웨이 기준 PASSIVE(listener) 경로의 바인드 IP 정책 상수입니다.
      *
-     * <p>요구사항 기준으로 ACTIVE 리스너는 항상 게이트웨이 로컬 루프백에만 바인드합니다.</p>
+     * <p>요구사항 기준으로 PASSIVE listener는 항상 게이트웨이 로컬 루프백에만 바인드합니다.</p>
      */
-    private static final String ACTIVE_LISTENER_BIND_IP = "127.0.0.1";
+    private static final String PASSIVE_LISTENER_BIND_IP = "127.0.0.1";
 
     private final GatewayNettyProperties nettyProperties;
     private final GatewaySocketProperties socketProperties;
@@ -79,34 +79,34 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private ScheduledExecutorService reconnectScheduler;
 
     /**
-     * 장비 기준 ACTIVE 장비들이 공유하는 listener 채널 맵입니다.
+     * 게이트웨이 기준 PASSIVE 장비들이 공유하는 listener 채널 맵입니다.
      *
      * <p>key = (interfaceType + port) 조합이며, bind IP는 정책상 127.0.0.1로 고정됩니다.</p>
      */
-    private final ConcurrentHashMap<ActiveListenerKey, Channel> activeListenerChannels = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<PassiveListenerKey, Channel> passiveListenerChannels = new ConcurrentHashMap<>();
 
     /**
      * listener 별 멤버십(이 listener를 필요로 하는 eqpId 집합)입니다.
      *
-     * <p>여러 ACTIVE 장비가 동일 interface+port를 공유할 수 있으므로, 마지막 멤버 제거 시에만
+     * <p>여러 PASSIVE 장비가 동일 interface+port를 공유할 수 있으므로, 마지막 멤버 제거 시에만
      * listener 채널을 종료해야 합니다.</p>
      */
-    private final ConcurrentHashMap<ActiveListenerKey, Set<String>> activeListenerMembers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<PassiveListenerKey, Set<String>> passiveListenerMembers = new ConcurrentHashMap<>();
 
     /**
      * eqpId -> listenerKey 역참조 맵입니다.
      *
      * <p>UI END/DELETE, 설정 변경 시 기존 listener 멤버십을 빠르게 정리하기 위해 사용합니다.</p>
      */
-    private final ConcurrentHashMap<String, ActiveListenerKey> activeListenerKeyByEqpId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PassiveListenerKey> passiveListenerKeyByEqpId = new ConcurrentHashMap<>();
 
     /**
-     * ACTIVE SOCKET 공유 listener별 socketType 제약값입니다.
+     * PASSIVE SOCKET 공유 listener별 socketType 제약값입니다.
      *
-     * <p>정책상 동일 ACTIVE 포트에는 하나의 socketType만 허용하므로,
+     * <p>정책상 동일 PASSIVE(listener) 포트에는 하나의 socketType만 허용하므로,
      * listener 생성/멤버 추가 시 이 맵을 사용하여 충돌을 즉시 차단합니다.</p>
      */
-    private final ConcurrentHashMap<ActiveListenerKey, String> activeListenerSocketTypeConstraints = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<PassiveListenerKey, String> passiveListenerSocketTypeConstraints = new ConcurrentHashMap<>();
 
     /**
      * 동일 설비에 대한 중복 재연결 스케줄 등록을 방지하는 플래그 맵입니다.
@@ -187,8 +187,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
 
         /**
          * DB -> EquipmentContextRegistry 로 적재된 컨텍스트를 기준으로 enabled 장비 런타임을 기동합니다.
-         * - 장비 기준 ACTIVE  : 공유 listener 보장
-         * - 장비 기준 PASSIVE : 아웃바운드 연결 시도
+         * - 게이트웨이 기준 ACTIVE  : 아웃바운드 연결 시도
+         * - 게이트웨이 기준 PASSIVE : 공유 listener 보장
          */
         startEnabledRuntimesFromContextRegistry();
     }
@@ -207,7 +207,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         running = false;
 
         log.info("GatewayNettyBootstrap stopping.");
-        closeAllActiveListeners();
+        closeAllPassiveListeners();
 
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
@@ -222,10 +222,10 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         reconnecting.clear();
         reconnectSuppressedEqpIds.clear();
         consecutiveOutboundFailures.clear();
-        activeListenerChannels.clear();
-        activeListenerMembers.clear();
-        activeListenerKeyByEqpId.clear();
-        activeListenerSocketTypeConstraints.clear();
+        passiveListenerChannels.clear();
+        passiveListenerMembers.clear();
+        passiveListenerKeyByEqpId.clear();
+        passiveListenerSocketTypeConstraints.clear();
 
         log.info("GatewayNettyBootstrap stopped.");
     }
@@ -251,12 +251,12 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 장비 1대의 통신 런타임을 장비 기준 모드에 맞게 시작합니다.
+     * 장비 1대의 통신 런타임을 게이트웨이 기준 모드에 맞게 시작합니다.
      *
      * <p>동작 규칙:</p>
      * <p>1) shard ownership 및 enabled 여부를 확인합니다.</p>
-     * <p>2) 장비 기준 PASSIVE는 기존 아웃바운드 연결/재연결 로직을 사용합니다.</p>
-     * <p>3) 장비 기준 ACTIVE는 공유 listener(interface + port)를 보장합니다.</p>
+     * <p>2) 게이트웨이 기준 ACTIVE는 기존 아웃바운드 연결/재연결 로직을 사용합니다.</p>
+     * <p>3) 게이트웨이 기준 PASSIVE는 공유 listener(interface + port)를 보장합니다.</p>
      *
      * @param eqpId 장비 ID
      */
@@ -293,27 +293,33 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             }
 
             /**
-             * 모드 전환(예: ACTIVE -> PASSIVE) 이후 stale listener 멤버십이 남지 않도록
-             * PASSIVE 시작 경로에서는 먼저 ACTIVE listener 멤버십을 정리합니다.
+             * 모드 전환(예: PASSIVE -> ACTIVE) 이후 stale listener 멤버십이 남지 않도록
+             * 게이트웨이 ACTIVE(아웃바운드) 시작 경로에서는 먼저 PASSIVE listener 멤버십을 정리합니다.
              */
-            if (info.connectionMode() == ConnectionMode.PASSIVE) {
-                releaseActiveListenerMembership(eqpId, "MODE_SWITCH_OR_PASSIVE_START");
+            if (info.connectionMode() == ConnectionMode.ACTIVE) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Transport runtime start path selected. eqpId={}, gatewayMode=ACTIVE(outbound)", eqpId);
+                }
+                releasePassiveListenerMembership(eqpId, "MODE_SWITCH_OR_ACTIVE_START");
                 resumeActiveReconnect(eqpId);
                 connectActiveIfPossible(eqpId);
                 return;
             }
 
             try {
+                if (log.isDebugEnabled()) {
+                    log.debug("Transport runtime start path selected. eqpId={}, gatewayMode=PASSIVE(listener)", eqpId);
+                }
                 reconnectSuppressedEqpIds.remove(eqpId);
-                ensureActiveListenerForEquipment(info, "RUNTIME_START");
+                ensurePassiveListenerForEquipment(info, "RUNTIME_START");
             } catch (Exception ex) {
                 /**
                  * listener 생성 실패 시 멤버십 맵에 잔여 상태가 남으면 이후 재시도/정지 로직이 혼란스러워질 수 있으므로
                  * 즉시 정리합니다.
                  */
-                releaseActiveListenerMembership(eqpId, "ACTIVE_LISTENER_START_FAILED_CLEANUP");
-                lifecycleStateMachine.onStartFailedIfPending(eqpId, "SYSTEM", "ACTIVE_LISTENER_START_FAILED");
-                log.error("ACTIVE listener runtime start failed. eqpId={}, interfaceType={}, port={}",
+                releasePassiveListenerMembership(eqpId, "PASSIVE_LISTENER_START_FAILED_CLEANUP");
+                lifecycleStateMachine.onStartFailedIfPending(eqpId, "SYSTEM", "PASSIVE_LISTENER_START_FAILED");
+                log.error("PASSIVE listener runtime start failed. eqpId={}, interfaceType={}, port={}",
                         eqpId,
                         info.commInterfaceType(),
                         info.eqpPort(),
@@ -323,11 +329,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 장비 1대의 통신 런타임을 장비 기준 모드에 맞게 정지합니다.
+     * 장비 1대의 통신 런타임을 게이트웨이 기준 모드에 맞게 정지합니다.
      *
      * <p>이 메서드는 모드별 런타임 자원만 정리합니다.</p>
-     * <p>- ACTIVE  : 공유 listener 멤버십 해제 및 마지막 멤버일 때 listener 종료</p>
-     * <p>- PASSIVE : 자동 재연결 억제</p>
+     * <p>- ACTIVE  : 자동 재연결 억제 (아웃바운드 중단)</p>
+     * <p>- PASSIVE : 공유 listener 멤버십 해제 및 마지막 멤버일 때 listener 종료</p>
      *
      * <p>실제 장비 채널 close는 상위 UI 런타임 제어 서비스가 담당할 수 있습니다.</p>
      *
@@ -343,24 +349,33 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             final GatewayEquipmentInfo info = resolveRuntimeEquipmentInfo(eqpId);
             final ConnectionMode mode = info == null ? null : info.connectionMode();
 
-            if (mode == ConnectionMode.ACTIVE) {
-                releaseActiveListenerMembership(eqpId, "RUNTIME_STOP");
+            if (mode == ConnectionMode.PASSIVE) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Transport runtime stop path selected. eqpId={}, gatewayMode=PASSIVE(listener)", eqpId);
+                }
+                releasePassiveListenerMembership(eqpId, "RUNTIME_STOP");
                 return;
             }
 
             /**
-             * PASSIVE 또는 DB 조회 실패(null) 케이스는 재연결 억제를 수행합니다.
+             * ACTIVE 또는 DB 조회 실패(null) 케이스는 재연결 억제를 수행합니다.
              * DB 조회 실패 시에도 stale suppress 상태 정리에 의미가 있으므로 그대로 호출합니다.
              */
+            if (log.isDebugEnabled()) {
+                log.debug("Transport runtime stop path selected. eqpId={}, gatewayMode={} (outbound suppress path)",
+                        eqpId,
+                        mode);
+            }
             suppressActiveReconnect(eqpId);
-            releaseActiveListenerMembership(eqpId, "RUNTIME_STOP_FALLBACK_CLEANUP");
+            releasePassiveListenerMembership(eqpId, "RUNTIME_STOP_FALLBACK_CLEANUP");
         });
     }
 
     /**
      * 특정 설비에 대한 아웃바운드 연결을 즉시 시도합니다.
      *
-     * <p>이 메서드는 운영 제어(UI 등)에서 START 요청 시 호출됩니다.</p>
+     * <p>이 메서드는 게이트웨이 기준 ACTIVE(아웃바운드) 모드 설비에 대해서만 실제 연결을 수행합니다.</p>
+     * <p>운영 제어(UI 등)에서 START 요청 시 호출되며, 모드가 ACTIVE가 아니면 DEBUG 로그만 남기고 종료합니다.</p>
      *
      * @param eqpId 설비 ID
      */
@@ -391,9 +406,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 log.warn("Outbound connect skipped (equipment disabled). eqpId={}", eqpId);
                 return;
             }
-            if (info.connectionMode() != ConnectionMode.PASSIVE) {
+            if (info.connectionMode() != ConnectionMode.ACTIVE) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Outbound connect skipped (equipment mode is not PASSIVE). eqpId={}, mode={}",
+                    log.debug("Outbound connect skipped (gateway mode is not ACTIVE). eqpId={}, mode={}",
                             eqpId,
                             info.connectionMode());
                 }
@@ -409,6 +424,9 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
 
     /**
      * 특정 설비의 자동 재연결을 억제합니다.
+     *
+     * <p>게이트웨이 기준 ACTIVE(아웃바운드) 경로에서만 실제 의미가 있으며,
+     * PASSIVE(listener) 모드에서는 재연결 스케줄 자체를 사용하지 않습니다.</p>
      *
      * @param eqpId 설비 ID
      */
@@ -426,6 +444,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
 
     /**
      * 특정 설비의 자동 재연결 억제를 해제합니다.
+     *
+     * <p>게이트웨이 기준 ACTIVE(아웃바운드) 경로에서 START/재시도 재개 시 사용합니다.</p>
      *
      * @param eqpId 설비 ID
      */
@@ -453,7 +473,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         int enabledCount = 0;
 
         log.info("Transport runtime bootstrap started from EquipmentContextRegistry. totalContexts={}", contexts.size());
-        validateActiveSocketListenerConstraintsOnBootstrap(contexts);
+        validatePassiveSocketListenerConstraintsOnBootstrap(contexts);
 
         for (EquipmentContext context : contexts) {
             if (context == null) {
@@ -480,111 +500,112 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 장비 기준 ACTIVE 장비용 공유 listener를 보장합니다.
+     * 게이트웨이 기준 PASSIVE 장비용 공유 listener를 보장합니다.
      *
      * <p>공유 기준은 interface + port이며, bind IP는 정책상 127.0.0.1 고정입니다.</p>
      *
      * @param info 장비 정보
      * @param reason 호출 사유(로그용)
      */
-    private synchronized void ensureActiveListenerForEquipment(final GatewayEquipmentInfo info, final String reason) {
+    private synchronized void ensurePassiveListenerForEquipment(final GatewayEquipmentInfo info, final String reason) {
         Objects.requireNonNull(info, "info is null");
 
         final String eqpId = info.equipmentId();
-        final ActiveListenerKey nextKey = ActiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
+        final PassiveListenerKey nextKey = PassiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
         final String resolvedSocketType = resolveSocketTypeOrDefault(info);
 
         /**
-         * ACTIVE 모드에서는 DB의 eqp_ip를 bind IP로 사용하지 않고 정책상 고정값(127.0.0.1)을 사용합니다.
+         * PASSIVE(listener) 모드에서는 DB의 eqp_ip를 bind IP로 사용하지 않고
+         * 정책상 고정값(127.0.0.1)을 사용합니다.
          * 운영 확인을 위해 DEBUG 로그로 DB값과 실제 bind 정책값을 함께 남깁니다.
          */
         if (log.isDebugEnabled() && info.eqpIp() != null && !info.eqpIp().isBlank()) {
-            log.debug("ACTIVE listener bind IP policy applied. eqpId={}, dbEqpIp={}, bindIp={}",
+            log.debug("PASSIVE listener bind IP policy applied. eqpId={}, dbEqpIp={}, bindIp={}",
                     eqpId,
                     info.eqpIp(),
-                    ACTIVE_LISTENER_BIND_IP);
+                    PASSIVE_LISTENER_BIND_IP);
         }
 
-        final ActiveListenerKey currentKey = activeListenerKeyByEqpId.get(eqpId);
+        final PassiveListenerKey currentKey = passiveListenerKeyByEqpId.get(eqpId);
         if (currentKey != null && !currentKey.equals(nextKey)) {
-            log.info("ACTIVE listener membership key changed. eqpId={}, previousKey={}, nextKey={}, reason={}",
+            log.info("PASSIVE listener membership key changed. eqpId={}, previousKey={}, nextKey={}, reason={}",
                     eqpId,
                     currentKey,
                     nextKey,
                     reason);
-            releaseActiveListenerMembership(eqpId, "ACTIVE_LISTENER_KEY_CHANGED");
+            releasePassiveListenerMembership(eqpId, "PASSIVE_LISTENER_KEY_CHANGED");
         }
 
-        validateAndRegisterActiveListenerSocketTypeConstraint(nextKey, eqpId, resolvedSocketType, reason);
+        validateAndRegisterPassiveListenerSocketTypeConstraint(nextKey, eqpId, resolvedSocketType, reason);
 
-        final Set<String> members = activeListenerMembers.computeIfAbsent(nextKey, key -> ConcurrentHashMap.newKeySet());
+        final Set<String> members = passiveListenerMembers.computeIfAbsent(nextKey, key -> ConcurrentHashMap.newKeySet());
         members.add(eqpId);
-        activeListenerKeyByEqpId.put(eqpId, nextKey);
+        passiveListenerKeyByEqpId.put(eqpId, nextKey);
 
-        final Channel existing = activeListenerChannels.get(nextKey);
+        final Channel existing = passiveListenerChannels.get(nextKey);
         if (existing != null && existing.isActive()) {
             if (log.isDebugEnabled()) {
-                log.debug("ACTIVE shared listener already running. eqpId={}, listenerKey={}, memberCount={}, reason={}",
+                log.debug("PASSIVE shared listener already running. eqpId={}, listenerKey={}, memberCount={}, reason={}",
                         eqpId,
                         nextKey,
                         members.size(),
                         reason);
                 if (nextKey.interfaceType() == CommInterfaceType.SOCKET) {
-                    log.debug("ACTIVE SOCKET listener 제약 유지. listenerKey={}, socketType={}",
+                    log.debug("PASSIVE SOCKET listener 제약 유지. listenerKey={}, socketType={}",
                             nextKey,
-                            activeListenerSocketTypeConstraints.get(nextKey));
+                            passiveListenerSocketTypeConstraints.get(nextKey));
                 }
             }
             return;
         }
 
         if (existing != null) {
-            activeListenerChannels.remove(nextKey, existing);
+            passiveListenerChannels.remove(nextKey, existing);
             safeClose(existing);
             if (log.isDebugEnabled()) {
-                log.debug("Removed stale ACTIVE listener channel before restart. listenerKey={}", nextKey);
+                log.debug("Removed stale PASSIVE listener channel before restart. listenerKey={}", nextKey);
             }
         }
 
-        final Channel started = startActiveListenerServer(nextKey);
-        activeListenerChannels.put(nextKey, started);
-        log.info("ACTIVE shared listener ensured. eqpId={}, listenerKey={}, memberCount={}, socketType={}, reason={}",
+        final Channel started = startPassiveListenerServer(nextKey);
+        passiveListenerChannels.put(nextKey, started);
+        log.info("PASSIVE shared listener ensured. eqpId={}, listenerKey={}, memberCount={}, socketType={}, reason={}",
                 eqpId,
                 nextKey,
                 members.size(),
-                nextKey.interfaceType() == CommInterfaceType.SOCKET ? activeListenerSocketTypeConstraints.get(nextKey) : null,
+                nextKey.interfaceType() == CommInterfaceType.SOCKET ? passiveListenerSocketTypeConstraints.get(nextKey) : null,
                 reason);
     }
 
     /**
-     * 장비 기준 ACTIVE 장비의 공유 listener 멤버십을 해제합니다.
+     * 게이트웨이 기준 PASSIVE 장비의 공유 listener 멤버십을 해제합니다.
      *
      * <p>마지막 멤버가 제거되면 해당 listener 채널을 종료합니다.</p>
      *
      * @param eqpId 장비 ID
      * @param reason 호출 사유(로그용)
      */
-    private synchronized void releaseActiveListenerMembership(final String eqpId, final String reason) {
+    private synchronized void releasePassiveListenerMembership(final String eqpId, final String reason) {
         if (eqpId == null || eqpId.isBlank()) {
             return;
         }
 
-        final ActiveListenerKey key = activeListenerKeyByEqpId.remove(eqpId);
+        final PassiveListenerKey key = passiveListenerKeyByEqpId.remove(eqpId);
         if (key == null) {
             return;
         }
 
-        final Set<String> members = activeListenerMembers.get(key);
+        final Set<String> members = passiveListenerMembers.get(key);
         if (members == null) {
-            activeListenerMembers.remove(key);
-            activeListenerSocketTypeConstraints.remove(key);
+            passiveListenerMembers.remove(key);
+            passiveListenerSocketTypeConstraints.remove(key);
             return;
         }
 
         members.remove(eqpId);
         if (!members.isEmpty()) {
             if (log.isDebugEnabled()) {
-                log.debug("ACTIVE listener membership removed. eqpId={}, listenerKey={}, remainingMembers={}, reason={}",
+                log.debug("PASSIVE listener membership removed. eqpId={}, listenerKey={}, remainingMembers={}, reason={}",
                         eqpId,
                         key,
                         members.size(),
@@ -593,11 +614,11 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return;
         }
 
-        activeListenerMembers.remove(key, members);
-        final String removedSocketType = activeListenerSocketTypeConstraints.remove(key);
-        final Channel channel = activeListenerChannels.remove(key);
+        passiveListenerMembers.remove(key, members);
+        final String removedSocketType = passiveListenerSocketTypeConstraints.remove(key);
+        final Channel channel = passiveListenerChannels.remove(key);
         safeClose(channel);
-        log.info("ACTIVE shared listener stopped (last member removed). eqpId={}, listenerKey={}, socketType={}, reason={}",
+        log.info("PASSIVE shared listener stopped (last member removed). eqpId={}, listenerKey={}, socketType={}, reason={}",
                 eqpId,
                 key,
                 key.interfaceType() == CommInterfaceType.SOCKET ? removedSocketType : null,
@@ -605,36 +626,39 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 게이트웨이 종료 시 ACTIVE 공유 listener 채널을 일괄 종료합니다.
+     * 게이트웨이 종료 시 PASSIVE 공유 listener 채널을 일괄 종료합니다.
+     *
+     * <p>게이트웨이 기준 PASSIVE는 서버(listener) 역할이므로 종료 시 전체 listener를 정리해야
+     * 다음 기동에서 포트 점유 잔여 상태가 남지 않습니다.</p>
      */
-    private synchronized void closeAllActiveListeners() {
-        if (activeListenerChannels.isEmpty()) {
+    private synchronized void closeAllPassiveListeners() {
+        if (passiveListenerChannels.isEmpty()) {
             return;
         }
 
-        for (ActiveListenerKey key : List.copyOf(activeListenerChannels.keySet())) {
-            final Channel channel = activeListenerChannels.remove(key);
+        for (PassiveListenerKey key : List.copyOf(passiveListenerChannels.keySet())) {
+            final Channel channel = passiveListenerChannels.remove(key);
             safeClose(channel);
             if (log.isDebugEnabled()) {
-                log.debug("ACTIVE shared listener closed during gateway stop. listenerKey={}", key);
+                log.debug("PASSIVE shared listener closed during gateway stop. listenerKey={}", key);
             }
         }
-        activeListenerSocketTypeConstraints.clear();
+        passiveListenerSocketTypeConstraints.clear();
     }
 
     /**
-     * ACTIVE 공유 listener 서버를 실제로 바인드합니다.
+     * PASSIVE 공유 listener 서버를 실제로 바인드합니다.
      *
-     * <p>장비 기준 ACTIVE 장비가 접속하는 경로이므로 게이트웨이 입장에서는 수신 서버 경로이며,
+     * <p>게이트웨이 기준 PASSIVE(listener) 모드에서 설비가 접속하는 수신 서버 경로를 생성하며,
      * child pipeline에는 PASSIVE handler(수신 바인딩 경로)를 사용합니다.</p>
      *
      * @param key 공유 listener 식별 키
      * @return 바인드된 서버 채널
      */
-    private Channel startActiveListenerServer(final ActiveListenerKey key) {
+    private Channel startPassiveListenerServer(final PassiveListenerKey key) {
         Objects.requireNonNull(key, "key is null");
         final String listenerSocketType = key.interfaceType() == CommInterfaceType.SOCKET
-                ? requireActiveListenerSocketTypeConstraint(key)
+                ? requirePassiveListenerSocketTypeConstraint(key)
                 : null;
 
         if (bossGroup == null || workerGroup == null) {
@@ -647,7 +671,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         /**
-                         * 장비 기준 ACTIVE(장비가 게이트웨이로 접속) 경로이므로
+                         * 게이트웨이 기준 PASSIVE(listener) 경로이므로
                          * 게이트웨이 측 수신 바인딩 핸들러를 등록합니다.
                          */
                         @Override
@@ -656,18 +680,18 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                         }
                     });
 
-            final ChannelFuture future = bootstrap.bind(ACTIVE_LISTENER_BIND_IP, key.port()).sync();
-            log.info("ACTIVE shared listener started. listenerKey={}, bindIp={}, bindPort={}, socketType={}",
+            final ChannelFuture future = bootstrap.bind(PASSIVE_LISTENER_BIND_IP, key.port()).sync();
+            log.info("PASSIVE shared listener started. listenerKey={}, bindIp={}, bindPort={}, socketType={}",
                     key,
-                    ACTIVE_LISTENER_BIND_IP,
+                    PASSIVE_LISTENER_BIND_IP,
                     key.port(),
                     listenerSocketType);
             return future.channel();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("ACTIVE shared listener bind interrupted", ex);
+            throw new IllegalStateException("PASSIVE shared listener bind interrupted", ex);
         } catch (Exception ex) {
-            throw new IllegalStateException("ACTIVE shared listener bind failed. key=" + key, ex);
+            throw new IllegalStateException("PASSIVE shared listener bind failed. key=" + key, ex);
         }
     }
 
@@ -904,25 +928,20 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * 장비 기준 ACTIVE 공유 listener 식별 키입니다.
+     * 부팅 직후 메모리 컨텍스트 기준으로 PASSIVE SOCKET 포트/socketType 제약 위반이 없는지 검증합니다.
      *
-     * <p>bind IP는 정책상 127.0.0.1 고정이므로 키에는 포함하지 않고,
-     * interface + port 조합으로 공유 여부를 판단합니다.</p>
-     */
-    /**
-     * 부팅 직후 메모리 컨텍스트 기준으로 ACTIVE SOCKET 포트/socketType 제약 위반이 없는지 검증합니다.
-     *
-     * <p>정책상 동일 ACTIVE 포트에는 하나의 socketType만 허용하므로, 부팅 시점에 충돌을 먼저 탐지하여
+     * <p>이 메서드는 gateway 기준 PASSIVE(listener) 모드 설비만 검사 대상으로 삼습니다.</p>
+     * <p>정책상 동일 PASSIVE(listener) 포트에는 하나의 socketType만 허용하므로, 부팅 시점에 충돌을 먼저 탐지하여
      * 리스너 생성 도중 뒤늦게 문제를 발견하지 않도록 fail-fast 합니다.</p>
      *
      * @param contexts 부팅 시점 컨텍스트 스냅샷
      */
-    private void validateActiveSocketListenerConstraintsOnBootstrap(final List<EquipmentContext> contexts) {
+    private void validatePassiveSocketListenerConstraintsOnBootstrap(final List<EquipmentContext> contexts) {
         if (contexts == null || contexts.isEmpty()) {
             return;
         }
 
-        final Map<ActiveListenerKey, String> socketTypeByListenerKey = new ConcurrentHashMap<>();
+        final Map<PassiveListenerKey, String> socketTypeByListenerKey = new ConcurrentHashMap<>();
         for (EquipmentContext context : contexts) {
             if (context == null || context.profile() == null || context.profile().equipmentInfo() == null) {
                 continue;
@@ -931,32 +950,32 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             final GatewayEquipmentInfo info = context.profile().equipmentInfo();
             if (!info.enabled()
                     || info.commInterfaceType() != CommInterfaceType.SOCKET
-                    || info.connectionMode() != ConnectionMode.ACTIVE) {
+                    || info.connectionMode() != ConnectionMode.PASSIVE) {
                 continue;
             }
 
-            final ActiveListenerKey key = ActiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
+            final PassiveListenerKey key = PassiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
             final String resolvedSocketType = resolveSocketTypeOrDefault(info);
             final String existing = socketTypeByListenerKey.putIfAbsent(key, resolvedSocketType);
             if (existing != null && !existing.equals(resolvedSocketType)) {
-                log.error("ACTIVE SOCKET listener 정책 위반(부팅 검증). listenerKey={}, existingSocketType={}, incomingSocketType={}, eqpId={}",
+                log.error("PASSIVE SOCKET listener 정책 위반(부팅 검증). listenerKey={}, existingSocketType={}, incomingSocketType={}, eqpId={}",
                         key,
                         existing,
                         resolvedSocketType,
                         info.equipmentId());
                 throw new IllegalStateException(
-                        "ACTIVE SOCKET listener port conflict: different socketType on same port. key=" + key
+                        "PASSIVE SOCKET listener port conflict: different socketType on same port. key=" + key
                 );
             }
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("ACTIVE SOCKET listener 부팅 제약 검증 완료. listenerKeyCount={}", socketTypeByListenerKey.size());
+            log.debug("PASSIVE SOCKET listener 부팅 제약 검증 완료. listenerKeyCount={}", socketTypeByListenerKey.size());
         }
     }
 
     /**
-     * ACTIVE 공유 listener에 SOCKET socketType 제약값을 등록/검증합니다.
+     * PASSIVE 공유 listener에 SOCKET socketType 제약값을 등록/검증합니다.
      *
      * <p>동일 listenerKey(interface+port)에 다른 socketType 설비가 합류하려고 하면 즉시 예외를 발생시켜
      * 운영 정책 위반을 fail-fast 처리합니다.</p>
@@ -966,8 +985,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      * @param resolvedSocketType 해석 완료된 socketType
      * @param reason 호출 사유(로그용)
      */
-    private void validateAndRegisterActiveListenerSocketTypeConstraint(
-            final ActiveListenerKey key,
+    private void validateAndRegisterPassiveListenerSocketTypeConstraint(
+            final PassiveListenerKey key,
             final String eqpId,
             final String resolvedSocketType,
             final String reason
@@ -976,13 +995,13 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return;
         }
         if (resolvedSocketType == null || resolvedSocketType.isBlank()) {
-            throw new IllegalStateException("ACTIVE SOCKET listener requires socketType. eqpId=" + eqpId + ", key=" + key);
+            throw new IllegalStateException("PASSIVE SOCKET listener requires socketType. eqpId=" + eqpId + ", key=" + key);
         }
 
-        final String existing = activeListenerSocketTypeConstraints.putIfAbsent(key, resolvedSocketType);
+        final String existing = passiveListenerSocketTypeConstraints.putIfAbsent(key, resolvedSocketType);
         if (existing == null) {
             if (log.isDebugEnabled()) {
-                log.debug("ACTIVE SOCKET listener socketType 제약 등록. eqpId={}, listenerKey={}, socketType={}, reason={}",
+                log.debug("PASSIVE SOCKET listener socketType 제약 등록. eqpId={}, listenerKey={}, socketType={}, reason={}",
                         eqpId,
                         key,
                         resolvedSocketType,
@@ -992,14 +1011,14 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         }
 
         if (!existing.equals(resolvedSocketType)) {
-            log.error("ACTIVE SOCKET listener 정책 위반. eqpId={}, listenerKey={}, existingSocketType={}, incomingSocketType={}, reason={}",
+            log.error("PASSIVE SOCKET listener 정책 위반. eqpId={}, listenerKey={}, existingSocketType={}, incomingSocketType={}, reason={}",
                     eqpId,
                     key,
                     existing,
                     resolvedSocketType,
                     reason);
             throw new IllegalStateException(
-                    "ACTIVE SOCKET listener socketType mismatch on same port. key=" + key
+                    "PASSIVE SOCKET listener socketType mismatch on same port. key=" + key
                             + ", existing=" + existing
                             + ", incoming=" + resolvedSocketType
             );
@@ -1007,19 +1026,19 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
-     * ACTIVE SOCKET 공유 listener의 socketType 제약값을 조회합니다.
+     * PASSIVE SOCKET 공유 listener의 socketType 제약값을 조회합니다.
      *
      * @param key 공유 listener 키
      * @return 등록된 socketType
      */
-    private String requireActiveListenerSocketTypeConstraint(final ActiveListenerKey key) {
+    private String requirePassiveListenerSocketTypeConstraint(final PassiveListenerKey key) {
         if (key.interfaceType() != CommInterfaceType.SOCKET) {
             return null;
         }
 
-        final String socketType = activeListenerSocketTypeConstraints.get(key);
+        final String socketType = passiveListenerSocketTypeConstraints.get(key);
         if (socketType == null || socketType.isBlank()) {
-            throw new IllegalStateException("Missing ACTIVE SOCKET listener socketType constraint. key=" + key);
+            throw new IllegalStateException("Missing PASSIVE SOCKET listener socketType constraint. key=" + key);
         }
         return socketType;
     }
@@ -1124,7 +1143,13 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private record ActiveListenerKey(
+    /**
+     * 게이트웨이 기준 PASSIVE 공유 listener 식별 키입니다.
+     *
+     * <p>bind IP는 정책상 {@code 127.0.0.1}로 고정이므로 키에는 포함하지 않고,
+     * interface + port 조합으로 공유 여부를 판단합니다.</p>
+     */
+    private record PassiveListenerKey(
             CommInterfaceType interfaceType,
             int port
     ) {
@@ -1132,17 +1157,17 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
          * 장비 정보에서 공유 listener 키를 생성합니다.
          *
          * @param interfaceType 인터페이스 타입(HSMS/SOCKET)
-         * @param port tc_eqp.eqp_port 값 (ACTIVE 모드에서는 게이트웨이 bind port로 사용)
+         * @param port tc_eqp.eqp_port 값 (PASSIVE 모드에서는 게이트웨이 bind port로 사용)
          * @return 공유 listener 키
          */
-        private static ActiveListenerKey from(final CommInterfaceType interfaceType, final Integer port) {
+        private static PassiveListenerKey from(final CommInterfaceType interfaceType, final Integer port) {
             if (interfaceType == null) {
                 throw new IllegalArgumentException("interfaceType is null");
             }
             if (port == null || port <= 0 || port > 65535) {
-                throw new IllegalArgumentException("Invalid ACTIVE listener port: " + port);
+                throw new IllegalArgumentException("Invalid PASSIVE listener port: " + port);
             }
-            return new ActiveListenerKey(interfaceType, port);
+            return new PassiveListenerKey(interfaceType, port);
         }
     }
 

@@ -11,8 +11,8 @@ public enum EquipmentDesiredState {
     /**
      * 장비를 운영 상태로 유지하려는 목표입니다.
      *
-     * <p>- 설비 ACTIVE  : 게이트웨이 서버 수신 허용 상태</p>
-     * <p>- 설비 PASSIVE : 게이트웨이 아웃바운드 connect/reconnect 대상 상태</p>
+     * <p>- 게이트웨이 ACTIVE  : 게이트웨이 아웃바운드 connect/reconnect 대상 상태</p>
+     * <p>- 게이트웨이 PASSIVE : 게이트웨이 서버 수신(listener) 허용 상태</p>
      */
     STARTED,
 
