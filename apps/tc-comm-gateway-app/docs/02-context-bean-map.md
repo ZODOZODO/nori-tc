@@ -1,4 +1,4 @@
-﻿# 02. Context / Bean 정리 안내서
+# 02. Context / Bean 정리 안내서
 
 ## 문서 목적
 
@@ -48,7 +48,7 @@
 
 대표 파일:
 
-1. `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/TcCommGatewayAutoConfiguration.java`
+1. `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/TcCommGatewayAutoConfiguration.java`
 2. `libs/comm/starter/tc-comm-gateway-starter/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 
 ## 1-3. 코어 (`libs/comm/tc-comm-gateway-core`)
@@ -96,7 +96,7 @@
 
 파일:
 
-- `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayCommConfiguration.java`
+- `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/GatewayCommConfiguration.java`
 
 ## 3-1. 프로퍼티 클래스 활성화
 
@@ -161,7 +161,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 파일:
 
-- `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayProcessingConfiguration.java`
+- `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/GatewayProcessingConfiguration.java`
 
 이 설정은 장비별 큐/메일박스 처리 중심 Bean을 만듭니다.
 
@@ -170,7 +170,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 1. `EquipmentChannelRegistry`
    - 장비별 활성 채널 등록/조회
    - 중복 바인딩 방지 핵심
-2. `EqpMailboxRegistry`
+2. `EquipmentMailboxRegistry`
    - 장비별 mailbox 생성/등록/삭제
    - `BoundedInboundQueue`, `BoundedOutboundQueue` 생성과 연결
 3. `OutboundSenderPort` -> `ChannelBasedOutboundSender`
@@ -178,14 +178,14 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 ## 4-2. 인바운드 처리/라우팅 관련 Bean
 
-1. `InboundPipelinePort` -> `GatewayInboundPipelineRouter`
+1. `InboundPipelinePort` -> `ProtocolInboundPipelineRouter`
 2. `RouteAndPublishUseCase`
 3. `EqpSequentialProcessor`
 
 역할 분담 관점:
 
-1. `GatewayProcessingService`가 큐에 넣음
-2. `EqpProcessingCoordinator`가 mailbox를 돌림
+1. `GatewayIngressService`가 큐에 넣음
+2. `EquipmentProcessingCoordinator`가 mailbox를 돌림
 3. `EqpSequentialProcessor`가 장비 단위 처리 순서를 유지하며 실행
 4. 내부에서 inbound pipeline/router/use case가 동작
 
@@ -230,7 +230,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 ## 5-2. 라이프사이클 상태머신 계층
 
-### `EqpLifecycleStateMachine`
+### `EquipmentLifecycleStateMachine`
 
 역할:
 
@@ -248,12 +248,12 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 출력:
 
-1. `EqpLifecycleOutcome`
-2. `EqpLifecycleOutcomeListener` 호출 (예: UI deferred reply 서비스)
+1. `EquipmentLifecycleOutcome`
+2. `EquipmentLifecycleOutcomeListener` 호출 (예: UI deferred reply 서비스)
 
 ## 5-3. 처리 서비스/코디네이터 계층
 
-### `GatewayProcessingService`
+### `GatewayIngressService`
 
 역할:
 
@@ -268,7 +268,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 1. Netty 핸들러는 최대한 빠르게 빠져나와야 하므로 큐에 넣는 구조가 중요합니다.
 2. Kafka command도 즉시 channel write로 끝내지 않고 공통 큐/메일박스 경로를 타도록 설계되어 있습니다.
 
-### `EqpMailboxRegistry`
+### `EquipmentMailboxRegistry`
 
 역할:
 
@@ -279,7 +279,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 장비별 처리량 제한, backpressure, 순서 보장을 구현하는 핵심 지점입니다.
 
-### `EquipmentContextFactory`
+### `EquipmentRuntimeContextFactory`
 
 역할:
 
@@ -288,7 +288,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 3. socketType 기본값 fallback 적용
 4. HSMS session 관련 설정 구성
 
-### `EqpProcessingCoordinator` (`SmartLifecycle`)
+### `EquipmentProcessingCoordinator` (`SmartLifecycle`)
 
 역할:
 
@@ -298,7 +298,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 요약:
 
-`GatewayProcessingService`가 "입력 큐에 적재"를 담당한다면, `EqpProcessingCoordinator`는 "실제 소비/실행"을 담당합니다.
+`GatewayIngressService`가 "입력 큐에 적재"를 담당한다면, `EquipmentProcessingCoordinator`는 "실제 소비/실행"을 담당합니다.
 
 ## 5-4. UI 이벤트/명령 처리 계층
 
@@ -334,7 +334,7 @@ Netty 핸들러가 받은 raw bytes가 바로 비즈니스 객체가 되는 것�
 
 `EQP_START`, `EQP_END`는 "요청 접수"와 "최종 결과"가 분리됩니다. 이 연결은 상태머신 outcome 기반으로 마무리됩니다.
 
-### `GatewayUiDeferredLifecycleReplyService` (`EqpLifecycleOutcomeListener`)
+### `GatewayUiDeferredLifecycleReplyService` (`EquipmentLifecycleOutcomeListener`)
 
 역할:
 
@@ -406,7 +406,7 @@ START 시 핵심 흐름:
 1. `channelActive`, `channelRead`, `channelInactive` 처리
 2. bind timeout 관리
 3. unbound inbox 버퍼 관리
-4. bind 완료 후 `GatewayProcessingService.enqueueInbound(...)` 연결
+4. bind 완료 후 `GatewayIngressService.enqueueInbound(...)` 연결
 
 핵심 특징:
 
@@ -426,8 +426,8 @@ START 시 핵심 흐름:
 
 1. bind/unbind 시 장비/모드/인터페이스/샤드 검증
 2. `EquipmentChannelRegistry` 바인딩
-3. `GatewayProcessingService.bindMailbox(...)`
-4. `EqpLifecycleStateMachine`에 채널 이벤트 전달
+3. `GatewayIngressService.bindMailbox(...)`
+4. `EquipmentLifecycleStateMachine`에 채널 이벤트 전달
 
 요약:
 
@@ -451,7 +451,7 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
 2. 장비 채널 존재 여부 확인
 3. 인터페이스 타입 분기 (HSMS/SOCKET)
 4. payload 인코딩
-5. `GatewayProcessingService.enqueueOutbound(...)`로 전달
+5. `GatewayIngressService.enqueueOutbound(...)`로 전달
 6. 실패 시 DLQ/Quarantine/disposition 처리
 
 중요:
@@ -469,7 +469,7 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
 3. `KafkaTaskExecutionPipeline`
 4. `GatewayUiTaskProcessorRegistry` (START 처리 스펙)
 5. `GatewayUiRuntimeControlService`
-6. `EqpLifecycleStateMachine.requestStart(...)`
+6. `EquipmentLifecycleStateMachine.requestStart(...)`
 7. `GatewayNettyBootstrap.startRuntimeIfPossible(...)`
 8. Netty 결과가 `EqpBindingService`를 통해 상태머신으로 다시 들어옴
 9. `GatewayUiDeferredLifecycleReplyService`가 outcome 받아 최종 응답 publish
@@ -478,17 +478,17 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
 
 1. `GatewayChannelHandler.channelRead(...)`
 2. (필요 시 bind 시도/성공)
-3. `GatewayProcessingService.enqueueInbound(...)`
-4. `EqpProcessingCoordinator`
+3. `GatewayIngressService.enqueueInbound(...)`
+4. `EquipmentProcessingCoordinator`
 5. `EqpSequentialProcessor`
-6. `GatewayInboundPipelineRouter` -> protocol pipeline -> route/publish
+6. `ProtocolInboundPipelineRouter` -> protocol pipeline -> route/publish
 
 ## 6-3. Kafka `tc.eqp.commands` 메시지가 들어오는 경우
 
 1. `GatewayEqpCommandKafkaSubscriber`
 2. `GatewayCommandDispatcher`
-3. `GatewayProcessingService.enqueueOutbound(...)`
-4. `EqpProcessingCoordinator`
+3. `GatewayIngressService.enqueueOutbound(...)`
+4. `EquipmentProcessingCoordinator`
 5. `ChannelBasedOutboundSender` -> Netty channel write
 
 ## 7. 상태 저장 위치를 구분해서 보는 법 (매우 중요)
@@ -499,7 +499,7 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
    - 장비의 desired/runtime 상태 (도메인/운영 관점)
 2. `EquipmentChannelRegistry`
    - 실제 활성 Netty 채널 매핑 (통신 관점)
-3. `EqpMailboxRegistry`
+3. `EquipmentMailboxRegistry`
    - 장비별 큐/실행 컨텍스트 (처리 관점)
 4. `GatewayNettyBootstrap` 내부 맵
    - reconnect suppress, 연속 실패 카운터, shared listener membership (Netty 제어 관점)
@@ -508,10 +508,10 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
 
 ## 8. 초급 개발자가 자주 하는 이해 오류
 
-1. `GatewayProcessingService`가 모든 비즈니스 로직을 처리한다고 생각함
+1. `GatewayIngressService`가 모든 비즈니스 로직을 처리한다고 생각함
    - 실제로는 큐/메일박스 입구 역할이 큽니다.
 2. `GatewayNettyBootstrap`만 보면 START/END 성공 판정까지 다 알 수 있다고 생각함
-   - 최종 판정은 `EqpLifecycleStateMachine` + outcome listener까지 봐야 합니다.
+   - 최종 판정은 `EquipmentLifecycleStateMachine` + outcome listener까지 봐야 합니다.
 3. UI START 요청 accept 로그를 최종 성공으로 오해함
    - 최종 결과는 deferred reply가 publish될 때 확정됩니다.
 
@@ -519,13 +519,13 @@ Netty 채널 이벤트를 "도메인/상태머신 이벤트"로 변환하는 브
 
 1. `EquipmentContextRegistry`
 2. `EquipmentContextBootstrap`
-3. `EqpLifecycleStateMachine`
+3. `EquipmentLifecycleStateMachine`
 4. `GatewayUiRuntimeControlService`
 5. `GatewayNettyBootstrap`
 6. `EqpBindingService`
 7. `GatewayChannelHandler`
-8. `GatewayProcessingService`
-9. `EqpProcessingCoordinator`
+8. `GatewayIngressService`
+9. `EquipmentProcessingCoordinator`
 10. `GatewayEqpCommandKafkaSubscriber`
 11. `GatewayCommandDispatcher`
 

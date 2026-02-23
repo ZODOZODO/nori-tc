@@ -1,4 +1,4 @@
-﻿# 04. gateway 기준 ACTIVE 이벤트 생명주기 안내서
+# 04. gateway 기준 ACTIVE 이벤트 생명주기 안내서
 
 ## 문서 목적
 
@@ -34,18 +34,18 @@ gateway 기준 `ACTIVE`의 의미:
 ## 2. 관련 핵심 클래스 (먼저 보기)
 
 1. `GatewayUiRuntimeControlService`
-2. `EqpLifecycleStateMachine`
+2. `EquipmentLifecycleStateMachine`
 3. `GatewayNettyBootstrap`
 4. `GatewayChannelHandlerFactory`
 5. `GatewayChannelHandler`
 6. `EqpBindingService`
-7. `GatewayProcessingService`
+7. `GatewayIngressService`
 8. `EquipmentChannelRegistry`
 
 대표 파일 경로:
 
 1. `libs/comm/adapter/tc-comm-gateway-kafka-adapter/src/main/java/com/nori/tc/comm/adapters/kafka/ui/GatewayUiRuntimeControlService.java`
-2. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleStateMachine.java`
+2. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/service/EquipmentLifecycleStateMachine.java`
 3. `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/GatewayNettyBootstrap.java`
 4. `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/GatewayChannelHandler.java`
 5. `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/EqpBindingService.java`
@@ -186,8 +186,8 @@ gateway 기준 ACTIVE 장비의 outbound 채널 bind는 보통 `EqpBindingServic
 
 성공 시:
 
-1. `GatewayProcessingService.bindMailbox(...)`
-2. `EqpLifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND")`
+1. `GatewayIngressService.bindMailbox(...)`
+2. `EquipmentLifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND")`
 
 ## 5-7. 단계 7: 상태머신 `CHANNEL_CONNECTED` 처리 -> START 성공 outcome
 
@@ -279,7 +279,7 @@ connect는 됐지만 bind 단계에서 실패하는 케이스:
 1. `GatewayChannelHandler.channelInactive()`
 2. `EqpBindingService.unbind(channel)`
 3. `EquipmentChannelRegistry` 제거
-4. `GatewayProcessingService.removeMailbox(eqpId)`
+4. `GatewayIngressService.removeMailbox(eqpId)`
 5. 상태머신 `CHANNEL_DISCONNECTED`
 
 상태머신 관점:
@@ -328,7 +328,7 @@ END 요청 후 채널이 끊겼을 때 자동 reconnect가 다시 발생하지 �
 이 과정에서 수행되는 대표 동작:
 
 1. `EquipmentChannelRegistry` 제거
-2. `GatewayProcessingService.removeMailbox(eqpId)`
+2. `GatewayIngressService.removeMailbox(eqpId)`
 3. 상태머신 `runtimeState = DISCONNECTED`
 
 ## 8-4. 단계 4: 상태머신 `END_REQUESTED`와 최종 결과 확정
@@ -382,7 +382,7 @@ ACTIVE와 동일하게 비동기 타이밍에 따라 두 패턴이 모두 가능
 ```mermaid
 sequenceDiagram
     participant UI as GatewayUiRuntimeControlService
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant Netty as GatewayNettyBootstrap
     participant GH as GatewayChannelHandler
     participant BS as EqpBindingService
@@ -404,7 +404,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant UI as GatewayUiRuntimeControlService
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant Netty as GatewayNettyBootstrap
     participant Reply as GatewayUiDeferredLifecycleReplyService
 
@@ -427,7 +427,7 @@ sequenceDiagram
     participant Netty as GatewayNettyBootstrap
     participant GH as GatewayChannelHandler
     participant BS as EqpBindingService
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant Reply as GatewayUiDeferredLifecycleReplyService
 
     UI->>Netty: stopRuntimeIfPossible(eqpId)
@@ -455,7 +455,7 @@ ACTIVE 경로는 재시도 로그가 많아질 수 있으므로 순서 있게 �
 4. `EqpBindingService`
    - `bindActive` 검증 실패 이유
    - `CHANNEL_CONNECTED`, `CHANNEL_DISCONNECTED` 전달 여부
-5. `EqpLifecycleStateMachine`
+5. `EquipmentLifecycleStateMachine`
    - pending / timeout / `START_FAILED` / outcome
 6. `GatewayUiDeferredLifecycleReplyService`
    - 최종 START/END 응답 publish 여부

@@ -1,4 +1,4 @@
-﻿# 06. Kafka `tc.eqp.commands` -> 설비 송신 생명주기 안내서
+# 06. Kafka `tc.eqp.commands` -> 설비 송신 생명주기 안내서
 
 ## 문서 목적
 
@@ -32,8 +32,8 @@
 2. `AbstractGatewayKafkaSubscriber`
 3. `GatewayKafkaContractSupport` (계약 검증 보조)
 4. `GatewayCommandDispatcher`
-5. `GatewayProcessingService`
-6. `EqpProcessingCoordinator`
+5. `GatewayIngressService`
+6. `EquipmentProcessingCoordinator`
 7. `ChannelBasedOutboundSender`
 8. `EquipmentChannelRegistry`
 
@@ -41,8 +41,8 @@
 
 1. `libs/comm/adapter/tc-comm-gateway-kafka-adapter/src/main/java/com/nori/tc/comm/adapters/kafka/subscribe/GatewayEqpCommandKafkaSubscriber.java`
 2. `libs/comm/adapter/tc-comm-gateway-kafka-adapter/src/main/java/com/nori/tc/comm/adapters/kafka/subscribe/GatewayCommandDispatcher.java`
-3. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/comm/GatewayProcessingService.java`
-4. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/processing/EqpProcessingCoordinator.java`
+3. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/application/ingress/GatewayIngressService.java`
+4. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/application/processing/EquipmentProcessingCoordinator.java`
 
 ## 3. 전체 흐름 요약 (한 줄)
 
@@ -223,7 +223,7 @@ SOCKET command 경로에서는 payload 인코딩을 위해 socketType이 필요�
 
 ## 6-7. 단계 7: `OutboundRawFrame` 생성 및 outbound queue 적재
 
-인코딩 성공 후 `GatewayCommandDispatcher`는 `OutboundRawFrame`을 생성하고 `GatewayProcessingService.enqueueOutbound(frame)`를 호출합니다.
+인코딩 성공 후 `GatewayCommandDispatcher`는 `OutboundRawFrame`을 생성하고 `GatewayIngressService.enqueueOutbound(frame)`를 호출합니다.
 
 성공 시:
 
@@ -242,13 +242,13 @@ SOCKET command 경로에서는 payload 인코딩을 위해 socketType이 필요�
 2. quarantine 처리
 3. disposition 실패 기록
 
-## 7. `GatewayProcessingService` 이후: 실제 송신으로 가는 경로
+## 7. `GatewayIngressService` 이후: 실제 송신으로 가는 경로
 
 초급 개발자는 `enqueueOutbound(...)` 이후가 보이지 않아 "여기서 끝났나?"라고 생각하기 쉽습니다. 실제로는 아래 실행 계층이 이어집니다.
 
-## 7-1. `EqpMailboxRegistry`와 장비별 outbound queue
+## 7-1. `EquipmentMailboxRegistry`와 장비별 outbound queue
 
-`GatewayProcessingService.enqueueOutbound(...)`는 장비별 mailbox의 outbound queue에 데이터를 넣습니다.
+`GatewayIngressService.enqueueOutbound(...)`는 장비별 mailbox의 outbound queue에 데이터를 넣습니다.
 
 이 구조의 목적:
 
@@ -256,9 +256,9 @@ SOCKET command 경로에서는 payload 인코딩을 위해 socketType이 필요�
 2. backpressure
 3. 인바운드/아웃바운드 처리 분리
 
-## 7-2. `EqpProcessingCoordinator`
+## 7-2. `EquipmentProcessingCoordinator`
 
-`EqpProcessingCoordinator`는 `SmartLifecycle` 컴포넌트로 장비별 mailbox를 실제로 실행합니다.
+`EquipmentProcessingCoordinator`는 `SmartLifecycle` 컴포넌트로 장비별 mailbox를 실제로 실행합니다.
 
 역할:
 
@@ -350,8 +350,8 @@ DLQ와 quarantine는 둘 다 "정상 처리 실패"이지만 목적이 다릅니
 sequenceDiagram
     participant K as GatewayEqpCommandKafkaSubscriber
     participant D as GatewayCommandDispatcher
-    participant PS as GatewayProcessingService
-    participant PC as EqpProcessingCoordinator
+    participant PS as GatewayIngressService
+    participant PC as EquipmentProcessingCoordinator
     participant S as ChannelBasedOutboundSender
     participant Ch as Netty Channel
 
@@ -402,7 +402,7 @@ sequenceDiagram
 | Kafka는 읽는데 설비로 안 나감 | `GATEWAY_TASK_DISPOSITION` | `NO_ACTIVE_CONNECTION`, `ROUTING_FAILED`, `INVALID_INPUT` |
 | HSMS command가 계속 실패 | `GatewayCommandDispatcher` 분기 | 현재 HSMS business command 미구현 |
 | SOCKET command 인코딩 실패 | `SocketTypeRegistry`, plugin runtime | 잘못된 `socketType`, payload 형식 오류 |
-| enqueueOutbound 실패 | `GatewayProcessingService` / mailbox | queue overflow, 내부 예외 |
+| enqueueOutbound 실패 | `GatewayIngressService` / mailbox | queue overflow, 내부 예외 |
 | 특정 파티션만 안 읽힘 | shard 설정 / invariant checker | `ownedPartitions` 설정 오류, partition 수 불일치 |
 
 ## 12. 초급 개발자가 자주 하는 오해
@@ -424,7 +424,7 @@ sequenceDiagram
 6. 장비 `interfaceType`와 command `interfaceType`가 일치하는가?
 7. SOCKET이면 `socketType`/payload 인코딩이 성공했는가?
 8. `enqueueOutbound(...)`가 성공했는가?
-9. `EqpProcessingCoordinator` outbound drain이 정상 동작하는가?
+9. `EquipmentProcessingCoordinator` outbound drain이 정상 동작하는가?
 10. `ChannelBasedOutboundSender`가 실제 channel write를 수행했는가?
 
 ## 14. 참고: UI SEND_MESSAGE와의 관계

@@ -1,4 +1,4 @@
-﻿# 07. 설정 / 런타임 / 토픽 체크리스트 안내서
+# 07. 설정 / 런타임 / 토픽 체크리스트 안내서
 
 ## 문서 목적
 
@@ -49,7 +49,11 @@
 2. `apps/tc-comm-gateway-app/config/tc-messaging.properties`
 3. `apps/tc-comm-gateway-app/config/tc-redis.properties`
 4. `apps/tc-comm-gateway-app/config/tc-log.properties`
-5. `apps/tc-comm-gateway-app/config/tc-db.properties`
+5. `config/tc-db.properties`
+
+참고:
+
+1. `tc-db.properties`는 앱 하위 폴더가 아니라 저장소 루트 `config/`에 위치하며, `application.yaml`에서 `../../config/tc-db.properties`로 import됩니다.
 
 대략적인 역할:
 
@@ -98,7 +102,7 @@ queue가 너무 작으면 burst 트래픽에서 quarantine/DLQ가 늘어날 수 
 
 역할:
 
-1. `EqpLifecycleStateMachine`의 mailbox/worker/timeout scheduler 설정
+1. `EquipmentLifecycleStateMachine`의 mailbox/worker/timeout scheduler 설정
 2. 기본 timeout 값 제공
 
 대표 체크포인트:
@@ -283,7 +287,7 @@ publish 정책 오류는 "수신은 되는데 이벤트 발행이 기대와 다�
 1. TTL 값이 음수가 아닌지 (`>= 0`)
 2. 운영 요구사항에 맞는 보관 기간인지
 
-## 3-13. `tc.comm.gateway.socket-plugin-runtime` (`GatewaySocketPluginRuntimeProperties`)
+## 3-13. `tc.comm.gateway.plugin-runtime` (`GatewaySocketPluginRuntimeProperties`)
 
 역할:
 
@@ -346,7 +350,7 @@ ACTIVE/PASSIVE 문제는 설정 정합성 문제로 자주 발생합니다.
 
 ## 6. 라이프사이클 timeout 설정 체크리스트
 
-`EqpLifecycleStateMachine` timeout은 실제 네트워크/장비 응답 시간보다 너무 짧으면 안 됩니다.
+`EquipmentLifecycleStateMachine` timeout은 실제 네트워크/장비 응답 시간보다 너무 짧으면 안 됩니다.
 
 추천 점검 항목:
 
@@ -382,7 +386,7 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 3. `tc-comm.properties`의 shard/partition/Netty/lifecycle 값이 환경에 맞는가?
 4. `ownedPartitions`가 운영 인스턴스 구성과 맞게 분배되었는가?
 5. 설비 프로파일의 `connectionMode`, `interfaceType`, IP/port/socketType이 올바른가?
-6. ACTIVE SOCKET 포트 공유 장비들의 `socketType` 충돌이 없는가?
+6. PASSIVE SOCKET 포트 공유 장비들의 `socketType` 충돌이 없는가?
 7. Redis/DB/로그 설정 파일이 누락되지 않았는가?
 
 ## 9. 기동 후 체크리스트 (실전용)
@@ -394,7 +398,7 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 3. enabled 장비 런타임 시작 시도 로그 확인
 4. PASSIVE 장비 listener 생성/재사용 로그 확인
 5. ACTIVE 장비 outbound connect/reconnect 로그 확인
-6. `EqpLifecycleStateMachine` START/END outcome 로그 확인
+6. `EquipmentLifecycleStateMachine` START/END outcome 로그 확인
 7. Kafka subscriber assign/poll 로그 및 lag 메트릭 확인
 8. `GATEWAY_TASK_DISPOSITION` 로그로 command/UI 처리 상태 확인
 
@@ -463,7 +467,7 @@ timeout은 "작을수록 좋다"가 아닙니다. 너무 짧으면 정상 장비
 1. 앱이 기동 자체가 안 됨
    - `application.yaml` import 경로, 프로퍼티 바인딩 오류, Kafka invariant checker
 2. START 요청은 되는데 장비 연결이 안 됨
-   - `GatewayNettyBootstrap`, `EqpLifecycleStateMachine`, ACTIVE/PASSIVE mode 설정
+   - `GatewayNettyBootstrap`, `EquipmentLifecycleStateMachine`, ACTIVE/PASSIVE mode 설정
 3. Kafka command는 읽는데 설비로 안 감
    - `GatewayCommandDispatcher` disposition, 채널 활성 여부, interfaceType/HSMS 미구현 여부
 4. END 후 다시 연결됨

@@ -1,4 +1,4 @@
-﻿# 01. 구동 순서 안내서 (Startup Sequence)
+# 01. 구동 순서 안내서 (Startup Sequence)
 
 ## 문서 목적
 
@@ -24,12 +24,12 @@
 1. 앱 진입점
    - `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/TcCommGatewayApplication.java`
 2. 자동구성
-   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/TcCommGatewayAutoConfiguration.java`
+   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/TcCommGatewayAutoConfiguration.java`
 3. 자동구성 등록
    - `libs/comm/starter/tc-comm-gateway-starter/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 4. 핵심 설정 클래스
-   - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayCommConfiguration.java`
-   - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayProcessingConfiguration.java`
+   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/GatewayCommConfiguration.java`
+   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/GatewayProcessingConfiguration.java`
 
 ## 1. 시작 전체 흐름 요약
 
@@ -70,7 +70,7 @@
 1. `spring.main.web-application-type: none`
    - 웹 서버 기반 앱이 아니라 백그라운드 프로세스 성격
 2. `spring.config.import`로 외부 properties 로딩
-   - `config/tc-db.properties`
+   - `../../config/tc-db.properties`
    - `config/tc-messaging.properties`
    - `config/tc-redis.properties`
    - `config/tc-comm.properties`
@@ -103,7 +103,12 @@ Spring Boot는 다음 파일을 읽어 자동구성 클래스를 찾습니다.
 
 - `libs/comm/starter/tc-comm-gateway-starter/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 
-여기에 `TcCommGatewayAutoConfiguration`가 등록되어 있습니다.
+여기에 gateway 자동구성 클래스가 등록됩니다.
+
+참고 (현재 코드 기준):
+
+1. `AutoConfiguration.imports`에는 `com.nori.tc.comm.gateway.starter.TcCommGatewayAutoConfiguration`가 등록되어 있습니다.
+2. 실제 소스 파일 위치는 `.../starter/autoconfigure/TcCommGatewayAutoConfiguration.java` 입니다.
 
 ### 3-3. `TcCommGatewayAutoConfiguration` 동작 요약
 
@@ -162,7 +167,7 @@ Spring Boot는 다음 파일을 읽어 자동구성 클래스를 찾습니다.
 1. 공통/정책/파이프라인
    - `ClockPort`, `TraceIdGeneratorPort`, `PublishPolicy`, `SocketTypeRegistry`, `HsmsInboundPipeline`, `SocketInboundPipeline`
 2. 처리 계층
-   - `EquipmentChannelRegistry`, `EqpMailboxRegistry`, `OutboundSenderPort`, `InboundPipelinePort`, `RouteAndPublishUseCase`, `EqpSequentialProcessor`
+   - `EquipmentChannelRegistry`, `EquipmentMailboxRegistry`, `OutboundSenderPort`, `InboundPipelinePort`, `RouteAndPublishUseCase`, `EqpSequentialProcessor`
 
 이 Bean들은 이후 Netty/Kafka/UI 경로에서 공통으로 사용됩니다.
 
@@ -197,11 +202,11 @@ Spring은 컨텍스트가 준비되면 `SmartLifecycle` Bean을 `phase` 순서�
 
 확인된 핵심 phase:
 
-1. `EqpLifecycleStateMachine` -> `-100`
+1. `EquipmentLifecycleStateMachine` -> `-100`
 2. `GatewayUiTaskDispatcher` -> `-100`
 3. `GatewayNettyBootstrap` -> `0`
-4. `EqpProcessingCoordinator` -> `0`
-5. Kafka subscribers (`AbstractKafkaConsumerLifecycle` 기반) -> `0`
+4. `EquipmentProcessingCoordinator` -> `0`
+5. Kafka subscribers (`AbstractPolicyDrivenKafkaConsumerLifecycle` 기반) -> `0`
 
 ### 왜 이 순서가 중요한가?
 
@@ -209,7 +214,7 @@ Spring은 컨텍스트가 준비되면 `SmartLifecycle` Bean을 `phase` 순서�
 2. UI dispatcher가 먼저 떠야 UI Kafka 메시지의 비즈니스 처리 경로가 준비됨
 3. Netty/Kafka/Processor는 그 다음에 실제 입출력을 시작
 
-## 5-2. `EqpLifecycleStateMachine.start()`
+## 5-2. `EquipmentLifecycleStateMachine.start()`
 
 상태머신은 장비별 이벤트 직렬 처리를 위한 worker pool / timeout scheduler를 준비합니다.
 
@@ -239,15 +244,15 @@ UI 이벤트 Kafka subscriber 자체는 phase 0이지만, 실제 UI task 처리�
 1. Netty boss/worker event loop 생성
 2. reconnect scheduler 생성
 3. `EquipmentContextRegistry` 스냅샷 조회
-4. enabled 장비 런타임 시작 시도 (`startEnabledRuntimesFromContextRegistry()`)
-5. PASSIVE SOCKET 공유 listener 제약 검증 (포트/소켓타입 충돌 fail-fast)
+4. PASSIVE SOCKET 공유 listener 제약 검증 (포트/소켓타입 충돌 fail-fast)
+5. enabled 장비 런타임 시작 시도 (`startEnabledRuntimesFromContextRegistry()`)
 
 초급 개발자 포인트:
 
 1. 부팅 후 "왜 어떤 장비는 바로 동작하려고 하나요?" -> enabled 장비 자동 시작 시도 때문입니다.
 2. gateway 기준 ACTIVE/PASSIVE에 따라 내부 처리 경로가 다릅니다.
 
-## 5-5. `EqpProcessingCoordinator.start()`
+## 5-5. `EquipmentProcessingCoordinator.start()`
 
 장비별 mailbox를 실제로 실행하는 코디네이터입니다.
 
@@ -257,7 +262,7 @@ UI 이벤트 Kafka subscriber 자체는 phase 0이지만, 실제 UI task 처리�
 2. retry scheduler 생성
 3. inbound/outbound drain 작업 준비
 
-`GatewayProcessingService`가 큐에 넣은 작업을 실제로 소비하는 실행 엔진으로 이해하면 됩니다.
+`GatewayIngressService`가 큐에 넣은 작업을 실제로 소비하는 실행 엔진으로 이해하면 됩니다.
 
 ## 5-6. Kafka subscriber 시작
 
@@ -295,10 +300,10 @@ sequenceDiagram
     participant Boot as Spring Boot
     participant Auto as TcCommGatewayAutoConfiguration
     participant Ctx as Spring Context
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant UI as GatewayUiTaskDispatcher
     participant Netty as GatewayNettyBootstrap
-    participant Proc as EqpProcessingCoordinator
+    participant Proc as EquipmentProcessingCoordinator
     participant Kafka as Kafka Subscribers
     Main->>Boot: run()
     Boot->>Auto: AutoConfiguration import

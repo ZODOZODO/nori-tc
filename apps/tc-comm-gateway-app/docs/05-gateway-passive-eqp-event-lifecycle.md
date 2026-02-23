@@ -1,4 +1,4 @@
-﻿# 05. gateway 기준 PASSIVE 이벤트 생명주기 안내서
+# 05. gateway 기준 PASSIVE 이벤트 생명주기 안내서
 
 ## 문서 목적
 
@@ -35,19 +35,19 @@ gateway 기준 `PASSIVE`의 의미:
 ## 2. 관련 핵심 클래스 (먼저 보기)
 
 1. `GatewayUiRuntimeControlService`
-2. `EqpLifecycleStateMachine`
+2. `EquipmentLifecycleStateMachine`
 3. `GatewayNettyBootstrap`
 4. `GatewayChannelHandlerFactory`
 5. `GatewayChannelHandler`
 6. `BindAttemptExecutor`
 7. `EqpBindingService`
-8. `GatewayProcessingService`
+8. `GatewayIngressService`
 9. `EquipmentChannelRegistry`
 
 대표 파일 경로:
 
 1. `libs/comm/adapter/tc-comm-gateway-kafka-adapter/src/main/java/com/nori/tc/comm/adapters/kafka/ui/GatewayUiRuntimeControlService.java`
-2. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleStateMachine.java`
+2. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/service/EquipmentLifecycleStateMachine.java`
 3. `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/GatewayNettyBootstrap.java`
 4. `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/GatewayChannelHandler.java`
 5. `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/BindAttemptExecutor.java`
@@ -201,7 +201,7 @@ gateway 기준 PASSIVE 장비는 게이트웨이 listener로 들어왔으므로,
 
 1. `eqpId` 추출/유효성 확인
 2. shard ownership 확인
-3. 장비 정보 조회 (`GatewayProcessingService.resolveEquipment`)
+3. 장비 정보 조회 (`GatewayIngressService.resolveEquipment`)
 4. `enabled` 여부 확인
 5. interfaceType 일치 확인
 6. connectionMode 일치 확인 (`PASSIVE`)
@@ -209,8 +209,8 @@ gateway 기준 PASSIVE 장비는 게이트웨이 listener로 들어왔으므로,
 
 성공 시 수행:
 
-1. `GatewayProcessingService.bindMailbox(info, equipmentChannel)`
-2. `EqpLifecycleStateMachine.onChannelConnected(eqpId, ..., "NETTY_BIND")`
+1. `GatewayIngressService.bindMailbox(info, equipmentChannel)`
+2. `EquipmentLifecycleStateMachine.onChannelConnected(eqpId, ..., "NETTY_BIND")`
 
 이 시점에 상태머신은 `CHANNEL_CONNECTED` 이벤트를 받아 START 성공을 확정할 수 있습니다.
 
@@ -326,8 +326,8 @@ gateway 기준 PASSIVE 경로에서의 핵심 동작:
 `EqpBindingService.unbind(...)` 주요 동작:
 
 1. `EquipmentChannelRegistry`에서 채널 제거
-2. `GatewayProcessingService.removeMailbox(eqpId)`
-3. `EqpLifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND")`
+2. `GatewayIngressService.removeMailbox(eqpId)`
+3. `EquipmentLifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND")`
 
 상태머신은 `CHANNEL_DISCONNECTED`를 받아 `runtimeState = DISCONNECTED`로 반영합니다.
 
@@ -401,7 +401,7 @@ gateway 기준 PASSIVE 경로에서의 핵심 동작:
 ```mermaid
 sequenceDiagram
     participant UI as GatewayUiRuntimeControlService
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant Netty as GatewayNettyBootstrap
     participant GH as GatewayChannelHandler
     participant BE as BindAttemptExecutor
@@ -429,7 +429,7 @@ sequenceDiagram
     participant Netty as GatewayNettyBootstrap
     participant GH as GatewayChannelHandler
     participant BS as EqpBindingService
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant Reply as GatewayUiDeferredLifecycleReplyService
 
     UI->>Netty: stopRuntimeIfPossible(eqpId)
@@ -458,7 +458,7 @@ sequenceDiagram
    - `channelActive`, bind timeout, bind 성공/실패, `channelInactive`
 4. `EqpBindingService`
    - bind 검증 실패 이유, `CHANNEL_CONNECTED/DISCONNECTED` 발생 지점
-5. `EqpLifecycleStateMachine`
+5. `EquipmentLifecycleStateMachine`
    - pending, timeout, outcome 성공/실패
 6. `GatewayUiDeferredLifecycleReplyService`
    - START/END 최종 응답 publish 여부

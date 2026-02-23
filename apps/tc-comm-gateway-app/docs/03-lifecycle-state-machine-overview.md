@@ -1,8 +1,8 @@
-﻿# 03. Lifecycle State Machine 공통 안내서
+# 03. Lifecycle State Machine 공통 안내서
 
 ## 문서 목적
 
-이 문서는 `EqpLifecycleStateMachine`를 중심으로 장비 라이프사이클의 공통 개념을 설명합니다.
+이 문서는 `EquipmentLifecycleStateMachine`를 중심으로 장비 라이프사이클의 공통 개념을 설명합니다.
 
 ACTIVE/PASSIVE 상세 문서(`04`, `05`)를 읽기 전에 이 문서를 먼저 읽어야 하는 이유는 다음과 같습니다.
 
@@ -12,11 +12,11 @@ ACTIVE/PASSIVE 상세 문서(`04`, `05`)를 읽기 전에 이 문서를 먼저 �
 
 관련 파일:
 
-1. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleStateMachine.java`
-2. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleEvent.java`
-3. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleTransitionGuard.java`
-4. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleOutcome.java`
-5. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleOutcomeListener.java`
+1. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/service/EquipmentLifecycleStateMachine.java`
+2. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/model/EquipmentLifecycleEvent.java`
+3. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/service/EquipmentLifecycleTransitionGuard.java`
+4. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/model/EquipmentLifecycleOutcome.java`
+5. `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/port/EquipmentLifecycleOutcomeListener.java`
 
 ## 1. 왜 상태머신이 필요한가?
 
@@ -37,14 +37,14 @@ START를 예로 들면 다음 단계가 얽혀 있습니다.
 
 ## 2-1. 상태머신의 책임
 
-`EqpLifecycleStateMachine`는 다음을 책임집니다.
+`EquipmentLifecycleStateMachine`는 다음을 책임집니다.
 
 1. 장비별 이벤트 직렬 처리
 2. `desiredState` / `runtimeState` 갱신
 3. START/END pending 전이 관리
 4. timeout 스케줄링 및 만료 처리
 5. START 실패 외부 신호 처리
-6. outcome 발행 (`EqpLifecycleOutcomeListener`)
+6. outcome 발행 (`EquipmentLifecycleOutcomeListener`)
 
 ## 2-2. 상태머신의 비책임
 
@@ -58,7 +58,7 @@ START를 예로 들면 다음 단계가 얽혀 있습니다.
 
 ## 3. 시작 순서에서의 위치 (phase)
 
-`EqpLifecycleStateMachine`는 `SmartLifecycle`이며 `getPhase() = -100`입니다.
+`EquipmentLifecycleStateMachine`는 `SmartLifecycle`이며 `getPhase() = -100`입니다.
 
 이 설정의 의미:
 
@@ -124,7 +124,7 @@ START/END 요청은 대부분 즉시 완료되지 않습니다. 그래서 상태
 2. 중복/오래된 이벤트(stale) 무시를 위해
 3. UI에 최종 결과를 정확히 보내기 위해
 
-## 6. 이벤트 종류 (`EqpLifecycleEvent`)
+## 6. 이벤트 종류 (`EquipmentLifecycleEvent`)
 
 문서 범위 기준으로 상태머신이 처리하는 핵심 이벤트는 다음과 같습니다.
 
@@ -174,7 +174,7 @@ Netty 제어 계층에서 "더 이상 start를 성공시킬 수 없다고 판단
 
 발생자:
 
-1. `EqpLifecycleStateMachine` 내부 timeout scheduler
+1. `EquipmentLifecycleStateMachine` 내부 timeout scheduler
 
 즉, 상태머신이 스스로 예약하고 스스로 처리하는 보정 이벤트입니다.
 
@@ -222,7 +222,7 @@ END 요청이 들어오면 상태머신은 대략 아래 순서로 처리합니�
 
 1. 장비/샤드/모드/인터페이스 검증
 2. `EquipmentChannelRegistry.tryBind(...)` 성공
-3. `GatewayProcessingService.bindMailbox(...)` 수행
+3. `GatewayIngressService.bindMailbox(...)` 수행
 
 상태머신 처리 핵심:
 
@@ -298,15 +298,15 @@ START 최종 성공 판정의 핵심 지점은 이 이벤트입니다.
 
 오래된 timeout A를 그대로 처리하면 현재 END 흐름을 깨뜨릴 수 있습니다.
 
-`EqpLifecycleTransitionGuard`와 state version/pending 매칭은 이런 오래된 이벤트를 식별하여 무시하도록 도와줍니다.
+`EquipmentLifecycleTransitionGuard`와 state version/pending 매칭은 이런 오래된 이벤트를 식별하여 무시하도록 도와줍니다.
 
 핵심 메시지:
 
 상태머신은 "이 이벤트가 지금도 유효한가?"를 먼저 판단한 뒤 상태를 바꿉니다.
 
-## 14. outcome (`EqpLifecycleOutcome`)와 외부 연동
+## 14. outcome (`EquipmentLifecycleOutcome`)와 외부 연동
 
-상태머신의 최종 출력은 `EqpLifecycleOutcome`입니다.
+상태머신의 최종 출력은 `EquipmentLifecycleOutcome`입니다.
 
 포함되는 주요 정보:
 
@@ -317,7 +317,7 @@ START 최종 성공 판정의 핵심 지점은 이 이벤트입니다.
 5. `stateVersion`
 6. reason (`ALREADY_CONNECTED`, `START_TIMEOUT`, ...)
 
-## 14-1. `EqpLifecycleOutcomeListener`
+## 14-1. `EquipmentLifecycleOutcomeListener`
 
 역할:
 
@@ -336,10 +336,10 @@ START 최종 성공 판정의 핵심 지점은 이 이벤트입니다.
 ```mermaid
 sequenceDiagram
     participant RC as GatewayUiRuntimeControlService
-    participant SM as EqpLifecycleStateMachine
+    participant SM as EquipmentLifecycleStateMachine
     participant Netty as GatewayNettyBootstrap
     participant Bind as EqpBindingService
-    participant OL as EqpLifecycleOutcomeListener
+    participant OL as EquipmentLifecycleOutcomeListener
 
     RC->>SM: START_REQUESTED / END_REQUESTED
     SM->>SM: desired/runtime/pending 갱신 + timeout 예약

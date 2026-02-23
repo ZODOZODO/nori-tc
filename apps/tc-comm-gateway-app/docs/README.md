@@ -1,4 +1,4 @@
-﻿# TC Comm Gateway 안내서
+# TC Comm Gateway 안내서
 
 ## 문서 목적
 
@@ -63,7 +63,7 @@
 2. `02-context-bean-map.md`
    - 주요 Bean 생성 위치, 역할, 의존 관계, 계층(앱/스타터/코어/어댑터)
 3. `03-lifecycle-state-machine-overview.md`
-   - `EqpLifecycleStateMachine`의 이벤트/상태/timeout/pending/outcome 공통 개념
+   - `EquipmentLifecycleStateMachine`의 이벤트/상태/timeout/pending/outcome 공통 개념
 4. `04-gateway-active-eqp-event-lifecycle.md`
    - gateway 기준 ACTIVE(outbound/client) 장비의 START/END/connect/reconnect 생명주기
 5. `05-gateway-passive-eqp-event-lifecycle.md`
@@ -78,12 +78,12 @@
 1. 앱 진입점
    - `apps/tc-comm-gateway-app/src/main/java/com/nori/tc/apps/commgateway/TcCommGatewayApplication.java`
 2. 자동구성
-   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/TcCommGatewayAutoConfiguration.java`
+   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/TcCommGatewayAutoConfiguration.java`
 3. 코어 설정
-   - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayCommConfiguration.java`
-   - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/config/GatewayProcessingConfiguration.java`
+   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/GatewayCommConfiguration.java`
+   - `libs/comm/starter/tc-comm-gateway-starter/src/main/java/com/nori/tc/comm/gateway/starter/autoconfigure/GatewayProcessingConfiguration.java`
 4. 라이프사이클 상태머신
-   - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/EqpLifecycleStateMachine.java`
+   - `libs/comm/tc-comm-gateway-core/src/main/java/com/nori/tc/comm/gateway/lifecycle/service/EquipmentLifecycleStateMachine.java`
 5. Netty 런타임
    - `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/GatewayNettyBootstrap.java`
    - `libs/comm/adapter/tc-comm-gateway-netty-adapter/src/main/java/com/nori/tc/comm/adapters/netty/EqpBindingService.java`
@@ -113,7 +113,7 @@
 
 1. 앱 시작 로그 (`TcCommGatewayApplication`)
 2. Kafka 불변조건 검사 실패 여부 (`GatewayKafkaOperationalInvariantChecker`)
-3. `EqpLifecycleStateMachine` 요청/결과 로그
+3. `EquipmentLifecycleStateMachine` 요청/결과 로그
 4. Netty bind/connect/reconnect 로그
 5. `GATEWAY_TASK_DISPOSITION` 로그 (UI task / COMMAND 흐름)
 
