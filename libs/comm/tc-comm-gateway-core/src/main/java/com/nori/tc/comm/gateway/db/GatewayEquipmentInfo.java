@@ -1,6 +1,5 @@
 package com.nori.tc.comm.gateway.db;
 
-import com.nori.tc.comm.gateway.db.ConnectionMode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 
 /**
