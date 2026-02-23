@@ -25,16 +25,6 @@ public class GatewayNettyProperties {
     private Integer workerThreads;
 
     /**
-     * HSMS passive bind port.
-     */
-    private Integer hsmsBindPort;
-
-    /**
-     * SOCKET passive bind port.
-     */
-    private Integer socketBindPort;
-
-    /**
      * Bind timeout for UNBOUND connections (seconds).
      */
     private Integer bindTimeoutSeconds;
@@ -110,12 +100,6 @@ public class GatewayNettyProperties {
         if (workerThreads == null || workerThreads <= 0) {
             throw new IllegalStateException("tc.comm.gateway.netty.worker-threads must be > 0");
         }
-        if (hsmsBindPort == null || hsmsBindPort <= 0 || hsmsBindPort > 65535) {
-            throw new IllegalStateException("tc.comm.gateway.netty.hsms-bind-port must be 1..65535");
-        }
-        if (socketBindPort == null || socketBindPort <= 0 || socketBindPort > 65535) {
-            throw new IllegalStateException("tc.comm.gateway.netty.socket-bind-port must be 1..65535");
-        }
         if (bindTimeoutSeconds == null || bindTimeoutSeconds <= 0) {
             throw new IllegalStateException("tc.comm.gateway.netty.bind-timeout-seconds must be > 0");
         }
@@ -155,8 +139,8 @@ public class GatewayNettyProperties {
         if (socketEqpIdKey == null || socketEqpIdKey.isBlank()) {
             throw new IllegalStateException("tc.comm.gateway.netty.socket-eqp-id-key is required");
         }
-        log.info("GatewayNettyProperties validated. bossThreads={}, workerThreads={}, hsmsBindPort={}, socketBindPort={}",
-                bossThreads, workerThreads, hsmsBindPort, socketBindPort);
+        log.info("GatewayNettyProperties validated. bossThreads={}, workerThreads={}",
+                bossThreads, workerThreads);
     }
 
     
@@ -201,50 +185,6 @@ public class GatewayNettyProperties {
      */
     public void setWorkerThreads(final int workerThreads) {
         this.workerThreads = workerThreads;
-    }
-
-    
-    /**
-     * 게이트웨이 Netty 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @return 게이트웨이 Netty 어댑터 처리 결과
-     */
-    public int getHsmsBindPort() {
-        return hsmsBindPort;
-    }
-
-    
-    /**
-     * 게이트웨이 Netty 어댑터 설정 값을 반영합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param hsmsBindPort 게이트웨이 Netty 어댑터 처리에 사용하는 입력 값
-     */
-    public void setHsmsBindPort(final int hsmsBindPort) {
-        this.hsmsBindPort = hsmsBindPort;
-    }
-
-    
-    /**
-     * 게이트웨이 Netty 어댑터의 현재 값을 조회합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @return 게이트웨이 Netty 어댑터 처리 결과
-     */
-    public int getSocketBindPort() {
-        return socketBindPort;
-    }
-
-    
-    /**
-     * 게이트웨이 Netty 어댑터 설정 값을 반영합니다.
-     *
-     * <p>채널 상태, 이벤트 루프 컨텍스트, 프레임 처리 규칙을 기준으로 동작합니다.</p>
-     * @param socketBindPort 통신 채널/세션 정보
-     */
-    public void setSocketBindPort(final int socketBindPort) {
-        this.socketBindPort = socketBindPort;
     }
 
     

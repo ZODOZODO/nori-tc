@@ -217,10 +217,12 @@ public class GatewayUiRuntimeControlService {
         final EquipmentRuntimeState runtimeBefore = context.runtimeState();
         lifecycleStateMachine.requestStart(normalizedEqpId, traceId, boundedTimeoutMs);
 
-        if (equipmentInfo.connectionMode() == ConnectionMode.PASSIVE) {
-            connectionControlPort.resumeActiveReconnect(normalizedEqpId);
-            connectionControlPort.connectActiveIfPossible(normalizedEqpId);
-        }
+        /**
+         * 장비 기준 모드(ACTIVE/PASSIVE)에 따라 Netty 런타임 구현체가 적절한 실행 방식을 선택합니다.
+         * - ACTIVE  : 공유 listener 보장
+         * - PASSIVE : 아웃바운드 연결/재연결 시작
+         */
+        connectionControlPort.startRuntimeIfPossible(normalizedEqpId);
 
         log.info(
                 "LIFECYCLE_REQUEST_ACCEPTED. eqpId={}, transition=START, mode={}, traceId={}, timeoutMs={}",
@@ -270,15 +272,40 @@ public class GatewayUiRuntimeControlService {
         final EquipmentRuntimeState runtimeBefore = context.runtimeState();
 
         final EquipmentChannel channel = channelRegistry.get(new EquipmentId(normalizedEqpId));
-        if (channel == null || !channel.isActive()) {
+        final boolean channelActive = channel != null && channel.isActive();
+
+        /**
+         * 장비 기준 PASSIVE는 채널이 없으면 기존 정책대로 "이미 종료됨"으로 간주합니다.
+         * 장비 기준 ACTIVE는 listener만 떠 있고 접속 채널이 없을 수 있으므로 END를 허용합니다.
+         */
+        if (!channelActive && equipmentInfo.connectionMode() == ConnectionMode.PASSIVE) {
             throw new ProcessingException(
                     ErrorCode.EQP_ALREADY_DISCONNECTED,
                     "Equipment channel is already disconnected"
             );
         }
 
-        connectionControlPort.suppressActiveReconnect(normalizedEqpId);
-        channel.close();
+        /**
+         * 통신 런타임 정지:
+         * - ACTIVE  : 공유 listener 멤버십 정리 및 필요 시 listener 종료
+         * - PASSIVE : 자동 재연결 억제
+         */
+        connectionControlPort.stopRuntimeIfPossible(normalizedEqpId);
+
+        /**
+         * 실제 장비 채널 close는 기존 흐름을 유지합니다.
+         * ACTIVE 장비는 아직 연결되지 않았을 수 있으므로 채널 존재 시에만 close 합니다.
+         */
+        if (channelActive) {
+            channel.close();
+        } else if (log.isDebugEnabled()) {
+            log.debug(
+                    "END request accepted without active channel. eqpId={}, mode={}, traceId={}",
+                    normalizedEqpId,
+                    equipmentInfo.connectionMode(),
+                    traceId
+            );
+        }
 
         lifecycleStateMachine.requestEnd(normalizedEqpId, traceId, boundedTimeoutMs);
         log.info(
@@ -342,7 +369,10 @@ public class GatewayUiRuntimeControlService {
                 throw new ProcessingException(ErrorCode.EQP_RUNNING, "Equipment must be ended before delete");
             }
 
-            connectionControlPort.suppressActiveReconnect(normalizedEqpId);
+            /**
+             * 삭제 전에 통신 런타임을 먼저 정리하여 공유 listener/재연결 상태가 남지 않도록 합니다.
+             */
+            connectionControlPort.stopRuntimeIfPossible(normalizedEqpId);
             processingService.removeMailbox(normalizedEqpId);
             contextRegistry.remove(normalizedEqpId, "EQP_DELETE", traceId);
             statePersistencePort.recordDelete(normalizedEqpId, traceId, "UI delete request processed");
@@ -468,12 +498,13 @@ public class GatewayUiRuntimeControlService {
      */
     public void startActiveIfNeeded(final GatewayEquipmentInfo equipmentInfo) {
         Objects.requireNonNull(equipmentInfo, "equipmentInfo is null");
-        if (equipmentInfo.connectionMode() != ConnectionMode.PASSIVE) {
-            return;
-        }
-        connectionControlPort.resumeActiveReconnect(equipmentInfo.equipmentId());
-        connectionControlPort.connectActiveIfPossible(equipmentInfo.equipmentId());
-        log.info("Outbound runtime start requested. eqpId={}", equipmentInfo.equipmentId());
+        /**
+         * 메서드명은 기존 호환을 위해 유지하지만 실제 동작은 모드 공통 시작 요청입니다.
+         */
+        connectionControlPort.startRuntimeIfPossible(equipmentInfo.equipmentId());
+        log.info("Transport runtime start requested. eqpId={}, mode={}",
+                equipmentInfo.equipmentId(),
+                equipmentInfo.connectionMode());
     }
 
     /**

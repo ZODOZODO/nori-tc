@@ -21,6 +21,18 @@ dependencies {
     compileOnly(libs.spring.boot)
     compileOnly(libs.spring.context)
     compileOnly(libs.jakarta.annotation.api)
+
+    /*
+     * 테스트 의존성
+     * - GatewayNettyBootstrap 공유 listener / 아웃바운드 연결 동작 검증
+     * - final 클래스(GatewayChannelHandler) mocking 을 위해 inline mock maker 사용
+     */
+    testImplementation(platform(libs.junit.bom))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.2.0")
+    testImplementation("org.mockito:mockito-inline:5.2.0")
+    testImplementation(libs.spring.context)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
