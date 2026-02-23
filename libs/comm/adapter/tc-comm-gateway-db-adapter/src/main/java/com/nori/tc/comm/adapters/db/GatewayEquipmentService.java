@@ -2,11 +2,11 @@ package com.nori.tc.comm.adapters.db;
 
 import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
-import com.nori.tc.comm.gateway.context.EquipmentContextProfile;
-import com.nori.tc.comm.gateway.context.EquipmentContextProfileProvider;
+import com.nori.tc.comm.gateway.context.model.EquipmentContextProfile;
+import com.nori.tc.comm.gateway.context.port.EquipmentContextProfileProvider;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
 import com.nori.tc.db.core.eqp.store.TcEqpLogStore;

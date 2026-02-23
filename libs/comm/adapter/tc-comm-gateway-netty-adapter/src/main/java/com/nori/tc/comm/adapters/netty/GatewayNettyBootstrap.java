@@ -3,15 +3,15 @@ package com.nori.tc.comm.adapters.netty;
 import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
-import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
-import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
-import com.nori.tc.comm.gateway.context.EquipmentContext;
-import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
+import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.context.model.EquipmentContext;
+import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
-import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.lifecycle.service.EquipmentLifecycleStateMachine;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -69,7 +69,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private final EquipmentContextRegistry equipmentContextRegistry;
     private final GatewayChannelHandlerFactory handlerFactory;
     private final KafkaShardOwnership shardOwnership;
-    private final EqpLifecycleStateMachine lifecycleStateMachine;
+    private final EquipmentLifecycleStateMachine lifecycleStateMachine;
 
     /**
      * Netty 서버/클라이언트 리소스입니다.
@@ -144,7 +144,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             final EquipmentContextRegistry equipmentContextRegistry,
             final GatewayChannelHandlerFactory handlerFactory,
             final KafkaShardOwnership shardOwnership,
-            final EqpLifecycleStateMachine lifecycleStateMachine
+            final EquipmentLifecycleStateMachine lifecycleStateMachine
     ) {
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
         this.socketProperties = Objects.requireNonNull(socketProperties, "socketProperties is null");

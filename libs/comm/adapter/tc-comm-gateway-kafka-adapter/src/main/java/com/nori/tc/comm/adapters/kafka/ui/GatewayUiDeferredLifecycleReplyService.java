@@ -1,8 +1,8 @@
 package com.nori.tc.comm.adapters.kafka.ui;
 
-import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleOutcome;
-import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleOutcomeListener;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.lifecycle.model.EquipmentLifecycleOutcome;
+import com.nori.tc.comm.gateway.lifecycle.port.EquipmentLifecycleOutcomeListener;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>3) 요청 처리 단계에서 실패한 pending은 즉시 정리해 stale 응답을 방지합니다.</p>
  */
 @Service
-public class GatewayUiDeferredLifecycleReplyService implements EqpLifecycleOutcomeListener {
+public class GatewayUiDeferredLifecycleReplyService implements EquipmentLifecycleOutcomeListener {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayUiDeferredLifecycleReplyService.class);
 
@@ -122,7 +122,7 @@ public class GatewayUiDeferredLifecycleReplyService implements EqpLifecycleOutco
      * @param outcome lifecycle 전이 확정 결과
      */
     @Override
-    public void onOutcome(final EqpLifecycleOutcome outcome) {
+    public void onOutcome(final EquipmentLifecycleOutcome outcome) {
         Objects.requireNonNull(outcome, "outcome is null");
         final PendingUiLifecycleReply pending = pendingByEqpId.get(outcome.eqpId());
         if (pending == null) {
@@ -159,7 +159,7 @@ public class GatewayUiDeferredLifecycleReplyService implements EqpLifecycleOutco
             return;
         }
 
-        if (outcome.status() == EqpLifecycleOutcome.Status.APPLIED) {
+        if (outcome.status() == EquipmentLifecycleOutcome.Status.APPLIED) {
             publishPendingResult(
                     pending,
                     KafkaTaskResult.pass(),
@@ -309,7 +309,7 @@ public class GatewayUiDeferredLifecycleReplyService implements EqpLifecycleOutco
      */
     private boolean isMatchingTransition(
             final PendingUiLifecycleReply pending,
-            final EqpLifecycleOutcome outcome
+            final EquipmentLifecycleOutcome outcome
     ) {
         return switch (outcome.transition()) {
             case START -> pending.transitionType() == TransitionType.START;

@@ -1,9 +1,9 @@
 package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.comm.gateway.config.GatewayHsmsProperties;
-import com.nori.tc.comm.gateway.config.GatewayPublishPolicyProperties;
-import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
-import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayHsmsProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayPublishPolicyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayRuntimeProperties;
+import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.eqp.EquipmentProfile;
@@ -62,24 +62,19 @@ public class EquipmentContextFactory {
 
     
     /**
-     * 게이트웨이 코어 모듈 규약에 맞게 데이터를 변환/구성합니다.
+     * 장비 정보와 공유 inbound 큐를 사용하여 런타임 컨텍스트를 생성합니다.
      *
-     * <p>게이트웨이 공통 설정, 런타임 정책, 계측 규칙을 기준으로 처리합니다.</p>
-     * @param info 도메인 데이터 객체
-     * @return 게이트웨이 코어 모듈 처리 결과
-     */
-    public EquipmentRuntimeContext create(final GatewayEquipmentInfo info) {
-        Objects.requireNonNull(info, "info is null");
-
-        final BoundedInboundQueue inboundQueue = new BoundedInboundQueue(runtimeProperties.getInboundQueueCapacity());
-        return create(info, inboundQueue);
-    }
-
-    /**
-     * Create a runtime context with a caller-provided inbound queue.
+     * <p>이 메서드는 {@link EqpMailboxRegistry}가 생성한 bounded inbound 큐를 그대로 받아
+     * mailbox와 runtime context가 동일한 큐 인스턴스를 공유하도록 보장합니다.</p>
      *
-     * This overload exists so EqpMailbox and runtime context can share the
-     * same bounded inbound queue instance.
+     * <p>생성 규칙 요약:</p>
+     * <p>1) DB 장비 정보와 전역 설정(properties)을 조합하여 {@link EquipmentProfile}을 구성합니다.</p>
+     * <p>2) 공통 재조립 버퍼와 태그를 생성합니다.</p>
+     * <p>3) 인터페이스 타입(HSMS/SOCKET)에 따라 적절한 런타임 컨텍스트 구현체를 생성합니다.</p>
+     *
+     * @param info 장비 연결/프로토콜 정보를 포함한 장비 메타 정보
+     * @param inboundQueue mailbox와 공유할 bounded inbound 큐
+     * @return 장비 인터페이스 타입에 맞는 런타임 컨텍스트 구현체
      */
     public EquipmentRuntimeContext create(
             final GatewayEquipmentInfo info,
@@ -124,6 +119,12 @@ public class EquipmentContextFactory {
             final HsmsSessionConfig sessionConfig = hsmsProperties.toSessionConfig(deviceId);
             final HsmsSessionStateMachine sessionStateMachine = new HsmsSessionStateMachine(sessionConfig);
 
+            if (log.isDebugEnabled()) {
+                log.debug("HSMS 런타임 컨텍스트 생성 분기 선택. eqpId={}, deviceId={}, inboundQueueCapacityShared=true",
+                        info.equipmentId(),
+                        deviceId);
+            }
+
             return new GatewayHsmsRuntimeContext(
                     profile,
                     inboundQueue,
@@ -138,6 +139,14 @@ public class EquipmentContextFactory {
                 socketProperties.getMaxFrameBytes(),
                 socketProperties.isAllowEmptyFrame()
         );
+
+        if (log.isDebugEnabled()) {
+            log.debug("SOCKET 런타임 컨텍스트 생성 분기 선택. eqpId={}, socketType={}, maxFrameBytes={}, allowEmptyFrame={}",
+                    info.equipmentId(),
+                    socketType,
+                    socketProperties.getMaxFrameBytes(),
+                    socketProperties.isAllowEmptyFrame());
+        }
 
         return new GatewaySocketRuntimeContext(
                 profile,

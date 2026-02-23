@@ -1,6 +1,6 @@
 package com.nori.tc.comm.gateway.comm;
 
-import com.nori.tc.comm.gateway.config.GatewayRuntimeProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayRuntimeProperties;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.core.eqp.EquipmentRuntimeContext;
 import org.slf4j.Logger;

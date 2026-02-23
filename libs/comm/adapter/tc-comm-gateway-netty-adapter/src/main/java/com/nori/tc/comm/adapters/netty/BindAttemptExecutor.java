@@ -1,7 +1,7 @@
 package com.nori.tc.comm.adapters.netty;
 
-import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

@@ -1,6 +1,6 @@
 package com.nori.tc.comm.gateway.kafka;
 
-import com.nori.tc.comm.gateway.config.GatewayKafkaShardProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayKafkaShardProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

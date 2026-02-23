@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.redis.quarantine;
 
-import com.nori.tc.comm.gateway.config.GatewayRedisProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayRedisProperties;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.port.QuarantinePort;
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;

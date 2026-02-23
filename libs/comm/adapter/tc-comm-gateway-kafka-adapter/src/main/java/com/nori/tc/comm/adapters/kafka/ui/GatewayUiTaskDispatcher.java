@@ -1,10 +1,10 @@
 package com.nori.tc.comm.adapters.kafka.ui;
 
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
-import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
-import com.nori.tc.comm.gateway.metrics.GatewayDisposition;
-import com.nori.tc.comm.gateway.metrics.GatewayDispositionMetrics;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.config.props.GatewayUiTaskPolicyProperties;
+import com.nori.tc.comm.gateway.observability.metrics.GatewayDisposition;
+import com.nori.tc.comm.gateway.observability.metrics.GatewayDispositionMetrics;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.common.mailbox.MailboxScheduler;
 import com.nori.tc.common.mailbox.MailboxTask;
 import com.nori.tc.common.mailbox.execution.MailboxExecutionRuntime;

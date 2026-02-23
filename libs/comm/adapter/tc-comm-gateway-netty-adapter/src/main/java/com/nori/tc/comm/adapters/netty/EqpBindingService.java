@@ -7,8 +7,8 @@ import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
-import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.lifecycle.service.EquipmentLifecycleStateMachine;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +36,7 @@ public class EqpBindingService {
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayProcessingService processingService;
     private final KafkaShardOwnership shardOwnership;
-    private final EqpLifecycleStateMachine lifecycleStateMachine;
+    private final EquipmentLifecycleStateMachine lifecycleStateMachine;
 
     /**
      * 바인딩 서비스 의존 객체를 초기화합니다.
@@ -50,7 +50,7 @@ public class EqpBindingService {
             final EquipmentChannelRegistry channelRegistry,
             final GatewayProcessingService processingService,
             final KafkaShardOwnership shardOwnership,
-            final EqpLifecycleStateMachine lifecycleStateMachine
+            final EquipmentLifecycleStateMachine lifecycleStateMachine
     ) {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.processingService = Objects.requireNonNull(processingService, "processingService is null");

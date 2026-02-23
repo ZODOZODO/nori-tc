@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.ui;
 
-import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayUiTaskPolicyProperties;
 import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
 import com.nori.tc.common.task.execution.pipeline.runtime.KafkaTaskExecutionPipeline;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDeduplicationStore;

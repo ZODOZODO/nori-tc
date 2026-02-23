@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.ui;
 
-import com.nori.tc.comm.gateway.config.GatewayUiTaskPolicyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayUiTaskPolicyProperties;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDeduplicationStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

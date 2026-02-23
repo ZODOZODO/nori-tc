@@ -2,13 +2,13 @@ package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.gateway.comm.ConnectionMode;
 import com.nori.tc.comm.gateway.comm.EquipmentInfoProvider;
-import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
-import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
-import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
+import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
-import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
+import com.nori.tc.comm.gateway.lifecycle.service.EquipmentLifecycleStateMachine;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -80,7 +80,7 @@ class GatewayNettyBootstrapTest {
      * lifecycle 상태머신 모킹 객체입니다.
      */
     @Mock
-    private EqpLifecycleStateMachine lifecycleStateMachine;
+    private EquipmentLifecycleStateMachine lifecycleStateMachine;
 
     /**
      * 테스트 중 생성된 Netty 부트스트랩을 종료하기 위한 참조입니다.

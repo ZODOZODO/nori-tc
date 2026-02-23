@@ -1,11 +1,11 @@
 package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
-import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
-import com.nori.tc.comm.gateway.metrics.GatewayLogSampler;
-import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogSampler;
+import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;

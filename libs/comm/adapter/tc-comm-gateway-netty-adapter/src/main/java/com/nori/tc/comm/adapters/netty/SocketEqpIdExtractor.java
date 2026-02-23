@@ -1,9 +1,9 @@
 package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
-import com.nori.tc.comm.gateway.config.GatewayNettyProperties;
-import com.nori.tc.comm.gateway.config.GatewaySocketProperties;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
+import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeEncodeResult;

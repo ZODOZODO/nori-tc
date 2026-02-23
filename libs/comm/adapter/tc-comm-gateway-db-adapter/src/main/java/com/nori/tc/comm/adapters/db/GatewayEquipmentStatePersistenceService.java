@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.db;
 
-import com.nori.tc.comm.gateway.context.EquipmentStatePersistencePort;
+import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistencePort;
 import com.nori.tc.db.core.eqp.store.TcEqpStateHistStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;

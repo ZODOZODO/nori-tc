@@ -1,9 +1,9 @@
 package com.nori.tc.comm.adapters.redis.dlq;
 
-import com.nori.tc.comm.gateway.config.GatewayRedisProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayRedisProperties;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
-import com.nori.tc.comm.gateway.metrics.GatewayMetrics;
+import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
 import com.nori.tc.comm.core.port.DlqPublisherPort;
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;
 import org.slf4j.Logger;

@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.config;
 
-import com.nori.tc.comm.gateway.config.GatewayKafkaShardProperties;
+import com.nori.tc.comm.gateway.config.props.GatewayKafkaShardProperties;
 import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;

@@ -8,18 +8,18 @@ import com.nori.tc.comm.gateway.comm.EquipmentChannel;
 import com.nori.tc.comm.gateway.comm.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.comm.GatewayConnectionControlPort;
 import com.nori.tc.comm.gateway.comm.GatewayProcessingService;
-import com.nori.tc.comm.gateway.config.GatewayLifecycleProperties;
-import com.nori.tc.comm.gateway.context.EquipmentContext;
-import com.nori.tc.comm.gateway.context.EquipmentContextProfile;
-import com.nori.tc.comm.gateway.context.EquipmentContextProfileProvider;
-import com.nori.tc.comm.gateway.context.EquipmentContextRegistry;
-import com.nori.tc.comm.gateway.context.EquipmentDesiredState;
-import com.nori.tc.comm.gateway.context.EquipmentRuntimeState;
-import com.nori.tc.comm.gateway.context.EquipmentStatePersistencePort;
+import com.nori.tc.comm.gateway.config.props.GatewayLifecycleProperties;
+import com.nori.tc.comm.gateway.context.model.EquipmentContext;
+import com.nori.tc.comm.gateway.context.model.EquipmentContextProfile;
+import com.nori.tc.comm.gateway.context.port.EquipmentContextProfileProvider;
+import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
+import com.nori.tc.comm.gateway.context.model.EquipmentDesiredState;
+import com.nori.tc.comm.gateway.context.model.EquipmentRuntimeState;
+import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistencePort;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
-import com.nori.tc.comm.gateway.lifecycle.EqpLifecycleStateMachine;
-import com.nori.tc.comm.gateway.metrics.GatewayLogContext;
+import com.nori.tc.comm.gateway.lifecycle.service.EquipmentLifecycleStateMachine;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,7 +37,7 @@ import java.util.Objects;
  * <p>핵심 책임:</p>
  * <p>1) CREATE/UPDATE/DELETE/START/END/SEND_MESSAGE 요청의 입력 검증</p>
  * <p>2) 설비 컨텍스트 생성/갱신 및 기본 상태 반영</p>
- * <p>3) 상태머신(EqpLifecycleStateMachine)으로 비동기 전이 요청 전달</p>
+ * <p>3) 상태머신(EquipmentLifecycleStateMachine)으로 비동기 전이 요청 전달</p>
  * <p>4) SEND_MESSAGE를 business command 경로로 변환하여 디스패치</p>
  */
 @Service
@@ -62,7 +62,7 @@ public class GatewayUiRuntimeControlService {
     private final GatewayConnectionControlPort connectionControlPort;
     private final GatewayProcessingService processingService;
     private final GatewayLifecycleProperties lifecycleProperties;
-    private final EqpLifecycleStateMachine lifecycleStateMachine;
+    private final EquipmentLifecycleStateMachine lifecycleStateMachine;
     private final GatewayCommandDispatcher commandDispatcher;
 
     /**
@@ -86,7 +86,7 @@ public class GatewayUiRuntimeControlService {
             final GatewayConnectionControlPort connectionControlPort,
             final GatewayProcessingService processingService,
             final GatewayLifecycleProperties lifecycleProperties,
-            final EqpLifecycleStateMachine lifecycleStateMachine,
+            final EquipmentLifecycleStateMachine lifecycleStateMachine,
             final GatewayCommandDispatcher commandDispatcher
     ) {
         this.contextRegistry = Objects.requireNonNull(contextRegistry, "contextRegistry is null");
