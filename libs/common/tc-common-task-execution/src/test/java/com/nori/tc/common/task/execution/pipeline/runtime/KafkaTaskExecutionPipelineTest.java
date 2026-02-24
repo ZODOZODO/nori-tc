@@ -1,6 +1,6 @@
 package com.nori.tc.common.task.execution.pipeline.runtime;
 
-import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
+import com.nori.tc.common.consumer.runtime.FixedRetryPolicy;
 import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineErrorKeys;
 import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineStage;
 import com.nori.tc.common.task.execution.pipeline.exception.KafkaTaskReplyPublishException;

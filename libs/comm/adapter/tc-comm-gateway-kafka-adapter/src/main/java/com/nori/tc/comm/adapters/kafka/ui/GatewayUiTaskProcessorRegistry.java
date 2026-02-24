@@ -7,8 +7,8 @@ import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistr
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyPublishMode;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskEventType;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskEventType;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;

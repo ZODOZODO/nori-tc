@@ -2,8 +2,8 @@ package com.nori.tc.comm.adapters.kafka.subscribe;
 
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogSampler;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
-import com.nori.tc.messaging.kafka.starter.runtime.AbstractPolicyDrivenKafkaConsumerLifecycle;
-import com.nori.tc.messaging.kafka.starter.runtime.KafkaConsumerRuntimePolicy;
+import com.nori.tc.messaging.kafka.runtime.AbstractPolicyDrivenKafkaConsumerLifecycle;
+import com.nori.tc.messaging.kafka.runtime.KafkaConsumerRuntimePolicy;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

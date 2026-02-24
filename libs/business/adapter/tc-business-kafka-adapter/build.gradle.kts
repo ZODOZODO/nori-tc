@@ -23,13 +23,16 @@ dependencies {
      * Kafka 메시지 처리 흐름(라우팅, 재시도, 응답 발행)을 일관되게 구성합니다.
      */
     implementation(project(":libs:common:tc-common-task-execution"))
-    implementation(project(":libs:common:tc-common-kafka-consumer-runtime"))
 
     /*
      * Kafka 메시지 계약 및 클라이언트 의존성입니다.
      */
     implementation(project(":libs:messaging:tc-messaging-domain"))
-    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
+    /*
+     * Starter 내부 contract 패키지 의존을 제거하고, 분리된 Kafka 계약 모듈을 직접 참조합니다.
+     * 비즈니스 Kafka 어댑터는 현재 runtime 추상 클래스 상속 없이 계약 타입/헤더 유틸리티를 주로 사용합니다.
+     */
+    implementation(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
     implementation(libs.spring.kafka)
     implementation(libs.kafka.clients)
     implementation(libs.jackson.databind)

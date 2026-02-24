@@ -25,8 +25,14 @@ dependencies {
     /*
      * AutoConfiguration에서 직접 사용하는 공통 계약/구현입니다.
      */
-    implementation(project(":libs:common:tc-common-kafka-consumer-runtime"))
+    /*
+     * Starter 구성 코드에서 직접 사용하는 공통 실행/재시도/계약 타입 의존성입니다.
+     * - FixedRetryPolicy 등 재시도 계약은 Kafka SDK 비종속 중립 consumer-runtime 모듈에서 제공합니다.
+     * - KafkaUiTaskMessage는 분리된 tc-messaging-kafka-contract 를 직접 참조합니다.
+     */
+    implementation(project(":libs:common:tc-common-consumer-runtime"))
     implementation(project(":libs:common:tc-common-task-execution"))
+    implementation(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
     implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
     implementation(libs.jackson.databind)
 

@@ -5,7 +5,7 @@ import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDlqReporter;
 import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineStage;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

@@ -1,7 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskMessageAccessor;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.springframework.stereotype.Component;
 
 /**

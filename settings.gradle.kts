@@ -108,6 +108,13 @@ project(":libs:messaging:tc-messaging-domain").projectDir = file("libs/messaging
 include(":libs:messaging:tc-messaging-core")
 project(":libs:messaging:tc-messaging-core").projectDir = file("libs/messaging/tc-messaging-core")
 
+// [Kafka Shared] Kafka 전용 공통 계약/런타임 (Business/Comm Kafka Adapter 재사용)
+include(":libs:messaging:kafka:tc-messaging-kafka-contract")
+project(":libs:messaging:kafka:tc-messaging-kafka-contract").projectDir = file("libs/messaging/kafka/tc-messaging-kafka-contract")
+
+include(":libs:messaging:kafka:tc-messaging-kafka-runtime")
+project(":libs:messaging:kafka:tc-messaging-kafka-runtime").projectDir = file("libs/messaging/kafka/tc-messaging-kafka-runtime")
+
 // [Adapter] 실제 메시징 기술 구현체 (Implementation)
 include(":libs:messaging:adapter:tc-messaging-kafka")
 project(":libs:messaging:adapter:tc-messaging-kafka").projectDir = file("libs/messaging/adapter/tc-messaging-kafka")
@@ -188,6 +195,10 @@ project(":libs:log:starter:tc-log-starter").projectDir = file("libs/log/starter/
 
 include(":libs:common:tc-common-mailbox")
 project(":libs:common:tc-common-mailbox").projectDir = file("libs/common/tc-common-mailbox")
+
+// [Neutral Consumer Runtime] Kafka 타입을 직접 노출하지 않는 중립 소비 런타임 공용 모듈
+include(":libs:common:tc-common-consumer-runtime")
+project(":libs:common:tc-common-consumer-runtime").projectDir = file("libs/common/tc-common-consumer-runtime")
 
 include(":libs:common:tc-common-kafka-consumer-runtime")
 project(":libs:common:tc-common-kafka-consumer-runtime").projectDir = file("libs/common/tc-common-kafka-consumer-runtime")

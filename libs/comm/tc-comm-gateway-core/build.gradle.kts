@@ -35,10 +35,9 @@ dependencies {
     implementation(project(":libs:common:tc-common-mailbox"))
 
     /*
-     * Kafka 유틸리티
-     * - 파티션/샤드 계산 및 메타데이터 조회 시 사용
+     * 코어 계층의 샤드 계산은 Kafka 호환 알고리즘을 순수 Java로 유지하므로
+     * Kafka SDK 의존성을 직접 갖지 않습니다.
      */
-    implementation(libs.kafka.clients)
 
     /*
      * Spring 컴파일 의존성
@@ -49,6 +48,14 @@ dependencies {
     compileOnly(libs.spring.context)
     compileOnly(libs.jakarta.annotation.api)
     annotationProcessor(libs.spring.boot.configuration.processor)
+
+    /*
+     * 아키텍처 가드 테스트(코어 계층 Kafka import 금지 검증)용 JUnit 의존성입니다.
+     * 런타임 산출물에는 포함되지 않으며 테스트 스코프에만 제한됩니다.
+     */
+    testImplementation(platform(libs.junit.bom))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {

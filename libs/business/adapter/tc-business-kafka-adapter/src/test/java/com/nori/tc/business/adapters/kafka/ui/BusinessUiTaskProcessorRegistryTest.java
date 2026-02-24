@@ -7,7 +7,7 @@ import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeMutationPort;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskProcessorSpec;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskReplyStatus;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

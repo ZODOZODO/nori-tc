@@ -1,6 +1,6 @@
 package com.nori.tc.comm.adapters.kafka.config;
 
-import com.nori.tc.messaging.kafka.starter.contract.KafkaTopicProperties;
+import com.nori.tc.messaging.kafka.contract.KafkaTopicProperties;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

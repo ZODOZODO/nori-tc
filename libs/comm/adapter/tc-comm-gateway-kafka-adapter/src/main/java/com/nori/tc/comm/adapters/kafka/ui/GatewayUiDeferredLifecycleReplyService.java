@@ -5,7 +5,7 @@ import com.nori.tc.comm.gateway.lifecycle.port.EquipmentLifecycleOutcomeListener
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

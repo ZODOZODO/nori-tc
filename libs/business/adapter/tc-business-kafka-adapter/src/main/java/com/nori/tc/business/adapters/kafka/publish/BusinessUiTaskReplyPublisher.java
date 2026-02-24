@@ -4,9 +4,9 @@ import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaHeaderSupport;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskReplyMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaHeaderSupport;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

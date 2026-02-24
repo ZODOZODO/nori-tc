@@ -1,7 +1,7 @@
 package com.nori.tc.common.task.execution.policy.runtime;
 
-import com.nori.tc.common.kafka.processing.RetryDecision;
-import com.nori.tc.common.kafka.processing.RetryPolicy;
+import com.nori.tc.common.consumer.runtime.RetryDecision;
+import com.nori.tc.common.consumer.runtime.RetryPolicy;
 import com.nori.tc.common.task.execution.policy.dlq.DlqRecordFactory;
 import com.nori.tc.common.task.execution.policy.types.DlqRecord;
 import com.nori.tc.common.task.execution.policy.types.TaskFailureCategory;

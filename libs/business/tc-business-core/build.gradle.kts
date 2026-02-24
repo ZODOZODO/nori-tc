@@ -29,13 +29,17 @@ dependencies {
      * 공통 실행 알고리즘(mailbox/consumer-runtime/task-execution)을 조합합니다.
      */
     implementation(project(":libs:common:tc-common-mailbox"))
-    implementation(project(":libs:common:tc-common-kafka-consumer-runtime"))
+    /*
+     * ACK/커밋 추적 알고리즘은 Kafka SDK 비종속 중립 모듈을 직접 사용합니다.
+     * 재시도 정책(FixedRetryPolicy/RetryPolicy)도 동일 중립 모듈 계약으로 통일합니다.
+     */
+    implementation(project(":libs:common:tc-common-consumer-runtime"))
     implementation(project(":libs:common:tc-common-task-execution"))
 
     /*
-     * 코어 엔진에서 사용하는 Kafka/JSON 의존성입니다.
+     * 코어 엔진은 Kafka SDK 타입을 직접 사용하지 않으므로 Kafka 클라이언트 의존성을 두지 않습니다.
+     * 브로커 전용 타입 변환/커밋 적용 책임은 Kafka adapter/runtime 계층으로 이동합니다.
      */
-    implementation(libs.kafka.clients)
     implementation(libs.jackson.databind)
 
     /*

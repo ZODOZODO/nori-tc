@@ -1,0 +1,107 @@
+package com.nori.tc.business.adapters.kafka.architecture;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
+
+/**
+ * `tc-business-kafka-adapter` 모듈의 아키텍처 경계를 검증하는 가드 테스트입니다.
+ *
+ * <p>핵심 규칙:</p>
+ * <p>1) Kafka adapter는 `tc-messaging-kafka-starter` 내부 패키지에 의존하지 않습니다.</p>
+ * <p>2) 재사용이 필요한 타입은 분리된 `contract`/`runtime` 모듈에서만 가져와야 합니다.</p>
+ */
+class BusinessKafkaAdapterArchitectureGuardTest {
+
+    /**
+     * 메인/테스트 소스 모두에서 `com.nori.tc.messaging.kafka.starter.*` import 금지 규칙을 검증합니다.
+     *
+     * @throws IOException 파일 순회/읽기 실패 시 예외
+     */
+    @Test
+    void sourcesShouldNotImportMessagingKafkaStarterInternalPackages() throws IOException {
+        final List<String> violations = new ArrayList<>();
+        violations.addAll(collectForbiddenTokenViolations(
+                Path.of("src", "main", "java"),
+                List.of("import com.nori.tc.messaging.kafka.starter.")
+        ));
+        violations.addAll(collectForbiddenTokenViolations(
+                Path.of("src", "test", "java"),
+                List.of("import com.nori.tc.messaging.kafka.starter.")
+        ));
+
+        Assertions.assertTrue(
+                violations.isEmpty(),
+                () -> "tc-business-kafka-adapter 에 starter 내부 패키지 import가 남아 있습니다."
+                        + System.lineSeparator()
+                        + String.join(System.lineSeparator(), violations)
+        );
+    }
+
+    /**
+     * Java 소스 루트에서 금지 토큰 포함 라인을 수집합니다.
+     *
+     * @param sourceRoot 검사 루트
+     * @param forbiddenTokens 금지 토큰 목록
+     * @return 위반 목록
+     * @throws IOException 파일 순회 실패 시 예외
+     */
+    private static List<String> collectForbiddenTokenViolations(
+            final Path sourceRoot,
+            final List<String> forbiddenTokens
+    ) throws IOException {
+        final List<String> violations = new ArrayList<>();
+        if (Files.notExists(sourceRoot)) {
+            return violations;
+        }
+
+        try (Stream<Path> files = Files.walk(sourceRoot)) {
+            files.filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .forEach(path -> scanFile(sourceRoot, path, forbiddenTokens, violations));
+        }
+        return violations;
+    }
+
+    /**
+     * 단일 Java 파일을 UTF-8로 읽고 금지 토큰 포함 라인을 위반 목록에 누적합니다.
+     *
+     * @param sourceRoot 상대 경로 기준 루트
+     * @param file 검사 대상 파일
+     * @param forbiddenTokens 금지 토큰 목록
+     * @param violations 누적 위반 목록
+     */
+    private static void scanFile(
+            final Path sourceRoot,
+            final Path file,
+            final List<String> forbiddenTokens,
+            final List<String> violations
+    ) {
+        try {
+            final List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            for (int i = 0; i < lines.size(); i++) {
+                final String line = lines.get(i);
+                for (String token : forbiddenTokens) {
+                    final String trimmedLine = line.stripLeading();
+                    final boolean matched = token.startsWith("import ")
+                            ? trimmedLine.startsWith(token)
+                            : line.contains(token);
+                    if (matched) {
+                        violations.add(sourceRoot.relativize(file) + ":" + (i + 1) + " -> " + line.trim());
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("소스 파일 읽기 실패: " + file, ex);
+        }
+    }
+}

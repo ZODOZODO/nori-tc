@@ -7,7 +7,7 @@ import com.nori.tc.business.core.messaging.BusinessEqpCommandMessage;
 import com.nori.tc.business.core.messaging.BusinessEqpCommandPublishPort;
 import com.nori.tc.messaging.domain.kafka.contract.TcCommonKafkaMetadata;
 import com.nori.tc.messaging.domain.kafka.contract.TcKafkaEnvelope;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaHeaderSupport;
+import com.nori.tc.messaging.kafka.contract.KafkaHeaderSupport;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

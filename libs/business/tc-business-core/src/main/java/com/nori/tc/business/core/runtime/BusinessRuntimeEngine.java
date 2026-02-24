@@ -14,11 +14,12 @@ import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionExecu
 import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowFilterEvaluationException;
 import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowMatchResult;
 import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowMatcher;
-import com.nori.tc.common.kafka.processing.AckEvent;
-import com.nori.tc.common.kafka.processing.AckQueue;
-import com.nori.tc.common.kafka.processing.AckStatus;
-import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
-import com.nori.tc.common.kafka.processing.PartitionCommitCoordinator;
+import com.nori.tc.common.consumer.runtime.AckEvent;
+import com.nori.tc.common.consumer.runtime.AckQueue;
+import com.nori.tc.common.consumer.runtime.AckStatus;
+import com.nori.tc.common.consumer.runtime.ConsumerPartition;
+import com.nori.tc.common.consumer.runtime.PartitionCommitCoordinator;
+import com.nori.tc.common.consumer.runtime.FixedRetryPolicy;
 import com.nori.tc.common.mailbox.MailboxScheduler;
 import com.nori.tc.common.mailbox.execution.MailboxExecutionRuntime;
 import com.nori.tc.common.task.execution.policy.dlq.TaskDlqRecordFactory;
@@ -30,8 +31,6 @@ import com.nori.tc.common.task.execution.policy.types.TaskHandlingAction;
 import com.nori.tc.common.task.execution.policy.types.TaskHandlingDecision;
 import com.nori.tc.common.task.execution.policy.timeout.TaskTimeoutExceededException;
 import com.nori.tc.common.task.execution.policy.timeout.TimeoutBoundRunner;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -385,7 +384,12 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                     continue;
                 }
 
-                final TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
+                /*
+                 * 코어 계층은 Kafka SDK 타입을 직접 사용하지 않습니다.
+                 * 토픽/파티션 식별은 중립 값 객체(ConsumerPartition)로 관리하고,
+                 * 실제 Kafka 커밋 타입 변환은 Kafka adapter/runtime 계층에서 수행합니다.
+                 */
+                final ConsumerPartition topicPartition = new ConsumerPartition(record.topic(), record.partition());
                 topicRuntime.commitCoordinator().registerPartitionIfAbsent(topicPartition, record.offset());
 
                 final BusinessMailboxTask task = new BusinessMailboxTask(record, 1);
@@ -421,7 +425,11 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
             topicRuntime.commitCoordinator().applyAck(ackEvent);
         }
 
-        final Map<TopicPartition, OffsetAndMetadata> commitOffsets = topicRuntime.commitCoordinator().collectCommitOffsets();
+        /*
+         * 커밋 준비 결과는 Kafka 타입이 아닌 중립 커밋 계획(Map<ConsumerPartition, Long>)으로 유지합니다.
+         * 코어는 "어떤 파티션을 어디까지 전진 가능한지"만 판단하고, 브로커 전용 타입 변환 책임은 가지지 않습니다.
+         */
+        final Map<ConsumerPartition, Long> commitOffsets = topicRuntime.commitCoordinator().collectCommitOffsets();
         if (!commitOffsets.isEmpty() && log.isDebugEnabled()) {
             log.debug("Prepared commit offsets. topic={}, offsets={}", topicRuntime.topicName(), commitOffsets);
         }

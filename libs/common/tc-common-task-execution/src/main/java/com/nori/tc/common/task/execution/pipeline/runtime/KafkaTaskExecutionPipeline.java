@@ -1,7 +1,7 @@
 package com.nori.tc.common.task.execution.pipeline.runtime;
 
-import com.nori.tc.common.kafka.processing.RetryDecision;
-import com.nori.tc.common.kafka.processing.RetryPolicy;
+import com.nori.tc.common.consumer.runtime.RetryDecision;
+import com.nori.tc.common.consumer.runtime.RetryPolicy;
 import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineErrorKeys;
 import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineReasonKeys;
 import com.nori.tc.common.task.execution.pipeline.constants.KafkaTaskPipelineStage;

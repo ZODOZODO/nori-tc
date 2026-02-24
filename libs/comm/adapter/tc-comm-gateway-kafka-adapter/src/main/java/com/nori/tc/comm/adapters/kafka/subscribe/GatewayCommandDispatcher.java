@@ -24,7 +24,7 @@ import com.nori.tc.comm.gateway.socket.plugin.spi.GatewaySocketPluginRuntimeProv
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeEncodeResult;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
-import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
+import com.nori.tc.common.consumer.runtime.FixedRetryPolicy;
 import com.nori.tc.common.task.execution.policy.dlq.TaskDlqRecordFactory;
 import com.nori.tc.common.task.execution.policy.runtime.TaskHandlingPolicyEvaluator;
 import com.nori.tc.common.task.execution.policy.types.DlqRecord;

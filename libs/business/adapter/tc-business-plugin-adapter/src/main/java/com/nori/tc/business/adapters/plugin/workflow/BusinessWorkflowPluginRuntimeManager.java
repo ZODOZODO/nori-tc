@@ -1,4 +1,4 @@
-package com.nori.tc.business.adapters.plugin.workflow;
+﻿package com.nori.tc.business.adapters.plugin.workflow;
 
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
@@ -38,16 +38,17 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 /**
- * ?ㅻ퉬蹂??뚮윭洹몄씤 ?고???愿由ъ옄?낅땲??
+ * 설비(`eqpId`)별 워크플로우 플러그인 런타임을 관리하는 매니저입니다.
  *
- * <p>??븷:</p>
- * <p>1) tc_jar_business?먯꽌 JAR 諛붿씠?덈━瑜??쎌뼱 ClassLoader濡?濡쒕뵫</p>
- * <p>2) Executor(@TcAction) ?ㅼ틪 ???≪뀡 ?덉??ㅽ듃由?援ъ꽦</p>
- * <p>3) 寃利??깃났 ??eqpId 湲곗??쇰줈 plugin runtime ?먯옄??atomic) ?ㅼ솑</p>
+ * <p>주요 책임:</p>
+ * <p>1) `tc_jar_business`에 저장된 JAR 바이트를 임시 파일로 기록하고 `ClassLoader`를 생성합니다.</p>
+ * <p>2) 플러그인 JAR에서 Executor 구현체를 탐색하여 액션 레지스트리를 구성합니다.</p>
+ * <p>3) `eqpId -> PluginRuntime` 맵을 CAS 방식으로 원자 교체하여 동시성 안전성을 보장합니다.</p>
  *
- * <p>Step 14 ?뺤옣:</p>
- * <p>- 湲곕룞 ??plugin runtime preload 吏??/p>
- * <p>- preload fail-fast ?뺤콉/?섏씠吏 議고쉶 ?ш린 ?ㅼ젙 吏??/p>
+ * <p>운영 기능:</p>
+ * <p>- 기동 시 preload</p>
+ * <p>- 설비 단위 reload/remove</p>
+ * <p>- 실패 시 기존 런타임 보존 및 상세 로깅</p>
  */
 @Component
 public class BusinessWorkflowPluginRuntimeManager
@@ -56,27 +57,29 @@ public class BusinessWorkflowPluginRuntimeManager
     private static final Logger log = LoggerFactory.getLogger(BusinessWorkflowPluginRuntimeManager.class);
 
     /**
-     * 由щ줈???쒖옉 ?쒖? 濡쒓렇 ?대깽?몃챸?낅땲??
+     * 플러그인 리로드 시작 이벤트를 식별하기 위한 로그 상수입니다.
      */
     private static final String RELOAD_EVENT_STARTED = "PLUGIN_RELOAD_STARTED";
 
     /**
-     * 由щ줈???곸슜 ?꾨즺 ?쒖? 濡쒓렇 ?대깽?몃챸?낅땲??
+     * 플러그인 리로드 결과가 적용(업서트/삭제 포함)되었음을 나타내는 로그 상수입니다.
      */
     private static final String RELOAD_EVENT_APPLIED = "PLUGIN_RELOAD_APPLIED";
 
     /**
-     * 由щ줈??濡ㅻ갚 ?쒖? 濡쒓렇 ?대깽?몃챸?낅땲??
+     * 플러그인 리로드 도중 예외가 발생하여 기존 상태를 유지한 경우 사용하는 로그 상수입니다.
      */
     private static final String RELOAD_EVENT_ROLLED_BACK = "PLUGIN_RELOAD_ROLLED_BACK";
 
     /**
-     * jar ?뚯씪紐낆씠 鍮꾩뼱 ?덉쓣 ???ъ슜??湲곕낯紐낆엯?덈떎.
+     * DB에 저장된 JAR 파일명이 비어 있을 때 사용하는 기본 파일명입니다.
      */
     private static final String DEFAULT_PLUGIN_JAR_FILE_NAME = "workflow-plugin.jar";
 
     /**
-     * ?뚮윭洹몄씤 JAR ?꾩떆 ?뚯씪????ν븷 猷⑦듃 ?붾젆?곕━?낅땲??
+     * 플러그인 JAR 임시 파일을 저장하는 루트 디렉터리입니다.
+     *
+     * <p>OS 임시 디렉터리 하위의 고정 경로를 사용하여 디버깅 및 정리 작업을 단순화합니다.</p>
      */
     private static final Path PLUGIN_TEMP_ROOT = Path.of(
             System.getProperty("java.io.tmpdir"),
@@ -84,23 +87,33 @@ public class BusinessWorkflowPluginRuntimeManager
             "business-plugin-runtime"
     );
 
+    /**
+     * 설비 메타데이터(`tc_eqp`)를 조회하는 저장소입니다.
+     */
     private final TcEqpStore eqpStore;
+    /**
+     * 설비별 플러그인 JAR(`tc_jar_business`)을 조회하는 저장소입니다.
+     */
     private final TcJarBusinessStore jarBusinessStore;
+    /**
+     * 플러그인 런타임 동작 정책 설정값입니다.
+     */
     private final BusinessWorkflowPluginRuntimeProperties properties;
 
     /**
-     * eqpId -> PluginRuntime 留ㅽ븨 ?ㅻ깄?룹엯?덈떎.
+     * 현재 활성화된 플러그인 런타임 스냅샷(`eqpId -> PluginRuntime`)을 보관합니다.
      *
-     * <p>??긽 遺덈? 留?Map.copyOf)?쇰줈 ??ν븯硫? 媛깆떊? ?먯옄?곸쑝濡?援먯껜?⑸땲??</p>
+     * <p>읽기는 불변 맵을 그대로 조회하여 락 없이 수행하고,</p>
+     * <p>쓰기는 복사본 생성 후 CAS(`compareAndSet`)로 교체하는 copy-on-write 전략을 사용합니다.</p>
      */
     private final AtomicReference<Map<String, PluginRuntime>> runtimeByEqpIdRef = new AtomicReference<>(Map.of());
 
     /**
-     * ?뚮윭洹몄씤 ?고???愿由ъ옄 ?섏〈?깆쓣 二쇱엯諛쏆뒿?덈떎.
+     * 플러그인 런타임 매니저를 생성합니다.
      *
-     * @param eqpStore eqp 議고쉶 store
-     * @param jarBusinessStore business jar store
-     * @param properties plugin runtime properties
+     * @param eqpStore 설비 메타데이터 조회 저장소
+     * @param jarBusinessStore 설비별 플러그인 JAR 조회 저장소
+     * @param properties 플러그인 런타임 정책 설정
      */
     public BusinessWorkflowPluginRuntimeManager(
             final TcEqpStore eqpStore,
@@ -113,7 +126,10 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?좏뵆由ъ??댁뀡 湲곕룞 吏곹썑 preload ?뺤콉???섑뻾?⑸땲??
+     * 애플리케이션 기동 직후 플러그인 런타임 preload를 수행합니다.
+     *
+     * <p>`loadOnStartup=false`면 preload를 생략합니다.</p>
+     * <p>preload 실패 시 `failFastOnStartup=true`이면 예외를 재전파하여 기동 실패로 처리합니다.</p>
      */
     @PostConstruct
     public void initialize() {
@@ -133,9 +149,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?좏뵆由ъ??댁뀡 醫낅즺 ???뚮윭洹몄씤 ?고???由ъ냼?ㅻ? ?뺣━?⑸땲??
+     * 애플리케이션 종료 시 모든 플러그인 런타임 자원을 정리합니다.
      *
-     * <p>URLClassLoader/?꾩떆 JAR ?뚯씪???꾩쟻?섏? ?딅룄濡? 醫낅즺 ?쒖젏??     * ?꾩껜 ?고????ㅻ깄?룹쓣 鍮꾩슦怨??먯썝???レ뒿?덈떎.</p>
+     * <p>런타임 맵을 먼저 빈 스냅샷으로 교체한 뒤 기존 `URLClassLoader`와 임시 JAR 파일을 정리합니다.</p>
      */
     @PreDestroy
     public void shutdown() {
@@ -146,9 +162,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * findRegistryByEqpId 湲곕뒫???섑뻾?⑸땲??
+     * 설비 ID에 해당하는 플러그인 액션 레지스트리를 조회합니다.
      *
-     * @param eqpId ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * <p>입력값을 trim 후 사용하며, 유효하지 않거나 런타임이 없으면 `Optional.empty()`를 반환합니다.</p>
+     *
+     * @param eqpId 설비 식별자
+     * @return 플러그인 액션 레지스트리 조회 결과
      */
 
     @Override
@@ -165,9 +184,13 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * reloadByEqpId 湲곕뒫???섑뻾?⑸땲??
+     * 특정 설비의 플러그인 런타임을 다시 로드합니다.
      *
-     * @param eqpId ?낅젰 媛?     */
+     * <p>JAR이 없으면 기존 플러그인 런타임을 제거하여 코어 레지스트리 fallback이 가능하도록 합니다.</p>
+     * <p>JAR이 있으면 새 런타임을 검증/생성한 뒤 원자적으로 교체합니다.</p>
+     *
+     * @param eqpId 리로드 대상 설비 ID
+     */
 
     @Override
     public void reloadByEqpId(final String eqpId) {
@@ -188,9 +211,8 @@ public class BusinessWorkflowPluginRuntimeManager
         final TcJarBusiness jarBusiness = jarBusinessStore.findByEqpKey(eqp.eqpKey()).orElse(null);
         if (jarBusiness == null || jarBusiness.jarFile() == null || jarBusiness.jarFile().length == 0) {
             /*
-             * Phase 3 "?≪뀡 ??젣 fallback" 洹쒖튃:
-             * - JAR ?됱씠 ??젣?섏뿀嫄곕굹 ?뚯씪??鍮꾩뼱 ?덉쑝硫??뚮윭洹몄씤 ?고??꾩쓣 ?쒓굅?⑸땲??
-             * - ?댄썑 ?ㅽ뻾湲곕뒗 core registry留??ъ슜?섍쾶 ?섏뼱 ?먮룞 fallback ?⑸땲??
+             * JAR이 삭제되었거나 비어 있으면 기존 플러그인 런타임을 제거합니다.
+             * 이후 호출부는 코어 레지스트리 fallback 경로를 사용하게 됩니다.
              */
             removeRuntimeByEqpId(normalizedEqpId, "JAR_ABSENT_OR_EMPTY");
             return;
@@ -213,8 +235,8 @@ public class BusinessWorkflowPluginRuntimeManager
             );
         } catch (RuntimeException ex) {
             /*
-             * build/swap ?덉쇅 ??湲곗〈 runtime? ?좎??⑸땲??
-             * (swap ?댁쟾 ?ㅽ뙣, ?먮뒗 CAS 援먯껜 ?ㅽ뙣 ?ъ떆??以??덉쇅 ?놁쓬)
+             * build/swap 중 예외가 발생한 경우 현재 맵 상태를 다시 확인하여
+             * 기존 런타임이 유지되었는지 운영 로그로 남깁니다.
              */
             final boolean runtimePreserved = runtimeByEqpIdRef.get().containsKey(normalizedEqpId);
             logReloadRolledBack(normalizedEqpId, runtimePreserved, ex);
@@ -223,12 +245,11 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뱀젙 eqpId???뚮윭洹몄씤 ?고??꾩쓣 ?쒓굅?⑸땲??
+     * 특정 설비의 플러그인 런타임을 강제로 제거합니다.
      *
-     * <p>UI EQP_DELETE 泥섎━ 寃쎈줈?먯꽌 ?몄텧?섎ŉ,
-     * ?대? ?고??꾩씠 ?녿뒗 寃쎌슦?먮뒗 ?덉쇅 ?놁씠 臾댁떆?⑸땲??</p>
+     * <p>주로 UI의 설비 삭제/비활성화 이벤트와 연계되어 메모리 런타임을 즉시 제거할 때 사용합니다.</p>
      *
-     * @param eqpId ?쒓굅 ????ㅻ퉬 ID
+     * @param eqpId 제거 대상 설비 ID
      */
     @Override
     public void removeByEqpId(final String eqpId) {
@@ -240,9 +261,10 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * DB 湲곗??쇰줈 ?꾩껜 ?뚮윭洹몄씤 ?고??꾩쓣 preload/?ъ“由쏀빀?덈떎.
+     * DB에서 전체 설비를 조회하여 플러그인 런타임을 preload 합니다.
      *
-     * <p>寃利??깃났??eqp留????ㅻ깄?룹뿉 ?ы븿?섎ŉ, 理쒖쥌?곸쑝濡?湲곗〈 ?ㅻ깄?룰낵 ?먯옄?곸쑝濡?援먯껜?⑸땲??</p>
+     * <p>모든 런타임을 별도 맵에 먼저 구성한 후 마지막에 한 번에 교체하여 중간 상태 노출을 방지합니다.</p>
+     * <p>`failFastOnStartup=false`이면 개별 설비 오류는 건너뛰고 나머지 설비 로딩을 계속합니다.</p>
      */
     public void preloadAllFromDb() {
         final List<TcEqp> eqps = loadAllEqps();
@@ -287,6 +309,7 @@ public class BusinessWorkflowPluginRuntimeManager
                             normalizeJarFileName(jarBusiness.jarFileName()),
                             jarBusiness.jarFile()
                     );
+                    // 동일 eqpId 중복 데이터가 있으면 마지막 값을 채택하고 이전 런타임은 즉시 정리합니다.
                     final PluginRuntime duplicate = nextRuntimeMap.put(eqpId, runtime);
                     if (duplicate != null) {
                         duplicate.closeQuietly();
@@ -312,15 +335,18 @@ public class BusinessWorkflowPluginRuntimeManager
                     failedCount,
                     nextRuntimeMap.size());
         } catch (RuntimeException ex) {
+            // preload 전체 실패 시 이번 라운드에서 생성한 런타임 자원을 정리합니다.
             closeRuntimeMapQuietly(nextRuntimeMap);
             throw ex;
         }
     }
 
     /**
-     * loadAllEqps 湲곕뒫???섑뻾?⑸땲??
+     * `tc_eqp` 전체 목록을 페이지 단위로 순차 조회합니다.
      *
-     * @return 泥섎━ 寃곌낵
+     * <p>offset 기반 페이지네이션을 사용하며, 마지막 페이지(`size < pageSize`)를 만나면 종료합니다.</p>
+     *
+     * @return 조회된 전체 설비 목록
      */
 
     private List<TcEqp> loadAllEqps() {
@@ -334,6 +360,7 @@ public class BusinessWorkflowPluginRuntimeManager
                 break;
             }
             results.addAll(page);
+                // 마지막 페이지이므로 추가 조회 없이 종료합니다.
             if (page.size() < pageSize) {
                 break;
             }
@@ -342,6 +369,17 @@ public class BusinessWorkflowPluginRuntimeManager
         return results;
     }
 
+    /**
+     * 플러그인 JAR 바이트로부터 실행 가능한 런타임 스냅샷을 생성합니다.
+     *
+     * <p>검증 -> 임시 파일 저장 -> classloader 생성 -> Executor 탐색 -> 레지스트리 빌드 순서로 진행합니다.</p>
+     * <p>중간 단계 실패 시 생성된 자원(classloader/임시 파일)을 즉시 정리합니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param jarFileName 임시 파일명 생성에 사용할 JAR 파일명
+     * @param jarBytes 플러그인 JAR 바이트
+     * @return 생성된 플러그인 런타임 스냅샷
+     */
     private PluginRuntime buildPluginRuntime(
             final String eqpId,
             final String jarFileName,
@@ -352,6 +390,7 @@ public class BusinessWorkflowPluginRuntimeManager
         final URLClassLoader classLoader = createClassLoader(jarPath);
 
         try {
+            // 플러그인 JAR 내부에서 메시지 타입별 Executor 구현체를 탐색합니다.
             final DiscoveredExecutors executors = discoverExecutors(jarBytes, classLoader);
 
             final BusinessWorkflowActionRegistryBuilder builder = new BusinessWorkflowActionRegistryBuilder();
@@ -382,6 +421,7 @@ public class BusinessWorkflowPluginRuntimeManager
 
             return new PluginRuntime(eqpId, jarFileName, jarPath, classLoader, registry);
         } catch (RuntimeException ex) {
+            // 부분 생성된 자원을 정리하여 임시 파일/클래스로더 누수를 방지합니다.
             closeClassLoaderQuietly(classLoader, eqpId, jarFileName);
             deleteTempJarQuietly(jarPath);
             throw ex;
@@ -389,9 +429,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뚮윭洹몄씤 JAR 諛붿씠?몄쓽 理쒖냼 ?좏슚?깆쓣 寃利앺빀?덈떎.
+     * 플러그인 JAR 바이트의 기본 유효성을 검증합니다.
      *
-     * <p>maxJarBytes 珥덇낵 ??濡쒕뵫??李⑤떒??硫붾え由??ъ슜??湲됱쬆??諛⑹??⑸땲??</p>
+     * <p>빈 파일 여부와 최대 허용 크기(`maxJarBytes`)를 검사하여 과도한 메모리/디스크 사용을 방지합니다.</p>
      */
     private void validateJarBytes(final String eqpId, final byte[] jarBytes) {
         if (jarBytes == null || jarBytes.length == 0) {
@@ -416,6 +456,15 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 
+    /**
+     * 플러그인 JAR에서 지원 가능한 Executor 구현체(SECS/SOCKET/MES)를 탐색합니다.
+     *
+     * <p>추상 클래스/인터페이스는 제외하며, 타입별 구현체가 2개 이상 발견되면 예외를 발생시킵니다.</p>
+     *
+     * @param jarBytes 플러그인 JAR 바이트
+     * @param classLoader 플러그인 전용 classloader
+     * @return 발견된 Executor 묶음
+     */
     private DiscoveredExecutors discoverExecutors(
             final byte[] jarBytes,
             final ClassLoader classLoader
@@ -470,9 +519,14 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * instantiateExecutor 湲곕뒫???섑뻾?⑸땲??
+     * 플러그인 Executor 구현체를 기본 생성자로 인스턴스화합니다.
      *
-     * @param rawClass ?낅젰 媛?     * @param expectedType ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * <p>기본 생성자가 없거나 접근/생성 중 예외가 발생하면 `IllegalStateException`으로 변환합니다.</p>
+     *
+     * @param rawClass 로딩된 실제 클래스
+     * @param expectedType 기대하는 상위 타입
+     * @param <T> 반환 타입
+     * @return 생성된 Executor 인스턴스
      */
 
     private <T> T instantiateExecutor(final Class<?> rawClass, final Class<T> expectedType) {
@@ -487,15 +541,20 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * swapRuntime 湲곕뒫???섑뻾?⑸땲??
+     * 설비별 플러그인 런타임을 원자적으로 교체합니다.
      *
-     * @param eqpId ?낅젰 媛?     * @param newRuntime ?낅젰 媛?     */
+     * <p>불변 맵 복사본을 만든 뒤 CAS로 교체하며, 교체 성공 후 이전 런타임 자원을 정리합니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param newRuntime 새로 생성된 런타임
+     */
 
     private void swapRuntime(final String eqpId, final PluginRuntime newRuntime) {
         PluginRuntime previousRuntime;
         while (true) {
             final Map<String, PluginRuntime> current = runtimeByEqpIdRef.get();
             final Map<String, PluginRuntime> next = new LinkedHashMap<>(current);
+            // copy-on-write 스냅샷에 새 런타임을 반영한 뒤 CAS로 원자 교체를 시도합니다.
             previousRuntime = next.put(eqpId, newRuntime);
             if (runtimeByEqpIdRef.compareAndSet(current, Map.copyOf(next))) {
                 break;
@@ -513,15 +572,19 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뱀젙 eqpId???뚮윭洹몄씤 ?고??꾩쓣 ?쒓굅?⑸땲??
+     * 설비별 플러그인 런타임을 원자적으로 제거합니다.
      *
-     * <p>JAR ??젣/誘몄〈?????몄텧?섎ŉ, ?댄썑 ?≪뀡 ?댁꽍? core fallback?쇰줈 ?숈옉?⑸땲??</p>
+     * <p>런타임 제거 후 classloader/임시 파일을 정리하고, 변경 여부 및 사유를 표준 로그 포맷으로 남깁니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param reason 제거 사유(운영/디버깅 로그용)
      */
     private void removeRuntimeByEqpId(final String eqpId, final String reason) {
         PluginRuntime removedRuntime;
         while (true) {
             final Map<String, PluginRuntime> current = runtimeByEqpIdRef.get();
             final Map<String, PluginRuntime> next = new LinkedHashMap<>(current);
+            // copy-on-write 스냅샷에서 대상 설비 런타임을 제거한 뒤 CAS로 원자 교체를 시도합니다.
             removedRuntime = next.remove(eqpId);
             if (runtimeByEqpIdRef.compareAndSet(current, Map.copyOf(next))) {
                 break;
@@ -543,9 +606,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * replaceAllRuntimes 湲곕뒫???섑뻾?⑸땲??
+     * 전체 런타임 스냅샷을 새 맵으로 교체합니다.
      *
-     * @param nextRuntimeMap ?낅젰 媛?     */
+     * <p>preload 완료 시점에만 호출되며, 교체 후 이전 스냅샷의 자원을 일괄 정리합니다.</p>
+     *
+     * @param nextRuntimeMap 새 런타임 스냅샷
+     */
 
     private void replaceAllRuntimes(final Map<String, PluginRuntime> nextRuntimeMap) {
         final Map<String, PluginRuntime> previous = runtimeByEqpIdRef.getAndSet(Map.copyOf(nextRuntimeMap));
@@ -553,9 +619,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * closeRuntimeMapQuietly 湲곕뒫???섑뻾?⑸땲??
+     * 런타임 맵에 포함된 모든 런타임 자원을 안전하게 정리합니다.
      *
-     * @param runtimeMap ?낅젰 媛?     */
+     * <p>개별 정리 실패는 각 런타임 내부에서 warn 로그로 처리합니다.</p>
+     *
+     * @param runtimeMap 정리 대상 런타임 맵
+     */
 
     private static void closeRuntimeMapQuietly(final Map<String, PluginRuntime> runtimeMap) {
         if (runtimeMap == null || runtimeMap.isEmpty()) {
@@ -569,9 +638,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * extractClassNames 湲곕뒫???섑뻾?⑸땲??
+     * JAR 바이트에서 `.class` 엔트리의 FQCN 목록을 추출합니다.
      *
-     * @param jarBytes ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * <p>클래스 로딩 전 단계에서 후보 목록을 만들기 위한 용도이며, 실제 로딩 실패 여부는 별도로 처리합니다.</p>
+     *
+     * @param jarBytes 플러그인 JAR 바이트
+     * @return 클래스명 목록(FQCN)
      */
 
     private static List<String> extractClassNames(final byte[] jarBytes) {
@@ -596,6 +668,16 @@ public class BusinessWorkflowPluginRuntimeManager
         return classNames;
     }
 
+    /**
+     * 플러그인 JAR 바이트를 임시 디렉터리에 파일로 기록합니다.
+     *
+     * <p>설비 ID와 파일명을 이용해 사람이 추적 가능한 임시 파일명을 생성합니다.</p>
+     *
+     * @param eqpId 대상 설비 ID
+     * @param jarFileName 원본 JAR 파일명
+     * @param jarBytes 기록할 JAR 바이트
+     * @return 생성된 임시 JAR 경로
+     */
     private static Path writeJarToTemp(
             final String eqpId,
             final String jarFileName,
@@ -618,9 +700,10 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * createClassLoader 湲곕뒫???섑뻾?⑸땲??
+     * 임시 JAR 파일 경로를 기반으로 플러그인 전용 `URLClassLoader`를 생성합니다.
      *
-     * @param jarPath ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * @param jarPath 임시 저장된 플러그인 JAR 경로
+     * @return 생성된 `URLClassLoader`
      */
 
     private static URLClassLoader createClassLoader(final Path jarPath) {
@@ -633,9 +716,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * normalizeEqpId 湲곕뒫???섑뻾?⑸땲??
+     * 설비 ID 문자열을 정규화합니다.
      *
-     * @param eqpId ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * <p>`null`은 그대로 `null`을 반환하고, trim 결과가 빈 문자열이면 `null`로 간주합니다.</p>
+     *
+     * @param eqpId 입력 설비 ID
+     * @return 정규화된 설비 ID 또는 `null`
      */
 
     private static String normalizeEqpId(final String eqpId) {
@@ -647,9 +733,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * normalizeJarFileName 湲곕뒫???섑뻾?⑸땲??
+     * JAR 파일명을 정규화합니다.
      *
-     * @param jarFileName ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * <p>비어 있으면 기본 파일명을 반환하고, 그렇지 않으면 trim 결과를 반환합니다.</p>
+     *
+     * @param jarFileName DB에서 조회한 JAR 파일명
+     * @return 정규화된 JAR 파일명
      */
 
     private static String normalizeJarFileName(final String jarFileName) {
@@ -660,15 +749,27 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * sanitizeFileToken 湲곕뒫???섑뻾?⑸땲??
+     * 임시 파일명에 사용할 문자열 토큰을 안전한 문자만 남기도록 정규화합니다.
      *
-     * @param value ?낅젰 媛?     * @return 泥섎━ 寃곌낵
+     * <p>영문/숫자/점/밑줄/하이픈 외 문자는 `_`로 치환합니다.</p>
+     *
+     * @param value 원본 문자열
+     * @return 파일명 안전 토큰
      */
 
     private static String sanitizeFileToken(final String value) {
         return value.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 
+    /**
+     * 플러그인 전용 classloader를 안전하게 종료합니다.
+     *
+     * <p>종료 실패는 런타임 상태 정리 과정 전체를 중단시키지 않도록 warn 로그만 남깁니다.</p>
+     *
+     * @param classLoader 종료 대상 classloader
+     * @param eqpId 설비 ID(로그용)
+     * @param jarFileName JAR 파일명(로그용)
+     */
     private static void closeClassLoaderQuietly(
             final URLClassLoader classLoader,
             final String eqpId,
@@ -682,9 +783,12 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * deleteTempJarQuietly 湲곕뒫???섑뻾?⑸땲??
+     * 임시 플러그인 JAR 파일을 조용히 삭제합니다.
      *
-     * @param jarPath ?낅젰 媛?     */
+     * <p>삭제 실패는 런타임 동작 전체를 중단시키지 않도록 warn 로그만 남깁니다.</p>
+     *
+     * @param jarPath 삭제 대상 임시 JAR 경로
+     */
 
     private static void deleteTempJarQuietly(final Path jarPath) {
         try {
@@ -695,7 +799,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뚮윭洹몄씤 由щ줈???쒖옉 濡쒓렇瑜??쒖? ?щ㎎?쇰줈 湲곕줉?⑸땲??
+     * 플러그인 리로드 시작 로그를 표준 포맷으로 기록합니다.
      */
     private void logReloadStarted(
             final String eqpId,
@@ -710,7 +814,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뚮윭洹몄씤 由щ줈???곸슜 濡쒓렇瑜??쒖? ?щ㎎?쇰줈 湲곕줉?⑸땲??
+     * 플러그인 리로드 적용 결과(업서트/삭제)를 표준 포맷으로 기록합니다.
      */
     private void logReloadApplied(
             final String eqpId,
@@ -745,7 +849,7 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뚮윭洹몄씤 由щ줈???ㅽ뙣/濡ㅻ갚 濡쒓렇瑜??쒖? ?щ㎎?쇰줈 湲곕줉?⑸땲??
+     * 플러그인 리로드 실패 시 기존 상태 유지 여부와 원인을 표준 포맷으로 기록합니다.
      */
     private void logReloadRolledBack(
             final String eqpId,
@@ -761,7 +865,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * 濡쒕뵫???뚮윭洹몄씤 ?고???而⑦뀒?대꼫?낅땲??
+     * 설비별 플러그인 런타임 스냅샷입니다.
+     *
+     * <p>레지스트리와 함께 임시 JAR 경로 및 전용 classloader를 보관하여 교체/삭제 시 자원 정리가 가능하도록 합니다.</p>
      */
     private record PluginRuntime(
             String eqpId,
@@ -772,7 +878,7 @@ public class BusinessWorkflowPluginRuntimeManager
     ) {
 
         /**
-         * ?고???由ъ냼?ㅻ? ?뺣━?⑸땲??
+         * 플러그인 런타임이 보유한 자원(classloader, 임시 JAR 파일)을 안전하게 정리합니다.
          */
         private void closeQuietly() {
             try {
@@ -789,7 +895,9 @@ public class BusinessWorkflowPluginRuntimeManager
     }
 
     /**
-     * ?뚮윭洹몄씤?먯꽌 ?먯???Executor 臾띠쓬?낅땲??
+     * 플러그인 JAR에서 발견한 Executor 구현체 묶음입니다.
+     *
+     * <p>메시지 타입별로 최대 1개만 허용되며, 미구현 타입은 `null`일 수 있습니다.</p>
      */
     private static final class DiscoveredExecutors {
         private final AbstractSecsActionExecutor secsExecutor;
@@ -807,5 +915,3 @@ public class BusinessWorkflowPluginRuntimeManager
         }
     }
 }
-
-

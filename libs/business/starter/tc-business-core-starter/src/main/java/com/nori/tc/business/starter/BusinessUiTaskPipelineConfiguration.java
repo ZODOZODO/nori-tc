@@ -2,14 +2,14 @@ package com.nori.tc.business.starter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties;
-import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
+import com.nori.tc.common.consumer.runtime.FixedRetryPolicy;
 import com.nori.tc.common.task.execution.pipeline.runtime.KafkaTaskExecutionPipeline;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDeduplicationStore;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDlqReporter;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskMessageAccessor;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -67,6 +67,4 @@ public class BusinessUiTaskPipelineConfiguration {
         );
     }
 }
-
-
 

@@ -1,14 +1,14 @@
 package com.nori.tc.comm.adapters.kafka.ui;
 
 import com.nori.tc.comm.gateway.config.props.GatewayUiTaskPolicyProperties;
-import com.nori.tc.common.kafka.processing.FixedRetryPolicy;
+import com.nori.tc.common.consumer.runtime.FixedRetryPolicy;
 import com.nori.tc.common.task.execution.pipeline.runtime.KafkaTaskExecutionPipeline;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDeduplicationStore;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskDlqReporter;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskMessageAccessor;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskProcessorRegistry;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
-import com.nori.tc.messaging.kafka.starter.contract.KafkaUiTaskMessage;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -147,4 +147,3 @@ public class GatewayUiTaskPipelineConfiguration {
         return Math.max(1, retryCount + 1);
     }
 }
-
