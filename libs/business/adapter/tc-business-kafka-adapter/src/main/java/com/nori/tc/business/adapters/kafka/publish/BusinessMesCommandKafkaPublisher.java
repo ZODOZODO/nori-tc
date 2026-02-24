@@ -111,14 +111,12 @@ public class BusinessMesCommandKafkaPublisher implements BusinessMesCommandPubli
                 metadata.source()
         );
 
-        if (log.isDebugEnabled()) {
-            log.debug("Publishing MES command. topic={}, key={}, correlationId={}, eqpId={}, eventType={}",
-                    topic,
-                    key,
-                    metadata.correlationId(),
-                    command.eqpId(),
-                    metadata.eventType());
-        }
+        log.debug("Publishing MES command. topic={}, key={}, correlationId={}, eqpId={}, eventType={}",
+                topic,
+                key,
+                metadata.correlationId(),
+                command.eqpId(),
+                metadata.eventType());
 
         try {
             kafkaTemplate.send(producerRecord).get();

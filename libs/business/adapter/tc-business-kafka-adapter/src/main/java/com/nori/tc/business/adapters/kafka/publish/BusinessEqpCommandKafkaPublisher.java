@@ -118,15 +118,13 @@ public class BusinessEqpCommandKafkaPublisher implements BusinessEqpCommandPubli
                 metadata.source()
         );
 
-        if (log.isDebugEnabled()) {
-            log.debug("Publishing EQP command. topic={}, key={}, eqpId={}, eventType={}, traceId={}, interfaceType={}",
-                    topic,
-                    key,
-                    command.eqpId(),
-                    metadata.eventType(),
-                    metadata.traceId(),
-                    command.interfaceType());
-        }
+        log.debug("Publishing EQP command. topic={}, key={}, eqpId={}, eventType={}, traceId={}, interfaceType={}",
+                topic,
+                key,
+                command.eqpId(),
+                metadata.eventType(),
+                metadata.traceId(),
+                command.interfaceType());
 
         try {
             kafkaTemplate.send(producerRecord).get();
@@ -141,13 +139,11 @@ public class BusinessEqpCommandKafkaPublisher implements BusinessEqpCommandPubli
             throw ex;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("EQP command published. topic={}, key={}, eqpId={}, eventType={}, traceId={}",
-                    topic,
-                    key,
-                    command.eqpId(),
-                    metadata.eventType(),
-                    metadata.traceId());
-        }
+        log.debug("EQP command published. topic={}, key={}, eqpId={}, eventType={}, traceId={}",
+                topic,
+                key,
+                command.eqpId(),
+                metadata.eventType(),
+                metadata.traceId());
     }
 }

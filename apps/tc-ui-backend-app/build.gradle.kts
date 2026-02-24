@@ -40,5 +40,5 @@ tasks.test {
 }
 
 springBoot {
-    mainClass.set("com.nori.tc.apps.businesscore.TcBusinessCoreApplication")
+    mainClass.set("com.nori.tc.apps.uibackend.TcUiBackendApplication")
 }

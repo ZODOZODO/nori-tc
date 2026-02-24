@@ -184,9 +184,7 @@ public class BusinessKafkaContractSupport {
             );
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka record key validated. topic={}, key={}", topic, normalizedActual);
-        }
+        log.debug("Kafka record key validated. topic={}, key={}", topic, normalizedActual);
     }
 
     /**
@@ -205,9 +203,8 @@ public class BusinessKafkaContractSupport {
         }
 
         final String canonical = normalized.substring(0, normalized.length() - APP_SUFFIX.length());
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka source normalized from app alias. original={}, canonical={}", normalized, canonical);
-        }
+        log.debug("Kafka source normalized from app alias. original={}, canonical={}", normalized, canonical);
+
         return canonical;
     }
 

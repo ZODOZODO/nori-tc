@@ -200,9 +200,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
              */
             try (BusinessLogContext ignored = BusinessLogContext.withEqpId(eqpId)) {
                 bindings.put(eqpId, eqp.modelKey());
-                if (log.isDebugEnabled()) {
-                    log.debug("Boot binding loaded. eqpId={}, modelKey={}", eqpId, eqp.modelKey());
-                }
+                log.debug("Boot binding loaded. eqpId={}, modelKey={}", eqpId, eqp.modelKey());
             }
         }
         return bindings;
@@ -230,9 +228,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                 final BusinessModelRuntimeSnapshot base = snapshotRef.get();
                 final Long removedModelKey = base.eqpModelBindings().get(normalizedEqpId);
                 if (removedModelKey == null) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Eqp binding remove skipped because binding is absent. eqpId={}", normalizedEqpId);
-                    }
+                    log.debug("Eqp binding remove skipped because binding is absent. eqpId={}", normalizedEqpId);
                     return Optional.empty();
                 }
 
@@ -253,13 +249,11 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                             next.bindingCount(),
                             next.runtimeCount()
                     );
-                    if (log.isDebugEnabled() && !modelRuntimeRemoved) {
-                        log.debug(
-                                "Model runtime preserved because other eqp still reference the modelKey. eqpId={}, modelKey={}",
-                                normalizedEqpId,
-                                removedModelKey
-                        );
-                    }
+                    log.debug(
+                            "Model runtime preserved because other eqp still reference the modelKey. eqpId={}, modelKey={}",
+                            normalizedEqpId,
+                            removedModelKey
+                    );
                     return Optional.of(removedModelKey);
                 }
             }

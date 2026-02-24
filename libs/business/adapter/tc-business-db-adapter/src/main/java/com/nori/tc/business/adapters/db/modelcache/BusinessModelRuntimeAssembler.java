@@ -83,14 +83,12 @@ public class BusinessModelRuntimeAssembler {
         final List<TcModelSocketMessage> socketMessages = loadAllByPage(page -> socketMessageStore.findAllByModelKey(modelKey, page));
         final List<TcModelVariableId> variableIds = loadAllByPage(page -> variableIdStore.findAllByModelKey(modelKey, page));
 
-        if (log.isDebugEnabled()) {
-            log.debug("Assembled model runtime. modelKey={}, workflows={}, secsMessages={}, socketMessages={}, variables={}",
-                    modelKey,
-                    entries.size(),
-                    secsMessages.size(),
-                    socketMessages.size(),
-                    variableIds.size());
-        }
+        log.debug("Assembled model runtime. modelKey={}, workflows={}, secsMessages={}, socketMessages={}, variables={}",
+                modelKey,
+                entries.size(),
+                secsMessages.size(),
+                socketMessages.size(),
+                variableIds.size());
 
         return TcModelRuntime.from(
                 model,

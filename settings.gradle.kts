@@ -36,6 +36,9 @@ project(":apps:tc-comm-gateway-app").projectDir = file("apps/tc-comm-gateway-app
 include(":apps:tc-business-core-app")
 project(":apps:tc-business-core-app").projectDir = file("apps/tc-business-core-app")
 
+include(":apps:tc-ui-backend-app")
+project(":apps:tc-ui-backend-app").projectDir = file("apps/tc-ui-backend-app")
+
 
 /* ===================================================
  * 2. DB Modules (Persistence Layer)
@@ -217,4 +220,3 @@ project(":libs:business:adapter:tc-business-redis-adapter").projectDir = file("l
 
 include(":libs:business:starter:tc-business-core-starter")
 project(":libs:business:starter:tc-business-core-starter").projectDir = file("libs/business/starter/tc-business-core-starter")
-
