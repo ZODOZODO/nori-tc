@@ -97,6 +97,30 @@ spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-star
 spring-boot-starter-amqp = { module = "org.springframework.boot:spring-boot-starter-amqp" }
 spring-boot-starter-kafka = { module = "org.springframework.boot:spring-boot-starter-kafka" }
 
+# ✅ Web MVC
+# - Spring Boot 4.0 부터 spring-boot-starter-web 에서 이름 변경됨
+spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
+
+# ✅ Actuator
+# - /actuator/health 등 운영 모니터링 엔드포인트 제공
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+
+# ✅ Validation
+# - @Valid, @NotNull 등 Bean Validation 기능 제공
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+
+# ✅ Security
+# - 인증(Authentication) 및 인가(Authorization) 기능 제공
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+
+# ✅ Security Test
+# - @WithMockUser 등 Security 테스트 유틸리티 제공
+spring-boot-starter-security-test = { module = "org.springframework.boot:spring-boot-starter-security-test" }
+
+# ✅ Web MVC Test
+# - Spring Boot 4.0 기준 Web MVC 테스트 스타터
+spring-boot-starter-webmvc-test = { module = "org.springframework.boot:spring-boot-starter-webmvc-test" }
+
 ################################################################################
 # Kafka (New)
 # - Spring Boot Starter Kafka를 사용하되, Client 버전은 4.1.0으로 강제

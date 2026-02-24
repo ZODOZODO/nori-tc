@@ -21,6 +21,32 @@ dependencies {
     implementation(libs.spring.boot.starter)
 
     /*
+     * Web MVC 스타터입니다.
+     * - Spring Boot 4.0 기준 REST API 처리를 위한 DispatcherServlet, Jackson 직렬화 등을 제공합니다.
+     * - Spring Boot 3.x 의 spring-boot-starter-web 에서 이름이 변경되었습니다.
+     */
+    implementation(libs.spring.boot.starter.webmvc)
+
+    /*
+     * Actuator 스타터입니다.
+     * - /actuator/health 등 운영 모니터링 엔드포인트를 제공합니다.
+     */
+    implementation(libs.spring.boot.starter.actuator)
+
+    /*
+     * Validation 스타터입니다.
+     * - @Valid, @NotNull 등 Bean Validation(Jakarta Validation) 기능을 제공합니다.
+     */
+    implementation(libs.spring.boot.starter.validation)
+
+    /*
+     * Spring Security 스타터입니다.
+     * - 인증(Authentication) 및 인가(Authorization) 기능을 제공합니다.
+     * - 기본적으로 모든 엔드포인트에 인증이 활성화되므로 SecurityConfig 작성이 필요합니다.
+     */
+    implementation(libs.spring.boot.starter.security)
+
+    /*
      * 공통 로그 스타터 의존성입니다.
      * - 프로젝트 공통 로깅 포맷과 MDC 구성을 재사용합니다.
      */
@@ -32,6 +58,22 @@ dependencies {
      */
     implementation(project(":libs:db:starter:tc-db-postgres-jpa-starter"))
 
+    /*
+     * Spring Security 테스트 의존성입니다.
+     * - @WithMockUser 등 Security 관련 테스트 유틸리티를 제공합니다.
+     */
+    testImplementation(libs.spring.boot.starter.security.test)
+
+    /*
+     * Web MVC 테스트 의존성입니다.
+     * - MockMvc 기반 컨트롤러 테스트 환경을 제공합니다.
+     */
+    testImplementation(libs.spring.boot.starter.webmvc.test)
+
+    /*
+     * Spring Boot 통합 테스트 의존성입니다.
+     * - JUnit 5, Mockito 등 기본 테스트 환경을 제공합니다.
+     */
     testImplementation(libs.spring.boot.starter.test)
 }
 
