@@ -301,7 +301,7 @@ public class GatewayUiRuntimeControlService {
          * <p>게이트웨이 기준 PASSIVE(listener) 모드는 listener만 열려 있고 아직 설비 접속 채널이 없을 수 있으므로
          * 채널이 존재할 때만 close 합니다.</p>
          */
-        if (channelActive) {
+        if (channel != null && channel.isActive()) {
             channel.close();
         } else if (log.isDebugEnabled()) {
             log.debug(

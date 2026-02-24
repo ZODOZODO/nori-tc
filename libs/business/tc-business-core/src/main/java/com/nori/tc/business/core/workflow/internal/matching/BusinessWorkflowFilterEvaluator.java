@@ -392,7 +392,6 @@ public class BusinessWorkflowFilterEvaluator {
     /**
      * dot-path를 사용해 중첩 맵 값을 조회합니다.
      */
-    @SuppressWarnings("unchecked")
     private static Object lookupPath(final Map<String, Object> source, final String path) {
         if (source == null || path == null || path.isBlank()) {
             return null;
@@ -494,7 +493,9 @@ public class BusinessWorkflowFilterEvaluator {
         }
         if (node.isObject()) {
             final Map<String, Object> mapped = new java.util.LinkedHashMap<>();
-            node.fields().forEachRemaining(field -> mapped.put(field.getKey(), jsonValue(field.getValue())));
+            for (Map.Entry<String, JsonNode> field : node.properties()) {
+                mapped.put(field.getKey(), jsonValue(field.getValue()));
+            }
             return Map.copyOf(mapped);
         }
         return node.asText();

@@ -378,23 +378,6 @@ class GatewayNettyBootstrapTest {
     }
 
     /**
-     * private 맵 필드를 리플렉션으로 조회합니다.
-     *
-     * <p>공유 listener 내부 상태(passiveListenerChannels / passiveListenerMembers)를 검증하기 위해 사용합니다.</p>
-     *
-     * @param target 대상 객체
-     * @param fieldName 필드명
-     * @return 필드에 저장된 맵
-     * @throws Exception 리플렉션 접근 실패 시 예외
-     */
-    @SuppressWarnings("unchecked")
-    private Map<?, ?> getPrivateMapField(final Object target, final String fieldName) throws Exception {
-        final Field field = target.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return (Map<?, ?>) field.get(target);
-    }
-
-    /**
      * 공유 listener 멤버십 맵의 첫 번째 멤버 Set 크기를 반환합니다.
      *
      * @param membersMap passiveListenerMembers 리플렉션 조회 결과
@@ -423,6 +406,46 @@ class GatewayNettyBootstrapTest {
      * @return 사용 가능한 포트 번호
      * @throws IOException 소켓 생성 실패 시 예외
      */
+    /**
+     * {@link GatewayNettyBootstrap} 내부 private Map 필드를 reflection 으로 조회합니다.
+     *
+     * <p>본 테스트는 PASSIVE listener 관련 내부 맵 상태를 직접 검증해야 하므로
+     * production 코드에 테스트 전용 getter 를 추가하지 않고 reflection 을 사용합니다.</p>
+     *
+     * @param target private 필드를 조회할 {@link GatewayNettyBootstrap} 인스턴스
+     * @param fieldName 조회할 private 필드명
+     * @return reflection 으로 조회한 Map 필드 값
+     * @throws ReflectiveOperationException reflection 접근 실패 시 예외
+     */
+    private Map<?, ?> getPrivateMapField(
+            final GatewayNettyBootstrap target,
+            final String fieldName
+    ) throws ReflectiveOperationException {
+        if (target == null) {
+            throw new IllegalArgumentException("target is null");
+        }
+        if (fieldName == null || fieldName.isBlank()) {
+            throw new IllegalArgumentException("fieldName is blank");
+        }
+
+        // 테스트 대상 구현 클래스의 private 필드를 직접 조회합니다.
+        final Field field = GatewayNettyBootstrap.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+
+        // 런타임 타입을 검증하여 구현 변경 시 실패 원인이 명확하게 보이도록 처리합니다.
+        final Object fieldValue = field.get(target);
+        if (fieldValue == null) {
+            throw new IllegalStateException("Private field is null: " + fieldName);
+        }
+        if (!(fieldValue instanceof Map<?, ?> mapFieldValue)) {
+            throw new IllegalStateException(
+                    "Private field is not a Map. fieldName=" + fieldName
+                            + ", actualType=" + fieldValue.getClass().getName()
+            );
+        }
+        return mapFieldValue;
+    }
+
     private int findAvailablePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
             return socket.getLocalPort();

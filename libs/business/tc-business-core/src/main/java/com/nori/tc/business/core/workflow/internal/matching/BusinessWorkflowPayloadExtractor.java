@@ -185,7 +185,9 @@ public class BusinessWorkflowPayloadExtractor {
         }
         if (node.isObject()) {
             final Map<String, Object> values = new LinkedHashMap<>();
-            node.fields().forEachRemaining(field -> values.put(field.getKey(), toValue(field.getValue())));
+            for (Map.Entry<String, JsonNode> field : node.properties()) {
+                values.put(field.getKey(), toValue(field.getValue()));
+            }
             return Map.copyOf(values);
         }
         return node.asText();
