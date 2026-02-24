@@ -200,9 +200,6 @@ project(":libs:common:tc-common-mailbox").projectDir = file("libs/common/tc-comm
 include(":libs:common:tc-common-consumer-runtime")
 project(":libs:common:tc-common-consumer-runtime").projectDir = file("libs/common/tc-common-consumer-runtime")
 
-include(":libs:common:tc-common-kafka-consumer-runtime")
-project(":libs:common:tc-common-kafka-consumer-runtime").projectDir = file("libs/common/tc-common-kafka-consumer-runtime")
-
 include(":libs:common:tc-common-task-execution")
 project(":libs:common:tc-common-task-execution").projectDir = file("libs/common/tc-common-task-execution")
 
