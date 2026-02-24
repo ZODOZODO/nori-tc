@@ -14,7 +14,7 @@ spring:
   # - file:config/... 경로는 실행 작업 디렉터리 기준입니다.
   config:
     import:
-      - optional:file:../../config/tc-db.properties
+      - optional:file:config/tc-db.properties
       - optional:file:config/tc-messaging.properties
       - optional:file:config/tc-redis.properties
       - optional:file:config/tc-comm.properties

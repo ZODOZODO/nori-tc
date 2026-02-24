@@ -9,7 +9,7 @@
   # - optional 경로는 파일이 없어도 기동을 중단하지 않습니다.
   config:
     import:
-      - optional:file:../../config/tc-db.properties
+      - optional:file:config/tc-db.properties
       - optional:file:config/tc-messaging.properties
       - optional:file:config/tc-redis.properties
       - optional:file:config/tc-business-core.properties

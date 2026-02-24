@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * {@link BusinessWorkflowPluginRuntimeManager} Step14(preload ?뺤콉) ?⑥쐞 ?뚯뒪?몄엯?덈떎.
+ * {@link BusinessWorkflowPluginRuntimeManager}의 Step14(preload 정책) 동작을 검증하는 단위 테스트입니다.
  */
 class BusinessWorkflowPluginRuntimeManagerTest {
 
@@ -51,7 +51,7 @@ class BusinessWorkflowPluginRuntimeManagerTest {
 
         manager.initialize();
 
-        Assertions.assertEquals(0, eqpStore.findAllCallCount, "loadOnStartup=false?대㈃ DB 議고쉶瑜??섑뻾?섏? ?딆븘???⑸땲??");
+        Assertions.assertEquals(0, eqpStore.findAllCallCount, "loadOnStartup=false이면 DB 조회를 수행하지 않아야 합니다.");
         Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isEmpty());
     }
 
@@ -101,11 +101,11 @@ class BusinessWorkflowPluginRuntimeManagerTest {
                 new BusinessWorkflowPluginRuntimeManager(eqpStore, jarStore, properties);
 
         injectPluginRuntimeForTest(manager, "EQP-01");
-        Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isPresent(), "?ъ쟾 議곌굔: runtime??議댁옱?댁빞 ?⑸땲??");
+        Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isPresent(), "사전 조건: runtime이 존재해야 합니다.");
 
         manager.reloadByEqpId("EQP-01");
 
-        Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isEmpty(), "JAR 誘몄〈????runtime???쒓굅?섏뼱???⑸땲??");
+        Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isEmpty(), "JAR 미존재 시 runtime이 제거되어야 합니다.");
     }
 
     @Test
@@ -122,15 +122,18 @@ class BusinessWorkflowPluginRuntimeManagerTest {
                 new BusinessWorkflowPluginRuntimeManager(eqpStore, jarStore, properties);
 
         injectPluginRuntimeForTest(manager, "EQP-01");
-        Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isPresent(), "?ъ쟾 議곌굔: runtime??議댁옱?댁빞 ?⑸땲??");
+        Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isPresent(), "사전 조건: runtime이 존재해야 합니다.");
 
         Assertions.assertThrows(IllegalStateException.class, () -> manager.reloadByEqpId("EQP-01"));
         Assertions.assertTrue(manager.findRegistryByEqpId("EQP-01").isPresent(),
-                "由щ줈???ㅽ뙣 ??湲곗〈 runtime? 濡ㅻ갚(?좎?)?섏뼱???⑸땲??");
+                "리로드 실패 시 기존 runtime은 롤백(유지)되어야 합니다.");
     }
 
     /**
-     * ?뚯뒪?몄슜 plugin runtime ?꾨줈?쇳떚瑜??앹꽦?⑸땲??
+     * 테스트용 plugin runtime 프로퍼티를 생성하고 즉시 유효성 검증까지 수행합니다.
+     *
+     * <p>각 테스트가 설정 바인딩을 거치지 않고 직접 객체를 생성하므로, 운영 환경에서 필수인 값도
+     * 테스트 헬퍼에서 명시적으로 채워야 합니다.</p>
      */
     private static BusinessWorkflowPluginRuntimeProperties createProperties(
             final boolean loadOnStartup,
@@ -141,15 +144,23 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         properties.setLoadOnStartup(loadOnStartup);
         properties.setFailFastOnStartup(failFastOnStartup);
         properties.setPageSize(pageSize);
+        /*
+         * 테스트는 `BusinessWorkflowPluginRuntimeProperties#validate()`를 직접 호출하므로,
+         * 운영 코드에서 추가된 필수 설정값(`maxJarBytes`)도 함께 채워야 합니다.
+         * 본 테스트에서는 JAR 크기 제한 동작 자체를 검증하지 않으므로, 충분히 큰 고정값을 사용해
+         * 개별 테스트 의도(preload/reload 동작)와 무관한 검증 실패를 제거합니다.
+         */
+        properties.setMaxJarBytes(10L * 1024L * 1024L);
         properties.validate();
         return properties;
     }
 
     /**
-     * ?뚯뒪?몃? ?꾪빐 manager ?대? runtime 留듭뿉 ?⑥씪 runtime??二쇱엯?⑸땲??
+     * 테스트를 위해 manager 내부 런타임 맵에 최소 구성 runtime을 직접 주입합니다.
      *
-     * <p>?ㅼ젣 由щ줈??寃쎈줈瑜?嫄곗튂?ㅻ㈃ ?좏슚??JAR ?앹꽦???꾩슂?섎?濡?
-     * 蹂??뚯뒪?몄뿉?쒕뒗 reflection?쇰줈 理쒖냼 runtime留?二쇱엯??     * "??젣/濡ㅻ갚 ?뺤콉" ?먯껜瑜?寃利앺빀?덈떎.</p>
+     * <p>실제 리로드 경로를 타면 유효한 JAR 생성/로딩까지 필요하므로 준비 비용이 커집니다.
+     * 이 테스트는 제거/롤백 정책 검증이 목적이므로 reflection으로 내부 `PluginRuntime`만 만들어
+     * 주입하여 상태 전이만 검증합니다.</p>
      */
     private static void injectPluginRuntimeForTest(
             final BusinessWorkflowPluginRuntimeManager manager,
@@ -185,19 +196,23 @@ class BusinessWorkflowPluginRuntimeManagerTest {
             swapMethod.setAccessible(true);
             swapMethod.invoke(manager, eqpId, pluginRuntime);
         } catch (Exception ex) {
-            throw new IllegalStateException("?뚯뒪??runtime 二쇱엯???ㅽ뙣?덉뒿?덈떎.", ex);
+            throw new IllegalStateException("테스트 runtime 주입에 실패했습니다.", ex);
         }
     }
 
     /**
-     * ?뚯뒪?몄슜 理쒖냼 ?≪뀡 ?덉??ㅽ듃由щ? ?앹꽦?⑸땲??
+     * 테스트용 최소 액션 레지스트리를 생성합니다.
+     *
+     * <p>리플렉션으로 생성하는 `PluginRuntime`에 레지스트리가 필요하므로, 실제 비즈니스 로직 대신
+     * no-op 액션 하나만 등록한 경량 레지스트리를 사용합니다.</p>
      */
     private static BusinessWorkflowActionRegistry createTestActionRegistry() {
         final AbstractSocketActionExecutor executor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * 테스트용 no-op 액션 메서드입니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 액션 실행 컨텍스트
+             */
 
             @TcAction("TEST_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -210,7 +225,7 @@ class BusinessWorkflowPluginRuntimeManagerTest {
     }
 
     /**
-     * manager ?대? private record(PluginRuntime) ??낆쓣 議고쉶?⑸땲??
+     * manager 내부 private record(`PluginRuntime`) 타입을 조회합니다.
      */
     private static Class<?> findPluginRuntimeClass() {
         for (Class<?> nestedClass : BusinessWorkflowPluginRuntimeManager.class.getDeclaredClasses()) {
@@ -218,11 +233,11 @@ class BusinessWorkflowPluginRuntimeManagerTest {
                 return nestedClass;
             }
         }
-        throw new IllegalStateException("PluginRuntime nested class瑜?李얠? 紐삵뻽?듬땲??");
+        throw new IllegalStateException("PluginRuntime nested class를 찾지 못했습니다.");
     }
 
     /**
-     * ?뚯뒪?몄슜 eqp ?덉퐫?쒕? ?앹꽦?⑸땲??
+     * 테스트용 eqp 레코드를 생성합니다.
      */
     private static TcEqp createEqp(final long eqpKey, final String eqpId, final long modelKey) {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -242,7 +257,9 @@ class BusinessWorkflowPluginRuntimeManagerTest {
     }
 
     /**
-     * ?뚯뒪?몄슜 invalid plugin jar ?덉퐫?쒕? ?앹꽦?⑸땲??
+     * 테스트용 invalid plugin jar 레코드를 생성합니다.
+     *
+     * <p>JAR 파싱 실패 경로를 재현하기 위해 의도적으로 JAR 형식이 아닌 바이트를 저장합니다.</p>
      */
     private static TcJarBusiness createInvalidJar(final long eqpKey) {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -258,25 +275,29 @@ class BusinessWorkflowPluginRuntimeManagerTest {
     }
 
     /**
-     * {@link TcEqpStore} ?뚯뒪???붾툝?낅땲??
+     * {@link TcEqpStore} 테스트 더블입니다.
+     *
+     * <p>preload/reload 테스트에 필요한 최소 조회 기능만 구현하고, 범위 밖 메서드는 예외를 던집니다.</p>
      */
     private static final class FakeEqpStore implements TcEqpStore {
         private final List<TcEqp> eqps;
         private int findAllCallCount = 0;
 
         /**
-         * FakeEqpStore ?앹꽦?먮? 珥덇린?뷀빀?덈떎.
+         * 테스트에서 사용할 설비 목록으로 스토어를 초기화합니다.
          *
-         * @param eqps ?낅젰 媛?         */
+         * @param eqps 조회 대상으로 사용할 설비 목록
+         */
 
         private FakeEqpStore(final List<TcEqp> eqps) {
             this.eqps = new ArrayList<>(eqps);
         }
 
         /**
-         * upsert 湲곕뒫???섑뻾?⑸땲??
+         * 테스트 범위 밖 메서드입니다.
          *
-         * @param command ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * @param command 업서트 명령
+         * @return 반환되지 않음
          */
 
         @Override
@@ -285,9 +306,10 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         }
 
         /**
-         * findByEqpId 湲곕뒫???섑뻾?⑸땲??
+         * 설비 ID로 테스트용 설비 레코드를 조회합니다.
          *
-         * @param eqpId ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * @param eqpId 조회할 설비 ID
+         * @return 일치하는 설비가 있으면 반환, 없으면 빈 값
          */
 
         @Override
@@ -298,9 +320,12 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         }
 
         /**
-         * findAll 湲곕뒫???섑뻾?⑸땲??
+         * 페이지 조건으로 설비 목록을 조회합니다.
          *
-         * @param page ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * <p>preload 테스트에서 DB 조회 호출 여부를 검증하기 위해 호출 횟수를 함께 증가시킵니다.</p>
+         *
+         * @param page 페이지 요청 정보
+         * @return 요청 범위에 해당하는 설비 목록
          */
 
         @Override
@@ -312,9 +337,10 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         }
 
         /**
-         * deleteByEqpId 湲곕뒫???섑뻾?⑸땲??
+         * 테스트 범위 밖 메서드입니다.
          *
-         * @param eqpId ?낅젰 媛?         */
+         * @param eqpId 삭제 대상 설비 ID
+         */
 
         @Override
         public void deleteByEqpId(final String eqpId) {
@@ -323,24 +349,28 @@ class BusinessWorkflowPluginRuntimeManagerTest {
     }
 
     /**
-     * {@link TcJarBusinessStore} ?뚯뒪???붾툝?낅땲??
+     * {@link TcJarBusinessStore} 테스트 더블입니다.
+     *
+     * <p>설비 키 기준 JAR 조회만 구현하여 리로드 시나리오 검증에 사용합니다.</p>
      */
     private static final class FakeJarBusinessStore implements TcJarBusinessStore {
         private final Map<Long, TcJarBusiness> jarByEqpKey;
 
         /**
-         * FakeJarBusinessStore ?앹꽦?먮? 珥덇린?뷀빀?덈떎.
+         * 설비 키별 JAR 매핑으로 스토어를 초기화합니다.
          *
-         * @param jarByEqpKey ?낅젰 媛?         */
+         * @param jarByEqpKey 설비 키 -> JAR 레코드 매핑
+         */
 
         private FakeJarBusinessStore(final Map<Long, TcJarBusiness> jarByEqpKey) {
             this.jarByEqpKey = new LinkedHashMap<>(jarByEqpKey);
         }
 
         /**
-         * upsert 湲곕뒫???섑뻾?⑸땲??
+         * 테스트 범위 밖 메서드입니다.
          *
-         * @param command ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * @param command 업서트 명령
+         * @return 반환되지 않음
          */
 
         @Override
@@ -349,9 +379,10 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         }
 
         /**
-         * findByEqpKey 湲곕뒫???섑뻾?⑸땲??
+         * 설비 키로 JAR 레코드를 조회합니다.
          *
-         * @param eqpKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * @param eqpKey 조회할 설비 키
+         * @return 매핑된 JAR 레코드가 있으면 반환, 없으면 빈 값
          */
 
         @Override
@@ -360,9 +391,10 @@ class BusinessWorkflowPluginRuntimeManagerTest {
         }
 
         /**
-         * deleteByEqpKey 湲곕뒫???섑뻾?⑸땲??
+         * 테스트 범위 밖 메서드입니다.
          *
-         * @param eqpKey ?낅젰 媛?         */
+         * @param eqpKey 삭제 대상 설비 키
+         */
 
         @Override
         public void deleteByEqpKey(final long eqpKey) {

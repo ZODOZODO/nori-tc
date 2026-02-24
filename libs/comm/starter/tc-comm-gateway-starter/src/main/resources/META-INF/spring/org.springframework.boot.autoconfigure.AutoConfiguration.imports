@@ -1,1 +1,1 @@
-com.nori.tc.comm.gateway.starter.TcCommGatewayAutoConfiguration
+com.nori.tc.comm.gateway.starter.autoconfigure.TcCommGatewayAutoConfiguration

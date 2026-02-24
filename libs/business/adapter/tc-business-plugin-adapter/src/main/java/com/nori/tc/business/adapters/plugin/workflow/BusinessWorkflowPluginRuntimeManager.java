@@ -1,4 +1,4 @@
-﻿package com.nori.tc.business.adapters.plugin.workflow;
+package com.nori.tc.business.adapters.plugin.workflow;
 
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
