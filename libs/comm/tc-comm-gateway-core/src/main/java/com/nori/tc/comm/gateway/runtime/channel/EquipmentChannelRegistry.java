@@ -95,11 +95,19 @@ public final class EquipmentChannelRegistry {
      * @param equipmentId 설비 ID
      * @param channel 제거 대상 채널
      */
-    public void unregister(final EquipmentId equipmentId, final EquipmentChannel channel) {
+    public boolean unregister(final EquipmentId equipmentId, final EquipmentChannel channel) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         Objects.requireNonNull(channel, "channel is null");
-        channels.remove(equipmentId.value(), channel);
-        log.info("Channel unregistered (match). eqpId={}", equipmentId.value());
+        final boolean removed = channels.remove(equipmentId.value(), channel);
+        if (removed) {
+            log.info("Channel unregistered (match). eqpId={}", equipmentId.value());
+            return true;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Channel unregister(match) skipped because mapping does not match. eqpId={}", equipmentId.value());
+        }
+        return false;
     }
 
     /**

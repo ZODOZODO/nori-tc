@@ -131,4 +131,53 @@ public final class EquipmentMailboxRegistry {
         }
         log.info("Mailbox removed. eqpId={}", eqpId);
     }
+
+    /**
+     * 설비 mailbox를 "eqpId + 현재 바인딩 채널 인스턴스 일치" 조건으로만 제거합니다.
+     *
+     * <p>빠른 재연결 시 이전 채널의 늦은 disconnect 처리로 인해
+     * 새 채널이 이미 바인딩한 mailbox가 잘못 제거되는 레이스를 방지하기 위한 메서드입니다.</p>
+     *
+     * <p>동작 규칙:</p>
+     * <p>1) eqpId에 mailbox가 없으면 false 반환</p>
+     * <p>2) mailbox.channel()이 expectedChannel과 동일 인스턴스가 아니면 false 반환</p>
+     * <p>3) 동일 mailbox 인스턴스 매핑일 때만 remove(eqpId, mailbox)로 안전 제거</p>
+     *
+     * @param eqpId 설비 ID
+     * @param expectedChannel 제거를 기대하는 현재 채널 인스턴스
+     * @return 실제로 mailbox가 제거되었으면 true
+     */
+    public boolean removeIfChannelMatches(final String eqpId, final EquipmentChannel expectedChannel) {
+        if (eqpId == null || eqpId.isBlank()) {
+            return false;
+        }
+        Objects.requireNonNull(expectedChannel, "expectedChannel is null");
+
+        final EquipmentMailbox mailbox = mailboxes.get(eqpId);
+        if (mailbox == null) {
+            if (log.isDebugEnabled()) {
+                log.debug("Mailbox remove(match) skipped because mailbox does not exist. eqpId={}", eqpId);
+            }
+            return false;
+        }
+
+        if (mailbox.channel() != expectedChannel) {
+            if (log.isDebugEnabled()) {
+                log.debug("Mailbox remove(match) skipped because channel does not match current mailbox binding. eqpId={}",
+                        eqpId);
+            }
+            return false;
+        }
+
+        final boolean removed = mailboxes.remove(eqpId, mailbox);
+        if (removed) {
+            log.info("Mailbox removed (match). eqpId={}", eqpId);
+            return true;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Mailbox remove(match) race detected. eqpId={}", eqpId);
+        }
+        return false;
+    }
 }

@@ -3,6 +3,7 @@ package com.nori.tc.comm.adapters.netty;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.gateway.db.ConnectionMode;
 import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
 import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
@@ -117,11 +118,44 @@ public class EqpBindingService {
         }
 
         withEqpLogContext(eqpId, () -> {
+            final EquipmentChannel expectedChannel = NettyChannelAttributes.getBoundEquipmentChannel(channel);
+
+            /*
+             * 빠른 재연결 레이스 방어:
+             * - 기존 채널(old)이 끊긴 직후 새 채널(new)이 같은 eqpId로 재바인딩될 수 있습니다.
+             * - old channelInactive가 늦게 실행되면 eqpId만으로 unregister/remove 할 경우 new 매핑을 제거할 위험이 있습니다.
+             * - 따라서 바인딩 시 저장한 EquipmentChannel 인스턴스와 "일치"하는 경우에만 cleanup을 수행합니다.
+             */
+            if (expectedChannel != null) {
+                final boolean channelRemoved = channelRegistry.unregister(new EquipmentId(eqpId), expectedChannel);
+                final boolean mailboxRemoved = gatewayIngressService.removeMailboxIfChannelMatches(eqpId, expectedChannel);
+
+                if (!channelRemoved && !mailboxRemoved) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Channel unbind skipped because current mapping/mailbox belongs to another channel. eqpId={}",
+                                eqpId);
+                    }
+                    return;
+                }
+
+                if (channelRemoved != mailboxRemoved) {
+                    log.warn("Channel unbind cleanup partial result detected. eqpId={}, channelRemoved={}, mailboxRemoved={}",
+                            eqpId,
+                            channelRemoved,
+                            mailboxRemoved);
+                }
+
+                lifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND");
+                NettyChannelAttributes.setBoundEquipmentChannel(channel, null);
+                log.info("Channel unbound. eqpId={}", eqpId);
+                return;
+            }
+
+            // 하위 호환 fallback: attribute가 없는 채널은 기존 eqpId 기반 정리 경로를 유지합니다.
             channelRegistry.unregister(new EquipmentId(eqpId));
             gatewayIngressService.removeMailbox(eqpId);
             lifecycleStateMachine.onChannelDisconnected(eqpId, "SYSTEM", "NETTY_UNBIND");
-
-            log.info("Channel unbound. eqpId={}", eqpId);
+            log.warn("Channel unbound via legacy eqpId-only cleanup path. eqpId={}", eqpId);
         });
     }
 
@@ -192,6 +226,7 @@ public class EqpBindingService {
             }
 
             gatewayIngressService.bindMailbox(info, equipmentChannel);
+            NettyChannelAttributes.setBoundEquipmentChannel(channel, equipmentChannel);
             lifecycleStateMachine.onChannelConnected(eqpId, expectedMode.name(), "NETTY_BIND");
 
             log.info("Bind success. eqpId={}, interfaceType={}, gatewayMode={}", eqpId, interfaceType, expectedMode);

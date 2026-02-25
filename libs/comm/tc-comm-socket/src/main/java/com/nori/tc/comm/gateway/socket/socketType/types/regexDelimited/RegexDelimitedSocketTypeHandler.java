@@ -28,9 +28,20 @@ import java.util.regex.Pattern;
 public final class RegexDelimitedSocketTypeHandler implements SocketTypeHandler {
 
     public static final String SOCKET_TYPE = "REGEX_DELIMITED";
+    private static final String REGEX_META_CHARS = ".^$|?*+()[]{}";
 
     private final Charset charset;
     private final Pattern endPattern;
+    /**
+     * endRegex가 "단순 literal + escape(\\n, \\r, \\t, \\\\)" 형태일 때만 encode 단계에서 자동 부착할 종단자입니다.
+     *
+     * <p>REGEX_DELIMITED의 종료 조건은 정규식이므로 일반적으로는 역변환(정규식 -> 실제 suffix)이 불가능합니다.
+     * 예를 들어 {@code \r?\n}, {@code (END|EOM)\n} 같은 패턴은 어떤 문자열을 붙여야 하는지 단정할 수 없습니다.</p>
+     *
+     * <p>따라서 본 필드는 "안전하게 literal suffix로 해석 가능한 경우"에만 값이 채워지며,
+     * 그 외 복잡한 정규식 패턴에서는 {@code null}로 유지되어 encode가 pass-through로 동작합니다.</p>
+     */
+    private final String autoAppendSuffix;
 
     
     /**
@@ -57,6 +68,7 @@ public final class RegexDelimitedSocketTypeHandler implements SocketTypeHandler 
         }
         this.endPattern = Pattern.compile(endRegex);
         this.charset = (charset == null) ? StandardCharsets.UTF_8 : charset;
+        this.autoAppendSuffix = tryResolveLiteralSuffixFromRegex(endRegex);
     }
 
     
@@ -161,7 +173,152 @@ public final class RegexDelimitedSocketTypeHandler implements SocketTypeHandler 
         }
 
         final String rawMessage = String.valueOf(command);
-        final byte[] encoded = rawMessage.getBytes(charset);
-        return new SocketTypeEncodeResult(encoded, "regex-delimited pass-through encoding");
+        final boolean alreadyTerminated = endsWithRegexDelimiter(rawMessage);
+
+        /*
+         * REGEX_DELIMITED는 기본적으로 decode 기준 종료 패턴(endRegex)을 사용해 프레임을 자릅니다.
+         * 따라서 encode에서도 같은 종료 패턴이 wire에 존재해야 설비가 프레임 종료를 인식할 수 있습니다.
+         *
+         * 다만 endRegex는 "정규식"이라서 항상 suffix를 역으로 만들 수는 없으므로:
+         * 1) 이미 문자열 끝에서 종료 패턴이 매칭되면 그대로 전송
+         * 2) literal suffix로 안전하게 해석 가능한 패턴이면 자동 부착
+         * 3) 복잡한 패턴이면 기존 pass-through 유지 (설정값에 종단자를 직접 포함해야 함)
+         */
+        final String normalizedMessage;
+        final String description;
+        if (alreadyTerminated) {
+            normalizedMessage = rawMessage;
+            description = "regex-delimited encoding (delimiter already present)";
+        } else if (autoAppendSuffix != null) {
+            normalizedMessage = rawMessage + autoAppendSuffix;
+            description = "regex-delimited encoding (literal suffix appended from endRegex)";
+        } else {
+            normalizedMessage = rawMessage;
+            description = "regex-delimited pass-through encoding (complex endRegex; append manually in command)";
+        }
+
+        final byte[] encoded = normalizedMessage.getBytes(charset);
+        return new SocketTypeEncodeResult(encoded, description);
+    }
+
+    /**
+     * 문자열 끝에서 종료 정규식이 매칭되는지 확인합니다.
+     *
+     * <p>{@link Matcher#find()}를 사용해 모든 매칭을 탐색한 뒤, 마지막 인덱스가 문자열 끝에 닿는 매칭이 하나라도 있으면
+     * "이미 종단자 포함"으로 판단합니다.</p>
+     *
+     * @param message 검사할 outbound 메시지 문자열
+     * @return 문자열 끝에서 종료 패턴이 매칭되면 true
+     */
+    private boolean endsWithRegexDelimiter(final String message) {
+        if (message == null || message.isEmpty()) {
+            return false;
+        }
+
+        final Matcher matcher = endPattern.matcher(message);
+        while (matcher.find()) {
+            if (matcher.end() == message.length()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 단순한 정규식 패턴만 literal suffix 문자열로 복원합니다.
+     *
+     * <p>지원하는 escape:</p>
+     * <p>- {@code \\n}, {@code \\r}, {@code \\t}, {@code \\\\}</p>
+     * <p>- {@code \\xHH}, {@code \\uHHHH}</p>
+     *
+     * <p>정규식 메타문자(예: {@code ?}, {@code *}, {@code []}, {@code ()})가 포함되면
+     * encode 자동 보정이 모호해지므로 {@code null}을 반환합니다.</p>
+     *
+     * @param endRegex 생성자에 주입된 종료 정규식 문자열
+     * @return 안전하게 해석 가능한 literal suffix, 불가능하면 null
+     */
+    private String tryResolveLiteralSuffixFromRegex(final String endRegex) {
+        if (endRegex == null || endRegex.isBlank()) {
+            return null;
+        }
+
+        final StringBuilder literal = new StringBuilder(endRegex.length());
+        for (int i = 0; i < endRegex.length(); i++) {
+            final char ch = endRegex.charAt(i);
+
+            if (ch == '\\') {
+                if (i + 1 >= endRegex.length()) {
+                    return null;
+                }
+
+                final char next = endRegex.charAt(++i);
+                switch (next) {
+                    case 'n' -> literal.append('\n');
+                    case 'r' -> literal.append('\r');
+                    case 't' -> literal.append('\t');
+                    case '\\' -> literal.append('\\');
+                    case 'x' -> {
+                        if (i + 2 >= endRegex.length()) {
+                            return null;
+                        }
+                        final String hex = endRegex.substring(i + 1, i + 3);
+                        if (!isHex(hex)) {
+                            return null;
+                        }
+                        literal.append((char) Integer.parseInt(hex, 16));
+                        i += 2;
+                    }
+                    case 'u' -> {
+                        if (i + 4 >= endRegex.length()) {
+                            return null;
+                        }
+                        final String hex = endRegex.substring(i + 1, i + 5);
+                        if (!isHex(hex)) {
+                            return null;
+                        }
+                        literal.append((char) Integer.parseInt(hex, 16));
+                        i += 4;
+                    }
+                    default -> {
+                        /*
+                         * 예: \d, \s, \w, \Q...\E 등은 "문자 클래스/특수 escape"일 가능성이 높아서
+                         * literal suffix로 안전하게 확정할 수 없습니다.
+                         */
+                        return null;
+                    }
+                }
+                continue;
+            }
+
+            if (REGEX_META_CHARS.indexOf(ch) >= 0) {
+                return null;
+            }
+
+            literal.append(ch);
+        }
+
+        return literal.isEmpty() ? null : literal.toString();
+    }
+
+    /**
+     * 문자열이 16진수 문자만으로 구성되어 있는지 확인합니다.
+     *
+     * @param text 검사 대상 문자열
+     * @return 16진수 문자열이면 true
+     */
+    private boolean isHex(final String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            final char ch = text.charAt(i);
+            final boolean digit = (ch >= '0' && ch <= '9')
+                    || (ch >= 'a' && ch <= 'f')
+                    || (ch >= 'A' && ch <= 'F');
+            if (!digit) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -226,6 +226,38 @@ public class GatewayIngressService {
     }
 
     /**
+     * 설비 mailbox를 "eqpId + 채널 인스턴스 일치" 조건으로만 제거하고 후속 스케줄링/메트릭 상태를 정리합니다.
+     *
+     * <p>빠른 재연결 레이스에서 이전 채널의 늦은 disconnect 처리로
+     * 새 채널이 이미 재바인딩한 mailbox/메트릭 상태가 잘못 제거되지 않도록 사용합니다.</p>
+     *
+     * @param equipmentId 설비 ID
+     * @param expectedChannel 제거를 기대하는 채널 인스턴스
+     * @return 실제로 mailbox 제거 및 후속 정리가 수행되었으면 true
+     */
+    public boolean removeMailboxIfChannelMatches(final String equipmentId, final EquipmentChannel expectedChannel) {
+        if (equipmentId == null || equipmentId.isBlank()) {
+            return false;
+        }
+        Objects.requireNonNull(expectedChannel, "expectedChannel is null");
+
+        final boolean removed = mailboxRegistry.removeIfChannelMatches(equipmentId, expectedChannel);
+        if (!removed) {
+            if (log.isDebugEnabled()) {
+                log.debug("Mailbox remove(match) skipped via processingService. eqpId={}", equipmentId);
+            }
+            return false;
+        }
+
+        processingCoordinator.clearSchedulingState(equipmentId);
+        metrics.clearQueueDepth(equipmentId);
+        if (log.isDebugEnabled()) {
+            log.debug("Mailbox removed(match) via processingService. eqpId={}", equipmentId);
+        }
+        return true;
+    }
+
+    /**
      * 설비 ID로 메타 정보를 조회합니다.
      *
      * <p>BOUND/제어 이벤트 처리에서 사용되며, 설비가 없으면 즉시 예외를 발생시켜 상위에서 실패로 처리합니다.</p>

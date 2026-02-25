@@ -1,5 +1,6 @@
 package com.nori.tc.comm.adapters.netty;
 
+import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
 
@@ -12,12 +13,15 @@ import java.util.concurrent.ScheduledFuture;
  * <p>저장 항목:</p>
  * <p>1) EQP_ID: 채널에 바인딩된 설비 식별자</p>
  * <p>2) BIND_STATE: 채널 바인딩 상태(UNBOUND/BOUND)</p>
- * <p>3) BIND_TIMEOUT_TASK: UNBOUND 타임아웃 감시 스케줄 작업</p>
+ * <p>3) BOUND_EQUIPMENT_CHANNEL: 레지스트리/메일박스에 바인딩된 EquipmentChannel 인스턴스</p>
+ * <p>4) BIND_TIMEOUT_TASK: UNBOUND 타임아웃 감시 스케줄 작업</p>
  */
 public final class NettyChannelAttributes {
 
     public static final AttributeKey<String> EQP_ID = AttributeKey.valueOf("eqpId");
     public static final AttributeKey<BindState> BIND_STATE = AttributeKey.valueOf("bindState");
+    public static final AttributeKey<EquipmentChannel> BOUND_EQUIPMENT_CHANNEL =
+            AttributeKey.valueOf("boundEquipmentChannel");
     public static final AttributeKey<ScheduledFuture<?>> BIND_TIMEOUT_TASK = AttributeKey.valueOf("bindTimeoutTask");
 
     /**
@@ -64,6 +68,30 @@ public final class NettyChannelAttributes {
      */
     public static BindState getBindState(final Channel channel) {
         return Objects.requireNonNull(channel, "channel is null").attr(BIND_STATE).get();
+    }
+
+    /**
+     * 채널에 바인딩 성공 시 사용된 EquipmentChannel 어댑터 인스턴스를 기록합니다.
+     *
+     * <p>빠른 재연결/채널 교체 레이스에서 "이전 채널의 channelInactive"가
+     * 새 채널의 레지스트리/메일박스 매핑을 잘못 제거하지 않도록, unbind 단계에서
+     * eqpId + channel 인스턴스 일치 조건으로 정리할 때 사용합니다.</p>
+     *
+     * @param channel 대상 Netty 채널
+     * @param equipmentChannel 바인딩된 EquipmentChannel 인스턴스(해제 시 null 가능)
+     */
+    public static void setBoundEquipmentChannel(final Channel channel, final EquipmentChannel equipmentChannel) {
+        Objects.requireNonNull(channel, "channel is null").attr(BOUND_EQUIPMENT_CHANNEL).set(equipmentChannel);
+    }
+
+    /**
+     * 채널에 기록된 EquipmentChannel 어댑터 인스턴스를 조회합니다.
+     *
+     * @param channel 대상 Netty 채널
+     * @return 바인딩 시 사용된 EquipmentChannel 인스턴스(없으면 null)
+     */
+    public static EquipmentChannel getBoundEquipmentChannel(final Channel channel) {
+        return Objects.requireNonNull(channel, "channel is null").attr(BOUND_EQUIPMENT_CHANNEL).get();
     }
 
     /**

@@ -87,6 +87,37 @@ public final class UnboundInbox {
     }
 
     /**
+     * UNBOUND 단계에 누적된 잔여 바이트를 모두 꺼내고 내부 상태를 초기화합니다.
+     *
+     * <p>사용 시점:</p>
+     * <p>1) bind executor가 `INITIALIZE_REP`에서 eqpId 추출 성공</p>
+     * <p>2) 채널이 BOUND 전환됨</p>
+     * <p>3) UNBOUND 구간에 미리 도착한 일반 업무 메시지(예: TOOLEVENTS)를 유실 없이
+     *    설비 inbox로 재주입(replay)해야 하는 시점</p>
+     *
+     * <p>중요:</p>
+     * <p>- `chunks` 큐에 아직 남아 있는 raw chunk와 `reassemblyBuffer`에 이미 병합된 바이트를
+     *   모두 합쳐서 반환합니다.</p>
+     * <p>- 반환 이후에는 내부 상태를 완전히 비워, UNBOUND 단계 메모리가 남지 않도록 합니다.</p>
+     *
+     * @return UNBOUND 잔여 바이트 전체 스냅샷(없으면 길이 0 배열)
+     */
+    public synchronized byte[] drainAllBytesAndClear() {
+        // bind executor가 마지막으로 남은 chunk까지 포함해 재조립 버퍼로 병합한 뒤 스냅샷을 생성합니다.
+        drainToBuffer();
+
+        final int readable = reassemblyBuffer.readableBytes();
+        if (readable <= 0) {
+            clear();
+            return new byte[0];
+        }
+
+        final byte[] snapshot = reassemblyBuffer.copy(0, readable);
+        clear();
+        return snapshot;
+    }
+
+    /**
      * 등록 완료 후 UNBOUND 단계 버퍼를 비웁니다.
      */
     public synchronized void clear() {

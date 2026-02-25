@@ -152,8 +152,25 @@ public final class LineDelimitedSocketTypeHandler implements SocketTypeHandler {
             throw new IllegalArgumentException("command is null");
         }
 
+        /*
+         * LINE_DELIMITED 프로토콜의 송신 프레임은 LF('\n')로 종료되어야만 상대 설비가 한 줄(frame)로 인식할 수 있습니다.
+         *
+         * 기존 구현은 문자열을 그대로 bytes로만 변환(pass-through)해서,
+         * 설정값에 LF가 빠지면 "CMD=INITIALIZE"만 전송되고 설비가 프레임 종료를 인식하지 못하는 문제가 발생했습니다.
+         *
+         * 따라서 LINE_DELIMITED encode 단계에서 마지막 LF를 자동 보정합니다.
+         * - 이미 "\n" 또는 "\r\n"로 끝나는 경우: 그대로 유지 (중복 LF 방지)
+         * - LF가 없는 경우: "\n" 추가
+         */
         final String rawMessage = String.valueOf(command);
-        final byte[] encoded = rawMessage.getBytes(charset);
-        return new SocketTypeEncodeResult(encoded, "line-delimited pass-through encoding");
+        final String normalizedMessage = rawMessage.endsWith("\n")
+                ? rawMessage
+                : rawMessage + "\n";
+
+        final byte[] encoded = normalizedMessage.getBytes(charset);
+        return new SocketTypeEncodeResult(encoded,
+                normalizedMessage.equals(rawMessage)
+                        ? "line-delimited encoding (LF already present)"
+                        : "line-delimited encoding (LF appended)");
     }
 }

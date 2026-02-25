@@ -254,8 +254,11 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         final EqpBindingService.BindResult result = bindingService.bindActive(presetEqpId, interfaceType, channel);
         if (result != EqpBindingService.BindResult.OK) {
             logBindRejected(result, presetEqpId, channel, "Immediate outbound");
-            metrics.decrementUnboundConnections();
-            metrics.decrementActiveConnections();
+            /*
+             * 메트릭 정리는 channelInactive() 공통 경로에서 수행합니다.
+             * 여기서 선감소 후 channel.close()를 호출하면,
+             * 이후 channelInactive()에서 동일 카운터가 다시 감소하여 음수/왜곡이 발생할 수 있습니다.
+             */
             channel.close();
             return;
         }
@@ -376,8 +379,9 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             }
         });
 
-        // 바인딩 성공 후 UNBOUND 임시 버퍼를 비웁니다.
-        unboundInbox.clear();
+        // 바인딩 성공 시점까지 UNBOUND 구간에 먼저 도착한 업무 메시지가 있을 수 있으므로,
+        // 단순 clear 대신 BOUND inbox로 재주입(replay)하여 메시지 유실을 방지합니다.
+        replayUnboundPayloadAfterBind(channel, bindEqpId);
     }
 
     /**
@@ -574,6 +578,71 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
                 );
             }
         });
+    }
+
+    /**
+     * 바인딩 직전/직후 경쟁 구간에서 UNBOUND inbox에 남아 있는 SOCKET payload를 BOUND inbox로 재주입합니다.
+     *
+     * <p>문제 배경:</p>
+     * <p>- 설비가 `INITIALIZE_REP` 직후 곧바로 업무 메시지(예: TOOLEVENTS)를 연속 전송할 수 있습니다.</p>
+     * <p>- 이 경우 bind executor가 eqpId 추출을 완료하기 전까지는 해당 바이트가 UNBOUND inbox에 쌓입니다.</p>
+     * <p>- 기존 구현은 바인딩 성공 후 `unboundInbox.clear()`를 호출하여, 이미 도착한 업무 메시지를
+     *   처리 파이프라인으로 넘기지 못하고 유실시키는 문제가 있었습니다.</p>
+     *
+     * <p>해결 정책:</p>
+     * <p>1) UNBOUND 잔여 바이트(chunks + reassembly buffer)를 모두 회수</p>
+     * <p>2) eqpId가 확정된 BOUND 상태의 `GatewayIngressService`로 raw bytes 재주입</p>
+     * <p>3) 이후 정상 SOCKET inbound 파이프라인에서 프레이밍/파싱되도록 위임</p>
+     *
+     * @param channel 대상 채널(로그/원격 주소 추적용)
+     * @param eqpId 바인딩 완료된 설비 ID
+     */
+    private void replayUnboundPayloadAfterBind(final Channel channel, final String eqpId) {
+        if (interfaceType != CommInterfaceType.SOCKET) {
+            // HSMS 경로는 현재 UNBOUND inbox replay 요구사항이 없으므로 no-op 처리합니다.
+            unboundInbox.clear();
+            return;
+        }
+        if (eqpId == null || eqpId.isBlank()) {
+            // 방어 코드: eqpId 없이 replay하면 mailbox 라우팅이 불가능하므로 기존과 동일하게 정리만 수행합니다.
+            unboundInbox.clear();
+            return;
+        }
+
+        final byte[] remainingBytes;
+        try {
+            remainingBytes = unboundInbox.drainAllBytesAndClear();
+        } catch (Exception ex) {
+            withEqpLogContext(eqpId, () -> log.warn(
+                    "UNBOUND payload replay snapshot failed after bind. eqpId={}, socketType={}, remote={}",
+                    eqpId,
+                    socketType,
+                    channel == null ? null : channel.remoteAddress(),
+                    ex
+            ));
+            if (channel != null && channel.isActive()) {
+                channel.close();
+            }
+            return;
+        }
+
+        if (remainingBytes == null || remainingBytes.length == 0) {
+            return;
+        }
+
+        if (log.isDebugEnabled()) {
+            withEqpLogContext(eqpId, () -> log.debug(
+                    "UNBOUND payload replayed after bind. eqpId={}, socketType={}, remote={}, payloadBytes={}, payload={}",
+                    eqpId,
+                    socketType,
+                    channel == null ? null : channel.remoteAddress(),
+                    remainingBytes.length,
+                    SocketWirePayloadLogFormatter.describe(remainingBytes)
+            ));
+        }
+
+        // 이미 BIND 상태/eqpId attribute가 설정된 이후에 호출되므로 정상적으로 설비 mailbox로 라우팅됩니다.
+        gatewayIngressService.enqueueInbound(eqpId, remainingBytes);
     }
 
     /**
