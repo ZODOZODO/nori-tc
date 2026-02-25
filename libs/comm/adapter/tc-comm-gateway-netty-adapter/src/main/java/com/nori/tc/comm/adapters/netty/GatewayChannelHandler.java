@@ -136,6 +136,15 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         metrics.incrementActiveConnections();
         metrics.incrementUnboundConnections();
 
+        withEqpLogContext(resolveLogEqpId(channel), () -> log.info(
+                "CHANNEL_ACTIVE. interfaceType={}, presetEqpId={}, socketType={}, local={}, remote={}",
+                interfaceType,
+                presetEqpId,
+                socketType,
+                channel.localAddress(),
+                channel.remoteAddress()
+        ));
+
         if (shouldBindImmediatelyOnChannelActive()) {
             bindImmediatelyWithPresetEqpId(channel);
             return;
@@ -188,6 +197,8 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
 
             final Channel channel = ctx.channel();
             final BindState state = NettyChannelAttributes.getBindState(channel);
+
+            logSocketInboundPayload(channel, state, bytes);
 
             if (state == BindState.BOUND) {
                 final String eqpId = NettyChannelAttributes.getEqpId(channel);
@@ -477,19 +488,92 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         if (!nettyProperties.isSocketSendInitializeOnConnect()) {
+            if (log.isDebugEnabled()) {
+                withEqpLogContext(resolveLogEqpId(channel), () -> log.debug(
+                        "SOCKET initialize send skipped (disabled). presetEqpId={}, socketType={}, remote={}",
+                        presetEqpId,
+                        socketType,
+                        channel.remoteAddress()
+                ));
+            }
             return;
         }
 
+        final String initializeCommandForLog = escapeControlCharsForLog(nettyProperties.getSocketInitializeCommand());
         final byte[] cmd = socketExtractor.initializeCommandBytes(socketType);
-        if (log.isDebugEnabled()) {
-            withEqpLogContext(resolveLogEqpId(channel), () -> log.debug(
-                    "SOCKET initialize command sent. presetEqpId={}, socketType={}, remote={}",
-                    presetEqpId,
-                    socketType,
-                    channel.remoteAddress()
-            ));
+        channel.writeAndFlush(Unpooled.wrappedBuffer(cmd)).addListener(future ->
+                withEqpLogContext(resolveLogEqpId(channel), () -> {
+                    if (!future.isSuccess()) {
+                        log.warn(
+                                "SOCKET_INITIALIZE_SEND_FAILED. presetEqpId={}, socketType={}, remote={}, command={}, payloadBytes={}, payload={}",
+                                presetEqpId,
+                                socketType,
+                                channel.remoteAddress(),
+                                initializeCommandForLog,
+                                cmd.length,
+                                SocketWirePayloadLogFormatter.describe(cmd),
+                                future.cause()
+                        );
+                        return;
+                    }
+
+                    log.info(
+                            "SOCKET_INITIALIZE_SENT. presetEqpId={}, socketType={}, remote={}, command={}, payloadBytes={}, payload={}",
+                            presetEqpId,
+                            socketType,
+                            channel.remoteAddress(),
+                            initializeCommandForLog,
+                            cmd.length,
+                            SocketWirePayloadLogFormatter.describe(cmd)
+                    );
+                })
+        );
+    }
+
+    /**
+     * SOCKET 채널 수신 raw payload를 bind 상태에 맞는 레벨로 기록합니다.
+     *
+     * <p>UNBOUND 구간은 initialize 응답/프로토콜 문제 분석이 핵심이므로 INFO로 남기고,
+     * BOUND 이후 일반 트래픽은 로그 폭주를 줄이기 위해 DEBUG로만 남깁니다.</p>
+     *
+     * @param channel 수신 채널
+     * @param state 현재 bind 상태
+     * @param payload 수신 raw payload bytes
+     */
+    private void logSocketInboundPayload(final Channel channel, final BindState state, final byte[] payload) {
+        if (interfaceType != CommInterfaceType.SOCKET) {
+            return;
         }
-        channel.writeAndFlush(Unpooled.wrappedBuffer(cmd));
+        if (payload == null) {
+            return;
+        }
+
+        final String payloadDescription = SocketWirePayloadLogFormatter.describe(payload);
+        final String eqpIdForLog = resolveLogEqpId(channel);
+        final String remoteAddress = String.valueOf(channel.remoteAddress());
+
+        withEqpLogContext(eqpIdForLog, () -> {
+            if (state == BindState.UNBOUND) {
+                log.info(
+                        "SOCKET_WIRE_RX_UNBOUND. presetEqpId={}, socketType={}, remote={}, payload={}",
+                        presetEqpId,
+                        socketType,
+                        remoteAddress,
+                        payloadDescription
+                );
+                return;
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "SOCKET_WIRE_RX. eqpId={}, socketType={}, remote={}, payload={}",
+                        eqpIdForLog,
+                        socketType,
+                        remoteAddress,
+                        payloadDescription
+                );
+            }
+        });
     }
 
     /**
@@ -535,6 +619,32 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
             throw new IllegalArgumentException("socketType is required for SOCKET channel");
         }
         return socketType.trim();
+    }
+
+    /**
+     * Escapes control characters so command text remains visible in a single-line log record.
+     *
+     * <p>This avoids line breaks when the configured initialize command contains CR/LF.</p>
+     *
+     * @param text raw command text
+     * @return escaped command text for logging
+     */
+    private String escapeControlCharsForLog(final String text) {
+        if (text == null) {
+            return "null";
+        }
+
+        final StringBuilder escaped = new StringBuilder(text.length() + 8);
+        for (int i = 0; i < text.length(); i++) {
+            final char ch = text.charAt(i);
+            switch (ch) {
+                case '\r' -> escaped.append("\\r");
+                case '\n' -> escaped.append("\\n");
+                case '\t' -> escaped.append("\\t");
+                default -> escaped.append(ch);
+            }
+        }
+        return escaped.toString();
     }
 
     /**

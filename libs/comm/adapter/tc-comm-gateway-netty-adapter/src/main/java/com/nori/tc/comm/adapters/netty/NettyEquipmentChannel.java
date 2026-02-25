@@ -2,6 +2,8 @@ package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
+import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -58,12 +60,21 @@ public final class NettyEquipmentChannel implements EquipmentChannel {
         final ChannelFuture future = channel.writeAndFlush(Unpooled.wrappedBuffer(frame.bytes()));
         future.sync();
 
+        logSocketOutboundPayloadIfNeeded(frame, future.isSuccess());
+
         if (!future.isSuccess()) {
             final Throwable cause = future.cause();
-            log.warn("Netty outbound send failed. remoteAddress={}, payloadBytes={}",
+            withEqpLogContext(frame, () -> log.warn(
+                    "Netty outbound send failed. eqpId={}, remoteAddress={}, payloadBytes={}, description={}, payload={}",
+                    frame.equipmentId().value(),
                     channel.remoteAddress(),
                     frame.bytes().length,
-                    cause);
+                    frame.description(),
+                    frame.commInterfaceType() == CommInterfaceType.SOCKET
+                            ? SocketWirePayloadLogFormatter.describe(frame.bytes())
+                            : "<non-socket-payload-omitted>",
+                    cause
+            ));
             if (cause instanceof Exception ex) {
                 throw ex;
             }
@@ -87,5 +98,69 @@ public final class NettyEquipmentChannel implements EquipmentChannel {
     @Override
     public void close() {
         channel.close();
+    }
+
+    /**
+     * SOCKET 프로토콜 outbound raw payload를 로그로 남깁니다.
+     *
+     * <p>사용자 요구사항은 "무슨 메시지를 보냈는지"를 즉시 확인할 수 있어야 하는 것이므로,
+     * 실제 wire bytes 기준 payload preview를 기록합니다. 로그량을 고려해 SOCKET만 상세 payload를 남깁니다.</p>
+     *
+     * @param frame 송신 frame
+     * @param success Netty writeAndFlush 성공 여부
+     */
+    private void logSocketOutboundPayloadIfNeeded(final OutboundRawFrame frame, final boolean success) {
+        if (frame.commInterfaceType() != CommInterfaceType.SOCKET) {
+            return;
+        }
+
+        final Runnable logTask = () -> {
+            final String payloadDescription = SocketWirePayloadLogFormatter.describe(frame.bytes());
+            if (success) {
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "SOCKET_WIRE_TX. eqpId={}, socketType={}, remote={}, description={}, payload={}",
+                            frame.equipmentId().value(),
+                            frame.socketType(),
+                            channel.remoteAddress(),
+                            frame.description(),
+                            payloadDescription
+                    );
+                }
+                return;
+            }
+
+            log.warn(
+                    "SOCKET_WIRE_TX_FAILED. eqpId={}, socketType={}, remote={}, description={}, payload={}",
+                    frame.equipmentId().value(),
+                    frame.socketType(),
+                    channel.remoteAddress(),
+                    frame.description(),
+                    payloadDescription
+            );
+        };
+
+        withEqpLogContext(frame, logTask);
+    }
+
+    /**
+     * eqpId가 있는 outbound frame 로그를 설비 로그 파일(EQP_SIFT)로 라우팅할 수 있도록 MDC를 적용합니다.
+     *
+     * @param frame outbound frame
+     * @param task 실행할 로그 작업
+     */
+    private void withEqpLogContext(final OutboundRawFrame frame, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (frame == null || frame.equipmentId() == null || frame.equipmentId().value() == null
+                || frame.equipmentId().value().isBlank()) {
+            task.run();
+            return;
+        }
+
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(frame.equipmentId().value())) {
+            task.run();
+        }
     }
 }
