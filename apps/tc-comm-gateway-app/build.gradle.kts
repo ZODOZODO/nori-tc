@@ -57,6 +57,18 @@ dependencies {
     implementation(project(":libs:comm:starter:tc-comm-gateway-starter"))
 
     /*
+     * Kafka infra assembly starter.
+     *
+     * Why this lives in the app layer:
+     * - `tc-comm-gateway-kafka-adapter` depends on Kafka APIs only (`spring-kafka`).
+     * - Boot Kafka auto-configuration (`KafkaTemplate`, `ProducerFactory`, etc.)
+     *   is owned by the messaging starter.
+     * - The app explicitly selects the messaging infra starter to keep
+     *   composition responsibility at the application boundary.
+     */
+    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
+
+    /*
      * DB 스타터 (정확히 1개 선택)
      *
      * - 기술 스택(JPA/MyBatis)과 벤더(Postgres/MySQL/MSSQL/Oracle)를 선택합니다.
@@ -87,7 +99,8 @@ dependencies {
     // Oracle + MyBatis
     // implementation(project(":libs:db:starter:tc-db-oracle-mybatis-starter"))
 
-    // Redis/Kafka/Netty/Comm 관련 의존성은 comm-gateway-starter에서 함께 제공합니다.
+    // Redis/Netty/Comm are assembled by comm-gateway-starter.
+    // Kafka Boot auto-configuration is selected explicitly via tc-messaging-kafka-starter.
 
     /*
      * 테스트 의존성
