@@ -56,13 +56,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionControlPort {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayNettyBootstrap.class);
-    /**
-     * 게이트웨이 기준 PASSIVE(listener) 경로의 바인드 IP 정책 상수입니다.
-     *
-     * <p>요구사항 기준으로 PASSIVE listener는 항상 게이트웨이 로컬 루프백에만 바인드합니다.</p>
-     */
-    private static final String PASSIVE_LISTENER_BIND_IP = "127.0.0.1";
-
     private final GatewayNettyProperties nettyProperties;
     private final GatewaySocketProperties socketProperties;
     private final EquipmentInfoProvider equipmentInfoProvider;
@@ -81,7 +74,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     /**
      * 게이트웨이 기준 PASSIVE 장비들이 공유하는 listener 채널 맵입니다.
      *
-     * <p>key = (interfaceType + port) 조합이며, bind IP는 정책상 127.0.0.1로 고정됩니다.</p>
+     * <p>key = (interfaceType + bindIp + port) 조합이며, bind IP는 각 장비의 DB eqp_ip 값을 사용합니다.</p>
      */
     private final ConcurrentHashMap<PassiveListenerKey, Channel> passiveListenerChannels = new ConcurrentHashMap<>();
 
@@ -256,7 +249,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      * <p>동작 규칙:</p>
      * <p>1) shard ownership 및 enabled 여부를 확인합니다.</p>
      * <p>2) 게이트웨이 기준 ACTIVE는 기존 아웃바운드 연결/재연결 로직을 사용합니다.</p>
-     * <p>3) 게이트웨이 기준 PASSIVE는 공유 listener(interface + port)를 보장합니다.</p>
+     * <p>3) 게이트웨이 기준 PASSIVE는 공유 listener(interface + bindIp + port)를 보장합니다.</p>
      *
      * @param eqpId 장비 ID
      */
@@ -502,7 +495,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     /**
      * 게이트웨이 기준 PASSIVE 장비용 공유 listener를 보장합니다.
      *
-     * <p>공유 기준은 interface + port이며, bind IP는 정책상 127.0.0.1 고정입니다.</p>
+     * <p>공유 기준은 interface + bindIp + port이며, bind IP는 DB(eqp_ip) 값을 사용합니다.</p>
      *
      * @param info 장비 정보
      * @param reason 호출 사유(로그용)
@@ -511,19 +504,19 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
         Objects.requireNonNull(info, "info is null");
 
         final String eqpId = info.equipmentId();
-        final PassiveListenerKey nextKey = PassiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
+        final String passiveBindIp = requirePassiveListenerBindIp(info);
+        final PassiveListenerKey nextKey = PassiveListenerKey.from(info.commInterfaceType(), passiveBindIp, info.eqpPort());
         final String resolvedSocketType = resolveSocketTypeOrDefault(info);
 
         /**
-         * PASSIVE(listener) 모드에서는 DB의 eqp_ip를 bind IP로 사용하지 않고
-         * 정책상 고정값(127.0.0.1)을 사용합니다.
-         * 운영 확인을 위해 DEBUG 로그로 DB값과 실제 bind 정책값을 함께 남깁니다.
+         * PASSIVE(listener) 모드에서는 DB의 eqp_ip를 실제 bind IP로 사용합니다.
+         * 운영 확인을 위해 DEBUG 로그로 원본 DB값과 정규화된 bind 값을 함께 남깁니다.
          */
-        if (log.isDebugEnabled() && info.eqpIp() != null && !info.eqpIp().isBlank()) {
-            log.debug("PASSIVE listener bind IP policy applied. eqpId={}, dbEqpIp={}, bindIp={}",
+        if (log.isDebugEnabled()) {
+            log.debug("PASSIVE listener bind IP resolved from equipment info. eqpId={}, dbEqpIp={}, bindIp={}",
                     eqpId,
                     info.eqpIp(),
-                    PASSIVE_LISTENER_BIND_IP);
+                    passiveBindIp);
         }
 
         final PassiveListenerKey currentKey = passiveListenerKeyByEqpId.get(eqpId);
@@ -680,10 +673,10 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                         }
                     });
 
-            final ChannelFuture future = bootstrap.bind(PASSIVE_LISTENER_BIND_IP, key.port()).sync();
+            final ChannelFuture future = bootstrap.bind(key.bindIp(), key.port()).sync();
             log.info("PASSIVE shared listener started. listenerKey={}, bindIp={}, bindPort={}, socketType={}",
                     key,
-                    PASSIVE_LISTENER_BIND_IP,
+                    key.bindIp(),
                     key.port(),
                     listenerSocketType);
             return future.channel();
@@ -954,7 +947,8 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 continue;
             }
 
-            final PassiveListenerKey key = PassiveListenerKey.from(info.commInterfaceType(), info.eqpPort());
+            final String passiveBindIp = requirePassiveListenerBindIp(info);
+            final PassiveListenerKey key = PassiveListenerKey.from(info.commInterfaceType(), passiveBindIp, info.eqpPort());
             final String resolvedSocketType = resolveSocketTypeOrDefault(info);
             final String existing = socketTypeByListenerKey.putIfAbsent(key, resolvedSocketType);
             if (existing != null && !existing.equals(resolvedSocketType)) {
@@ -1144,30 +1138,61 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     }
 
     /**
+     * Resolves the local bind IP for PASSIVE listener mode from equipment information.
+     *
+     * <p>The resolved value is passed directly to Netty {@code bind(host, port)}. Blank values are rejected
+     * so the runtime cannot silently fall back to loopback and cause environment-specific connectivity issues.</p>
+     *
+     * @param info equipment information loaded from DB/context
+     * @return trimmed bind IP string
+     */
+    private String requirePassiveListenerBindIp(final GatewayEquipmentInfo info) {
+        Objects.requireNonNull(info, "info is null");
+
+        final String bindIp = normalizeText(info.eqpIp());
+        if (bindIp == null) {
+            throw new IllegalStateException(
+                    "PASSIVE listener requires non-blank eqpIp(bind IP). eqpId=" + info.equipmentId()
+                            + ", interfaceType=" + info.commInterfaceType()
+            );
+        }
+        return bindIp;
+    }
+
+    /**
      * 게이트웨이 기준 PASSIVE 공유 listener 식별 키입니다.
      *
-     * <p>bind IP는 정책상 {@code 127.0.0.1}로 고정이므로 키에는 포함하지 않고,
-     * interface + port 조합으로 공유 여부를 판단합니다.</p>
+     * <p>bind IP는 DB(eqp_ip)에서 읽어 실제 bind에 사용하므로 키에도 포함하며,
+     * interface + bindIp + port 조합으로 공유 여부를 판단합니다.</p>
      */
     private record PassiveListenerKey(
             CommInterfaceType interfaceType,
+            String bindIp,
             int port
     ) {
         /**
          * 장비 정보에서 공유 listener 키를 생성합니다.
          *
          * @param interfaceType 인터페이스 타입(HSMS/SOCKET)
+         * @param bindIp tc_eqp.eqp_ip 값 (PASSIVE 모드에서는 게이트웨이 bind IP로 사용)
          * @param port tc_eqp.eqp_port 값 (PASSIVE 모드에서는 게이트웨이 bind port로 사용)
          * @return 공유 listener 키
          */
-        private static PassiveListenerKey from(final CommInterfaceType interfaceType, final Integer port) {
+        private static PassiveListenerKey from(
+                final CommInterfaceType interfaceType,
+                final String bindIp,
+                final Integer port
+        ) {
             if (interfaceType == null) {
                 throw new IllegalArgumentException("interfaceType is null");
+            }
+            if (bindIp == null || bindIp.isBlank()) {
+                throw new IllegalArgumentException("Invalid PASSIVE listener bindIp: " + bindIp);
             }
             if (port == null || port <= 0 || port > 65535) {
                 throw new IllegalArgumentException("Invalid PASSIVE listener port: " + port);
             }
-            return new PassiveListenerKey(interfaceType, port);
+            return new PassiveListenerKey(interfaceType, bindIp.trim(), port);
         }
     }
 
