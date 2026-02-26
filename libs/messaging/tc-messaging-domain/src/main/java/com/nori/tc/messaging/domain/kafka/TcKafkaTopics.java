@@ -33,9 +33,20 @@ public final class TcKafkaTopics {
     public static final String MES_EVENTS = "tc.mes.events";
 
     /**
-     * UI Backend -> Gateway/Business 이벤트 토픽입니다.
+     * UI Backend -> Gateway 이벤트 토픽입니다.
+     *
+     * <p>U1 설계부터 UI 이벤트 토픽을 Gateway/Business 처리 경계로 분리합니다.
+     * Gateway가 직접 처리하는 UI 작업 요청은 본 토픽을 사용합니다.</p>
      */
-    public static final String UI_EVENTS = "tc.ui.events";
+    public static final String UI_EVENTS_GATEWAY = "tc.ui.events.gateway";
+
+    /**
+     * UI Backend -> Business 이벤트 토픽입니다.
+     *
+     * <p>Business가 처리하는 UI 작업 요청은 본 토픽을 사용합니다.
+     * 기존 단일 UI 이벤트 토픽(`tc.ui.events`) 사용 패턴은 1차 설계에서 폐기 방향입니다.</p>
+     */
+    public static final String UI_EVENTS_BUSINESS = "tc.ui.events.business";
 
     /**
      * Gateway/Business -> UI Backend 명령 토픽입니다.
@@ -50,7 +61,8 @@ public final class TcKafkaTopics {
             EQP_COMMANDS,
             MES_COMMANDS,
             MES_EVENTS,
-            UI_EVENTS,
+            UI_EVENTS_GATEWAY,
+            UI_EVENTS_BUSINESS,
             UI_COMMANDS
     );
 
@@ -122,4 +134,3 @@ public final class TcKafkaTopics {
         return normalized;
     }
 }
-

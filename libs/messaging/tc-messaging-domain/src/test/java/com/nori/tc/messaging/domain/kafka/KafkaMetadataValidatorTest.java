@@ -47,7 +47,7 @@ class KafkaMetadataValidatorTest {
      * 비-MES metadata 정상 케이스를 검증합니다.
      */
     @Test
-    @DisplayName("비-MES 토픽 + Common metadata 조합은 검증을 통과한다")
+    @DisplayName("Gateway UI 이벤트 토픽 + Common metadata 조합은 검증을 통과한다")
     void validateCommonMetadataSuccess() {
         final TcCommonKafkaMetadata metadata = new TcCommonKafkaMetadata(
                 "EQP_CREATE",
@@ -57,7 +57,9 @@ class KafkaMetadataValidatorTest {
                 "v1"
         );
 
-        final List<KafkaValidationFailure> failures = validator.validate(TcKafkaTopics.UI_EVENTS, metadata);
+        // U1 설계 기준:
+        // UI 이벤트 토픽이 Gateway/Business로 분리되었으므로 Gateway 대상 토픽으로 검증합니다.
+        final List<KafkaValidationFailure> failures = validator.validate(TcKafkaTopics.UI_EVENTS_GATEWAY, metadata);
         assertTrue(failures.isEmpty());
     }
 
@@ -65,7 +67,7 @@ class KafkaMetadataValidatorTest {
      * eventType 네이밍 정책 위반 시 에러코드가 올바르게 반환되는지 검증합니다.
      */
     @Test
-    @DisplayName("eventType 규칙 위반 시 INVALID_EVENT_TYPE이 반환된다")
+    @DisplayName("Business UI 이벤트 토픽에서 eventType 규칙 위반 시 INVALID_EVENT_TYPE이 반환된다")
     void validateFailsWhenEventTypeIsInvalid() {
         final TcCommonKafkaMetadata metadata = new TcCommonKafkaMetadata(
                 "eqp.create",
@@ -75,7 +77,9 @@ class KafkaMetadataValidatorTest {
                 "v1"
         );
 
-        final List<KafkaValidationFailure> failures = validator.validate(TcKafkaTopics.UI_EVENTS, metadata);
+        // U1 설계 기준:
+        // 분리된 Business 대상 UI 이벤트 토픽도 공통 metadata 정책 검증을 동일하게 적용합니다.
+        final List<KafkaValidationFailure> failures = validator.validate(TcKafkaTopics.UI_EVENTS_BUSINESS, metadata);
         assertTrue(failures.stream().anyMatch(f -> f.errorCode() == KafkaValidationErrorCode.INVALID_EVENT_TYPE));
     }
 

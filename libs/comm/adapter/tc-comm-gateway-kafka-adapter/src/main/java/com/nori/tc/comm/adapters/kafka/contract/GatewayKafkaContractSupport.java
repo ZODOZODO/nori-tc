@@ -48,14 +48,24 @@ public class GatewayKafkaContractSupport {
      * 공통 validator/key resolver를 초기화합니다.
      */
     public GatewayKafkaContractSupport() {
+        // U1 설계 기준:
+        // Gateway는 분리된 UI 이벤트 토픽(`tc.ui.events.gateway`)만 수신 대상으로 검증합니다.
+        final Map<String, Set<String>> allowlist = buildAllowlist();
         this.metadataValidator = new KafkaMetadataValidator(
                 new KafkaEventTypeNamingPolicy(),
-                new KafkaSourceAllowlistPolicy(buildAllowlist()),
+                new KafkaSourceAllowlistPolicy(allowlist),
                 KafkaSchemaVersionPolicy.defaultPolicy()
         );
         this.keyResolver = new KafkaMessageKeyResolver();
 
-        log.info("GatewayKafkaContractSupport initialized. supportedTopics={}", TcKafkaTopics.allTopics());
+        log.info("GatewayKafkaContractSupport initialized. supportedTopics={}, gatewayUiEventsTopic={}",
+                TcKafkaTopics.allTopics(),
+                TcKafkaTopics.UI_EVENTS_GATEWAY);
+        if (log.isDebugEnabled()) {
+            log.debug("Gateway Kafka source allowlist configured for UI gateway topic. topic={}, allowedSources={}",
+                    TcKafkaTopics.UI_EVENTS_GATEWAY,
+                    allowlist.get(TcKafkaTopics.UI_EVENTS_GATEWAY));
+        }
     }
 
     /**
@@ -365,7 +375,9 @@ public class GatewayKafkaContractSupport {
                 TcKafkaSources.BUSINESS_CORE,
                 TcKafkaSources.BUSINESS_CORE + APP_SUFFIX
         ));
-        allowlist.put(TcKafkaTopics.UI_EVENTS, Set.of(
+        // U1 설계 기준:
+        // Gateway 계약 검증에서는 Gateway 대상 UI 이벤트 토픽만 허용 대상으로 등록합니다.
+        allowlist.put(TcKafkaTopics.UI_EVENTS_GATEWAY, Set.of(
                 TcKafkaSources.UI_BACKEND,
                 TcKafkaSources.UI_BACKEND + APP_SUFFIX
         ));

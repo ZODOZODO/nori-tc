@@ -48,14 +48,24 @@ public class BusinessKafkaContractSupport {
      * 공통 계약 검증기/키 해석기를 초기화합니다.
      */
     public BusinessKafkaContractSupport() {
+        // U1 설계 기준:
+        // Business는 분리된 UI 이벤트 토픽(`tc.ui.events.business`)만 수신 대상으로 검증합니다.
+        final Map<String, Set<String>> allowlist = buildAllowlist();
         this.metadataValidator = new KafkaMetadataValidator(
                 new KafkaEventTypeNamingPolicy(),
-                new KafkaSourceAllowlistPolicy(buildAllowlist()),
+                new KafkaSourceAllowlistPolicy(allowlist),
                 KafkaSchemaVersionPolicy.defaultPolicy()
         );
         this.keyResolver = new KafkaMessageKeyResolver();
 
-        log.info("BusinessKafkaContractSupport initialized. supportedTopics={}", TcKafkaTopics.allTopics());
+        log.info("BusinessKafkaContractSupport initialized. supportedTopics={}, businessUiEventsTopic={}",
+                TcKafkaTopics.allTopics(),
+                TcKafkaTopics.UI_EVENTS_BUSINESS);
+        if (log.isDebugEnabled()) {
+            log.debug("Business Kafka source allowlist configured for UI business topic. topic={}, allowedSources={}",
+                    TcKafkaTopics.UI_EVENTS_BUSINESS,
+                    allowlist.get(TcKafkaTopics.UI_EVENTS_BUSINESS));
+        }
     }
 
     /**
@@ -281,7 +291,9 @@ public class BusinessKafkaContractSupport {
                 TcKafkaSources.BUSINESS_CORE,
                 TcKafkaSources.BUSINESS_CORE + APP_SUFFIX
         ));
-        allowlist.put(TcKafkaTopics.UI_EVENTS, Set.of(
+        // U1 설계 기준:
+        // Business 계약 검증에서는 Business 대상 UI 이벤트 토픽만 허용 대상으로 등록합니다.
+        allowlist.put(TcKafkaTopics.UI_EVENTS_BUSINESS, Set.of(
                 TcKafkaSources.UI_BACKEND,
                 TcKafkaSources.UI_BACKEND + APP_SUFFIX
         ));

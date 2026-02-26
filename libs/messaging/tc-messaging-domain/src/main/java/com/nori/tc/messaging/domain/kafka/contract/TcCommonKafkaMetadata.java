@@ -6,7 +6,8 @@ package com.nori.tc.messaging.domain.kafka.contract;
  * <p>대상 토픽:
  * - tc.eqp.events
  * - tc.eqp.commands
- * - tc.ui.events
+ * - tc.ui.events.gateway
+ * - tc.ui.events.business
  * - tc.ui.commands</p>
  *
  * <p>식별자는 traceId를 사용합니다.</p>
@@ -65,4 +66,3 @@ public record TcCommonKafkaMetadata(
         }
     }
 }
-

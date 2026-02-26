@@ -14,7 +14,10 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 
 /**
- * {@code tc.ui.events} 수신 Subscriber입니다.
+ * {@code tc.ui.events.business} 수신 Subscriber입니다.
+ *
+ * <p>U1 단계에서 UI 이벤트 토픽이 Gateway/Business 경계로 분리되므로,
+ * Business는 본 토픽만 구독 대상으로 사용합니다.</p>
  *
  * <p>역할:
  * 1) Kafka 원문(JSON)을 Business inbound record로 변환합니다.

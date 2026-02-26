@@ -23,7 +23,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * {@code tc.ui.events}를 subscribe 방식으로 구독하는 UI Task consumer입니다.
+ * {@code tc.ui.events.gateway}를 구독하는 UI Task consumer입니다.
+ *
+ * <p>주의:
+ * U1 단계에서는 토픽 분리만 반영하며, 소비 바인딩 모드 자체는 아직 기존 구조를 유지합니다.
+ * 따라서 본 클래스는 현재 시점 기준으로 subscribe 방식을 사용하고,
+ * 고정 partition 기반 ASSIGN 전환은 U10에서 수행합니다.</p>
  *
  * <p>운영 정책:
  * 1) task 처리 실패 시 commit하지 않고 동일 offset을 재시도

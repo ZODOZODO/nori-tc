@@ -39,11 +39,20 @@ public final class KafkaSourceAllowlistPolicy {
         mapping.put(TcKafkaTopics.EQP_COMMANDS, Set.of(TcKafkaSources.BUSINESS_CORE));
         mapping.put(TcKafkaTopics.MES_COMMANDS, Set.of(TcKafkaSources.BUSINESS_CORE));
         mapping.put(TcKafkaTopics.MES_EVENTS, Set.of(TcKafkaSources.EXTERNAL_MES_ADAPTER));
-        mapping.put(TcKafkaTopics.UI_EVENTS, Set.of(TcKafkaSources.UI_BACKEND));
+        // U1 설계 기준:
+        // UI 이벤트는 Gateway 처리용 / Business 처리용 토픽으로 분리하되,
+        // 발행 주체(source)는 모두 UI_BACKEND로 동일하게 관리합니다.
+        mapping.put(TcKafkaTopics.UI_EVENTS_GATEWAY, Set.of(TcKafkaSources.UI_BACKEND));
+        mapping.put(TcKafkaTopics.UI_EVENTS_BUSINESS, Set.of(TcKafkaSources.UI_BACKEND));
         mapping.put(TcKafkaTopics.UI_COMMANDS, Set.of(
                 TcKafkaSources.COMM_GATEWAY,
                 TcKafkaSources.BUSINESS_CORE
         ));
+        if (log.isDebugEnabled()) {
+            log.debug("KafkaSourceAllowlistPolicy default mapping prepared. uiGatewayTopic={}, uiBusinessTopic={}",
+                    TcKafkaTopics.UI_EVENTS_GATEWAY,
+                    TcKafkaTopics.UI_EVENTS_BUSINESS);
+        }
         return new KafkaSourceAllowlistPolicy(mapping);
     }
 
@@ -149,4 +158,3 @@ public final class KafkaSourceAllowlistPolicy {
         return normalized;
     }
 }
-

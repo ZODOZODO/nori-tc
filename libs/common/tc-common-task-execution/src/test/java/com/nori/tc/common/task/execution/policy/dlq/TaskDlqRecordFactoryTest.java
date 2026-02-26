@@ -18,7 +18,7 @@ class TaskDlqRecordFactoryTest {
     void shouldTruncateExceptionMessageWhenTooLong() {
         final TaskDlqRecordFactory factory = new TaskDlqRecordFactory(10);
         final TaskFailureContext context = new TaskFailureContext(
-                "tc.ui.events",
+                "tc.ui.events.business",
                 1,
                 200L,
                 "EQP-01",

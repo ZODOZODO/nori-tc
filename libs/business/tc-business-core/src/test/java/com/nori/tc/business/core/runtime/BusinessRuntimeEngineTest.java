@@ -43,7 +43,7 @@ class BusinessRuntimeEngineTest {
             Assertions.assertTrue(runtimeEngine.isRunning(), "runtime engine must be running");
 
             final boolean accepted = runtimeEngine.submit(new BusinessInboundRecord(
-                    "tc.ui.events",
+                    "tc.ui.events.business",
                     0,
                     0L,
                     "EQP-TEST-01",
@@ -144,7 +144,7 @@ class BusinessRuntimeEngineTest {
         );
 
         final boolean accepted = runtimeEngine.submit(new BusinessInboundRecord(
-                "tc.ui.events",
+                "tc.ui.events.business",
                 0,
                 10L,
                 "EQP-TEST-REJECTED",

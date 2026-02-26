@@ -39,7 +39,10 @@ public class GatewayKafkaShardProperties {
     private Long pollTimeoutMs;
 
     /**
-     * tc.ui.events 소비 poll timeout(ms)입니다.
+     * Gateway UI 이벤트 토픽({@code tc.ui.events.gateway}) 소비 poll timeout(ms)입니다.
+     *
+     * <p>U1에서는 토픽 분리만 반영되며, U10에서 소비 모드를 ASSIGN 기반으로 전환할 예정입니다.
+     * 본 설정은 토픽명이 분리되더라도 Gateway UI consumer의 poll loop timeout 용도로 계속 사용됩니다.</p>
      */
     private Long uiPollTimeoutMs;
 
