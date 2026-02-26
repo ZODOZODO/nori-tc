@@ -6,6 +6,7 @@ import com.nori.tc.comm.gateway.context.model.EquipmentContextProfile;
 import com.nori.tc.comm.gateway.context.port.EquipmentContextProfileProvider;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
@@ -52,6 +53,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
     private static final int PAGE_LIMIT = PageRequest.defaultPage().limit();
 
     private final TcEqpStore eqpStore;
+    private final KafkaShardOwnership shardOwnership;
     private final TcEqpHsmsStore hsmsStore;
     private final TcEqpSocketStore socketStore;
     private final TcEqpStateStore stateStore;
@@ -64,6 +66,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
      */
     public GatewayEquipmentService(
             final TcEqpStore eqpStore,
+            final KafkaShardOwnership shardOwnership,
             final TcEqpHsmsStore hsmsStore,
             final TcEqpSocketStore socketStore,
             final TcEqpStateStore stateStore,
@@ -72,6 +75,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
             final TcEqpParamStore paramStore
     ) {
         this.eqpStore = Objects.requireNonNull(eqpStore, "eqpStore is null");
+        this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
         this.hsmsStore = Objects.requireNonNull(hsmsStore, "hsmsStore is null");
         this.socketStore = Objects.requireNonNull(socketStore, "socketStore is null");
         this.stateStore = Objects.requireNonNull(stateStore, "stateStore is null");
@@ -81,18 +85,40 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
     }
 
     /**
-     * 전체 설비의 핵심 정보 목록을 조회합니다.
+     * 현재 Gateway 인스턴스가 소유한 partition의 활성(enabled) 설비 핵심 정보 목록을 조회합니다.
+     *
+     * <p>U7 변경 규칙:</p>
+     * <p>- 전체 tc_eqp 테이블을 읽지 않고, {@code route_partition IN ownedPartitions AND enabled=true} 조건으로 조회합니다.</p>
+     * <p>- 반환 대상은 "게이트웨이 런타임 기동 후보"이며, 비활성 설비는 포함하지 않습니다.</p>
+     *
+     * @return 현재 인스턴스 소유 partition의 활성 설비 핵심 정보 목록
      */
     @Override
     public List<GatewayEquipmentInfo> findAll() {
-        log.info("Loading equipment info list from DB.");
+        final List<Integer> ownedPartitions = shardOwnership.ownedPartitions();
+        if (ownedPartitions.isEmpty()) {
+            log.info("설비 핵심 정보 로딩을 건너뜁니다. 사유=소유 partition 없음");
+            return List.of();
+        }
+
+        log.info("소유 partition 기준 활성 설비 핵심 정보 로딩 시작. ownedPartitions={}", ownedPartitions);
 
         final List<GatewayEquipmentInfo> results = new ArrayList<>();
         int offset = 0;
         while (true) {
-            final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
+            final List<TcEqp> page = eqpStore.findAllByRoutePartitionsAndEnabled(
+                    ownedPartitions,
+                    true,
+                    PageRequest.of(offset, PAGE_LIMIT)
+            );
             if (page.isEmpty()) {
                 break;
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("설비 핵심 정보 페이지 로딩 완료. offset={}, pageSize={}, ownedPartitions={}",
+                        offset,
+                        page.size(),
+                        ownedPartitions);
             }
             for (TcEqp eqp : page) {
                 results.add(toInfo(eqp));
@@ -103,7 +129,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
             offset += PAGE_LIMIT;
         }
 
-        log.info("Equipment info list loaded. count={}", results.size());
+        log.info("소유 partition 기준 활성 설비 핵심 정보 로딩 완료. count={}, ownedPartitions={}", results.size(), ownedPartitions);
         return results;
     }
 
@@ -121,18 +147,40 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
     }
 
     /**
-     * 전체 설비의 컨텍스트 프로파일 목록을 조회합니다.
+     * 현재 Gateway 인스턴스가 소유한 partition의 활성(enabled) 설비 컨텍스트 프로파일 목록을 조회합니다.
+     *
+     * <p>U7 변경 규칙:</p>
+     * <p>- 부팅 시 초기 컨텍스트 적재는 {@code route_partition IN ownedPartitions AND enabled=true} 조건으로 제한합니다.</p>
+     * <p>- 이로써 멀티 게이트웨이 환경에서 비소유 설비 컨텍스트를 메모리에 올리는 비용을 줄입니다.</p>
+     *
+     * @return 현재 인스턴스 소유 partition의 활성 설비 컨텍스트 프로파일 목록
      */
     @Override
     public List<EquipmentContextProfile> findAllProfiles() {
-        log.info("Loading equipment context profiles from DB.");
+        final List<Integer> ownedPartitions = shardOwnership.ownedPartitions();
+        if (ownedPartitions.isEmpty()) {
+            log.info("설비 컨텍스트 프로파일 로딩을 건너뜁니다. 사유=소유 partition 없음");
+            return List.of();
+        }
+
+        log.info("소유 partition 기준 활성 설비 컨텍스트 프로파일 로딩 시작. ownedPartitions={}", ownedPartitions);
 
         final List<EquipmentContextProfile> results = new ArrayList<>();
         int offset = 0;
         while (true) {
-            final List<TcEqp> page = eqpStore.findAll(PageRequest.of(offset, PAGE_LIMIT));
+            final List<TcEqp> page = eqpStore.findAllByRoutePartitionsAndEnabled(
+                    ownedPartitions,
+                    true,
+                    PageRequest.of(offset, PAGE_LIMIT)
+            );
             if (page.isEmpty()) {
                 break;
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("설비 컨텍스트 프로파일 페이지 로딩 완료. offset={}, pageSize={}, ownedPartitions={}",
+                        offset,
+                        page.size(),
+                        ownedPartitions);
             }
             for (TcEqp eqp : page) {
                 results.add(toProfile(eqp));
@@ -143,7 +191,9 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
             offset += PAGE_LIMIT;
         }
 
-        log.info("Equipment context profiles loaded. count={}", results.size());
+        log.info("소유 partition 기준 활성 설비 컨텍스트 프로파일 로딩 완료. count={}, ownedPartitions={}",
+                results.size(),
+                ownedPartitions);
         return results;
     }
 

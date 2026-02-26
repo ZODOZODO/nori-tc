@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -113,7 +114,7 @@ class GatewayNettyBootstrapTest {
         final int sharedPort = findAvailablePort();
 
         when(equipmentContextRegistry.snapshot()).thenReturn(java.util.List.of());
-        when(shardOwnership.isOwned(anyString())).thenReturn(true);
+        when(shardOwnership.isOwnedPartition(anyInt())).thenReturn(true);
 
         final GatewayEquipmentInfo eqpA = new GatewayEquipmentInfo(
                 1L,
@@ -125,7 +126,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 101L,
                 ConnectionMode.PASSIVE,
-                null,
+                0,
                 true
         );
         final GatewayEquipmentInfo eqpB = new GatewayEquipmentInfo(
@@ -138,7 +139,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 102L,
                 ConnectionMode.PASSIVE,
-                null,
+                1,
                 true
         );
 
@@ -194,7 +195,7 @@ class GatewayNettyBootstrapTest {
         final int sharedPort = findAvailablePort();
 
         when(equipmentContextRegistry.snapshot()).thenReturn(java.util.List.of());
-        when(shardOwnership.isOwned(anyString())).thenReturn(true);
+        when(shardOwnership.isOwnedPartition(anyInt())).thenReturn(true);
 
         final GatewayEquipmentInfo socketEqpA = new GatewayEquipmentInfo(
                 101L,
@@ -206,7 +207,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 201L,
                 ConnectionMode.PASSIVE,
-                null,
+                2,
                 true
         );
         final GatewayEquipmentInfo socketEqpB = new GatewayEquipmentInfo(
@@ -219,7 +220,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 202L,
                 ConnectionMode.PASSIVE,
-                null,
+                3,
                 true
         );
 
@@ -260,7 +261,7 @@ class GatewayNettyBootstrapTest {
     @Test
     void activeRuntimeStartShouldAttemptOutboundConnection() throws Exception {
         when(equipmentContextRegistry.snapshot()).thenReturn(java.util.List.of());
-        when(shardOwnership.isOwned(anyString())).thenReturn(true);
+        when(shardOwnership.isOwnedPartition(anyInt())).thenReturn(true);
 
         /**
          * ACTIVE(게이트웨이 기준) 아웃바운드 연결 성공 시 Netty pipeline 에 ACTIVE handler 가 필요합니다.
@@ -303,7 +304,7 @@ class GatewayNettyBootstrapTest {
                     remotePort,
                     110L,
                     ConnectionMode.ACTIVE,
-                    null,
+                    4,
                     true
             );
             when(equipmentInfoProvider.findById("ACTIVE_EQP")).thenReturn(Optional.of(activeEqp));

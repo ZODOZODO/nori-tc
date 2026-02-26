@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -63,6 +64,42 @@ public class KafkaShardOwnership {
     }
 
     /**
+     * 현재 인스턴스가 소유한 고정 partition 목록을 반환합니다.
+     *
+     * <p>반환 값은 외부에서 수정할 수 없는 스냅샷이며, 로그/조회/필터링 목적에 사용합니다.</p>
+     * <p>정렬된 형태로 반환하여 운영 로그/디버깅 시 가독성을 높입니다.</p>
+     *
+     * @return 정렬된 소유 partition 목록 스냅샷
+     */
+    public List<Integer> ownedPartitions() {
+        return List.copyOf(new TreeSet<>(ownedPartitionSet));
+    }
+
+    /**
+     * 특정 partition 번호가 현재 인스턴스 소유인지 판정합니다.
+     *
+     * <p>U8부터 Gateway 런타임 소유권 판정은 eqpId 해시가 아니라
+     * DB의 {@code route_partition} 값을 기준으로 수행하는 방향으로 전환됩니다.</p>
+     *
+     * @param partition route_partition 값 (null 허용)
+     * @return 소유 partition이면 true, null 또는 미소유면 false
+     */
+    public boolean isOwnedPartition(final Integer partition) {
+        if (partition == null) {
+            if (log.isDebugEnabled()) {
+                log.debug("Shard ownership check skipped because routePartition is null. owned=false");
+            }
+            return false;
+        }
+
+        final boolean owned = ownedPartitionSet.contains(partition);
+        if (log.isDebugEnabled()) {
+            log.debug("Shard ownership check by routePartition. partition={}, owned={}", partition, owned);
+        }
+        return owned;
+    }
+
+    /**
      * 현재 인스턴스가 해당 `eqpId`를 처리해야 하는지 판정합니다.
      *
      * <p>DEBUG 로그에는 판정 근거(`partition`, `owned`)를 함께 남겨
@@ -73,7 +110,7 @@ public class KafkaShardOwnership {
      */
     public boolean isOwned(final String eqpId) {
         final int partition = partitionOf(eqpId);
-        final boolean owned = ownedPartitionSet.contains(partition);
+        final boolean owned = isOwnedPartition(partition);
         if (log.isDebugEnabled()) {
             log.debug("Shard ownership check. eqpId={}, partition={}, owned={}", eqpId, partition, owned);
         }

@@ -21,7 +21,7 @@ import java.util.Objects;
  * Netty 채널을 설비(eqpId)에 바인딩/언바인딩하는 서비스입니다.
  *
  * <p>핵심 책임은 다음과 같습니다.</p>
- * <p>1) 바인딩 전 공통 검증(shard ownership, DB 등록, enabled, 인터페이스, 모드)을 수행합니다.</p>
+ * <p>1) 바인딩 전 공통 검증(route_partition 기반 shard ownership, DB 등록, enabled, 인터페이스, 모드)을 수행합니다.</p>
  * <p>2) 채널 레지스트리 등록 및 mailbox 바인딩을 수행합니다.</p>
  * <p>3) 연결/해제 라이프사이클 이벤트를 상태머신으로 전달합니다.</p>
  *
@@ -164,8 +164,8 @@ public class EqpBindingService {
      *
      * <p>검증 순서는 다음과 같습니다.</p>
      * <p>1) eqpId 유효성</p>
-     * <p>2) shard ownership</p>
-     * <p>3) 설비 조회</p>
+     * <p>2) 설비 조회</p>
+     * <p>3) route_partition 기반 shard ownership</p>
      * <p>4) enabled / 인터페이스 / 모드 일치</p>
      * <p>5) 중복 채널 여부</p>
      *
@@ -191,15 +191,20 @@ public class EqpBindingService {
                         eqpId, interfaceType, expectedMode);
             }
 
-            if (!shardOwnership.isOwned(eqpId)) {
-                return BindResult.NOT_OWNED;
-            }
-
             final GatewayEquipmentInfo info;
             try {
                 info = gatewayIngressService.resolveEquipment(eqpId);
             } catch (Exception ex) {
                 return BindResult.UNKNOWN_EQUIPMENT;
+            }
+
+            if (!isOwnedByRoutePartition(info)) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Bind rejected by route_partition ownership. eqpId={}, routePartition={}",
+                            eqpId,
+                            info.routePartition());
+                }
+                return BindResult.NOT_OWNED;
             }
 
             if (!info.enabled()) {
@@ -246,6 +251,29 @@ public class EqpBindingService {
         INVALID_EQP_ID,
         COMM_INTERFACE_MISMATCH,
         CONNECTION_MODE_MISMATCH
+    }
+
+    /**
+     * 설비 정보의 route_partition을 기준으로 현재 게이트웨이 인스턴스 소유 여부를 판정합니다.
+     *
+     * <p>U8부터 바인딩 전 소유권 검증은 eqpId 해시가 아니라 DB {@code tc_eqp.route_partition}를 기준으로 수행합니다.</p>
+     * <p>routePartition이 null이면 미배정 상태로 간주하여 미소유(false) 처리합니다.</p>
+     *
+     * @param info 바인딩 대상 설비 정보
+     * @return 현재 게이트웨이가 소유한 route_partition이면 true
+     */
+    private boolean isOwnedByRoutePartition(final GatewayEquipmentInfo info) {
+        Objects.requireNonNull(info, "info is null");
+
+        final Integer routePartition = info.routePartition();
+        final boolean owned = shardOwnership.isOwnedPartition(routePartition);
+        if (log.isDebugEnabled()) {
+            log.debug("Bind route_partition ownership check. eqpId={}, routePartition={}, owned={}",
+                    info.equipmentId(),
+                    routePartition,
+                    owned);
+        }
+        return owned;
     }
 
     /**

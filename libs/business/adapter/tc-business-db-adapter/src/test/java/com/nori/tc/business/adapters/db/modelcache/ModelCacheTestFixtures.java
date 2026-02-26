@@ -132,6 +132,35 @@ final class ModelCacheTestFixtures {
         }
 
         /**
+         * route_partition + enabled 조건으로 설비 목록을 조회합니다.
+         *
+         * <p>Model cache 테스트에서는 Gateway 전용 라우팅을 직접 사용하지 않지만,
+         * 공통 저장소 인터페이스 변경(U3)에 맞춰 테스트 더블도 계약을 만족해야 합니다.</p>
+         * <p>구현은 단순 필터 + 기존 페이지 유틸 재사용으로 최소 동작만 제공합니다.</p>
+         *
+         * @param routePartitions 조회 대상 route_partition 목록
+         * @param enabled enabled 필터 값
+         * @param page 페이징 요청
+         * @return 필터링된 설비 목록(페이지 적용)
+         */
+        @Override
+        public List<TcEqp> findAllByRoutePartitionsAndEnabled(
+                final List<Integer> routePartitions,
+                final boolean enabled,
+                final PageRequest page
+        ) {
+            if (routePartitions == null || routePartitions.isEmpty()) {
+                return List.of();
+            }
+
+            final List<TcEqp> filtered = eqps.stream()
+                    .filter(eqp -> eqp.enabled() == enabled)
+                    .filter(eqp -> eqp.routePartition() != null && routePartitions.contains(eqp.routePartition()))
+                    .toList();
+            return pageEqp(filtered, page);
+        }
+
+        /**
          * deleteByEqpId 기능을 수행합니다.
          *
          * @param eqpId 입력 값
@@ -521,4 +550,3 @@ final class ModelCacheTestFixtures {
         }
     }
 }
-

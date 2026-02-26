@@ -245,6 +245,8 @@ class BusinessWorkflowPluginRuntimeManagerTest {
                 eqpKey,
                 eqpId,
                 ProtocolType.SOCKET,
+                "ACTIVE",
+                0,
                 "127.0.0.1",
                 5000,
                 modelKey,
@@ -334,6 +336,39 @@ class BusinessWorkflowPluginRuntimeManagerTest {
             final int from = Math.min(page.offset(), eqps.size());
             final int to = Math.min(from + page.limit(), eqps.size());
             return List.copyOf(eqps.subList(from, to));
+        }
+
+        /**
+         * route_partition + enabled 조건으로 설비 목록을 조회합니다.
+         *
+         * <p>본 테스트는 preload/reload 정책 검증이 목적이므로,
+         * 실제 DB 구현처럼 복잡한 정렬/최적화 없이 단순 필터 + 페이지 계산만 수행합니다.</p>
+         * <p>U3 계약 확장 후 테스트 더블이 인터페이스를 계속 만족하도록 추가한 구현입니다.</p>
+         *
+         * @param routePartitions 조회 대상 route_partition 목록
+         * @param enabled enabled 필터 값
+         * @param page 페이지 요청 정보
+         * @return 필터링 및 페이징이 적용된 설비 목록
+         */
+        @Override
+        public List<TcEqp> findAllByRoutePartitionsAndEnabled(
+                final List<Integer> routePartitions,
+                final boolean enabled,
+                final PageRequest page
+        ) {
+            findAllCallCount++;
+            if (routePartitions == null || routePartitions.isEmpty()) {
+                return List.of();
+            }
+
+            final List<TcEqp> filtered = eqps.stream()
+                    .filter(eqp -> eqp.enabled() == enabled)
+                    .filter(eqp -> eqp.routePartition() != null && routePartitions.contains(eqp.routePartition()))
+                    .toList();
+
+            final int from = Math.min(page.offset(), filtered.size());
+            final int to = Math.min(from + page.limit(), filtered.size());
+            return List.copyOf(filtered.subList(from, to));
         }
 
         /**

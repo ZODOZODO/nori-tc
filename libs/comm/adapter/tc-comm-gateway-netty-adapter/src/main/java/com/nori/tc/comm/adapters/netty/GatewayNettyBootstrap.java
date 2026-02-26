@@ -247,7 +247,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      * 장비 1대의 통신 런타임을 게이트웨이 기준 모드에 맞게 시작합니다.
      *
      * <p>동작 규칙:</p>
-     * <p>1) shard ownership 및 enabled 여부를 확인합니다.</p>
+     * <p>1) route_partition 기반 shard ownership 및 enabled 여부를 확인합니다.</p>
      * <p>2) 게이트웨이 기준 ACTIVE는 기존 아웃바운드 연결/재연결 로직을 사용합니다.</p>
      * <p>3) 게이트웨이 기준 PASSIVE는 공유 listener(interface + bindIp + port)를 보장합니다.</p>
      *
@@ -264,16 +264,18 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 log.warn("Transport runtime start skipped (gateway not running). eqpId={}", eqpId);
                 return;
             }
-            if (!shardOwnership.isOwned(eqpId)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Transport runtime start skipped (not owned). eqpId={}", eqpId);
-                }
-                return;
-            }
 
             final GatewayEquipmentInfo info = resolveRuntimeEquipmentInfo(eqpId);
             if (info == null) {
                 log.warn("Transport runtime start skipped (equipment not found). eqpId={}", eqpId);
+                return;
+            }
+            if (!isOwnedByRoutePartition(info, "RUNTIME_START")) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Transport runtime start skipped (not owned by route_partition). eqpId={}, routePartition={}",
+                            eqpId,
+                            info.routePartition());
+                }
                 return;
             }
             if (!info.enabled()) {
@@ -383,16 +385,18 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
                 log.warn("Outbound connect skipped (gateway not running). eqpId={}", eqpId);
                 return;
             }
-            if (!shardOwnership.isOwned(eqpId)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Outbound connect skipped (not owned). eqpId={}", eqpId);
-                }
-                return;
-            }
 
             final GatewayEquipmentInfo info = resolveRuntimeEquipmentInfo(eqpId);
             if (info == null) {
                 log.warn("Outbound connect skipped (equipment not found). eqpId={}", eqpId);
+                return;
+            }
+            if (!isOwnedByRoutePartition(info, "CONNECT_ACTIVE")) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Outbound connect skipped (not owned by route_partition). eqpId={}, routePartition={}",
+                            eqpId,
+                            info.routePartition());
+                }
                 return;
             }
             if (!info.enabled()) {
@@ -1089,6 +1093,31 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return fallbackInfo;
         }
         return latest;
+    }
+
+    /**
+     * 설비 정보의 route_partition을 기준으로 현재 게이트웨이 인스턴스 소유 여부를 판정합니다.
+     *
+     * <p>U8부터 런타임 소유권 판정은 eqpId 해시 기반이 아니라 DB {@code tc_eqp.route_partition}를 기준으로 수행합니다.</p>
+     * <p>routePartition이 null이면 미배정 상태로 간주하여 미소유(false) 처리합니다.</p>
+     *
+     * @param info 런타임 설비 정보
+     * @param reason 호출 사유(로그용)
+     * @return 현재 게이트웨이가 소유한 route_partition이면 true
+     */
+    private boolean isOwnedByRoutePartition(final GatewayEquipmentInfo info, final String reason) {
+        Objects.requireNonNull(info, "info is null");
+
+        final Integer routePartition = info.routePartition();
+        final boolean owned = shardOwnership.isOwnedPartition(routePartition);
+        if (log.isDebugEnabled()) {
+            log.debug("route_partition 소유권 판정. eqpId={}, routePartition={}, owned={}, reason={}",
+                    info.equipmentId(),
+                    routePartition,
+                    owned,
+                    reason);
+        }
+        return owned;
     }
 
     /**

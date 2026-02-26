@@ -125,6 +125,8 @@ class GatewaySocketPluginRuntimeManagerTest {
                 eqpKey,
                 eqpId,
                 ProtocolType.SOCKET,
+                "ACTIVE",
+                0,
                 "127.0.0.1",
                 5001,
                 modelKey,
@@ -208,6 +210,40 @@ class GatewaySocketPluginRuntimeManagerTest {
             final int from = Math.min(page.offset(), eqps.size());
             final int to = Math.min(from + page.limit(), eqps.size());
             return List.copyOf(eqps.subList(from, to));
+        }
+
+        /**
+         * route_partition + enabled 조건으로 설비 목록을 조회합니다.
+         *
+         * <p>이 테스트 더블은 Gateway 플러그인 preload 테스트용이므로,
+         * 실제 운영 쿼리의 모든 동작을 재현하지 않고 필요한 필터만 간단히 적용합니다.</p>
+         * <p>U3 이후 {@link TcEqpStore} 계약 확장으로 추가된 메서드이며,
+         * 테스트 컴파일/호환성 유지를 위해 구현합니다.</p>
+         *
+         * @param routePartitions 조회 대상 route_partition 목록
+         * @param enabled enabled 필터 값
+         * @param page 페이징 조건
+         * @return 조건에 일치하는 설비 목록(페이지 적용)
+         */
+        @Override
+        public List<TcEqp> findAllByRoutePartitionsAndEnabled(
+                final List<Integer> routePartitions,
+                final boolean enabled,
+                final PageRequest page
+        ) {
+            findAllCallCount++;
+            if (routePartitions == null || routePartitions.isEmpty()) {
+                return List.of();
+            }
+
+            final List<TcEqp> filtered = eqps.stream()
+                    .filter(eqp -> eqp.enabled() == enabled)
+                    .filter(eqp -> eqp.routePartition() != null && routePartitions.contains(eqp.routePartition()))
+                    .toList();
+
+            final int from = Math.min(page.offset(), filtered.size());
+            final int to = Math.min(from + page.limit(), filtered.size());
+            return List.copyOf(filtered.subList(from, to));
         }
 
         /**
