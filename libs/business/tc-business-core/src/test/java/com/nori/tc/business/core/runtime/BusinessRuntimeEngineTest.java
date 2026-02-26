@@ -25,17 +25,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 /**
- * {@link BusinessRuntimeEngine} 湲곕낯 ?숈옉 ?뚯뒪?몄엯?덈떎.
+ * {@link BusinessRuntimeEngine} 동작을 검증하는 단위 테스트입니다.
  */
 class BusinessRuntimeEngineTest {
 
     /**
-     * runtime ?ㅽ뻾 以묒뿉??inbound record媛 ?뺤긽 ?섎씫?섎뒗吏 ?뺤씤?⑸땲??
+     * 런타임이 시작된 상태에서는 inbound record가 정상적으로 수락되는지 검증합니다.
      */
     @Test
     void shouldAcceptInboundRecordWhenRuntimeIsRunning() throws Exception {
-        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
-        properties.validate();
+        final BusinessCoreRuntimeProperties properties = createValidRuntimePropertiesForTest();
 
         final BusinessRuntimeEngine runtimeEngine = new BusinessRuntimeEngine(properties);
         runtimeEngine.start();
@@ -61,12 +60,11 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * non-UI(EQP/MES) 寃쎈줈?먯꽌 workflow 留ㅼ묶 ??action executor媛 ?몄텧?섎뒗吏 ?뺤씤?⑸땲??
+     * non-UI(EQP/MES) 메시지에서 워크플로가 매칭되면 action executor가 호출되는지 검증합니다.
      */
     @Test
     void shouldExecuteNonUiActionWhenWorkflowIsMatched() throws Exception {
-        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
-        properties.validate();
+        final BusinessCoreRuntimeProperties properties = createValidRuntimePropertiesForTest();
 
         final TcModelRuntime modelRuntime = createRuntime(900L, ProtocolType.SOCKET);
         final BusinessModelRuntimeProvider runtimeProvider = () -> BusinessModelRuntimeSnapshot.of(
@@ -125,12 +123,11 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * ?고??꾩씠 ?쒖옉?섏? ?딆? ?곹깭?먯꽌 submit ?몄텧 ??REJECTED disposition???꾩쟻?섎뒗吏 寃利앺빀?덈떎.
+     * 런타임 시작 전 submit 호출 시 REJECTED disposition이 기록되는지 검증합니다.
      */
     @Test
     void shouldRecordRejectedDispositionWhenSubmitIsCalledBeforeStart() {
-        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
-        properties.validate();
+        final BusinessCoreRuntimeProperties properties = createValidRuntimePropertiesForTest();
 
         final BusinessRuntimeDispositionMetrics dispositionMetrics = new BusinessRuntimeDispositionMetrics();
         final BusinessRuntimeEngine runtimeEngine = new BusinessRuntimeEngine(
@@ -154,26 +151,25 @@ class BusinessRuntimeEngineTest {
                 "{\"sample\":false}"
         ));
 
-        Assertions.assertFalse(accepted, "?쒖옉 ??submit? 嫄곕??섏뼱???⑸땲??");
+        Assertions.assertFalse(accepted, "런타임 시작 전 submit은 거부되어야 합니다.");
         Assertions.assertEquals(
                 1L,
                 dispositionMetrics.count(BusinessRuntimeDisposition.REJECTED),
-                "?쒖옉 ??submit? REJECTED disposition 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
+                "런타임 시작 전 submit은 REJECTED disposition 1건을 기록해야 합니다."
         );
         Assertions.assertEquals(
                 1L,
                 dispositionMetrics.count("UI_EVENT", BusinessRuntimeDisposition.REJECTED),
-                "?쒖옉 ??UI submit? UI_EVENT:REJECTED 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
+                "런타임 시작 전 UI submit은 UI_EVENT:REJECTED 1건을 기록해야 합니다."
         );
     }
 
     /**
-     * ?뺤긽 泥섎━??non-UI task媛 ACCEPTED disposition?쇰줈 吏묎퀎?섎뒗吏 寃利앺빀?덈떎.
+     * 정상 처리된 non-UI task가 ACCEPTED disposition으로 기록되는지 검증합니다.
      */
     @Test
     void shouldRecordAcceptedDispositionWhenTaskIsProcessedSuccessfully() throws Exception {
-        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
-        properties.validate();
+        final BusinessCoreRuntimeProperties properties = createValidRuntimePropertiesForTest();
 
         final TcModelRuntime modelRuntime = createRuntime(901L, ProtocolType.SOCKET);
         final BusinessModelRuntimeProvider runtimeProvider = () -> BusinessModelRuntimeSnapshot.of(
@@ -197,7 +193,7 @@ class BusinessRuntimeEngineTest {
                 new BusinessWorkflowFilterContext(record, Map.of(), Map.of())
         );
         final BusinessWorkflowActionExecutor actionExecutor = (record, runtime, matchResult) -> {
-            // ?깃났 ?쒕굹由ъ삤 寃利앹쓣 ?꾪빐 no-op ?ㅽ뻾湲곕줈 ?〓땲??
+            // 이 테스트는 disposition 집계만 검증하므로 액션 실행 자체는 no-op으로 둡니다.
         };
 
         final BusinessRuntimeDispositionMetrics dispositionMetrics = new BusinessRuntimeDispositionMetrics();
@@ -223,18 +219,18 @@ class BusinessRuntimeEngineTest {
                     "payload://eqp/disp/1",
                     "{\"message\":\"PING\"}"
             ));
-            Assertions.assertTrue(accepted, "?고???湲곕룞 以?submit? ?섎씫?섏뼱???⑸땲??");
+            Assertions.assertTrue(accepted, "정상 실행 경로의 submit은 수락되어야 합니다.");
 
             awaitUntil(() -> dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED) > 0L, 2_000L);
             Assertions.assertEquals(
                     1L,
                     dispositionMetrics.count(BusinessRuntimeDisposition.ACCEPTED),
-                    "?뺤긽 泥섎━??task??ACCEPTED disposition 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
+                    "정상 처리된 task는 ACCEPTED disposition 1건을 기록해야 합니다."
             );
             Assertions.assertEquals(
                     1L,
                     dispositionMetrics.count("EQP_EVENT", BusinessRuntimeDisposition.ACCEPTED),
-                    "EQP ?대깽???뺤긽 泥섎━??EQP_EVENT:ACCEPTED 1嫄댁쑝濡?吏묎퀎?섏뼱???⑸땲??"
+                    "EQP 메시지 정상 처리 시 EQP_EVENT:ACCEPTED 1건을 기록해야 합니다."
             );
         } finally {
             runtimeEngine.stop();
@@ -242,7 +238,7 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * ?쒗븳 ?쒓컙 ?덉뿉 議곌굔??留뚯”???뚭퉴吏 ?湲고빀?덈떎.
+     * 조건이 만족될 때까지 짧게 폴링하며 기다리는 테스트 유틸리티입니다.
      */
     private static void awaitUntil(final BooleanSupplier condition, final long timeoutMs) throws InterruptedException {
         final long deadline = System.currentTimeMillis() + timeoutMs;
@@ -256,7 +252,7 @@ class BusinessRuntimeEngineTest {
     }
 
     /**
-     * ?뚯뒪?몄슜 TcModelRuntime???앹꽦?⑸땲??
+     * 테스트용 {@link TcModelRuntime} 인스턴스를 생성합니다.
      */
     private static TcModelRuntime createRuntime(final long modelKey, final ProtocolType protocolType) {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -281,7 +277,50 @@ class BusinessRuntimeEngineTest {
                 List.of()
         );
     }
+
+    /**
+     * {@link BusinessRuntimeEngine} 테스트에서 공통으로 사용하는 유효한 런타임 프로퍼티를 생성합니다.
+     *
+     * <p>최근 {@link BusinessCoreRuntimeProperties#validate()} 검증 규칙이 강화되어 Kafka 토픽/소스/스레드/큐 관련
+     * 필수 값이 모두 채워져야 하므로, 각 테스트에서 중복 설정하지 않고 본 헬퍼에서 일괄 구성합니다.</p>
+     *
+     * <p>값 선택 원칙:</p>
+     * <p>1) 실제 앱 설정과 동일한 토픽 이름을 사용하여 테스트 가독성을 유지합니다.</p>
+     * <p>2) 테스트 수행 시간/리소스를 줄이기 위해 스레드/큐 값은 최소 유효값 또는 작은 값으로 설정합니다.</p>
+     * <p>3) Kafka consumer thread 수는 현재 검증 규칙상 정확히 1이어야 하므로 1로 고정합니다.</p>
+     *
+     * @return 검증을 통과하는 {@link BusinessCoreRuntimeProperties}
+     */
+    private static BusinessCoreRuntimeProperties createValidRuntimePropertiesForTest() {
+        final BusinessCoreRuntimeProperties properties = new BusinessCoreRuntimeProperties();
+
+        // Kafka 토픽/메타데이터 설정: validate()에서 필수 텍스트 값으로 검증됩니다.
+        properties.getKafka().setEqpEventsTopic("tc.eqp.events");
+        properties.getKafka().setMesEventsTopic("tc.mes.events");
+        properties.getKafka().setUiEventsTopic("tc.ui.events.business");
+        properties.getKafka().setEqpCommandsTopic("tc.eqp.commands");
+        properties.getKafka().setMesCommandsTopic("tc.mes.commands");
+        properties.getKafka().setUiCommandsTopic("tc.ui.commands");
+        properties.getKafka().setSource("TC-BUSINESS-CORE-TEST");
+
+        // 현재 BusinessCoreRuntimeProperties.Kafka.validate() 규칙상 consumer thread 수는 정확히 1이어야 합니다.
+        properties.getKafka().setEqpEventsConsumerThreads(1);
+        properties.getKafka().setMesEventsConsumerThreads(1);
+        properties.getKafka().setUiEventsConsumerThreads(1);
+
+        // Runtime 실행 파라미터 설정: 테스트 목적상 작은 값으로 두되 validate() 조건(>0 / >=0)을 만족시킵니다.
+        properties.getRuntime().setDispatcherThreads(1);
+        properties.getRuntime().setWorkerThreads(2);
+        properties.getRuntime().setTimeoutSchedulerThreads(1);
+        properties.getRuntime().setTopicQueueCapacity(64);
+        properties.getRuntime().setMailboxCapacity(64);
+        properties.getRuntime().setAckDrainMaxBatch(16);
+        properties.getRuntime().setTaskTimeoutMs(5_000L);
+        properties.getRuntime().setRetryMaxAttempts(1);
+        properties.getRuntime().setRetryBackoffMs(0L);
+
+        // 테스트 시작 전에 설정 계약을 명시적으로 검증하여, 누락 시 실패 원인이 즉시 드러나도록 합니다.
+        properties.validate();
+        return properties;
+    }
 }
-
-
-

@@ -33,9 +33,7 @@ class BusinessModelRuntimeCacheTest {
                 102L, List.of(new TcModelWorkflow(2L, 102L, "WF-SOCKET", "SOCKET_IN", null, null, null, "ACT-2", null, now))
         );
 
-        final BusinessModelCacheProperties properties = new BusinessModelCacheProperties();
-        properties.setPageSize(1);
-        properties.validate();
+        final BusinessModelCacheProperties properties = createValidModelCachePropertiesForTest(1);
 
         final BusinessModelRuntimeAssembler assembler = new BusinessModelRuntimeAssembler(
                 new ModelCacheTestFixtures.InMemoryModelStore(List.of(model1, model2)),
@@ -69,8 +67,7 @@ class BusinessModelRuntimeCacheTest {
         final TcModel model = new TcModel(101L, "MODEL-HSMS", "v1", ProtocolType.HSMS, ModelStatus.ACTIVE, "NORI", now, now, "SYSTEM", "SYSTEM");
         final TcModelWorkflow workflow = new TcModelWorkflow(1L, 101L, "WF-HSMS", "S6F11", "E1", "T1", null, "ACT-1", null, now);
 
-        final BusinessModelCacheProperties properties = new BusinessModelCacheProperties();
-        properties.validate();
+        final BusinessModelCacheProperties properties = createValidModelCachePropertiesForTest(1);
 
         final BusinessModelRuntimeAssembler assembler = new BusinessModelRuntimeAssembler(
                 new ModelCacheTestFixtures.InMemoryModelStore(List.of(model)),
@@ -96,5 +93,21 @@ class BusinessModelRuntimeCacheTest {
         Assertions.assertEquals(before.runtimeCount(), after.runtimeCount());
         Assertions.assertTrue(after.findRuntimeByEqpId("EQP-1").isPresent());
     }
+
+    private static BusinessModelCacheProperties createValidModelCachePropertiesForTest(final int pageSize) {
+        final BusinessModelCacheProperties properties = new BusinessModelCacheProperties();
+
+        // 단위 테스트에서는 initialize()를 호출하지 않고 reloadAll()/reloadModelRuntime()를 직접 검증합니다.
+        properties.setLoadOnStartup(false);
+        properties.setFailFastOnStartup(false);
+
+        // 캐시/어셈블러의 페이지 기반 조회 로직이 정상 동작하도록 테스트마다 pageSize를 명시합니다.
+        properties.setPageSize(pageSize);
+
+        // 검증 규칙 강화로 필수값 누락 시 즉시 실패하도록 사전 validate()를 호출합니다.
+        properties.validate();
+        return properties;
+    }
 }
+
 

@@ -16,19 +16,20 @@ import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
 /**
- * 매칭된 워크플로우 액션을 실제 실행기로 디스패치하는 기본 실행기입니다.
+ * 매칭된 워크플로 액션을 실제 실행기로 디스패치하는 기본 액션 실행기입니다.
  *
- * <p>디스패치 동작:</p>
- * <p>1) `ActionResolutionPolicy`로 plugin/core 실행기 선택</p>
- * <p>2) 선택된 invoker를 실행하고 실패 시 예외 재전파</p>
- * <p>3) plugin override/core fallback 상황을 INFO 로그로 기록</p>
- * <p>4) 일반 선택 결과는 DEBUG 로그로 기록</p>
+ * <p>동작 순서:</p>
+ * <p>1) {@link ActionResolutionPolicy}로 plugin/core 실행기 후보를 해석합니다.</p>
+ * <p>2) 선택된 invoker를 실행하고, 실패 시 실행 문맥을 포함한 예외 로그를 남깁니다.</p>
+ * <p>3) plugin override / core fallback 상황은 운영 추적을 위해 INFO 로그로 기록합니다.</p>
+ * <p>4) 일반 선택 결과는 DEBUG 로그로 기록합니다.</p>
  */
 @Primary
 @Component
@@ -47,7 +48,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
     private static final String ACTION_RESOLUTION_EVENT_PLUGIN_OVERRIDE = "ACTION_RESOLUTION_PLUGIN_OVERRIDE";
 
     /**
-     * plugin 실행기가 없어 core로 폴백한 경우 사용하는 이벤트 코드입니다.
+     * plugin 실행기가 없어서 core로 대체된 경우 사용하는 이벤트 코드입니다.
      */
     private static final String ACTION_RESOLUTION_EVENT_CORE_FALLBACK = "ACTION_RESOLUTION_CORE_FALLBACK";
 
@@ -57,7 +58,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
     private static final String ACTION_RESOLUTION_EVENT_SELECTED = "ACTION_RESOLUTION_SELECTED";
 
     /**
-     * 액션 실행 중 예외가 발생한 경우 사용하는 이벤트 코드입니다.
+     * 액션 실행 중 예외가 발생했을 때 사용하는 이벤트 코드입니다.
      */
     private static final String ACTION_EXECUTION_EVENT_FAILED = "ACTION_EXECUTION_FAILED";
 
@@ -66,11 +67,13 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
     private final ActionResolutionPolicy actionResolutionPolicy;
 
     /**
-     * 기본 정책(plugin 우선, core 폴백)으로 실행기를 생성합니다.
+     * 기본 정책(plugin 우선, core fallback)으로 디스패처를 생성합니다.
      *
      * @param coreActionRegistry core 액션 레지스트리 공급자
      * @param pluginRuntimeProvider 설비별 plugin 레지스트리 공급자
      */
+    // 생성자가 2개이므로 스프링이 런타임 주입용 생성자를 명확히 선택하도록 지정합니다.
+    @Autowired
     public BusinessWorkflowDispatchingActionExecutor(
             final BusinessWorkflowCoreActionRegistry coreActionRegistry,
             final BusinessWorkflowPluginRuntimeProvider pluginRuntimeProvider
@@ -79,7 +82,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
     }
 
     /**
-     * 테스트/확장 목적의 사용자 정책을 주입받아 실행기를 생성합니다.
+     * 테스트/확장 목적에서 해석 정책을 주입받아 디스패처를 생성합니다.
      *
      * @param coreActionRegistry core 액션 레지스트리 공급자
      * @param pluginRuntimeProvider 설비별 plugin 레지스트리 공급자
@@ -96,14 +99,14 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
     }
 
     /**
-     * 매칭 결과에 포함된 워크플로우들을 순서대로 실행합니다.
+     * 매칭 결과에 포함된 워크플로를 순서대로 실행합니다.
      *
-     * <p>각 워크플로우마다 action key를 만들고, plugin/core 레지스트리에서
-     * 실행 가능한 invoker를 선택한 뒤 실제 실행합니다.</p>
+     * <p>각 워크플로마다 action key를 생성하고, plugin/core 레지스트리에서 실행 가능한 invoker를 선택한 뒤
+     * 선택된 invoker를 실제로 실행합니다.</p>
      *
      * @param record 수신 원본 레코드
      * @param modelRuntime 모델 런타임 정보
-     * @param matchResult 워크플로우 매칭 결과
+     * @param matchResult 워크플로 매칭 결과
      */
     @Override
     public void execute(
@@ -134,7 +137,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
             final BusinessWorkflowActionKey actionKey =
                     BusinessWorkflowActionKey.of(actionMessageType, workflowEntry.actionName());
 
-            // 현재 워크플로우에 대해 plugin/core 후보를 비교하여 최종 실행기를 선택합니다.
+            // 현재 워크플로 컨텍스트에서 plugin/core 후보를 비교하여 최종 실행기를 선택합니다.
             final ActionResolutionTrace trace = actionResolutionPolicy.resolve(
                     record.eqpId(),
                     workflowEntry.workflowKey(),
@@ -180,7 +183,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
             if (trace.resolutionSource() == ActionResolutionTrace.ResolutionSource.PLUGIN) {
                 pluginExecutedCount++;
 
-                // plugin이 core를 대체한 경우 운영 관점에서 중요한 이벤트이므로 INFO로 남깁니다.
+                // plugin이 core를 대체한 경우는 운영 추적에서 중요한 이벤트이므로 INFO로 남깁니다.
                 if (trace.isPluginOverride()) {
                     pluginOverrideCount++;
                     log.info("{}. {}", ACTION_RESOLUTION_EVENT_PLUGIN_OVERRIDE, trace.summary());
@@ -197,7 +200,7 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
             } else {
                 coreExecutedCount++;
 
-                // core 폴백은 plugin 누락 또는 불일치 신호이므로 INFO로 남깁니다.
+                // core fallback은 plugin 미구현 또는 불일치 신호일 수 있으므로 INFO로 남깁니다.
                 if (trace.isCoreFallback()) {
                     coreFallbackCount++;
                     log.info("{}. {}", ACTION_RESOLUTION_EVENT_CORE_FALLBACK, trace.summary());
@@ -225,4 +228,3 @@ public class BusinessWorkflowDispatchingActionExecutor implements BusinessWorkfl
                 actionMessageType);
     }
 }
-
