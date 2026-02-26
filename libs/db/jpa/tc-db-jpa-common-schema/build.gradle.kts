@@ -41,6 +41,11 @@ dependencies {
 
     // ✅ 하드코딩 제거 → catalog alias 사용
     testImplementation(libs.spring.boot.starter.test)
+    /*
+     * U16 저장소 단위 테스트 실행 시 Gradle Test Executor가 JUnit Platform launcher를 요구할 수 있으므로
+     * 런타임 클래스패스에 명시적으로 추가합니다.
+     */
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {

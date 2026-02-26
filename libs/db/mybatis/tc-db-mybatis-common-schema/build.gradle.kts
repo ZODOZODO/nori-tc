@@ -50,6 +50,17 @@ dependencies {
      */
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mybatis.core)
+    /*
+     * Store 구현체를 테스트에서 직접 인스턴스화할 때 @Repository/@Transactional/DataAccessException 타입이
+     * 런타임 클래스패스에 필요합니다. 운영 starter를 올리지 않으므로 최소 Spring 모듈만 테스트에 추가합니다.
+     */
+    testImplementation(libs.spring.context)
+    testImplementation(libs.spring.tx)
+    /*
+     * Gradle 9 + JUnit Platform 조합에서 테스트 실행기 구동 시 launcher가 런타임 클래스패스에 필요할 수 있습니다.
+     * U16 회귀 테스트(저장소 단위 테스트) 실행 안정성을 위해 명시적으로 추가합니다.
+     */
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
