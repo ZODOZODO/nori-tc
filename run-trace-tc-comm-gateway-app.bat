@@ -62,13 +62,22 @@ call "%SCRIPT_DIR%gradlew.bat" %APP_TASK% --no-daemon
 if errorlevel 1 goto :ERR_BUILD
 
 REM Find bootJar and skip plain jar if Gradle generated both.
+REM
+REM Why not use findstr regex here:
+REM   - Windows CMD + findstr has edge cases with regex escaping and option
+REM     parsing that can make suffix matching fragile in batch loops.
+REM   - A simple suffix comparison is more predictable and easier to maintain.
 for /f "delims=" %%F in ('dir /b /a:-d /o:-d "%APP_DIR%\build\libs\*.jar" 2^>nul') do (
     set "CANDIDATE_NAME=%%~nxF"
-    REM NOTE:
-    REM   findstr pattern starts with '-' so it can be misparsed as an option.
-    REM   /C: forces the next token to be treated as the search pattern.
-    echo !CANDIDATE_NAME! | findstr /I /R /C:"-plain\.jar$" >nul
-    if errorlevel 1 if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
+    REM Match the last 10 characters ("-plain.jar") case-insensitively.
+    REM When the suffix matches, this is Gradle's plain jar (no Spring Boot
+    REM loader / Main-Class manifest), so it must not be used with java -jar.
+    if /I "!CANDIDATE_NAME:~-10!"=="-plain.jar" (
+        REM Skip plain jar and continue scanning newer/older jar files.
+    ) else (
+        REM Pick the first non-plain jar (newest first due to /o:-d sorting).
+        if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
+    )
 )
 
 if not defined APP_JAR goto :ERR_NO_JAR
