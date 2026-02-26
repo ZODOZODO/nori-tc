@@ -21,7 +21,7 @@
 - `tc.eqp.commands` Gateway 대상 명령 라우팅 규칙
 - `tc.ui.events.gateway` Gateway 대상 UI 이벤트 라우팅 규칙
 - `tc.ui.events.business` Business 대상 UI 이벤트 분리 규칙
-- `tc_eqp.connection_mode` / `tc_eqp.route_partition` 중심 DB 정규화 방향
+- `tc_eqp.comm_mode` / `tc_eqp.route_partition` 중심 DB 정규화 방향
 - PASSIVE listener-group 동일 `route_partition` 강제 규칙
 - 무중단 Gateway 증설 시 파티션 증설 운영 원칙
 - 구현 품질 규칙(UTF-8, 한글 주석, 로그 레벨 가이드)
@@ -84,13 +84,13 @@
 | PASSIVE listener-group partition 규칙 | 동일 group = 동일 `route_partition` | 채택 | 운영/등록 검증 필요 |
 | `1 partition = 1 gateway owner` | 운영 정책으로 유지 | 채택 | 중복 소유 금지 |
 
-## 4. DB 정규화 결정사항 (`connection_mode` 통합 + `route_partition`)
+## 4. DB 정규화 결정사항 (`comm_mode` 통합 + `route_partition`)
 
 ### 4.1 `tc_eqp` 중심 통합 방향
 
 1차 설계에서 `tc_eqp`를 다음 정보의 단일 기준 테이블로 확장합니다.
 
-- `connection_mode` (ACTIVE / PASSIVE)
+- `comm_mode` (ACTIVE / PASSIVE)
 - `route_partition` (Gateway 대상 라우팅 SSOT)
 
 ### 4.2 하위 테이블(`tc_eqp_hsms`, `tc_eqp_socket`) 정리 방향
@@ -103,12 +103,12 @@
 실제 구현/운영 절차 상세는 후속 단계(U2/U17)에서 작성하되, 기본 순서는 아래 순서를 고정합니다.
 
 1. **DB 확장**
-   - `tc_eqp.connection_mode` 추가
+   - `tc_eqp.comm_mode` 추가
    - `tc_eqp.route_partition` 추가
 2. **백필(Backfill)**
-   - `tc_eqp_hsms/socket.connection_mode` 값을 `tc_eqp.connection_mode`로 이관
+   - `tc_eqp_hsms/socket.connection_mode` 값을 `tc_eqp.comm_mode`로 이관
 3. **코드 전환**
-   - 런타임/저장소가 `tc_eqp.connection_mode`, `tc_eqp.route_partition`를 사용하도록 전환
+   - 런타임/저장소가 `tc_eqp.comm_mode`, `tc_eqp.route_partition`를 사용하도록 전환
 4. **DB 정리**
    - `tc_eqp_hsms/socket.connection_mode` 제거
 
@@ -116,7 +116,7 @@
 
 `EquipmentContextProfile.HsmsSettings.connectionMode`, `EquipmentContextProfile.SocketSettings.connectionMode` 필드는 1차 구현에서 유지합니다.
 
-- 값의 출처만 `tc_eqp.connection_mode`로 전환
+- 값의 출처만 `tc_eqp.comm_mode`로 전환
 - 하위 소비자 영향 최소화 목적
 
 ## 5. 토픽/라우팅 정책
@@ -309,7 +309,7 @@ PASSIVE 설비는 listener 리소스 공유 이슈가 있으므로, 등록/수�
 
 다음 항목은 U2 이후 실제 DB 스키마 설계/구현 단계에서 반영합니다.
 
-- `tc_eqp.connection_mode` 컬럼 추가
+- `tc_eqp.comm_mode` 컬럼 추가
 - `tc_eqp.route_partition` 컬럼 추가
 - 관련 인덱스/체크 제약
 - `tc_eqp_hsms.connection_mode` 제거 계획 반영
@@ -330,7 +330,7 @@ PASSIVE 설비는 listener 리소스 공유 이슈가 있으므로, 등록/수�
 
 - [ ] Gateway 대상 UI 토픽명과 Business 대상 UI 토픽명이 확정되었는가?
 - [ ] `tc_eqp.route_partition`가 Gateway 대상 라우팅 SSOT로 명확히 정의되었는가?
-- [ ] `connection_mode`를 `tc_eqp`로 통합하는 방향이 확정되었는가?
+- [ ] `connection_mode`를 `tc_eqp.comm_mode`로 통합하는 방향이 확정되었는가?
 - [ ] `tc.eqp.commands`, `tc.ui.events.gateway`가 명시 partition 발행 대상으로 확정되었는가?
 - [ ] PASSIVE listener-group 동일 `route_partition` 규칙이 명확히 정의되었는가?
 - [ ] fan-out / `targetGatewayShardId`가 1차 비범위로 명확히 선언되었는가?
@@ -351,4 +351,3 @@ PASSIVE 설비는 listener 리소스 공유 이슈가 있으므로, 등록/수�
 4. `targetGatewayShardId`는 1차 구현에서 사용하지 않습니다.
 5. fan-out 소비는 1차 구현에서 사용하지 않습니다.
 6. U0 단계에서는 코드/설정/DDL 변경을 수행하지 않습니다.
-

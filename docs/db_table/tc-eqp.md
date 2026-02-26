@@ -57,7 +57,7 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 
 #### 개요
 
-시스템에 등록된 장비의 기본 식별 정보와 통신 방식을 관리하는 최상위 테이블이다. `comm_interface` 값에 따라 `tc_eqp_hsms` 또는 `tc_eqp_socket` 중 하나에 통신 상세 설정이 1:1로 존재한다.
+시스템에 등록된 장비의 기본 식별 정보와 통신 방식을 관리하는 최상위 테이블이다. `comm_interface` 값에 따라 `tc_eqp_hsms` 또는 `tc_eqp_socket` 중 하나에 통신 상세 설정이 1:1로 존재하며, 공통 연결 모드(`comm_mode`)와 Gateway 라우팅 파티션(`route_partition`)도 이 테이블에서 함께 관리한다.
 
 #### 컬럼 명세
 
@@ -66,6 +66,8 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 | `eqp_key` | `bigint` | ✅ | identity (자동 증가) | PK |
 | `eqp_id` | `varchar(64)` | ✅ | - | 장비 식별 ID. 예: `EQP-001` |
 | `comm_interface` | `varchar(16)` | ✅ | - | 통신 방식. `HSMS` / `SOCKET` |
+| `comm_mode` | `varchar(10)` | ✅ | - | 공통 연결 모드. `ACTIVE` / `PASSIVE` |
+| `route_partition` | `integer` | - | - | Gateway 대상 토픽 고정 라우팅 파티션 번호 (NULL 허용) |
 | `eqp_ip` | `varchar(45)` | ✅ | - | 장비 IP 주소 (IPv4/IPv6) |
 | `eqp_port` | `integer` | ✅ | - | 장비 포트 번호. 1 ~ 65535 |
 | `model_key` | `bigint` | ✅ | - | FK → `tc_model.model_key` |
@@ -83,6 +85,7 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 | `uk_tc_eqp_eqp_id` | `eqp_id` | UNIQUE | ID 중복 방지 |
 | `ix_tc_eqp_comm_interface` | `comm_interface` | INDEX | 통신 방식별 장비 목록 조회 |
 | `ix_tc_eqp_enabled` | `enabled` | INDEX | 활성 장비 필터링 |
+| `ix_tc_eqp_route_partition_enabled` | `route_partition`, `enabled` | INDEX | 라우팅 파티션 + 활성 장비 조회 |
 | `ix_tc_eqp_eqp_ip_port` | `eqp_ip`, `eqp_port` | INDEX | IP+포트 기반 장비 조회 |
 | `ix_tc_eqp_model_key` | `model_key` | INDEX | 모델별 장비 목록 조회 |
 
@@ -91,6 +94,8 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 | 제약명 | 조건 |
 |---|---|
 | `ck_tc_eqp_comm_interface` | `comm_interface IN ('HSMS', 'SOCKET')` |
+| `ck_tc_eqp_comm_mode` | `comm_mode IN ('ACTIVE', 'PASSIVE')` |
+| `ck_tc_eqp_route_partition` | `route_partition IS NULL OR route_partition >= 0` |
 | `ck_tc_eqp_eqp_port` | `eqp_port >= 1 AND eqp_port <= 65535` |
 | `ck_tc_eqp_enabled` | `enabled IN (true, false)` |
 
@@ -144,7 +149,7 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 
 #### 개요
 
-`comm_interface = 'HSMS'` 인 장비의 SEMI E37 HSMS 프로토콜 세부 설정을 저장한다. `tc_eqp` 와 1:1 관계이며 `eqp_key` 가 PK이자 FK다.
+`comm_interface = 'HSMS'` 인 장비의 SEMI E37 HSMS 프로토콜 세부 설정을 저장한다. `tc_eqp` 와 1:1 관계이며 `eqp_key` 가 PK이자 FK다. 연결 모드(`ACTIVE`/`PASSIVE`)는 `tc_eqp.comm_mode`에서 공통 관리한다.
 
 | 타이머 컬럼 | 기본값 | SEMI E37 정의 |
 |---|---|---|
@@ -160,7 +165,6 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 |---|---|:---:|---|---|
 | `eqp_key` | `bigint` | ✅ | - | PK + FK → `tc_eqp.eqp_key` |
 | `device_id` | `integer` | ✅ | - | HSMS Device ID. 0 ~ 32767 |
-| `connection_mode` | `varchar(10)` | ✅ | - | 연결 모드. `ACTIVE` / `PASSIVE` |
 | `t3_timeout` | `integer` | ✅ | `45` | T3 타임아웃 (초, > 0) |
 | `t5_timeout` | `integer` | ✅ | `10` | T5 타임아웃 (초, > 0) |
 | `t6_timeout` | `integer` | ✅ | `5` | T6 타임아웃 (초, > 0) |
@@ -182,7 +186,6 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 
 | 제약명 | 조건 |
 |---|---|
-| `ck_tc_eqp_hsms_connection_mode` | `connection_mode IN ('ACTIVE', 'PASSIVE')` |
 | `ck_tc_eqp_hsms_device_id` | `device_id >= 0 AND device_id <= 32767` |
 | `ck_tc_eqp_hsms_t3_timeout` | `t3_timeout > 0` |
 | `ck_tc_eqp_hsms_t5_timeout` | `t5_timeout > 0` |
@@ -205,7 +208,7 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 
 #### 개요
 
-`comm_interface = 'SOCKET'` 인 장비의 TCP Socket 프로토콜 세부 설정을 저장한다. `tc_eqp` 와 1:1 관계이며 `eqp_key` 가 PK이자 FK다. 프로토콜 타입은 `tc_eqp_socket_protocol_type` 코드 테이블을 참조한다.
+`comm_interface = 'SOCKET'` 인 장비의 TCP Socket 프로토콜 세부 설정을 저장한다. `tc_eqp` 와 1:1 관계이며 `eqp_key` 가 PK이자 FK다. 프로토콜 타입은 `tc_eqp_socket_protocol_type` 코드 테이블을 참조한다. 연결 모드(`ACTIVE`/`PASSIVE`)는 `tc_eqp.comm_mode`에서 공통 관리한다.
 
 #### 컬럼 명세
 
@@ -213,7 +216,6 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 |---|---|:---:|---|---|
 | `eqp_key` | `bigint` | ✅ | - | PK + FK → `tc_eqp.eqp_key` |
 | `socket_protocol_type` | `varchar(32)` | ✅ | - | FK → `tc_eqp_socket_protocol_type.socket_protocol_type` |
-| `connection_mode` | `varchar(10)` | ✅ | - | 연결 모드. `ACTIVE` / `PASSIVE` |
 | `charset` | `varchar(20)` | ✅ | `'UTF-8'` | 문자 인코딩 |
 | `heartbeat_enabled` | `boolean` | ✅ | `true` | Heartbeat 활성화 여부 |
 | `heartbeat_interval` | `integer` | ✅ | `30` | Heartbeat 전송 간격 (초, >= 0) |
@@ -235,7 +237,6 @@ tc_model ──[RESTRICT]──► tc_eqp ◄───────────�
 
 | 제약명 | 조건 |
 |---|---|
-| `ck_tc_eqp_socket_connection_mode` | `connection_mode IN ('ACTIVE', 'PASSIVE')` |
 | `ck_tc_eqp_socket_heartbeat_interval` | `heartbeat_interval >= 0` |
 | `ck_tc_eqp_socket_read_timeout` | `read_timeout >= 0` |
 | `ck_tc_eqp_socket_write_timeout` | `write_timeout >= 0` |
