@@ -70,7 +70,7 @@
 1. `spring.main.web-application-type: none`
    - 웹 서버 기반 앱이 아니라 백그라운드 프로세스 성격
 2. `spring.config.import`로 외부 properties 로딩
-   - `../../config/tc-db.properties`
+   - `config/tc-db.properties`
    - `config/tc-messaging.properties`
    - `config/tc-redis.properties`
    - `config/tc-comm.properties`

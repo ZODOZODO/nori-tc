@@ -35,7 +35,7 @@ set "TRACE_JFR=%TRACE_ROOT%\jfr"
 set "APP_JAR="
 set "FAIL_REASON="
 set "CONFIG_DIR=%SCRIPT_DIR%config"
-set "SPRING_CONFIG_IMPORTS=optional:file:config/tc-db.properties,optional:file:%APP_DIR_FWD%/config/tc-messaging.properties,optional:file:%APP_DIR_FWD%/config/tc-redis.properties,optional:file:%APP_DIR_FWD%/config/tc-log.properties"
+set "SPRING_CONFIG_IMPORTS=optional:file:config/tc-db.properties,optional:file:%APP_DIR_FWD%/config/tc-messaging.properties,optional:file:%APP_DIR_FWD%/config/tc-redis.properties,optional:file:config/tc-log.properties"
 
 if not exist "%SCRIPT_DIR%gradlew.bat" goto :ERR_NO_GRADLEW
 where java >nul 2>&1

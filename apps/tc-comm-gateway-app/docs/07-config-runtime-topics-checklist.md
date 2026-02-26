@@ -41,19 +41,19 @@
 
 문제가 생겼을 때 `application.yaml`만 보고 판단하면 안 됩니다. 대부분의 실질 설정은 `config/*.properties`에 있습니다.
 
-## 1-2. 외부 설정 파일들 (`apps/tc-comm-gateway-app/config`)
+## 1-2. 외부 설정 파일들 (`apps/tc-comm-gateway-app/config` + 루트 `config`)
 
 대표 파일:
 
 1. `apps/tc-comm-gateway-app/config/tc-comm.properties`
 2. `apps/tc-comm-gateway-app/config/tc-messaging.properties`
 3. `apps/tc-comm-gateway-app/config/tc-redis.properties`
-4. `apps/tc-comm-gateway-app/config/tc-log.properties`
+4. `config/tc-log.properties`
 5. `config/tc-db.properties`
 
 참고:
 
-1. `tc-db.properties`는 앱 하위 폴더가 아니라 저장소 루트 `config/`에 위치하며, `application.yaml`에서 `../../config/tc-db.properties`로 import됩니다.
+1. `tc-db.properties`, `tc-log.properties`는 앱 하위 폴더가 아니라 저장소 루트 `config/`에 위치하며, `application.yaml`에서 `file:config/...` 경로로 import됩니다.
 
 대략적인 역할:
 
@@ -63,8 +63,9 @@
    - Kafka client 설정, topic 이름
 3. `tc-redis.properties`
    - Redis 연결 + DLQ/quarantine TTL
-4. `tc-log.properties`
-   - 로그 레벨/패턴/분리/로테이션
+4. `tc-log.properties` (루트 `config/`)
+   - 공통 로그 패턴/분리/로테이션/압축 정책
+   - 앱별 EQP 로그 파일명 prefix는 각 앱 전용 설정 파일에서 override
 5. `tc-db.properties`
    - DB 연결 관련
 

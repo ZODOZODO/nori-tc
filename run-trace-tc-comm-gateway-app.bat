@@ -40,7 +40,7 @@ set "TRACE_JFR=%TRACE_ROOT%\jfr"
 set "APP_JAR="
 set "NETTY_LEAK_OPTS="
 set "CONFIG_DIR=%SCRIPT_DIR%config"
-set "SPRING_CONFIG_IMPORTS=optional:file:config/tc-db.properties,optional:file:%APP_DIR_FWD%/config/tc-messaging.properties,optional:file:%APP_DIR_FWD%/config/tc-redis.properties,optional:file:%APP_DIR_FWD%/config/tc-comm.properties,optional:file:%APP_DIR_FWD%/config/tc-log.properties"
+set "SPRING_CONFIG_IMPORTS=optional:file:config/tc-db.properties,optional:file:%APP_DIR_FWD%/config/tc-messaging.properties,optional:file:%APP_DIR_FWD%/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:%APP_DIR_FWD%/config/tc-comm.properties"
 
 REM Optional Netty leak detection. Disabled by default because it adds overhead.
 REM set "NETTY_LEAK_OPTS=-Dio.netty.leakDetection.level=advanced"

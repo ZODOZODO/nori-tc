@@ -17,8 +17,8 @@ spring:
       - optional:file:config/tc-db.properties
       - optional:file:config/tc-messaging.properties
       - optional:file:config/tc-redis.properties
-      - optional:file:config/tc-comm.properties
       - optional:file:config/tc-log.properties
+      - optional:file:config/tc-comm.properties
 
 logging:
   level:
