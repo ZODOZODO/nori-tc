@@ -70,6 +70,12 @@
          WHERE eqp_id = #{eqpId}
     </select>
 
+    <select id="findByEqpKey" resultMap="TcEqpMap">
+        SELECT <include refid="TcEqpColumns"/>
+          FROM tc_eqp
+         WHERE eqp_key = #{eqpKey}
+    </select>
+
     <select id="findAll" resultMap="TcEqpMap">
         SELECT <include refid="TcEqpColumns"/>
           FROM tc_eqp

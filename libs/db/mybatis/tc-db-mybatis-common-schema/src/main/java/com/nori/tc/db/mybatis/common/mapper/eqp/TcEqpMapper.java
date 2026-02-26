@@ -47,6 +47,18 @@ public interface TcEqpMapper {
     Optional<TcEqp> findByEqpId(@Param("eqpId") String eqpId);
 
     /**
+     * eqp_key(PK)로 tc_eqp 단건을 조회합니다.
+     *
+     * <p>주요 사용처:</p>
+     * <p>- 하위 1:1 테이블(tc_eqp_hsms/tc_eqp_socket) 저장 시 parent(tc_eqp) 공통 컬럼 검증</p>
+     * <p>- PASSIVE listener-group route_partition 정합성 검증을 위한 parent 정보 조회</p>
+     *
+     * @param eqpKey tc_eqp PK
+     * @return 조회 결과(Optional). 없으면 {@link Optional#empty()}
+     */
+    Optional<TcEqp> findByEqpKey(@Param("eqpKey") long eqpKey);
+
+    /**
      * 페이징 검색 (FIX)
      * - 기존: 메모리로 다 가져와서 자름 (OOM 위험)
      * - 변경: DB에서 잘라오도록 offset/limit 추가
