@@ -162,6 +162,14 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
 
     /**
      * tc_eqp + tc_eqp_hsms/tc_eqp_socket를 조합해서 GatewayEquipmentInfo를 구성합니다.
+     *
+     * <p>U6 변경 규칙:</p>
+     * <p>- 연결 모드는 하위 테이블(tc_eqp_hsms/tc_eqp_socket)에서 읽지 않고 {@code tc_eqp.comm_mode}를 사용합니다.</p>
+     * <p>- 하위 테이블은 protocol별 상세 설정(예: socketType, hsms deviceId) 조회에만 사용합니다.</p>
+     * <p>- routePartition은 후속 라우팅/소유권 단계에서 사용할 수 있도록 함께 적재합니다.</p>
+     *
+     * @param eqp tc_eqp 공통 설비 행
+     * @return 게이트웨이 런타임 핵심 설비 정보
      */
     private GatewayEquipmentInfo toInfo(final TcEqp eqp) {
         if (eqp == null) {
@@ -177,21 +185,29 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
         }
 
         final CommInterfaceType commInterfaceType = toCommInterfaceType(eqp.commInterface());
+        final ConnectionMode connectionMode = resolveConnectionModeFromEqp(eqp);
 
         String socketType = null;
         Integer hsmsDeviceId = null;
-        ConnectionMode connectionMode = null;
 
         if (commInterfaceType == CommInterfaceType.SOCKET) {
             final TcEqpSocket socket = socketStore.findByEqpKey(eqpKey)
                     .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_socket for eqpId=" + eqp.eqpId()));
             socketType = socket.socketProtocolType();
-            connectionMode = ConnectionMode.fromText(socket.connectionMode());
         } else if (commInterfaceType == CommInterfaceType.HSMS) {
             final TcEqpHsms hsms = hsmsStore.findByEqpKey(eqpKey)
                     .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_hsms for eqpId=" + eqp.eqpId()));
             hsmsDeviceId = hsms.deviceId();
-            connectionMode = ConnectionMode.fromText(hsms.connectionMode());
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("설비 핵심 정보 매핑 완료. eqpId={}, interface={}, commMode={}, routePartition={}, socketType={}, hsmsDeviceId={}",
+                    eqp.eqpId(),
+                    commInterfaceType,
+                    connectionMode,
+                    eqp.routePartition(),
+                    socketType,
+                    hsmsDeviceId);
         }
 
         return new GatewayEquipmentInfo(
@@ -204,22 +220,32 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
                 eqp.eqpPort(),
                 eqp.modelKey(),
                 connectionMode,
+                eqp.routePartition(),
                 eqp.enabled()
         );
     }
 
     /**
      * tc_eqp 계열 테이블을 조합해서 EquipmentContextProfile을 구성합니다.
+     *
+     * <p>U6 변경 규칙:</p>
+     * <p>- HsmsSettings/SocketSettings의 connectionMode는 하위 테이블 컬럼이 아니라
+     *   {@code tc_eqp.comm_mode}를 기준으로 채웁니다.</p>
+     * <p>- toInfo(eqp)에서 해석된 {@link ConnectionMode} 값을 재사용하여 런타임과 프로파일의 모드 기준을 일치시킵니다.</p>
+     *
+     * @param eqp tc_eqp 공통 설비 행
+     * @return EquipmentContextRegistry에 적재할 설비 프로파일 스냅샷
      */
     private EquipmentContextProfile toProfile(final TcEqp eqp) {
         final GatewayEquipmentInfo info = toInfo(eqp);
         final long eqpKey = info.eqpKey();
+        final String connectionModeTextForProfile = info.connectionMode() == null ? null : info.connectionMode().name();
 
         final EquipmentContextProfile.HsmsSettings hsmsSettings = hsmsStore.findByEqpKey(eqpKey)
-                .map(this::toHsmsSettings)
+                .map(hsms -> toHsmsSettings(hsms, connectionModeTextForProfile))
                 .orElse(null);
         final EquipmentContextProfile.SocketSettings socketSettings = socketStore.findByEqpKey(eqpKey)
-                .map(this::toSocketSettings)
+                .map(socket -> toSocketSettings(socket, connectionModeTextForProfile))
                 .orElse(null);
         final EquipmentContextProfile.CurrentStateSnapshot currentStateSnapshot = stateStore.findByEqpKey(eqpKey)
                 .map(this::toCurrentStateSnapshot)
@@ -232,8 +258,10 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
         final List<EquipmentContextProfile.ParamSnapshot> params = loadAllParams(eqpKey);
 
         if (log.isDebugEnabled()) {
-            log.debug("Equipment context profile mapped. eqpId={}, portStatusCount={}, paramCount={}",
+            log.debug("설비 컨텍스트 프로파일 매핑 완료. eqpId={}, commMode={}, routePartition={}, portStatusCount={}, paramCount={}",
                     info.equipmentId(),
+                    info.connectionMode(),
+                    info.routePartition(),
                     portStatuses.size(),
                     params.size());
         }
@@ -315,16 +343,19 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
     }
 
     /**
-     * toHsmsSettings 기능을 수행합니다.
+     * tc_eqp_hsms 행을 HSMS 설정 스냅샷으로 변환합니다.
      *
-     * @param hsms 입력 값
-     * @return 처리 결과
+     * <p>주의:</p>
+     * <p>- connectionMode는 tc_eqp_hsms 컬럼이 제거되었으므로 {@code tc_eqp.comm_mode}에서 전달받은 값을 사용합니다.</p>
+     *
+     * @param hsms tc_eqp_hsms 행
+     * @param eqpCommMode tc_eqp.comm_mode 기준의 정규화된 연결 모드 문자열(ACTIVE/PASSIVE)
+     * @return HSMS 설정 스냅샷
      */
-
-    private EquipmentContextProfile.HsmsSettings toHsmsSettings(final TcEqpHsms hsms) {
+    private EquipmentContextProfile.HsmsSettings toHsmsSettings(final TcEqpHsms hsms, final String eqpCommMode) {
         return new EquipmentContextProfile.HsmsSettings(
                 hsms.deviceId(),
-                hsms.connectionMode(),
+                eqpCommMode,
                 hsms.t3Timeout(),
                 hsms.t5Timeout(),
                 hsms.t6Timeout(),
@@ -337,16 +368,19 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
     }
 
     /**
-     * toSocketSettings 기능을 수행합니다.
+     * tc_eqp_socket 행을 SOCKET 설정 스냅샷으로 변환합니다.
      *
-     * @param socket 입력 값
-     * @return 처리 결과
+     * <p>주의:</p>
+     * <p>- connectionMode는 tc_eqp_socket 컬럼이 제거되었으므로 {@code tc_eqp.comm_mode}에서 전달받은 값을 사용합니다.</p>
+     *
+     * @param socket tc_eqp_socket 행
+     * @param eqpCommMode tc_eqp.comm_mode 기준의 정규화된 연결 모드 문자열(ACTIVE/PASSIVE)
+     * @return SOCKET 설정 스냅샷
      */
-
-    private EquipmentContextProfile.SocketSettings toSocketSettings(final TcEqpSocket socket) {
+    private EquipmentContextProfile.SocketSettings toSocketSettings(final TcEqpSocket socket, final String eqpCommMode) {
         return new EquipmentContextProfile.SocketSettings(
                 socket.socketProtocolType(),
-                socket.connectionMode(),
+                eqpCommMode,
                 socket.charset(),
                 socket.heartbeatEnabled(),
                 socket.heartbeatInterval(),
@@ -389,6 +423,28 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
                 logConfig.logPath(),
                 logConfig.updatedAt()
         );
+    }
+
+    /**
+     * tc_eqp.comm_mode 문자열을 게이트웨이 런타임 enum으로 변환합니다.
+     *
+     * <p>설계 배경(U6):</p>
+     * <p>- connection mode의 단일 진실 소스를 하위 테이블이 아닌 {@code tc_eqp.comm_mode}로 통일합니다.</p>
+     * <p>- 변환 실패 시 eqpId/원본 값을 포함한 예외를 발생시켜 데이터 오류를 빠르게 진단할 수 있도록 합니다.</p>
+     *
+     * @param eqp tc_eqp 공통 설비 행
+     * @return 게이트웨이 기준 연결 모드 enum
+     * @throws IllegalStateException comm_mode 값이 null/blank/미지원 문자열인 경우
+     */
+    private ConnectionMode resolveConnectionModeFromEqp(final TcEqp eqp) {
+        try {
+            return ConnectionMode.fromText(eqp.commMode());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException(
+                    "Invalid tc_eqp.comm_mode for eqpId=" + eqp.eqpId() + ", commMode=" + eqp.commMode(),
+                    ex
+            );
+        }
     }
 
     /**

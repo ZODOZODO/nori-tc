@@ -35,6 +35,7 @@ public record EquipmentContextProfile(
      * tc_eqp_hsms 스냅샷입니다.
      *
      * <p>SOCKET 설비인 경우 null일 수 있습니다.</p>
+     * <p>connectionMode 값은 {@code tc_eqp_hsms}가 아니라 {@code tc_eqp.comm_mode} 기준으로 채워집니다.</p>
      */
     public record HsmsSettings(
             Integer deviceId,
@@ -54,6 +55,7 @@ public record EquipmentContextProfile(
      * tc_eqp_socket 스냅샷입니다.
      *
      * <p>HSMS 설비인 경우 null일 수 있습니다.</p>
+     * <p>connectionMode 값은 {@code tc_eqp_socket}이 아니라 {@code tc_eqp.comm_mode} 기준으로 채워집니다.</p>
      */
     public record SocketSettings(
             String socketProtocolType,
@@ -122,4 +124,3 @@ public record EquipmentContextProfile(
     ) {
     }
 }
-

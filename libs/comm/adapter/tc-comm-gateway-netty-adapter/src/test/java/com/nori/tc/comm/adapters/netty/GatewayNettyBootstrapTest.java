@@ -125,6 +125,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 101L,
                 ConnectionMode.PASSIVE,
+                null,
                 true
         );
         final GatewayEquipmentInfo eqpB = new GatewayEquipmentInfo(
@@ -137,6 +138,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 102L,
                 ConnectionMode.PASSIVE,
+                null,
                 true
         );
 
@@ -204,6 +206,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 201L,
                 ConnectionMode.PASSIVE,
+                null,
                 true
         );
         final GatewayEquipmentInfo socketEqpB = new GatewayEquipmentInfo(
@@ -216,6 +219,7 @@ class GatewayNettyBootstrapTest {
                 sharedPort,
                 202L,
                 ConnectionMode.PASSIVE,
+                null,
                 true
         );
 
@@ -299,6 +303,7 @@ class GatewayNettyBootstrapTest {
                     remotePort,
                     110L,
                     ConnectionMode.ACTIVE,
+                    null,
                     true
             );
             when(equipmentInfoProvider.findById("ACTIVE_EQP")).thenReturn(Optional.of(activeEqp));
