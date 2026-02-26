@@ -223,24 +223,6 @@ public class GatewayCommandDispatcher {
                 return;
             }
 
-            if (!hasActiveChannel(envelope.equipmentId())) {
-                if (logSampler.shouldLogCommandDrop()) {
-                    log.warn("Business command drop (no active connection). eqpId={}, traceId={}, eventType={}",
-                            envelope.eqpId(),
-                            traceId,
-                            envelope.eventType());
-                }
-                metrics.incrementCommandsDropNoConnection();
-                recordCommandDisposition(
-                        dispatchContext,
-                        envelope.eqpId(),
-                        traceId,
-                        GatewayDisposition.REJECTED,
-                        "NO_ACTIVE_CONNECTION"
-                );
-                return;
-            }
-
             if (envelope.interfaceType() == CommInterfaceType.HSMS) {
                 // 현재 Phase 범위에서는 HSMS business command 송신 경로를 구현하지 않았으므로 DLQ로 전환합니다.
                 log.info("HSMS business command is not implemented yet. eqpId={}, traceId={}, eventType={}",
@@ -281,6 +263,36 @@ public class GatewayCommandDispatcher {
                     dispatchContext
             );
             if (equipmentInfo == null) {
+                return;
+            }
+            if (!validateRoutePartitionOrReject(
+                    envelope,
+                    equipmentInfo,
+                    traceId,
+                    dispatchContext
+            )) {
+                return;
+            }
+
+            /*
+             * U9에서 route_partition 정합성 검증을 먼저 수행한 뒤 연결 상태를 확인합니다.
+             * 이렇게 해야 잘못 라우팅된 명령이 "미연결(NO_ACTIVE_CONNECTION)"로 오인되는 것을 방지할 수 있습니다.
+             */
+            if (!hasActiveChannel(envelope.equipmentId())) {
+                if (logSampler.shouldLogCommandDrop()) {
+                    log.warn("Business command drop (no active connection). eqpId={}, traceId={}, eventType={}",
+                            envelope.eqpId(),
+                            traceId,
+                            envelope.eventType());
+                }
+                metrics.incrementCommandsDropNoConnection();
+                recordCommandDisposition(
+                        dispatchContext,
+                        envelope.eqpId(),
+                        traceId,
+                        GatewayDisposition.REJECTED,
+                        "NO_ACTIVE_CONNECTION"
+                );
                 return;
             }
 
@@ -494,6 +506,87 @@ public class GatewayCommandDispatcher {
             );
             return null;
         }
+    }
+
+    /**
+     * 수신 Kafka 레코드의 partition과 설비 메타 정보의 {@code route_partition} 정합성을 검증합니다.
+     *
+     * <p>U9부터 Gateway command consumer는 고정 partition(assign) 정책을 사용하므로,
+     * 수신된 레코드 partition과 {@code tc_eqp.route_partition} 값이 반드시 일치해야 합니다.</p>
+     *
+     * <p>검증 규칙:</p>
+     * <p>1) dispatchContext.partition 이 음수(알 수 없음)면 검증을 건너뜁니다. (직접 호출 경로 호환)</p>
+     * <p>2) equipmentInfo.routePartition 이 null이면 라우팅 미배정으로 간주하고 거부합니다.</p>
+     * <p>3) 값이 서로 다르면 잘못 라우팅된 명령으로 간주하고 거부합니다.</p>
+     * <p>4) 거부 시 DLQ 대신 warn + disposition(REJECTED)로 기록합니다. (발행자/라우팅 설정 오류 조기 탐지 목적)</p>
+     *
+     * @param envelope 검증된 command envelope
+     * @param equipmentInfo 설비 메타 정보
+     * @param traceId traceId
+     * @param dispatchContext Kafka 토픽/파티션/오프셋 정보
+     * @return 정합성 검증 통과 시 {@code true}, 거부 시 {@code false}
+     */
+    private boolean validateRoutePartitionOrReject(
+            final CommandEnvelope envelope,
+            final GatewayEquipmentInfo equipmentInfo,
+            final String traceId,
+            final DispatchContext dispatchContext
+    ) {
+        final int actualPartition = dispatchContext.partition();
+        if (actualPartition < 0) {
+            if (log.isDebugEnabled()) {
+                log.debug("Command route_partition validation skipped (unknown Kafka partition metadata). eqpId={}, traceId={}",
+                        envelope.eqpId(),
+                        traceId);
+            }
+            return true;
+        }
+
+        final Integer expectedRoutePartition = equipmentInfo.routePartition();
+        if (expectedRoutePartition == null) {
+            log.warn("Business command rejected (route_partition not assigned). eqpId={}, traceId={}, topic={}, partition={}, offset={}",
+                    envelope.eqpId(),
+                    traceId,
+                    dispatchContext.topic(),
+                    dispatchContext.partition(),
+                    dispatchContext.offset());
+            recordCommandDisposition(
+                    dispatchContext,
+                    envelope.eqpId(),
+                    traceId,
+                    GatewayDisposition.REJECTED,
+                    "ROUTE_PARTITION_NOT_ASSIGNED"
+            );
+            return false;
+        }
+
+        if (expectedRoutePartition.intValue() != actualPartition) {
+            log.warn("Business command rejected (route_partition mismatch). eqpId={}, traceId={}, expectedRoutePartition={}, recordPartition={}, topic={}, offset={}",
+                    envelope.eqpId(),
+                    traceId,
+                    expectedRoutePartition,
+                    actualPartition,
+                    dispatchContext.topic(),
+                    dispatchContext.offset());
+            recordCommandDisposition(
+                    dispatchContext,
+                    envelope.eqpId(),
+                    traceId,
+                    GatewayDisposition.REJECTED,
+                    "ROUTE_PARTITION_MISMATCH"
+            );
+            return false;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Business command route_partition validation passed. eqpId={}, traceId={}, routePartition={}, topic={}, offset={}",
+                    envelope.eqpId(),
+                    traceId,
+                    expectedRoutePartition,
+                    dispatchContext.topic(),
+                    dispatchContext.offset());
+        }
+        return true;
     }
 
     /**

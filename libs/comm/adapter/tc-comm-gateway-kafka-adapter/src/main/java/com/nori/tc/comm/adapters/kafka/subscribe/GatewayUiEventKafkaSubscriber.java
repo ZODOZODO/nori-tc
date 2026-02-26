@@ -15,25 +15,28 @@ import com.nori.tc.messaging.kafka.runtime.KafkaConsumerBindingMode;
 import com.nori.tc.messaging.kafka.runtime.KafkaConsumerRuntimePolicy;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * {@code tc.ui.events.gateway}를 구독하는 UI Task consumer입니다.
- *
- * <p>주의:
- * U1 단계에서는 토픽 분리만 반영하며, 소비 바인딩 모드 자체는 아직 기존 구조를 유지합니다.
- * 따라서 본 클래스는 현재 시점 기준으로 subscribe 방식을 사용하고,
- * 고정 partition 기반 ASSIGN 전환은 U10에서 수행합니다.</p>
+ * {@code tc.ui.events.gateway}를 고정 파티션(assign) 방식으로 구독하는 UI Task consumer입니다.
  *
  * <p>운영 정책:
  * 1) task 처리 실패 시 commit하지 않고 동일 offset을 재시도
  * 2) envelope/key 계약 검증 실패 메시지는 drop 처리
- * 3) 유효 메시지는 공통 UI dispatcher로 전달</p>
+ * 3) 현재 인스턴스가 소유한 partition만 직접 할당하여 소비
+ * 4) 유효 메시지는 공통 UI dispatcher로 전달</p>
+ *
+ * <p>U10 변경 규칙:</p>
+ * <p>- 기존 SUBSCRIBE(consumer group rebalance) 방식에서 ASSIGN(고정 partition 할당) 방식으로 전환합니다.</p>
+ * <p>- {@code tc.eqp.commands}와 동일하게 {@code ownedPartitions}를 기준으로 UI gateway 토픽을 소비하여
+ *   고정 partition 라우팅 정책과 일관성을 맞춥니다.</p>
  */
 @Component
 public class GatewayUiEventKafkaSubscriber extends AbstractGatewayKafkaSubscriber<KafkaUiTaskMessage> {
@@ -89,23 +92,30 @@ public class GatewayUiEventKafkaSubscriber extends AbstractGatewayKafkaSubscribe
     }
 
     /**
-     * consumer binding 모드를 subscribe로 지정합니다.
+     * consumer binding 모드를 assign으로 지정합니다.
      *
-     * @return subscribe 모드
+     * @return assign 모드
      */
     @Override
     protected KafkaConsumerBindingMode bindingMode() {
-        return KafkaConsumerBindingMode.SUBSCRIBE;
+        return KafkaConsumerBindingMode.ASSIGN;
     }
 
     /**
-     * 구독 대상 topic을 반환합니다.
+     * 현재 인스턴스가 처리할 UI gateway 토픽 파티션 목록을 계산합니다.
      *
-     * @return 구독 topic 목록
+     * <p>U10부터 gateway UI 이벤트도 command 토픽과 동일하게 고정 partition(assign) 방식으로 소비합니다.</p>
+     * <p>할당 대상 파티션은 {@code GatewayKafkaShardProperties.ownedPartitions}를 그대로 사용합니다.</p>
+     *
+     * @return assign 대상 topic partition 목록
      */
     @Override
-    protected List<String> subscribeTopics() {
-        return List.of(topicProperties.getUiEvents());
+    protected List<TopicPartition> assignedPartitions() {
+        final List<TopicPartition> owned = new ArrayList<>();
+        for (Integer partition : shardProperties.getOwnedPartitions()) {
+            owned.add(new TopicPartition(topicProperties.getUiEvents(), partition));
+        }
+        return owned;
     }
 
     /**
@@ -135,7 +145,7 @@ public class GatewayUiEventKafkaSubscriber extends AbstractGatewayKafkaSubscribe
      */
     @Override
     protected String consumerName() {
-        return "ui.events.subscribed";
+        return "ui.events.assigned";
     }
 
     /**
@@ -175,8 +185,10 @@ public class GatewayUiEventKafkaSubscriber extends AbstractGatewayKafkaSubscribe
      */
     @Override
     protected void afterStart(final KafkaConsumer<String, KafkaUiTaskMessage> startedConsumer) {
-        log.info("UI task consumer started. topic={}, thread={}",
-                topicProperties.getUiEvents(), threadName());
+        log.info("Assigned UI task consumer started. topic={}, partitions={}, thread={}",
+                topicProperties.getUiEvents(),
+                assignedPartitions(),
+                threadName());
     }
 
     /**
