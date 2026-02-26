@@ -147,13 +147,14 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
     }
 
     /**
-     * 현재 Gateway 인스턴스가 소유한 partition의 활성(enabled) 설비 컨텍스트 프로파일 목록을 조회합니다.
+     * 현재 Gateway 인스턴스가 소유한 partition의 설비 컨텍스트 프로파일 목록을 조회합니다.
      *
-     * <p>U7 변경 규칙:</p>
-     * <p>- 부팅 시 초기 컨텍스트 적재는 {@code route_partition IN ownedPartitions AND enabled=true} 조건으로 제한합니다.</p>
-     * <p>- 이로써 멀티 게이트웨이 환경에서 비소유 설비 컨텍스트를 메모리에 올리는 비용을 줄입니다.</p>
+     * <p>DB 접근 최소화 + EQP bean 중심 전환 이후에는 런타임 hot path에서 DB fallback을 제거하므로,
+     * 부팅 시점에 owned partition의 설비를 enabled=true/false 구분 없이 모두 bean에 적재해야 합니다.</p>
      *
-     * @return 현재 인스턴스 소유 partition의 활성 설비 컨텍스트 프로파일 목록
+     * <p>실제 자동 런타임 기동 여부는 상위 부트스트랩에서 enabled 값으로 분기합니다.</p>
+     *
+     * @return 현재 인스턴스 소유 partition의 설비 컨텍스트 프로파일 목록(enabled 포함)
      */
     @Override
     public List<EquipmentContextProfile> findAllProfiles() {
@@ -163,38 +164,65 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
             return List.of();
         }
 
-        log.info("소유 partition 기준 활성 설비 컨텍스트 프로파일 로딩 시작. ownedPartitions={}", ownedPartitions);
+        log.info("소유 partition 기준 설비 컨텍스트 프로파일 로딩 시작(enabled=true/false 포함). ownedPartitions={}", ownedPartitions);
 
         final List<EquipmentContextProfile> results = new ArrayList<>();
+        loadProfilesByEnabledFlag(results, ownedPartitions, true);
+        loadProfilesByEnabledFlag(results, ownedPartitions, false);
+
+        log.info("소유 partition 기준 설비 컨텍스트 프로파일 로딩 완료(enabled=true/false 포함). count={}, ownedPartitions={}",
+                results.size(),
+                ownedPartitions);
+        return results;
+    }
+
+    /**
+     * 특정 enabled 플래그 조건으로 설비 프로파일을 페이지 단위로 조회하여 결과 리스트에 추가합니다.
+     *
+     * <p>기존 DB 포트 계약({@code findAllByRoutePartitionsAndEnabled})을 유지하면서도
+     * 부팅 시 disabled 설비까지 bean 적재 대상으로 포함하기 위해 true/false를 각각 조회합니다.</p>
+     *
+     * @param target 누적 결과 리스트
+     * @param ownedPartitions 현재 Gateway 인스턴스 소유 파티션 목록
+     * @param enabled 조회 대상 enabled 플래그
+     */
+    private void loadProfilesByEnabledFlag(
+            final List<EquipmentContextProfile> target,
+            final List<Integer> ownedPartitions,
+            final boolean enabled
+    ) {
+        Objects.requireNonNull(target, "target is null");
+        Objects.requireNonNull(ownedPartitions, "ownedPartitions is null");
+
         int offset = 0;
         while (true) {
             final List<TcEqp> page = eqpStore.findAllByRoutePartitionsAndEnabled(
                     ownedPartitions,
-                    true,
+                    enabled,
                     PageRequest.of(offset, PAGE_LIMIT)
             );
             if (page.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("설비 컨텍스트 프로파일 페이지 로딩 종료. enabled={}, offset={}, reason=EMPTY_PAGE",
+                            enabled, offset);
+                }
                 break;
             }
             if (log.isDebugEnabled()) {
-                log.debug("설비 컨텍스트 프로파일 페이지 로딩 완료. offset={}, pageSize={}, ownedPartitions={}",
+                log.debug("설비 컨텍스트 프로파일 페이지 로딩 완료. enabled={}, offset={}, pageSize={}, ownedPartitions={}",
+                        enabled,
                         offset,
                         page.size(),
                         ownedPartitions);
             }
             for (TcEqp eqp : page) {
-                results.add(toProfile(eqp));
+                target.add(toProfile(eqp));
             }
             if (page.size() < PAGE_LIMIT) {
                 break;
             }
             offset += PAGE_LIMIT;
         }
-
-        log.info("소유 partition 기준 활성 설비 컨텍스트 프로파일 로딩 완료. count={}, ownedPartitions={}",
-                results.size(),
-                ownedPartitions);
-        return results;
     }
 
     /**

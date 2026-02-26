@@ -1,9 +1,9 @@
 package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.gateway.db.ConnectionMode;
-import com.nori.tc.comm.gateway.equipment.port.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.context.port.EquipmentRuntimeCatalog;
 import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
@@ -52,10 +52,12 @@ import static org.mockito.Mockito.when;
 class GatewayNettyBootstrapTest {
 
     /**
-     * 장비 정보 조회 포트 모킹 객체입니다.
+     * 런타임 설비 메타 조회 포트 모킹 객체입니다.
+     *
+     * <p>DB fallback 제거 이후에는 Netty 런타임 경로가 이 포트(bean 기반 조회)만 사용합니다.</p>
      */
     @Mock
-    private EquipmentInfoProvider equipmentInfoProvider;
+    private EquipmentRuntimeCatalog runtimeCatalog;
 
     /**
      * 컨텍스트 레지스트리 모킹 객체입니다.
@@ -143,8 +145,8 @@ class GatewayNettyBootstrapTest {
                 true
         );
 
-        when(equipmentInfoProvider.findById("EQP_A")).thenReturn(Optional.of(eqpA));
-        when(equipmentInfoProvider.findById("EQP_B")).thenReturn(Optional.of(eqpB));
+        when(runtimeCatalog.find("EQP_A")).thenReturn(EquipmentRuntimeCatalog.LookupResult.found(eqpA));
+        when(runtimeCatalog.find("EQP_B")).thenReturn(EquipmentRuntimeCatalog.LookupResult.found(eqpB));
 
         bootstrapUnderTest = newBootstrapAndStart();
 
@@ -224,8 +226,8 @@ class GatewayNettyBootstrapTest {
                 true
         );
 
-        when(equipmentInfoProvider.findById("SOCKET_A")).thenReturn(Optional.of(socketEqpA));
-        when(equipmentInfoProvider.findById("SOCKET_B")).thenReturn(Optional.of(socketEqpB));
+        when(runtimeCatalog.find("SOCKET_A")).thenReturn(EquipmentRuntimeCatalog.LookupResult.found(socketEqpA));
+        when(runtimeCatalog.find("SOCKET_B")).thenReturn(EquipmentRuntimeCatalog.LookupResult.found(socketEqpB));
 
         bootstrapUnderTest = newBootstrapAndStart();
 
@@ -307,7 +309,7 @@ class GatewayNettyBootstrapTest {
                     4,
                     true
             );
-            when(equipmentInfoProvider.findById("ACTIVE_EQP")).thenReturn(Optional.of(activeEqp));
+            when(runtimeCatalog.find("ACTIVE_EQP")).thenReturn(EquipmentRuntimeCatalog.LookupResult.found(activeEqp));
 
             bootstrapUnderTest.startRuntimeIfPossible("ACTIVE_EQP");
 
@@ -348,7 +350,7 @@ class GatewayNettyBootstrapTest {
         final GatewayNettyBootstrap bootstrap = new GatewayNettyBootstrap(
                 properties,
                 socketProperties,
-                equipmentInfoProvider,
+                runtimeCatalog,
                 equipmentContextRegistry,
                 handlerFactory,
                 shardOwnership,

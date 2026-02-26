@@ -49,11 +49,14 @@ public record KafkaUiTaskMessage(
      * UI 작업 본문 데이터 블록입니다.
      *
      * <p>설비 식별자와 인터페이스 타입은 필수이며, {@code uiMessage}는 상황에 따라 비어 있을 수 있습니다.</p>
+     * <p>EQP_CREATE/EQP_UPDATE 계열 이벤트에서는 {@code equipmentProfile} payload를 함께 전달하여
+     * Gateway가 DB 재조회 없이 EQP bean을 갱신할 수 있도록 합니다.</p>
      */
     public record KafkaUiTaskData(
             String eqpId,
             String interfaceType,
-            String uiMessage
+            String uiMessage,
+            GatewayEquipmentProfileSnapshot equipmentProfile
     ) {
 
         /**
@@ -62,6 +65,24 @@ public record KafkaUiTaskMessage(
         public KafkaUiTaskData {
             requireText("eqpId", eqpId);
             requireText("interfaceType", interfaceType);
+        }
+
+        /**
+         * 하위 호환용 생성자입니다.
+         *
+         * <p>기존 호출부는 eqpId/interfaceType/uiMessage만 전달하므로,
+         * 신규 equipmentProfile 필드는 null로 보정합니다.</p>
+         *
+         * @param eqpId 설비 ID
+         * @param interfaceType 인터페이스 타입
+         * @param uiMessage UI 메시지(선택)
+         */
+        public KafkaUiTaskData(
+                final String eqpId,
+                final String interfaceType,
+                final String uiMessage
+        ) {
+            this(eqpId, interfaceType, uiMessage, null);
         }
     }
 

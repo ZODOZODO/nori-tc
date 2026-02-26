@@ -1,11 +1,11 @@
 package com.nori.tc.comm.adapters.netty;
 
 import com.nori.tc.comm.gateway.db.ConnectionMode;
-import com.nori.tc.comm.gateway.equipment.port.EquipmentInfoProvider;
 import com.nori.tc.comm.gateway.runtime.channel.GatewayConnectionControlPort;
 import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
 import com.nori.tc.comm.gateway.context.model.EquipmentContext;
+import com.nori.tc.comm.gateway.context.port.EquipmentRuntimeCatalog;
 import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
@@ -58,7 +58,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     private static final Logger log = LoggerFactory.getLogger(GatewayNettyBootstrap.class);
     private final GatewayNettyProperties nettyProperties;
     private final GatewaySocketProperties socketProperties;
-    private final EquipmentInfoProvider equipmentInfoProvider;
+    private final EquipmentRuntimeCatalog runtimeCatalog;
     private final EquipmentContextRegistry equipmentContextRegistry;
     private final GatewayChannelHandlerFactory handlerFactory;
     private final KafkaShardOwnership shardOwnership;
@@ -125,7 +125,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
      * 의존 컴포넌트를 주입받아 부트스트랩을 초기화합니다.
      *
      * @param nettyProperties Netty 동작 속성
-     * @param equipmentInfoProvider 설비 조회 포트
+     * @param runtimeCatalog 런타임 설비 메타 조회 포트(bean 기반)
      * @param handlerFactory 채널 핸들러 팩토리
      * @param shardOwnership 샤드 소유권 판별기
      * @param lifecycleStateMachine 설비 라이프사이클 상태 머신
@@ -133,7 +133,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     public GatewayNettyBootstrap(
             final GatewayNettyProperties nettyProperties,
             final GatewaySocketProperties socketProperties,
-            final EquipmentInfoProvider equipmentInfoProvider,
+            final EquipmentRuntimeCatalog runtimeCatalog,
             final EquipmentContextRegistry equipmentContextRegistry,
             final GatewayChannelHandlerFactory handlerFactory,
             final KafkaShardOwnership shardOwnership,
@@ -141,7 +141,7 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
     ) {
         this.nettyProperties = Objects.requireNonNull(nettyProperties, "nettyProperties is null");
         this.socketProperties = Objects.requireNonNull(socketProperties, "socketProperties is null");
-        this.equipmentInfoProvider = Objects.requireNonNull(equipmentInfoProvider, "equipmentInfoProvider is null");
+        this.runtimeCatalog = Objects.requireNonNull(runtimeCatalog, "runtimeCatalog is null");
         this.equipmentContextRegistry = Objects.requireNonNull(equipmentContextRegistry, "equipmentContextRegistry is null");
         this.handlerFactory = Objects.requireNonNull(handlerFactory, "handlerFactory is null");
         this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
@@ -1066,9 +1066,17 @@ public class GatewayNettyBootstrap implements SmartLifecycle, GatewayConnectionC
             return info;
         }
 
-        final GatewayEquipmentInfo info = equipmentInfoProvider.findById(eqpId).orElse(null);
-        if (log.isDebugEnabled() && info != null) {
-            log.debug("런타임 설비 정보 조회(DB provider fallback). eqpId={}, interfaceType={}, mode={}",
+        final EquipmentRuntimeCatalog.LookupResult lookupResult = runtimeCatalog.find(eqpId);
+        if (!lookupResult.found()) {
+            if (log.isDebugEnabled()) {
+                log.debug("런타임 설비 정보 조회 실패(bean only). eqpId={}, lookupStatus={}", eqpId, lookupResult.status());
+            }
+            return null;
+        }
+
+        final GatewayEquipmentInfo info = lookupResult.equipmentInfo();
+        if (log.isDebugEnabled()) {
+            log.debug("런타임 설비 정보 조회(bean 카탈로그 재조회 사용). eqpId={}, interfaceType={}, mode={}",
                     eqpId,
                     info.commInterfaceType(),
                     info.connectionMode());

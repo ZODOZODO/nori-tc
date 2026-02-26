@@ -11,6 +11,7 @@ import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewaySocketProperties;
+import com.nori.tc.comm.gateway.context.port.EquipmentRuntimeCatalog;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
@@ -97,6 +98,7 @@ public class GatewayCommandDispatcher {
 
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayIngressService gatewayIngressService;
+    private final EquipmentRuntimeCatalog runtimeCatalog;
     private final GatewayMetrics metrics;
     private final GatewayLogSampler logSampler;
     private final GatewayDispositionMetrics dispositionMetrics;
@@ -118,6 +120,7 @@ public class GatewayCommandDispatcher {
      *
      * @param channelRegistry 활성 설비 채널 레지스트리
      * @param gatewayIngressService 게이트웨이 인입/출력 큐 적재 진입 서비스
+     * @param runtimeCatalog 런타임 설비 메타 조회 포트(bean 기반)
      * @param metrics 게이트웨이 공통 메트릭 수집기
      * @param logSampler 경고 로그 샘플링 정책
      * @param dispositionMetrics disposition 집계 메트릭
@@ -133,6 +136,7 @@ public class GatewayCommandDispatcher {
     public GatewayCommandDispatcher(
             final EquipmentChannelRegistry channelRegistry,
             final GatewayIngressService gatewayIngressService,
+            final EquipmentRuntimeCatalog runtimeCatalog,
             final GatewayMetrics metrics,
             final GatewayLogSampler logSampler,
             final GatewayDispositionMetrics dispositionMetrics,
@@ -147,6 +151,7 @@ public class GatewayCommandDispatcher {
     ) {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
+        this.runtimeCatalog = Objects.requireNonNull(runtimeCatalog, "runtimeCatalog is null");
         this.metrics = Objects.requireNonNull(metrics, "metrics is null");
         this.logSampler = Objects.requireNonNull(logSampler, "logSampler is null");
         this.dispositionMetrics = Objects.requireNonNull(dispositionMetrics, "dispositionMetrics is null");
@@ -485,27 +490,27 @@ public class GatewayCommandDispatcher {
             final String traceId,
             final DispatchContext dispatchContext
     ) {
-        try {
-            return gatewayIngressService.resolveEquipment(envelope.eqpId());
-        } catch (Exception ex) {
+        final EquipmentRuntimeCatalog.LookupResult lookupResult = runtimeCatalog.find(envelope.eqpId());
+        if (!lookupResult.found()) {
             if (log.isDebugEnabled()) {
-                log.debug("Equipment lookup failed during business command dispatch. eqpId={}, traceId={}",
+                log.debug("Equipment lookup failed during business command dispatch. eqpId={}, traceId={}, lookupStatus={}",
                         envelope.eqpId(),
                         traceId,
-                        ex);
+                        lookupResult.status());
             }
             publishBusinessDlq(
                     message,
                     DlqMessage.STAGE_ROUTING,
                     DlqReasonCode.UNKNOWN_EQUIPMENT,
-                    ex.getMessage(),
+                    "Equipment context not found in runtime catalog. status=" + lookupResult.status(),
                     traceId,
                     null,
-                    ex,
+                    null,
                     dispatchContext
             );
             return null;
         }
+        return lookupResult.equipmentInfo();
     }
 
     /**

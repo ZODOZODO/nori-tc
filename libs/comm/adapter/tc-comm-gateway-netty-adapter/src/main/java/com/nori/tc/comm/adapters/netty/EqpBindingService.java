@@ -5,6 +5,7 @@ import com.nori.tc.comm.gateway.db.ConnectionMode;
 import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannelRegistry;
 import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
 import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
+import com.nori.tc.comm.gateway.context.port.EquipmentRuntimeCatalog;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.kafka.KafkaShardOwnership;
@@ -36,6 +37,7 @@ public class EqpBindingService {
 
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayIngressService gatewayIngressService;
+    private final EquipmentRuntimeCatalog runtimeCatalog;
     private final KafkaShardOwnership shardOwnership;
     private final EquipmentLifecycleStateMachine lifecycleStateMachine;
 
@@ -44,17 +46,20 @@ public class EqpBindingService {
      *
      * @param channelRegistry 설비 채널 레지스트리
      * @param gatewayIngressService 게이트웨이 인입/출력 큐 적재 진입 서비스
+     * @param runtimeCatalog 런타임 설비 메타 조회 포트(bean 기반)
      * @param shardOwnership 샤드 소유권 판별기
      * @param lifecycleStateMachine 라이프사이클 상태머신
      */
     public EqpBindingService(
             final EquipmentChannelRegistry channelRegistry,
             final GatewayIngressService gatewayIngressService,
+            final EquipmentRuntimeCatalog runtimeCatalog,
             final KafkaShardOwnership shardOwnership,
             final EquipmentLifecycleStateMachine lifecycleStateMachine
     ) {
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.gatewayIngressService = Objects.requireNonNull(gatewayIngressService, "gatewayIngressService is null");
+        this.runtimeCatalog = Objects.requireNonNull(runtimeCatalog, "runtimeCatalog is null");
         this.shardOwnership = Objects.requireNonNull(shardOwnership, "shardOwnership is null");
         this.lifecycleStateMachine = Objects.requireNonNull(lifecycleStateMachine, "lifecycleStateMachine is null");
 
@@ -191,12 +196,16 @@ public class EqpBindingService {
                         eqpId, interfaceType, expectedMode);
             }
 
-            final GatewayEquipmentInfo info;
-            try {
-                info = gatewayIngressService.resolveEquipment(eqpId);
-            } catch (Exception ex) {
+            final EquipmentRuntimeCatalog.LookupResult lookupResult = runtimeCatalog.find(eqpId);
+            if (!lookupResult.found()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Bind rejected because runtime equipment metadata is missing. eqpId={}, lookupStatus={}",
+                            eqpId,
+                            lookupResult.status());
+                }
                 return BindResult.UNKNOWN_EQUIPMENT;
             }
+            final GatewayEquipmentInfo info = lookupResult.equipmentInfo();
 
             if (!isOwnedByRoutePartition(info)) {
                 if (log.isDebugEnabled()) {

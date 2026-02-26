@@ -1,23 +1,20 @@
 package com.nori.tc.comm.adapters.db;
 
+import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistenceCommand;
 import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistencePort;
 import com.nori.tc.db.core.eqp.store.TcEqpStateHistStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
-import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpState;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpStateHist;
 import com.nori.tc.db.domain.common.eqp.ControlState;
 import com.nori.tc.db.domain.common.eqp.EqpState;
 import com.nori.tc.db.domain.common.eqp.EqpStateType;
-import com.nori.tc.db.domain.eqp.TcEqp;
-import com.nori.tc.db.domain.eqp.TcEqpState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * 설비 상태/이력 DB 영속화 어댑터입니다.
@@ -32,7 +29,6 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
 
     private static final Logger log = LoggerFactory.getLogger(GatewayEquipmentStatePersistenceService.class);
 
-    private final TcEqpStore eqpStore;
     private final TcEqpStateStore stateStore;
     private final TcEqpStateHistStore stateHistStore;
 
@@ -40,17 +36,50 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
      * 상태 저장에 필요한 DB Store 포트를 주입받습니다.
      */
     public GatewayEquipmentStatePersistenceService(
-            final TcEqpStore eqpStore,
             final TcEqpStateStore stateStore,
             final TcEqpStateHistStore stateHistStore
     ) {
-        this.eqpStore = Objects.requireNonNull(eqpStore, "eqpStore is null");
         this.stateStore = Objects.requireNonNull(stateStore, "stateStore is null");
         this.stateHistStore = Objects.requireNonNull(stateHistStore, "stateHistStore is null");
     }
 
     /**
+     * CREATE/UPDATE 요청 이력을 커맨드 기반 입력으로 기록합니다.
+     *
+     * <p>DB 접근 최소화 정책에 따라 eqpId -> eqpKey 재조회는 수행하지 않고,
+     * 호출부가 전달한 eqpKey를 그대로 사용합니다.</p>
+     *
+     * <p>기본 정책은 선행 state 조회 없이 이력 append만 수행합니다.</p>
+     *
+     * @param command 상태/이력 영속화 커맨드
+     */
+    @Override
+    public void recordCreateOrUpdate(final EquipmentStatePersistenceCommand command) {
+        final EquipmentStatePersistenceCommand normalized = requireCommand(command).normalizeReasonCodeIfBlank();
+
+        appendHist(
+                normalized.eqpKey(),
+                EqpStateType.OPER,
+                normalized.fromEqpState(),
+                normalized.toEqpState() == null ? "REGISTERED" : normalized.toEqpState(),
+                normalizeReasonCode(normalized.reasonCode(), "EQP_UPDATE"),
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
+        );
+
+        if (log.isDebugEnabled()) {
+            log.debug("State history recorded for create/update (command). eqpId={}, eqpKey={}, eventType={}, traceId={}",
+                    normalized.eqpId(),
+                    normalized.eqpKey(),
+                    normalized.eventType(),
+                    normalized.traceId());
+        }
+    }
+
+    /**
      * CREATE/UPDATE 요청 이력을 기록합니다.
+     *
+     * <p>신규 구현에서는 eqpKey 기반 command 오버로드를 사용해야 하므로,
+     * 이 메서드는 호출부 누락을 빠르게 발견하기 위한 보호용 예외를 발생시킵니다.</p>
      *
      * <p>현재 상태를 강제 변경하지 않고 OPER 이력만 append합니다.</p>
      */
@@ -61,22 +90,41 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
             final String eventType,
             final String detailMessage
     ) {
-        final TcEqp eqp = requireEqp(eqpId);
-        final Optional<TcEqpState> currentState = stateStore.findByEqpKey(eqp.eqpKey());
+        throw legacyApiNotSupported("recordCreateOrUpdate", eqpId, eventType);
+    }
 
-        appendHist(
-                eqp.eqpKey(),
-                EqpStateType.OPER,
-                currentState.map(state -> state.eqpState() == null ? null : state.eqpState().name()).orElse(null),
-                "REGISTERED",
-                normalizeReasonCode(eventType, "EQP_UPDATE"),
-                buildReasonDetail(traceId, detailMessage)
+    /**
+     * START 요청 결과를 커맨드 기반 입력으로 현재 상태와 이력에 반영합니다.
+     *
+     * <p>선행 state 조회 없이 커맨드에 포함된 fromControlState(선택)를 그대로 사용합니다.</p>
+     *
+     * @param command 상태/이력 영속화 커맨드
+     */
+    @Override
+    public void recordStart(final EquipmentStatePersistenceCommand command) {
+        final EquipmentStatePersistenceCommand normalized = requireCommand(command).normalizeReasonCodeIfBlank();
+
+        upsertState(
+                normalized.eqpKey(),
+                parseControlState(normalized.toControlState(), ControlState.REMOTE),
+                parseEqpState(normalized.toEqpState(), EqpState.IDLE),
+                normalizeReasonCode(normalized.reasonCode(), "EQP_START"),
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
         );
 
-        if (log.isDebugEnabled()) {
-            log.debug("State history recorded for create/update. eqpId={}, eventType={}, traceId={}",
-                    eqpId, eventType, traceId);
-        }
+        appendHist(
+                normalized.eqpKey(),
+                EqpStateType.CONN,
+                normalized.fromControlState(),
+                "STARTED",
+                "EQP_START",
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
+        );
+
+        log.info("State persisted for start (command). eqpId={}, eqpKey={}, traceId={}",
+                normalized.eqpId(),
+                normalized.eqpKey(),
+                normalized.traceId());
     }
 
     /**
@@ -84,27 +132,39 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
      */
     @Override
     public void recordStart(final String eqpId, final String traceId, final String detailMessage) {
-        final TcEqp eqp = requireEqp(eqpId);
-        final Optional<TcEqpState> currentState = stateStore.findByEqpKey(eqp.eqpKey());
+        throw legacyApiNotSupported("recordStart", eqpId, "EQP_START");
+    }
+
+    /**
+     * END 요청 결과를 커맨드 기반 입력으로 현재 상태와 이력에 반영합니다.
+     *
+     * @param command 상태/이력 영속화 커맨드
+     */
+    @Override
+    public void recordEnd(final EquipmentStatePersistenceCommand command) {
+        final EquipmentStatePersistenceCommand normalized = requireCommand(command).normalizeReasonCodeIfBlank();
 
         upsertState(
-                eqp.eqpKey(),
-                ControlState.REMOTE,
-                EqpState.IDLE,
-                "EQP_START",
-                buildReasonDetail(traceId, detailMessage)
+                normalized.eqpKey(),
+                parseControlState(normalized.toControlState(), ControlState.OFFLINE),
+                parseEqpState(normalized.toEqpState(), EqpState.DOWN),
+                normalizeReasonCode(normalized.reasonCode(), "EQP_END"),
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
         );
 
         appendHist(
-                eqp.eqpKey(),
+                normalized.eqpKey(),
                 EqpStateType.CONN,
-                currentState.map(state -> state.controlState() == null ? null : state.controlState().name()).orElse(null),
-                "STARTED",
-                "EQP_START",
-                buildReasonDetail(traceId, detailMessage)
+                normalized.fromControlState(),
+                "ENDED",
+                "EQP_END",
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
         );
 
-        log.info("State persisted for start. eqpId={}, traceId={}", eqpId, traceId);
+        log.info("State persisted for end (command). eqpId={}, eqpKey={}, traceId={}",
+                normalized.eqpId(),
+                normalized.eqpKey(),
+                normalized.traceId());
     }
 
     /**
@@ -112,27 +172,39 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
      */
     @Override
     public void recordEnd(final String eqpId, final String traceId, final String detailMessage) {
-        final TcEqp eqp = requireEqp(eqpId);
-        final Optional<TcEqpState> currentState = stateStore.findByEqpKey(eqp.eqpKey());
+        throw legacyApiNotSupported("recordEnd", eqpId, "EQP_END");
+    }
+
+    /**
+     * DELETE 요청 결과를 커맨드 기반 입력으로 현재 상태와 이력에 반영합니다.
+     *
+     * @param command 상태/이력 영속화 커맨드
+     */
+    @Override
+    public void recordDelete(final EquipmentStatePersistenceCommand command) {
+        final EquipmentStatePersistenceCommand normalized = requireCommand(command).normalizeReasonCodeIfBlank();
 
         upsertState(
-                eqp.eqpKey(),
-                ControlState.OFFLINE,
-                EqpState.DOWN,
-                "EQP_END",
-                buildReasonDetail(traceId, detailMessage)
+                normalized.eqpKey(),
+                parseControlState(normalized.toControlState(), ControlState.OFFLINE),
+                parseEqpState(normalized.toEqpState(), EqpState.DOWN),
+                normalizeReasonCode(normalized.reasonCode(), "EQP_DELETE"),
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
         );
 
         appendHist(
-                eqp.eqpKey(),
-                EqpStateType.CONN,
-                currentState.map(state -> state.controlState() == null ? null : state.controlState().name()).orElse(null),
-                "ENDED",
-                "EQP_END",
-                buildReasonDetail(traceId, detailMessage)
+                normalized.eqpKey(),
+                EqpStateType.OPER,
+                normalized.fromEqpState(),
+                "DELETED",
+                "EQP_DELETE",
+                buildReasonDetail(normalized.traceId(), normalized.detailMessage())
         );
 
-        log.info("State persisted for end. eqpId={}, traceId={}", eqpId, traceId);
+        log.info("State persisted for delete (command). eqpId={}, eqpKey={}, traceId={}",
+                normalized.eqpId(),
+                normalized.eqpKey(),
+                normalized.traceId());
     }
 
     /**
@@ -140,27 +212,7 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
      */
     @Override
     public void recordDelete(final String eqpId, final String traceId, final String detailMessage) {
-        final TcEqp eqp = requireEqp(eqpId);
-        final Optional<TcEqpState> currentState = stateStore.findByEqpKey(eqp.eqpKey());
-
-        upsertState(
-                eqp.eqpKey(),
-                ControlState.OFFLINE,
-                EqpState.DOWN,
-                "EQP_DELETE",
-                buildReasonDetail(traceId, detailMessage)
-        );
-
-        appendHist(
-                eqp.eqpKey(),
-                EqpStateType.OPER,
-                currentState.map(state -> state.eqpState() == null ? null : state.eqpState().name()).orElse(null),
-                "DELETED",
-                "EQP_DELETE",
-                buildReasonDetail(traceId, detailMessage)
-        );
-
-        log.info("State persisted for delete. eqpId={}, traceId={}", eqpId, traceId);
+        throw legacyApiNotSupported("recordDelete", eqpId, "EQP_DELETE");
     }
 
     /**
@@ -207,15 +259,6 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
     }
 
     /**
-     * eqpId로 tc_eqp 기본 행을 조회합니다.
-     */
-    private TcEqp requireEqp(final String eqpId) {
-        return eqpStore.findByEqpId(eqpId).orElseThrow(
-                () -> new IllegalStateException("Equipment not found for state persistence. eqpId=" + eqpId)
-        );
-    }
-
-    /**
      * reason_code 값이 비어있을 경우 기본 코드를 보정합니다.
      */
     private String normalizeReasonCode(final String reasonCode, final String defaultCode) {
@@ -237,5 +280,77 @@ public class GatewayEquipmentStatePersistenceService implements EquipmentStatePe
                 : detailMessage.trim();
         return "traceId=" + normalizedTraceId + ";message=" + normalizedMessage;
     }
-}
 
+    /**
+     * 신규 command 기반 API 입력을 검증합니다.
+     *
+     * @param command 상태/이력 영속화 커맨드
+     * @return 검증된 커맨드
+     */
+    private EquipmentStatePersistenceCommand requireCommand(final EquipmentStatePersistenceCommand command) {
+        return Objects.requireNonNull(command, "command is null");
+    }
+
+    /**
+     * 문자열 controlState를 DB enum으로 파싱합니다.
+     *
+     * <p>값이 비어 있거나 파싱 실패 시 기본값을 사용합니다.
+     * 이 정책은 런타임 hot path의 상태 영속화를 실패로 전파하지 않기 위한 보수적 처리입니다.</p>
+     *
+     * @param value 원본 문자열
+     * @param defaultValue 기본값
+     * @return 파싱된 enum 또는 기본값
+     */
+    private ControlState parseControlState(final String value, final ControlState defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return ControlState.valueOf(value.trim().toUpperCase());
+        } catch (Exception ex) {
+            log.warn("Invalid controlState text for state persistence. value={}, fallback={}", value, defaultValue);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 문자열 eqpState를 DB enum으로 파싱합니다.
+     *
+     * @param value 원본 문자열
+     * @param defaultValue 기본값
+     * @return 파싱된 enum 또는 기본값
+     */
+    private EqpState parseEqpState(final String value, final EqpState defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return EqpState.valueOf(value.trim().toUpperCase());
+        } catch (Exception ex) {
+            log.warn("Invalid eqpState text for state persistence. value={}, fallback={}", value, defaultValue);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 구형 문자열 기반 API 호출을 차단하는 예외를 생성합니다.
+     *
+     * <p>eqpKey가 없는 호출은 DB 재조회를 유발하므로, DB 접근 최소화 전환 이후에는 허용하지 않습니다.</p>
+     *
+     * @param apiName 호출된 API 이름
+     * @param eqpId 설비 ID
+     * @param eventType 이벤트 타입
+     * @return 항상 throw할 예외 객체
+     */
+    private IllegalStateException legacyApiNotSupported(
+            final String apiName,
+            final String eqpId,
+            final String eventType
+    ) {
+        log.error("Legacy state persistence API was invoked after command-based migration. api={}, eqpId={}, eventType={}",
+                apiName,
+                eqpId,
+                eventType);
+        return new IllegalStateException("Legacy state persistence API is not supported. Use EquipmentStatePersistenceCommand.");
+    }
+}

@@ -121,9 +121,7 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
                         message,
                         uiTaskPolicyProperties.getCreateTimeoutMs(),
                         () -> runtimeControlService.createOrUpdateContext(
-                                message.data().eqpId(),
-                                message.data().interfaceType(),
-                                message.metadata().traceId(),
+                                message,
                                 KafkaUiTaskEventType.EQP_CREATE.name(),
                                 uiTaskPolicyProperties.getCreateTimeoutMs()
                         ),
@@ -140,9 +138,7 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
                         message,
                         uiTaskPolicyProperties.getUpdateTimeoutMs(),
                         () -> runtimeControlService.createOrUpdateContext(
-                                message.data().eqpId(),
-                                message.data().interfaceType(),
-                                message.metadata().traceId(),
+                                message,
                                 KafkaUiTaskEventType.EQP_UPDATE.name(),
                                 uiTaskPolicyProperties.getUpdateTimeoutMs()
                         ),

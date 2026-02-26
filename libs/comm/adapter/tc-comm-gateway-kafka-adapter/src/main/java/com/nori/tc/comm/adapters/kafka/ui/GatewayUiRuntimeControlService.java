@@ -11,21 +11,27 @@ import com.nori.tc.comm.gateway.application.ingress.GatewayIngressService;
 import com.nori.tc.comm.gateway.config.props.GatewayLifecycleProperties;
 import com.nori.tc.comm.gateway.context.model.EquipmentContext;
 import com.nori.tc.comm.gateway.context.model.EquipmentContextProfile;
-import com.nori.tc.comm.gateway.context.port.EquipmentContextProfileProvider;
 import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
 import com.nori.tc.comm.gateway.context.model.EquipmentDesiredState;
 import com.nori.tc.comm.gateway.context.model.EquipmentRuntimeState;
+import com.nori.tc.comm.gateway.context.port.EquipmentRuntimeCatalog;
+import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistenceCommand;
 import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistencePort;
 import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.lifecycle.service.EquipmentLifecycleStateMachine;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
+import com.nori.tc.messaging.kafka.contract.GatewayEquipmentProfileSnapshot;
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -56,7 +62,7 @@ public class GatewayUiRuntimeControlService {
     private static final String SEND_MESSAGE_EVENT_TYPE = "EQP_SEND_MESSAGE";
 
     private final EquipmentContextRegistry contextRegistry;
-    private final EquipmentContextProfileProvider profileProvider;
+    private final EquipmentRuntimeCatalog runtimeCatalog;
     private final EquipmentStatePersistencePort statePersistencePort;
     private final EquipmentChannelRegistry channelRegistry;
     private final GatewayConnectionControlPort connectionControlPort;
@@ -69,7 +75,7 @@ public class GatewayUiRuntimeControlService {
      * Runtime 제어 서비스 의존성을 초기화합니다.
      *
      * @param contextRegistry 설비 컨텍스트 저장소
-     * @param profileProvider 설비 프로파일 조회 포트
+     * @param runtimeCatalog 런타임 메타 조회 포트(bean 기반)
      * @param statePersistencePortProvider 상태 이력 저장 포트 Provider
      * @param channelRegistry 설비 채널 레지스트리
      * @param connectionControlPort 연결 제어 포트
@@ -80,7 +86,7 @@ public class GatewayUiRuntimeControlService {
      */
     public GatewayUiRuntimeControlService(
             final EquipmentContextRegistry contextRegistry,
-            final EquipmentContextProfileProvider profileProvider,
+            final EquipmentRuntimeCatalog runtimeCatalog,
             final ObjectProvider<EquipmentStatePersistencePort> statePersistencePortProvider,
             final EquipmentChannelRegistry channelRegistry,
             final GatewayConnectionControlPort connectionControlPort,
@@ -90,7 +96,7 @@ public class GatewayUiRuntimeControlService {
             final GatewayCommandDispatcher commandDispatcher
     ) {
         this.contextRegistry = Objects.requireNonNull(contextRegistry, "contextRegistry is null");
-        this.profileProvider = Objects.requireNonNull(profileProvider, "profileProvider is null");
+        this.runtimeCatalog = Objects.requireNonNull(runtimeCatalog, "runtimeCatalog is null");
         this.statePersistencePort = statePersistencePortProvider.getIfAvailable(() -> EquipmentStatePersistencePort.NO_OP);
         this.channelRegistry = Objects.requireNonNull(channelRegistry, "channelRegistry is null");
         this.connectionControlPort = Objects.requireNonNull(connectionControlPort, "connectionControlPort is null");
@@ -121,13 +127,19 @@ public class GatewayUiRuntimeControlService {
      * @return 검증된 설비 정보
      */
     public GatewayEquipmentInfo createOrUpdateContext(
-            final String eqpId,
-            final String interfaceType,
-            final String traceId,
+            final KafkaUiTaskMessage message,
             final String eventType,
             final long timeoutMs
     ) {
-        final String normalizedEqpId = requireEqpId(eqpId);
+        if (message == null || message.metadata() == null || message.data() == null) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    "UI task message(metadata/data) is required"
+            );
+        }
+
+        final String traceId = message.metadata().traceId();
+        final String normalizedEqpId = requireEqpId(message.data().eqpId());
         /**
          * UI CREATE/UPDATE는 비동기 mailbox worker에서 수행되므로
          * 호출 경계에서 eqpId/traceId MDC를 명시적으로 주입해야 EQP 로그 분리가 유지됩니다.
@@ -141,14 +153,18 @@ public class GatewayUiRuntimeControlService {
                     timeoutMs
             );
 
-            final CommInterfaceType requestedType = parseInterfaceType(interfaceType);
-            final EquipmentContextProfile profile = profileProvider.findProfileById(normalizedEqpId).orElseThrow(
-                    () -> new ProcessingException(ErrorCode.EQP_NOT_FOUND, "Equipment profile not found")
+            final CommInterfaceType requestedType = parseInterfaceType(message.data().interfaceType());
+            final GatewayEquipmentProfileSnapshot snapshot = requireProfilePayload(message, eventType);
+            final EquipmentContextProfile profile = toContextProfileFromSnapshot(
+                    snapshot,
+                    normalizedEqpId,
+                    requestedType
             );
             final GatewayEquipmentInfo equipmentInfo = profile.equipmentInfo();
             validateInterfaceType(equipmentInfo, requestedType);
 
             final EquipmentContext existing = contextRegistry.find(normalizedEqpId).orElse(null);
+            validateProfileStaleness(existing, profile, eventType);
             final EquipmentDesiredState desiredState = existing == null
                     ? (equipmentInfo.enabled() ? EquipmentDesiredState.STARTED : EquipmentDesiredState.ENDED)
                     : existing.desiredState();
@@ -157,12 +173,14 @@ public class GatewayUiRuntimeControlService {
                     : existing.runtimeState();
 
             contextRegistry.upsertProfile(profile, desiredState, runtimeState, eventType, traceId);
-            statePersistencePort.recordCreateOrUpdate(
+            statePersistencePort.recordCreateOrUpdate(EquipmentStatePersistenceCommand.forCreateOrUpdate(
+                    equipmentInfo.eqpKey(),
                     normalizedEqpId,
                     traceId,
                     eventType,
-                    "UI create/update request processed"
-            );
+                    "UI create/update request processed",
+                    safeEqpState(profile.currentStateSnapshot())
+            ));
 
             log.info(
                     "UI context upsert completed. eventType={}, eqpId={}, traceId={}, enabled={}",
@@ -173,10 +191,12 @@ public class GatewayUiRuntimeControlService {
             );
             if (log.isDebugEnabled()) {
                 log.debug(
-                        "UI context upsert detail. timeoutMs={}, desiredState={}, runtimeState={}",
-                        timeoutMs,
-                        desiredState,
-                        runtimeState
+                    "UI context upsert detail. timeoutMs={}, desiredState={}, runtimeState={}, routePartition={}, loadedAt={}",
+                    timeoutMs,
+                    desiredState,
+                    runtimeState,
+                    equipmentInfo.routePartition(),
+                    profile.loadedAt()
                 );
             }
             return equipmentInfo;
@@ -379,8 +399,15 @@ public class GatewayUiRuntimeControlService {
              */
             connectionControlPort.stopRuntimeIfPossible(normalizedEqpId);
             gatewayIngressService.removeMailbox(normalizedEqpId);
+            final GatewayEquipmentInfo equipmentInfo = context.profile().equipmentInfo();
             contextRegistry.remove(normalizedEqpId, "EQP_DELETE", traceId);
-            statePersistencePort.recordDelete(normalizedEqpId, traceId, "UI delete request processed");
+            statePersistencePort.recordDelete(EquipmentStatePersistenceCommand.forDelete(
+                    equipmentInfo.eqpKey(),
+                    normalizedEqpId,
+                    traceId,
+                    "UI delete request processed",
+                    safeEqpState(context.profile().currentStateSnapshot())
+            ));
 
             if (log.isDebugEnabled()) {
                 log.debug("Runtime delete detail. eqpId={}, traceId={}, timeoutMs={}", normalizedEqpId, traceId, timeoutMs);
@@ -490,8 +517,18 @@ public class GatewayUiRuntimeControlService {
             final String eventType
     ) {
         final CommInterfaceType requestedType = parseInterfaceType(interfaceType);
-        final EquipmentContext context = resolveOrLoadContext(eqpId, traceId, eventType);
-        final GatewayEquipmentInfo equipmentInfo = context.profile().equipmentInfo();
+        final EquipmentRuntimeCatalog.LookupResult lookupResult = runtimeCatalog.find(eqpId);
+        if (!lookupResult.found()) {
+            if (log.isDebugEnabled()) {
+                log.debug("UI 설비 검증 실패(런타임 메타 없음). eqpId={}, traceId={}, eventType={}, lookupStatus={}",
+                        eqpId,
+                        traceId,
+                        eventType,
+                        lookupResult.status());
+            }
+            throw new ProcessingException(ErrorCode.EQP_CONTEXT_NOT_FOUND, "Equipment context not found");
+        }
+        final GatewayEquipmentInfo equipmentInfo = lookupResult.equipmentInfo();
         validateInterfaceType(equipmentInfo, requestedType);
         return equipmentInfo;
     }
@@ -523,33 +560,357 @@ public class GatewayUiRuntimeControlService {
     }
 
     /**
-     * 설비 컨텍스트를 조회하고, 없으면 프로파일 기반으로 즉시 생성합니다.
+     * 설비 컨텍스트를 조회합니다.
      *
      * @param eqpId 설비 ID
      * @param traceId traceId
      * @param eventType 기록 eventType
-     * @return 기존 또는 신규 컨텍스트
+     * @return 기존 컨텍스트
      */
     private EquipmentContext resolveOrLoadContext(final String eqpId, final String traceId, final String eventType) {
         final String normalizedEqpId = requireEqpId(eqpId);
-        return contextRegistry.find(normalizedEqpId).orElseGet(() -> {
-            final EquipmentContextProfile profile = profileProvider.findProfileById(normalizedEqpId).orElseThrow(
-                    () -> new ProcessingException(ErrorCode.EQP_NOT_FOUND, "Equipment profile not found")
-            );
-            final GatewayEquipmentInfo info = profile.equipmentInfo();
-            final EquipmentDesiredState desiredState = info.enabled() ? EquipmentDesiredState.STARTED : EquipmentDesiredState.ENDED;
-            final EquipmentRuntimeState runtimeState = info.enabled() ? EquipmentRuntimeState.DISCONNECTED : EquipmentRuntimeState.REGISTERED;
+        final EquipmentContext context = contextRegistry.find(normalizedEqpId).orElse(null);
+        if (context == null) {
             if (log.isDebugEnabled()) {
-                log.debug(
-                        "Equipment context loaded lazily. eqpId={}, eventType={}, desiredState={}, runtimeState={}",
+                log.debug("Equipment context lookup failed. eqpId={}, traceId={}, eventType={}, reason=CONTEXT_NOT_FOUND",
                         normalizedEqpId,
-                        eventType,
-                        desiredState,
-                        runtimeState
-                );
+                        traceId,
+                        eventType);
             }
-            return contextRegistry.upsertProfile(profile, desiredState, runtimeState, eventType, traceId);
-        });
+            throw new ProcessingException(ErrorCode.EQP_CONTEXT_NOT_FOUND, "Equipment context not found");
+        }
+        return context;
+    }
+
+    /**
+     * UI CREATE/UPDATE 요청에서 설비 프로파일 payload 존재 여부를 검증합니다.
+     *
+     * <p>DB 재조회 없는 bean 갱신 정책에서는 profile payload가 필수입니다.
+     * 누락 시 Gateway는 즉시 실패 응답을 반환해야 합니다.</p>
+     *
+     * @param message 원본 UI 메시지
+     * @param eventType 처리 이벤트 타입(EQP_CREATE/EQP_UPDATE)
+     * @return 검증된 프로파일 payload
+     */
+    private GatewayEquipmentProfileSnapshot requireProfilePayload(
+            final KafkaUiTaskMessage message,
+            final String eventType
+    ) {
+        final GatewayEquipmentProfileSnapshot snapshot = message.data().equipmentProfile();
+        if (snapshot == null) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_PAYLOAD_REQUIRED,
+                    eventType + " requires equipmentProfile payload"
+            );
+        }
+        return snapshot;
+    }
+
+    /**
+     * UI profile payload를 {@link EquipmentContextProfile}로 변환합니다.
+     *
+     * <p>이 메서드는 단순 매핑뿐 아니라 런타임 검증에 필요한 필수 필드 검증도 함께 수행합니다.</p>
+     *
+     * @param snapshot UI가 전달한 설비 프로파일 스냅샷
+     * @param expectedEqpId 요청 본문(data.eqpId) 기준 설비 ID
+     * @param requestedType 요청 본문(data.interfaceType) 기준 인터페이스 타입
+     * @return EQP bean에 적재 가능한 컨텍스트 프로파일
+     */
+    private EquipmentContextProfile toContextProfileFromSnapshot(
+            final GatewayEquipmentProfileSnapshot snapshot,
+            final String expectedEqpId,
+            final CommInterfaceType requestedType
+    ) {
+        Objects.requireNonNull(snapshot, "snapshot is null");
+        Objects.requireNonNull(requestedType, "requestedType is null");
+
+        final String snapshotEqpId = requireNonBlankText(
+                snapshot.eqpId(),
+                ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                "equipmentProfile.eqpId is required"
+        );
+        if (!snapshotEqpId.equals(expectedEqpId)) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    "equipmentProfile.eqpId does not match data.eqpId"
+            );
+        }
+
+        final CommInterfaceType snapshotInterfaceType;
+        try {
+            snapshotInterfaceType = CommInterfaceType.fromText(requireNonBlankText(
+                    snapshot.commInterfaceType(),
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    "equipmentProfile.commInterfaceType is required"
+            ));
+        } catch (Exception ex) {
+            throw new ProcessingException(ErrorCode.EQP_PROFILE_PAYLOAD_INVALID, "equipmentProfile.commInterfaceType is invalid");
+        }
+        if (snapshotInterfaceType != requestedType) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    "equipmentProfile.commInterfaceType does not match data.interfaceType"
+            );
+        }
+
+        final ConnectionMode connectionMode;
+        try {
+            connectionMode = ConnectionMode.fromText(requireNonBlankText(
+                    snapshot.connectionMode(),
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    "equipmentProfile.connectionMode is required"
+            ));
+        } catch (Exception ex) {
+            throw new ProcessingException(ErrorCode.EQP_PROFILE_PAYLOAD_INVALID, "equipmentProfile.connectionMode is invalid");
+        }
+
+        final Long eqpKey = requirePositiveLong(
+                snapshot.eqpKey(),
+                ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                "equipmentProfile.eqpKey is required"
+        );
+        final Boolean enabled = snapshot.enabled();
+        if (enabled == null) {
+            throw new ProcessingException(ErrorCode.EQP_PROFILE_PAYLOAD_INVALID, "equipmentProfile.enabled is required");
+        }
+
+        final OffsetDateTime profileUpdatedAt = parseRequiredOffsetDateTime(
+                snapshot.updatedAt(),
+                "equipmentProfile.updatedAt"
+        );
+
+        final GatewayEquipmentInfo equipmentInfo = new GatewayEquipmentInfo(
+                eqpKey,
+                snapshotEqpId,
+                snapshotInterfaceType,
+                snapshot.socketType(),
+                snapshot.hsmsDeviceId(),
+                snapshot.eqpIp(),
+                snapshot.eqpPort(),
+                snapshot.modelKey(),
+                connectionMode,
+                snapshot.routePartition(),
+                enabled
+        );
+
+        final EquipmentContextProfile.HsmsSettings hsmsSettings = snapshot.hsmsSettings() == null
+                ? null
+                : new EquipmentContextProfile.HsmsSettings(
+                snapshot.hsmsSettings().deviceId(),
+                snapshot.hsmsSettings().connectionMode(),
+                snapshot.hsmsSettings().t3Timeout(),
+                snapshot.hsmsSettings().t5Timeout(),
+                snapshot.hsmsSettings().t6Timeout(),
+                snapshot.hsmsSettings().t7Timeout(),
+                snapshot.hsmsSettings().t8Timeout(),
+                snapshot.hsmsSettings().linkTestEnabled(),
+                snapshot.hsmsSettings().linkTestInterval(),
+                snapshot.hsmsSettings().maxMsgBytes()
+        );
+
+        final EquipmentContextProfile.SocketSettings socketSettings = snapshot.socketSettings() == null
+                ? null
+                : new EquipmentContextProfile.SocketSettings(
+                snapshot.socketSettings().socketProtocolType(),
+                snapshot.socketSettings().connectionMode(),
+                snapshot.socketSettings().charset(),
+                snapshot.socketSettings().heartbeatEnabled(),
+                snapshot.socketSettings().heartbeatInterval(),
+                snapshot.socketSettings().readTimeout(),
+                snapshot.socketSettings().writeTimeout(),
+                snapshot.socketSettings().maxFrameSizeBytes(),
+                snapshot.socketSettings().keepAliveEnabled()
+        );
+
+        final EquipmentContextProfile.CurrentStateSnapshot currentStateSnapshot = snapshot.currentStateSnapshot() == null
+                ? null
+                : new EquipmentContextProfile.CurrentStateSnapshot(
+                snapshot.currentStateSnapshot().controlState(),
+                snapshot.currentStateSnapshot().eqpState(),
+                parseOptionalOffsetDateTime(snapshot.currentStateSnapshot().sinceAt(), "equipmentProfile.currentStateSnapshot.sinceAt"),
+                snapshot.currentStateSnapshot().reasonCode(),
+                snapshot.currentStateSnapshot().reasonDetail(),
+                parseOptionalOffsetDateTime(snapshot.currentStateSnapshot().updatedAt(), "equipmentProfile.currentStateSnapshot.updatedAt")
+        );
+
+        final List<EquipmentContextProfile.PortStatusSnapshot> portStatuses = snapshot.portStatuses().stream()
+                .map(port -> new EquipmentContextProfile.PortStatusSnapshot(
+                        port.portId(),
+                        port.portType(),
+                        port.portState(),
+                        port.carrierId(),
+                        port.carrierType(),
+                        port.carrierState(),
+                        parseOptionalOffsetDateTime(port.updatedAt(), "equipmentProfile.portStatuses.updatedAt")
+                ))
+                .toList();
+
+        final EquipmentContextProfile.LogPolicy logPolicy = snapshot.logPolicy() == null
+                ? null
+                : new EquipmentContextProfile.LogPolicy(
+                snapshot.logPolicy().logLevel(),
+                snapshot.logPolicy().logRetentionDays(),
+                snapshot.logPolicy().logPath(),
+                parseOptionalOffsetDateTime(snapshot.logPolicy().updatedAt(), "equipmentProfile.logPolicy.updatedAt")
+        );
+
+        final List<EquipmentContextProfile.ParamSnapshot> params = snapshot.params().stream()
+                .map(param -> new EquipmentContextProfile.ParamSnapshot(
+                        param.eqpParamKey(),
+                        param.paramName(),
+                        param.paramVersion(),
+                        param.paramValue(),
+                        parseOptionalOffsetDateTime(param.updatedAt(), "equipmentProfile.params.updatedAt")
+                ))
+                .toList();
+
+        if (log.isDebugEnabled()) {
+            log.debug("UI profile payload mapped to EquipmentContextProfile. eqpId={}, interfaceType={}, mode={}, routePartition={}, enabled={}, portStatusCount={}, paramCount={}, loadedAt={}",
+                    snapshotEqpId,
+                    snapshotInterfaceType,
+                    connectionMode,
+                    snapshot.routePartition(),
+                    enabled,
+                    portStatuses.size(),
+                    params.size(),
+                    profileUpdatedAt);
+        }
+
+        return new EquipmentContextProfile(
+                equipmentInfo,
+                hsmsSettings,
+                socketSettings,
+                currentStateSnapshot,
+                portStatuses,
+                logPolicy,
+                params,
+                profileUpdatedAt
+        );
+    }
+
+    /**
+     * 기존 bean의 프로파일 시각과 신규 payload 시각을 비교하여 stale 이벤트를 거절합니다.
+     *
+     * <p>정책:
+     * 신규 payload.loadedAt(=UI snapshot updatedAt)가 기존 컨텍스트 profile.loadedAt보다 과거이면
+     * 오래된 이벤트로 판단하고 반영하지 않습니다.</p>
+     *
+     * @param existing 기존 컨텍스트(없으면 null)
+     * @param incomingProfile 신규 프로파일
+     * @param eventType 처리 이벤트 타입
+     */
+    private void validateProfileStaleness(
+            final EquipmentContext existing,
+            final EquipmentContextProfile incomingProfile,
+            final String eventType
+    ) {
+        if (existing == null || existing.profile() == null || incomingProfile == null) {
+            return;
+        }
+
+        final OffsetDateTime currentLoadedAt = existing.profile().loadedAt();
+        final OffsetDateTime incomingLoadedAt = incomingProfile.loadedAt();
+        if (currentLoadedAt == null || incomingLoadedAt == null) {
+            return;
+        }
+
+        if (incomingLoadedAt.isBefore(currentLoadedAt)) {
+            if (log.isDebugEnabled()) {
+                log.debug("UI profile payload rejected as stale. eqpId={}, eventType={}, currentLoadedAt={}, incomingLoadedAt={}",
+                        existing.eqpId(),
+                        eventType,
+                        currentLoadedAt,
+                        incomingLoadedAt);
+            }
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_STALE_EVENT,
+                    "equipmentProfile.updatedAt is older than current context profile"
+            );
+        }
+    }
+
+    /**
+     * 현재 상태 스냅샷에서 설비 상태 문자열을 안전하게 추출합니다.
+     *
+     * @param snapshot 현재 상태 스냅샷
+     * @return eqpState 문자열(없으면 null)
+     */
+    private String safeEqpState(final EquipmentContextProfile.CurrentStateSnapshot snapshot) {
+        return snapshot == null ? null : snapshot.eqpState();
+    }
+
+    /**
+     * 문자열 필드를 필수값으로 검증하고 trim 처리합니다.
+     *
+     * @param value 원본 값
+     * @param errorCode 실패 시 사용할 오류 코드
+     * @param message 실패 시 오류 메시지
+     * @return trim 처리된 문자열
+     */
+    private String requireNonBlankText(final String value, final String errorCode, final String message) {
+        if (value == null || value.isBlank()) {
+            throw new ProcessingException(errorCode, message);
+        }
+        return value.trim();
+    }
+
+    /**
+     * 양수 Long 필드를 검증합니다.
+     *
+     * @param value 원본 값
+     * @param errorCode 실패 시 오류 코드
+     * @param message 실패 시 오류 메시지
+     * @return 검증된 양수 Long
+     */
+    private Long requirePositiveLong(final Long value, final String errorCode, final String message) {
+        if (value == null || value <= 0L) {
+            throw new ProcessingException(errorCode, message);
+        }
+        return value;
+    }
+
+    /**
+     * 필수 OffsetDateTime 문자열을 파싱합니다.
+     *
+     * @param value ISO-8601 문자열
+     * @param fieldName 필드명(오류 메시지용)
+     * @return 파싱된 OffsetDateTime
+     */
+    private OffsetDateTime parseRequiredOffsetDateTime(final String value, final String fieldName) {
+        final String normalized = requireNonBlankText(
+                value,
+                ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                fieldName + " is required"
+        );
+        try {
+            return OffsetDateTime.parse(normalized);
+        } catch (DateTimeParseException ex) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    fieldName + " is invalid datetime"
+            );
+        }
+    }
+
+    /**
+     * 선택 OffsetDateTime 문자열을 파싱합니다.
+     *
+     * @param value ISO-8601 문자열(선택)
+     * @param fieldName 필드명(오류 메시지용)
+     * @return 파싱된 OffsetDateTime 또는 null
+     */
+    private OffsetDateTime parseOptionalOffsetDateTime(final String value, final String fieldName) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value.trim());
+        } catch (DateTimeParseException ex) {
+            throw new ProcessingException(
+                    ErrorCode.EQP_PROFILE_PAYLOAD_INVALID,
+                    fieldName + " is invalid datetime"
+            );
+        }
     }
 
     /**
@@ -650,6 +1011,9 @@ public class GatewayUiRuntimeControlService {
         public static final String DUPLICATE_TRACE_ID = "DUPLICATE_TRACE_ID";
         public static final String EQP_NOT_FOUND = "EQP_NOT_FOUND";
         public static final String EQP_CONTEXT_NOT_FOUND = "EQP_CONTEXT_NOT_FOUND";
+        public static final String EQP_PROFILE_PAYLOAD_REQUIRED = "EQP_PROFILE_PAYLOAD_REQUIRED";
+        public static final String EQP_PROFILE_PAYLOAD_INVALID = "EQP_PROFILE_PAYLOAD_INVALID";
+        public static final String EQP_PROFILE_STALE_EVENT = "EQP_PROFILE_STALE_EVENT";
         public static final String INTERFACE_MISMATCH = "INTERFACE_MISMATCH";
         public static final String EQP_DISABLED = "EQP_DISABLED";
         public static final String EQP_NOT_STARTED = "EQP_NOT_STARTED";

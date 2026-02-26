@@ -9,9 +9,43 @@ package com.nori.tc.comm.gateway.context.port;
 public interface EquipmentStatePersistencePort {
 
     /**
+     * CREATE/UPDATE 요청 처리 이력을 커맨드 기반 입력으로 기록합니다.
+     *
+     * <p>신규 호출부는 가능하면 이 메서드를 사용하여 eqpKey를 함께 전달해야 합니다.
+     * 기본 구현은 하위 호환을 위해 기존 문자열 기반 메서드로 위임합니다.</p>
+     *
+     * @param command 상태/이력 영속화 입력 커맨드
+     */
+    default void recordCreateOrUpdate(final EquipmentStatePersistenceCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("command is required");
+        }
+        recordCreateOrUpdate(
+                command.eqpId(),
+                command.traceId(),
+                command.eventType(),
+                command.detailMessage()
+        );
+    }
+
+    /**
      * CREATE/UPDATE 요청 처리 이력을 기록합니다.
      */
     void recordCreateOrUpdate(String eqpId, String traceId, String eventType, String detailMessage);
+
+    /**
+     * START 요청 처리 결과를 커맨드 기반 입력으로 상태/이력에 반영합니다.
+     *
+     * <p>기본 구현은 기존 문자열 기반 메서드로 위임합니다.</p>
+     *
+     * @param command 상태/이력 영속화 입력 커맨드
+     */
+    default void recordStart(final EquipmentStatePersistenceCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("command is required");
+        }
+        recordStart(command.eqpId(), command.traceId(), command.detailMessage());
+    }
 
     /**
      * START 요청 처리 결과를 상태/이력에 반영합니다.
@@ -19,9 +53,37 @@ public interface EquipmentStatePersistencePort {
     void recordStart(String eqpId, String traceId, String detailMessage);
 
     /**
+     * END 요청 처리 결과를 커맨드 기반 입력으로 상태/이력에 반영합니다.
+     *
+     * <p>기본 구현은 기존 문자열 기반 메서드로 위임합니다.</p>
+     *
+     * @param command 상태/이력 영속화 입력 커맨드
+     */
+    default void recordEnd(final EquipmentStatePersistenceCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("command is required");
+        }
+        recordEnd(command.eqpId(), command.traceId(), command.detailMessage());
+    }
+
+    /**
      * END 요청 처리 결과를 상태/이력에 반영합니다.
      */
     void recordEnd(String eqpId, String traceId, String detailMessage);
+
+    /**
+     * DELETE 요청 처리 결과를 커맨드 기반 입력으로 상태/이력에 반영합니다.
+     *
+     * <p>기본 구현은 기존 문자열 기반 메서드로 위임합니다.</p>
+     *
+     * @param command 상태/이력 영속화 입력 커맨드
+     */
+    default void recordDelete(final EquipmentStatePersistenceCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("command is required");
+        }
+        recordDelete(command.eqpId(), command.traceId(), command.detailMessage());
+    }
 
     /**
      * DELETE 요청 처리 결과를 상태/이력에 반영합니다.

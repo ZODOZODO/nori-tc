@@ -8,8 +8,10 @@ import com.nori.tc.comm.gateway.config.props.GatewayLifecycleProperties;
 import com.nori.tc.comm.gateway.context.model.EquipmentContext;
 import com.nori.tc.comm.gateway.context.model.EquipmentDesiredState;
 import com.nori.tc.comm.gateway.context.model.EquipmentRuntimeState;
+import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistenceCommand;
 import com.nori.tc.comm.gateway.context.port.EquipmentStatePersistencePort;
 import com.nori.tc.comm.gateway.context.service.EquipmentContextRegistry;
+import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.lifecycle.model.EquipmentLifecycleEvent;
 import com.nori.tc.comm.gateway.lifecycle.model.EquipmentLifecycleOutcome;
 import com.nori.tc.comm.gateway.lifecycle.port.EquipmentLifecycleOutcomeListener;
@@ -392,7 +394,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
         if (isChannelActive(eqpId)) {
             context.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "LIFECYCLE_START_APPLIED", event.traceId());
             pendingTransitionByEqp.remove(eqpId);
-            statePersistencePort.recordStart(
+            persistStartStateWithContext(
+                    context,
                     eqpId,
                     event.traceId(),
                     "Lifecycle start completed immediately (already connected)"
@@ -454,7 +457,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
             context.updateRuntimeState(EquipmentRuntimeState.DISCONNECTED, "LIFECYCLE_END_APPLIED", event.traceId());
             pendingTransitionByEqp.remove(eqpId);
             processingService.removeMailbox(eqpId);
-            statePersistencePort.recordEnd(
+            persistEndStateWithContext(
+                    context,
                     eqpId,
                     event.traceId(),
                     "Lifecycle end completed immediately (already disconnected)"
@@ -512,7 +516,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
 
         if (pending.type() == PendingType.START) {
             pendingTransitionByEqp.remove(eqpId, pending);
-            statePersistencePort.recordStart(
+            persistStartStateWithContext(
+                    findContextOrNull(eqpId),
                     eqpId,
                     pending.traceId(),
                     "Lifecycle start completed by channel connected event"
@@ -566,7 +571,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
         if (pending.type() == PendingType.END) {
             pendingTransitionByEqp.remove(eqpId, pending);
             processingService.removeMailbox(eqpId);
-            statePersistencePort.recordEnd(
+            persistEndStateWithContext(
+                    findContextOrNull(eqpId),
                     eqpId,
                     pending.traceId(),
                     "Lifecycle end completed by channel disconnected event"
@@ -624,7 +630,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
                 context.updateRuntimeState(EquipmentRuntimeState.CONNECTED, "LIFECYCLE_START_TIMEOUT_RECOVERED", pending.traceId());
             }
             pendingTransitionByEqp.remove(eqpId, pending);
-            statePersistencePort.recordStart(
+            persistStartStateWithContext(
+                    findContextOrNull(eqpId),
                     eqpId,
                     pending.traceId(),
                     "Lifecycle start completed by timeout recovery (channel already connected)"
@@ -696,7 +703,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
                 );
             }
             pendingTransitionByEqp.remove(eqpId, pending);
-            statePersistencePort.recordStart(
+            persistStartStateWithContext(
+                    findContextOrNull(eqpId),
                     eqpId,
                     pending.traceId(),
                     "Lifecycle start completed by external failure recovery (channel already connected)"
@@ -771,7 +779,8 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
             // timeout 도착 시점에 이미 disconnect 상태면 END를 정상 완료로 승격합니다.
             pendingTransitionByEqp.remove(eqpId, pending);
             processingService.removeMailbox(eqpId);
-            statePersistencePort.recordEnd(
+            persistEndStateWithContext(
+                    findContextOrNull(eqpId),
                     eqpId,
                     pending.traceId(),
                     "Lifecycle end completed by timeout recovery (channel already disconnected)"
@@ -886,6 +895,114 @@ public class EquipmentLifecycleStateMachine implements SmartLifecycle {
     private EquipmentContext findContextOrNull(final String eqpId) {
         final Optional<EquipmentContext> optional = contextRegistry.find(eqpId);
         return optional.orElse(null);
+    }
+
+    /**
+     * START 전이 완료 시점의 상태/이력 영속화를 수행합니다.
+     *
+     * <p>호출부가 이미 보유한 컨텍스트에서 eqpKey를 직접 추출하여 전달함으로써,
+     * 영속화 어댑터가 eqpId -> eqpKey 변환을 위해 DB를 다시 조회하지 않도록 합니다.</p>
+     *
+     * @param context 현재 컨텍스트(없을 수 있음)
+     * @param eqpId 설비 ID
+     * @param traceId traceId
+     * @param detailMessage 상세 사유 메시지
+     */
+    private void persistStartStateWithContext(
+            final EquipmentContext context,
+            final String eqpId,
+            final String traceId,
+            final String detailMessage
+    ) {
+        final GatewayEquipmentInfo equipmentInfo = resolveEquipmentInfoForPersistence(context, eqpId, "EQP_START");
+        if (equipmentInfo == null) {
+            return;
+        }
+
+        statePersistencePort.recordStart(EquipmentStatePersistenceCommand.forStart(
+                equipmentInfo.eqpKey(),
+                eqpId,
+                traceId,
+                detailMessage,
+                safeControlState(context)
+        ));
+    }
+
+    /**
+     * END 전이 완료 시점의 상태/이력 영속화를 수행합니다.
+     *
+     * <p>호출부가 이미 보유한 컨텍스트에서 eqpKey를 직접 추출하여 전달함으로써,
+     * 영속화 어댑터의 추가 DB 조회를 줄입니다.</p>
+     *
+     * @param context 현재 컨텍스트(없을 수 있음)
+     * @param eqpId 설비 ID
+     * @param traceId traceId
+     * @param detailMessage 상세 사유 메시지
+     */
+    private void persistEndStateWithContext(
+            final EquipmentContext context,
+            final String eqpId,
+            final String traceId,
+            final String detailMessage
+    ) {
+        final GatewayEquipmentInfo equipmentInfo = resolveEquipmentInfoForPersistence(context, eqpId, "EQP_END");
+        if (equipmentInfo == null) {
+            return;
+        }
+
+        statePersistencePort.recordEnd(EquipmentStatePersistenceCommand.forEnd(
+                equipmentInfo.eqpKey(),
+                eqpId,
+                traceId,
+                detailMessage,
+                safeControlState(context)
+        ));
+    }
+
+    /**
+     * 상태 영속화에 필요한 설비 메타 정보를 컨텍스트에서 추출합니다.
+     *
+     * <p>컨텍스트/프로파일/설비메타 중 하나라도 없으면 영속화 입력을 만들 수 없으므로 warn 로그 후 null을 반환합니다.</p>
+     *
+     * @param context 현재 컨텍스트
+     * @param eqpId 설비 ID
+     * @param eventType 이벤트 타입(로그용)
+     * @return 설비 메타 정보(없으면 null)
+     */
+    private GatewayEquipmentInfo resolveEquipmentInfoForPersistence(
+            final EquipmentContext context,
+            final String eqpId,
+            final String eventType
+    ) {
+        if (context == null || context.profile() == null || context.profile().equipmentInfo() == null) {
+            log.warn("State persistence skipped because runtime context/profile is missing. eqpId={}, eventType={}",
+                    eqpId,
+                    eventType);
+            return null;
+        }
+
+        final GatewayEquipmentInfo equipmentInfo = context.profile().equipmentInfo();
+        if (equipmentInfo.eqpKey() == null || equipmentInfo.eqpKey() <= 0L) {
+            log.warn("State persistence skipped because eqpKey is invalid in runtime context. eqpId={}, eventType={}, eqpKey={}",
+                    eqpId,
+                    eventType,
+                    equipmentInfo.eqpKey());
+            return null;
+        }
+        return equipmentInfo;
+    }
+
+    /**
+     * 컨텍스트의 현재 상태 스냅샷에서 controlState 문자열을 안전하게 추출합니다.
+     *
+     * @param context 설비 컨텍스트
+     * @return controlState 문자열(없으면 null)
+     */
+    private String safeControlState(final EquipmentContext context) {
+        if (context == null || context.profile() == null || context.profile().currentStateSnapshot() == null) {
+            return null;
+        }
+        return context.profile().currentStateSnapshot().controlState();
     }
 
     /**
