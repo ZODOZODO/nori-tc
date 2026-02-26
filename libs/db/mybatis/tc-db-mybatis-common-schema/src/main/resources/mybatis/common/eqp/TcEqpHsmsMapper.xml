@@ -11,7 +11,6 @@
         <constructor>
             <idArg column="eqp_key" javaType="long"/>
             <arg column="device_id" javaType="int"/>
-            <arg column="connection_mode" javaType="java.lang.String"/>
             <arg column="t3_timeout" javaType="int"/>
             <arg column="t5_timeout" javaType="int"/>
             <arg column="t6_timeout" javaType="int"/>
@@ -30,18 +29,17 @@
     </resultMap>
 
     <sql id="Columns">
-        eqp_key, device_id, connection_mode, t3_timeout, t5_timeout, t6_timeout, t7_timeout, t8_timeout,
+        eqp_key, device_id, t3_timeout, t5_timeout, t6_timeout, t7_timeout, t8_timeout,
         link_test_enabled, link_test_interval, max_msg_bytes, created_at, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp_hsms
-            (eqp_key, device_id, connection_mode, t3_timeout, t5_timeout, t6_timeout, t7_timeout, t8_timeout,
+            (eqp_key, device_id, t3_timeout, t5_timeout, t6_timeout, t7_timeout, t8_timeout,
              link_test_enabled, link_test_interval, max_msg_bytes)
         VALUES
             (#{h.eqpKey},
              #{h.deviceId},
-             #{h.connectionMode},
              #{h.t3Timeout},
              #{h.t5Timeout},
              #{h.t6Timeout},
@@ -55,7 +53,6 @@
     <update id="update">
         UPDATE tc_eqp_hsms
            SET device_id            = #{h.deviceId},
-               connection_mode      = #{h.connectionMode},
                t3_timeout           = #{h.t3Timeout},
                t5_timeout           = #{h.t5Timeout},
                t6_timeout           = #{h.t6Timeout},

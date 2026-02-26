@@ -3,18 +3,22 @@ package com.nori.tc.db.domain.eqp;
 import java.time.OffsetDateTime;
 
 /**
- * tc_eqp_socket 테이블 1행에 대응하는 순수 DTO.
+ * tc_eqp_socket 테이블 1행에 대응하는 순수 DTO입니다.
  *
- * PK/FK:
- * - eqp_key (tc_eqp.eqp_key) ON DELETE CASCADE
+ * <p>역할:</p>
+ * <p>- SOCKET 전용 상세 설정(tc_eqp 공통 컬럼 제외)을 전달하는 읽기 전용 모델입니다.</p>
+ * <p>- 소켓 프레이밍/문자셋/타임아웃/heartbeat/keepalive 설정을 해석할 때 사용합니다.</p>
  *
- * socket_protocol_type / connection_mode / charset는 DB에서 문자열 제약만 있으므로 String으로 둡니다.
- * - connection_mode는 CHECK 제약이 존재하므로 (ACTIVE|PASSIVE)만 허용됨
+ * <p>PK/FK:</p>
+ * <p>- eqp_key (tc_eqp.eqp_key) ON DELETE CASCADE</p>
+ *
+ * <p>주의:</p>
+ * <p>- 연결 모드(ACTIVE/PASSIVE)는 더 이상 이 테이블에서 관리하지 않고 {@code tc_eqp.comm_mode}에서 공통 관리합니다.</p>
+ * <p>- {@code socket_protocol_type}, {@code charset}는 DB 문자열 제약 기반이므로 도메인에서는 String으로 유지합니다.</p>
  */
 public record TcEqpSocket(
         long eqpKey,
         String socketProtocolType,
-        String connectionMode,
         String charset,
         boolean heartbeatEnabled,
         int heartbeatInterval,

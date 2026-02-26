@@ -11,7 +11,6 @@
         <constructor>
             <idArg column="eqp_key" javaType="long"/>
             <arg column="socket_protocol_type" javaType="java.lang.String"/>
-            <arg column="connection_mode" javaType="java.lang.String"/>
             <arg column="charset" javaType="java.lang.String"/>
             <arg column="heartbeat_enabled" javaType="boolean"/>
             <arg column="heartbeat_interval" javaType="int"/>
@@ -31,7 +30,6 @@
     <sql id="Columns">
         eqp_key,
         socket_protocol_type,
-        connection_mode,
         charset,
         heartbeat_enabled,
         heartbeat_interval,
@@ -47,7 +45,6 @@
         INSERT INTO tc_eqp_socket
             (eqp_key,
              socket_protocol_type,
-             connection_mode,
              charset,
              heartbeat_enabled,
              heartbeat_interval,
@@ -58,7 +55,6 @@
         VALUES
             (#{s.eqpKey},
              #{s.socketProtocolType},
-             #{s.connectionMode},
              /* charset NOT NULL + default('UTF-8') 안전 처리 */
              COALESCE(#{s.charset}, 'UTF-8'),
              /* heartbeat_enabled NOT NULL + default(true) 안전 처리 */
@@ -78,7 +74,6 @@
     <update id="update">
         UPDATE tc_eqp_socket
            SET socket_protocol_type  = #{s.socketProtocolType},
-               connection_mode       = #{s.connectionMode},
                charset               = COALESCE(#{s.charset}, charset),
                heartbeat_enabled     = #{s.heartbeatEnabled},
                heartbeat_interval    = #{s.heartbeatInterval},

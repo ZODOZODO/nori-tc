@@ -134,9 +134,6 @@ public class TcEqpHsmsJpaStore implements TcEqpHsmsStore {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.eqpKey() <= 0) throw new IllegalArgumentException("command.eqpKey must be > 0");
         if (command.deviceId() < 0) throw new IllegalArgumentException("command.deviceId must be >= 0");
-        if (command.connectionMode() == null || command.connectionMode().isBlank()) {
-            throw new IllegalArgumentException("command.connectionMode must not be null/blank");
-        }
         if (command.t3Timeout() <= 0) throw new IllegalArgumentException("command.t3Timeout must be > 0");
         if (command.t5Timeout() <= 0) throw new IllegalArgumentException("command.t5Timeout must be > 0");
         if (command.t6Timeout() <= 0) throw new IllegalArgumentException("command.t6Timeout must be > 0");

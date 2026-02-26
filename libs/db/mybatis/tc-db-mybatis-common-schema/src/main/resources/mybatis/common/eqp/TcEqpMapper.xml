@@ -13,6 +13,8 @@
             <arg column="comm_interface"
                  javaType="com.nori.tc.db.domain.common.ProtocolType"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="comm_mode" javaType="java.lang.String"/>
+            <arg column="route_partition" javaType="java.lang.Integer"/>
             <arg column="eqp_ip" javaType="java.lang.String"/>
             <arg column="eqp_port" javaType="int"/>
             <arg column="model_key" javaType="long"/>
@@ -29,15 +31,17 @@
     </resultMap>
 
     <sql id="TcEqpColumns">
-        eqp_key, eqp_id, comm_interface, eqp_ip, eqp_port, model_key, enabled, created_at, updated_at, created_by, updated_by
+        eqp_key, eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_key, enabled, created_at, updated_at, created_by, updated_by
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp
-            (eqp_id, comm_interface, eqp_ip, eqp_port, model_key, enabled, created_by, updated_by)
+            (eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_key, enabled, created_by, updated_by)
         VALUES
             (#{e.eqpId},
              #{e.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+             #{e.commMode},
+             #{e.routePartition, jdbcType=INTEGER},
              #{e.eqpIp},
              #{e.eqpPort},
              #{e.modelKey},
@@ -49,6 +53,8 @@
     <update id="update">
         UPDATE tc_eqp
            SET comm_interface = #{e.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               comm_mode      = #{e.commMode},
+               route_partition= #{e.routePartition, jdbcType=INTEGER},
                eqp_ip        = #{e.eqpIp},
                eqp_port      = #{e.eqpPort},
                model_key     = #{e.modelKey},
@@ -67,6 +73,20 @@
     <select id="findAll" resultMap="TcEqpMap">
         SELECT <include refid="TcEqpColumns"/>
           FROM tc_eqp
+        ORDER BY eqp_id ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <select id="findAllByRoutePartitionsAndEnabled" resultMap="TcEqpMap">
+        SELECT <include refid="TcEqpColumns"/>
+          FROM tc_eqp
+         WHERE enabled = #{enabled}
+           AND route_partition IN
+           <foreach collection="routePartitions" item="p" open="(" separator="," close=")">
+               #{p}
+           </foreach>
         ORDER BY eqp_id ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

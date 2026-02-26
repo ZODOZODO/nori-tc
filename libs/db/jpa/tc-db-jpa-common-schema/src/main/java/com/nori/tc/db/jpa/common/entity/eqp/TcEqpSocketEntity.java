@@ -14,7 +14,6 @@ import jakarta.persistence.Table;
  * [DB 스키마]
  * - eqp_key               : bigint PK (tc_eqp FK, ON DELETE CASCADE)
  * - socket_protocol_type  : varchar(32) NOT NULL
- * - connection_mode       : varchar(10) NOT NULL (CHECK: ACTIVE|PASSIVE)
  * - charset               : varchar(20) NOT NULL default 'UTF-8'
  * - heartbeat_enabled     : boolean NOT NULL default true
  * - heartbeat_interval    : int NOT NULL default 30 (CHECK >= 0)
@@ -31,7 +30,9 @@ import jakarta.persistence.Table;
  *
  * 2. 안전한 기본값 처리:
  * - charset, heartbeat_* 등 DB Default가 있는 컬럼들에 대해 @PrePersist로 null safe 처리를 합니다.
- * - connection_mode는 NOT NULL이며 기본값이 없으므로 애플리케이션 레벨에서 유효성 검증이 필요합니다.
+ *
+ * [중요]
+ * - 연결 모드(ACTIVE/PASSIVE)는 tc_eqp_socket이 아니라 tc_eqp.comm_mode에서 공통 관리합니다.
  */
 @Entity
 @Table(name = "tc_eqp_socket")
@@ -43,9 +44,6 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
 
     @Column(name = "socket_protocol_type", length = 32, nullable = false)
     private String socketProtocolType;
-
-    @Column(name = "connection_mode", length = 10, nullable = false)
-    private String connectionMode;
 
     @Column(name = "charset", length = 20, nullable = false)
     private String charset;
@@ -84,7 +82,6 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
     public TcEqpSocketEntity(
             Long eqpKey,
             String socketProtocolType,
-            String connectionMode,
             String charset,
             Boolean heartbeatEnabled,
             Integer heartbeatInterval,
@@ -95,7 +92,6 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
     ) {
         this.eqpKey = eqpKey;
         this.socketProtocolType = socketProtocolType;
-        this.connectionMode = connectionMode;
         this.charset = charset;
         this.heartbeatEnabled = heartbeatEnabled;
         this.heartbeatInterval = heartbeatInterval;
@@ -203,28 +199,6 @@ public class TcEqpSocketEntity extends AbstractCreatedUpdatedEntity {
      */
     public void setSocketProtocolType(String socketProtocolType) {
         this.socketProtocolType = socketProtocolType;
-    }
-
-    
-    /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
-     */
-    public String getConnectionMode() {
-        return connectionMode;
-    }
-
-    
-    /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param connectionMode 통신 채널/세션 정보
-     */
-    public void setConnectionMode(String connectionMode) {
-        this.connectionMode = connectionMode;
     }
 
     

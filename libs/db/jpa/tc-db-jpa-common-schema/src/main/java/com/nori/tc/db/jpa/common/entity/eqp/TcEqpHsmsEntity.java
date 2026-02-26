@@ -14,7 +14,6 @@ import jakarta.persistence.Table;
  * [DB 스키마]
  * - eqp_key            : bigint PK/FK (tc_eqp FK, ON DELETE CASCADE)
  * - device_id          : int NOT NULL
- * - connection_mode    : varchar(10) NOT NULL (ACTIVE/PASSIVE)
  * - t3_timeout ~ t8_timeout : int NOT NULL (CHECK > 0)
  * - link_test_enabled  : boolean NOT NULL default true
  * - link_test_interval : int NOT NULL (CHECK > 0)
@@ -29,6 +28,9 @@ import jakarta.persistence.Table;
  * 2. 안전한 기본값 처리:
  * - link_test_enabled는 DB Default가 true이므로, null 유입 시 true로 보정합니다.
  * - t3~t8, link_test_interval, max_msg_bytes는 DB Default가 있으므로 null 유입 시 기본값으로 보정합니다.
+ *
+ * [중요]
+ * - 연결 모드(ACTIVE/PASSIVE)는 tc_eqp_hsms가 아니라 tc_eqp.comm_mode에서 공통 관리합니다.
  */
 @Entity
 @Table(name = "tc_eqp_hsms")
@@ -40,9 +42,6 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
 
     @Column(name = "device_id", nullable = false)
     private Integer deviceId;
-
-    @Column(name = "connection_mode", length = 10, nullable = false)
-    private String connectionMode;
 
     @Column(name = "t3_timeout", nullable = false)
     private Integer t3Timeout;
@@ -84,12 +83,11 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
      * 전체 인자 생성자
      * - MapStruct가 Domain -> Entity 변환 시 모든 필드를 한 번에 주입할 때 사용
      */
-    public TcEqpHsmsEntity(Long eqpKey, Integer deviceId, String connectionMode, Integer t3Timeout, Integer t5Timeout,
+    public TcEqpHsmsEntity(Long eqpKey, Integer deviceId, Integer t3Timeout, Integer t5Timeout,
                            Integer t6Timeout, Integer t7Timeout, Integer t8Timeout, Boolean linkTestEnabled,
                            Integer linkTestInterval, Long maxMsgBytes) {
         this.eqpKey = eqpKey;
         this.deviceId = deviceId;
-        this.connectionMode = connectionMode;
         this.t3Timeout = t3Timeout;
         this.t5Timeout = t5Timeout;
         this.t6Timeout = t6Timeout;
@@ -195,28 +193,6 @@ public class TcEqpHsmsEntity extends AbstractCreatedUpdatedEntity {
      */
     public void setDeviceId(Integer deviceId) {
         this.deviceId = deviceId;
-    }
-
-    
-    /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
-     */
-    public String getConnectionMode() {
-        return connectionMode;
-    }
-
-    
-    /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param connectionMode 통신 채널/세션 정보
-     */
-    public void setConnectionMode(String connectionMode) {
-        this.connectionMode = connectionMode;
     }
 
     

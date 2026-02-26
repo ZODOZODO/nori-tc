@@ -54,7 +54,6 @@ public class TcEqpHsmsMybatisStore implements TcEqpHsmsStore {
         final TcEqpHsms row = new TcEqpHsms(
                 eqpKey,
                 command.deviceId(),
-                command.connectionMode(),
                 command.t3Timeout(),
                 command.t5Timeout(),
                 command.t6Timeout(),

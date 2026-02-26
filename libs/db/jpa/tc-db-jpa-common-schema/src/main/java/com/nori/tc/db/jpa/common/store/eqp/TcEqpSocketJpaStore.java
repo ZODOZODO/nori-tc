@@ -141,6 +141,5 @@ public class TcEqpSocketJpaStore implements TcEqpSocketStore {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.eqpKey() <= 0) throw new IllegalArgumentException("command.eqpKey must be positive");
         if (command.socketProtocolType() == null || command.socketProtocolType().isBlank()) throw new IllegalArgumentException("command.socketProtocolType must not be null/blank");
-        if (command.connectionMode() == null || command.connectionMode().isBlank()) throw new IllegalArgumentException("command.connectionMode must not be null/blank");
     }
 }

@@ -21,6 +21,8 @@ import jakarta.persistence.Table;
  * - eqp_key       : bigint PK (IDENTITY)
  * - eqp_id        : varchar(64) NOT NULL (UNIQUE)
  * - comm_interface: varchar(16) NOT NULL
+ * - comm_mode     : varchar(10) NOT NULL (ACTIVE/PASSIVE)
+ * - route_partition: int NULL (Gateway 대상 토픽 고정 라우팅 partition)
  * - eqp_ip        : varchar(45) NOT NULL
  * - eqp_port      : int NOT NULL
  * - model_key     : bigint NOT NULL
@@ -53,6 +55,12 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "comm_interface", length = 16, nullable = false)
     private ProtocolType commInterface;
+
+    @Column(name = "comm_mode", length = 10, nullable = false)
+    private String commMode;
+
+    @Column(name = "route_partition")
+    private Integer routePartition;
 
     @Column(name = "eqp_ip", length = 45, nullable = false)
     private String eqpIp;
@@ -89,10 +97,24 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      * - MapStruct가 Domain -> Entity 변환 시 모든 필드를 한 번에 주입할 때 사용
      * - Store에서 수동으로 객체를 생성해야 할 때 사용
      */
-    public TcEqpEntity(Long eqpKey, String eqpId, ProtocolType commInterface, String eqpIp, Integer eqpPort, Long modelKey, Boolean enabled, String createdBy, String updatedBy) {
+    public TcEqpEntity(
+            Long eqpKey,
+            String eqpId,
+            ProtocolType commInterface,
+            String commMode,
+            Integer routePartition,
+            String eqpIp,
+            Integer eqpPort,
+            Long modelKey,
+            Boolean enabled,
+            String createdBy,
+            String updatedBy
+    ) {
         this.eqpKey = eqpKey;
         this.eqpId = eqpId;
         this.commInterface = commInterface;
+        this.commMode = commMode;
+        this.routePartition = routePartition;
         this.eqpIp = eqpIp;
         this.eqpPort = eqpPort;
         this.modelKey = modelKey;
@@ -216,6 +238,46 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      */
     public void setCommInterface(ProtocolType commInterface) {
         this.commInterface = commInterface;
+    }
+
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return tc_eqp.comm_mode 값(ACTIVE/PASSIVE)
+     */
+    public String getCommMode() {
+        return commMode;
+    }
+
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param commMode tc_eqp.comm_mode 값(ACTIVE/PASSIVE)
+     */
+    public void setCommMode(String commMode) {
+        this.commMode = commMode;
+    }
+
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return tc_eqp.route_partition 값 (미배정 상태는 null 가능)
+     */
+    public Integer getRoutePartition() {
+        return routePartition;
+    }
+
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param routePartition Gateway 대상 토픽 고정 라우팅 partition 번호 (null 허용)
+     */
+    public void setRoutePartition(Integer routePartition) {
+        this.routePartition = routePartition;
     }
 
     

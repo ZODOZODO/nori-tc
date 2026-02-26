@@ -53,7 +53,6 @@ public class TcEqpSocketMybatisStore implements TcEqpSocketStore {
         final TcEqpSocket row = new TcEqpSocket(
                 eqpKey,
                 command.socketProtocolType(),
-                command.connectionMode(),
                 command.charset(),
                 command.heartbeatEnabled(),
                 command.heartbeatInterval(),

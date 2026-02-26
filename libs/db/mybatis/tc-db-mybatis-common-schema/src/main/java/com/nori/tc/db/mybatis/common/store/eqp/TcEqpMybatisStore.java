@@ -3,6 +3,8 @@ package com.nori.tc.db.mybatis.common.store.eqp;
 import java.util.List;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -30,6 +32,8 @@ import com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpMapper;
 @Repository
 public class TcEqpMybatisStore implements TcEqpStore {
 
+    private static final Logger log = LoggerFactory.getLogger(TcEqpMybatisStore.class);
+
     private final TcEqpMapper mapper;
 
     
@@ -54,14 +58,26 @@ public class TcEqpMybatisStore implements TcEqpStore {
     @Override
     @Transactional
     public TcEqp upsert(UpsertTcEqp command) {
+        validateCommand(command);
+
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         final String eqpId = command.eqpId();
+
+        if (log.isDebugEnabled()) {
+            log.debug("tc_eqp upsert 시작. eqpId={}, commInterface={}, commMode={}, routePartition={}",
+                    command.eqpId(),
+                    command.commInterface(),
+                    command.commMode(),
+                    command.routePartition());
+        }
 
         // created_at/updated_at은 DB/default 또는 SQL(CURRENT_TIMESTAMP)에 위임한다.
         final TcEqp row = new TcEqp(
                 null,
                 eqpId,
                 command.commInterface(),
+                command.commMode(),
+                command.routePartition(),
                 command.eqpIp(),
                 command.eqpPort(),
                 command.modelKey(),
@@ -146,6 +162,54 @@ public class TcEqpMybatisStore implements TcEqpStore {
         }
     }
 
+    /**
+     * route_partition + enabled 조건으로 tc_eqp를 페이징 조회합니다.
+     *
+     * <p>Gateway 기동/재기동 시 owned partition 설비만 선별 로딩하기 위한 메서드입니다.</p>
+     * <p>입력 목록이 비어 있으면 DB를 조회하지 않고 즉시 빈 결과를 반환합니다.</p>
+     *
+     * @param routePartitions 조회 대상 route_partition 목록
+     * @param enabled enabled 필터 값
+     * @param page 페이징 조건 (null 허용, null이면 기본 페이지 사용)
+     * @return 조건에 일치하는 tc_eqp 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcEqp> findAllByRoutePartitionsAndEnabled(List<Integer> routePartitions, boolean enabled, PageRequest page) {
+        final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
+
+        if (routePartitions == null || routePartitions.isEmpty()) {
+            log.info("tc_eqp route_partition 조건 조회를 건너뜁니다. 사유=빈 partition 목록, enabled={}", enabled);
+            return List.of();
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("tc_eqp route_partition 조건 조회 시작. routePartitions={}, enabled={}, offset={}, limit={}",
+                    routePartitions,
+                    enabled,
+                    p.offset(),
+                    p.limit());
+        }
+
+        try {
+            final List<TcEqp> rows = mapper.findAllByRoutePartitionsAndEnabled(
+                    routePartitions,
+                    enabled,
+                    p.offset(),
+                    p.limit()
+            );
+
+            if (log.isDebugEnabled()) {
+                log.debug("tc_eqp route_partition 조건 조회 완료. resultCount={}", rows.size());
+            }
+            return rows;
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_eqp findAllByRoutePartitionsAndEnabled failed.", e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_eqp findAllByRoutePartitionsAndEnabled failed (unexpected).", e);
+        }
+    }
+
     
     /**
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
@@ -165,5 +229,28 @@ public class TcEqpMybatisStore implements TcEqpStore {
         } catch (RuntimeException e) {
             throw new DbAccessException("tc_eqp deleteByEqpId failed (unexpected). eqpId=" + eqpId, e);
         }
+    }
+
+    /**
+     * tc_eqp upsert 입력값의 최소 유효성을 검증합니다.
+     *
+     * <p>MyBatis Store는 DB 제약에만 의존하지 않고, 명확한 오류 메시지를 위해 핵심 필드를 선검증합니다.</p>
+     *
+     * @param command upsert 입력 모델
+     */
+    private void validateCommand(final UpsertTcEqp command) {
+        if (command == null) throw new IllegalArgumentException("command must not be null");
+        if (command.eqpId() == null || command.eqpId().isBlank()) throw new IllegalArgumentException("command.eqpId must not be null/blank");
+        if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
+        if (command.commMode() == null || command.commMode().isBlank()) throw new IllegalArgumentException("command.commMode must not be null/blank");
+        if (!"ACTIVE".equals(command.commMode()) && !"PASSIVE".equals(command.commMode())) {
+            throw new IllegalArgumentException("command.commMode must be ACTIVE or PASSIVE");
+        }
+        if (command.routePartition() != null && command.routePartition() < 0) {
+            throw new IllegalArgumentException("command.routePartition must be >= 0 when present");
+        }
+        if (command.eqpIp() == null || command.eqpIp().isBlank()) throw new IllegalArgumentException("command.eqpIp must not be null/blank");
+        if (command.eqpPort() <= 0) throw new IllegalArgumentException("command.eqpPort must be > 0");
+        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
     }
 }

@@ -8,8 +8,11 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Repository;
@@ -38,6 +41,8 @@ import com.nori.tc.db.jpa.common.repository.eqp.TcEqpJpaRepository;
  */
 @Repository
 public class TcEqpJpaStore implements TcEqpStore {
+
+    private static final Logger log = LoggerFactory.getLogger(TcEqpJpaStore.class);
 
     private final TcEqpJpaRepository repository;
     private final TcEqpEntityMapper mapper;
@@ -71,6 +76,14 @@ public class TcEqpJpaStore implements TcEqpStore {
     public TcEqp upsert(UpsertTcEqp command) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateCommand(command);
+
+        if (log.isDebugEnabled()) {
+            log.debug("tc_eqp JPA upsert 시작. eqpId={}, commInterface={}, commMode={}, routePartition={}",
+                    command.eqpId(),
+                    command.commInterface(),
+                    command.commMode(),
+                    command.routePartition());
+        }
 
         try {
             final String eqpId = command.eqpId();
@@ -153,6 +166,62 @@ public class TcEqpJpaStore implements TcEqpStore {
         }
     }
 
+    /**
+     * route_partition + enabled 조건으로 tc_eqp를 페이징 조회합니다.
+     *
+     * <p>Gateway 기동 시 owned partition 설비만 선별 로딩하기 위한 쿼리 계약의 JPA 구현입니다.</p>
+     * <p>입력 routePartitions가 비어 있으면 DB를 조회하지 않고 즉시 빈 목록을 반환합니다.</p>
+     *
+     * @param routePartitions 조회 대상 route_partition 목록
+     * @param enabled enabled 필터 값
+     * @param page 페이징 조건 (null 허용)
+     * @return 조건에 일치하는 tc_eqp 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcEqp> findAllByRoutePartitionsAndEnabled(List<Integer> routePartitions, boolean enabled, PageRequest page) {
+        final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
+
+        if (routePartitions == null || routePartitions.isEmpty()) {
+            log.info("tc_eqp route_partition 조건 JPA 조회를 건너뜁니다. 사유=빈 partition 목록, enabled={}", enabled);
+            return List.of();
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("tc_eqp route_partition 조건 JPA 조회 시작. routePartitions={}, enabled={}, offset={}, limit={}",
+                    routePartitions,
+                    enabled,
+                    p.offset(),
+                    p.limit());
+        }
+
+        try {
+            final CriteriaBuilder cb = em.getCriteriaBuilder();
+            final CriteriaQuery<TcEqpEntity> cq = cb.createQuery(TcEqpEntity.class);
+            final Root<TcEqpEntity> root = cq.from(TcEqpEntity.class);
+
+            final Predicate routePartitionIn = root.get("routePartition").in(routePartitions);
+            final Predicate enabledEquals = cb.equal(root.get("enabled"), enabled);
+
+            cq.select(root)
+              .where(cb.and(routePartitionIn, enabledEquals))
+              .orderBy(cb.asc(root.get("eqpId")));
+
+            final TypedQuery<TcEqpEntity> query = em.createQuery(cq);
+            query.setFirstResult(p.offset());
+            query.setMaxResults(p.limit());
+
+            final List<TcEqp> rows = query.getResultList().stream().map(mapper::toDomain).toList();
+
+            if (log.isDebugEnabled()) {
+                log.debug("tc_eqp route_partition 조건 JPA 조회 완료. resultCount={}", rows.size());
+            }
+            return rows;
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_eqp] findAllByRoutePartitionsAndEnabled failed", e);
+        }
+    }
+
     
     /**
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
@@ -187,6 +256,13 @@ public class TcEqpJpaStore implements TcEqpStore {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         if (command.eqpId() == null || command.eqpId().isBlank()) throw new IllegalArgumentException("command.eqpId must not be null/blank");
         if (command.commInterface() == null) throw new IllegalArgumentException("command.commInterface must not be null");
+        if (command.commMode() == null || command.commMode().isBlank()) throw new IllegalArgumentException("command.commMode must not be null/blank");
+        if (!"ACTIVE".equals(command.commMode()) && !"PASSIVE".equals(command.commMode())) {
+            throw new IllegalArgumentException("command.commMode must be ACTIVE or PASSIVE");
+        }
+        if (command.routePartition() != null && command.routePartition() < 0) {
+            throw new IllegalArgumentException("command.routePartition must be >= 0 when present");
+        }
         if (command.eqpIp() == null || command.eqpIp().isBlank()) throw new IllegalArgumentException("command.eqpIp must not be null/blank");
         if (command.eqpPort() <= 0) throw new IllegalArgumentException("command.eqpPort must be > 0");
         if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");

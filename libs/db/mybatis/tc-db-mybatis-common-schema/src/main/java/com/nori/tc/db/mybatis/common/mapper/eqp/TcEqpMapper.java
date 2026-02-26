@@ -59,6 +59,30 @@ public interface TcEqpMapper {
             @Param("limit") int limit
     );
 
+    /**
+     * route_partition + enabled 조건으로 설비 목록을 페이징 조회합니다.
+     *
+     * <p>주요 사용처:</p>
+     * <p>- Gateway 기동 시 owned partition 대상 설비만 선별 로딩하는 경로</p>
+     * <p>- Gateway 재동기화/재로딩 시 특정 partition 범위의 활성 설비 조회</p>
+     *
+     * <p>주의사항:</p>
+     * <p>- {@code routePartitions}가 비어 있는 경우 호출 상위(Store)에서 빈 결과로 단락 처리하는 것을 권장합니다.</p>
+     * <p>- 본 메서드는 SQL 매핑 계층이므로 입력 검증보다 파라미터 전달/매핑 정확성을 우선합니다.</p>
+     *
+     * @param routePartitions 조회 대상 route_partition 목록
+     * @param enabled enabled 필터 값
+     * @param offset 건너뛸 행 수
+     * @param limit 가져올 행 수
+     * @return 조건에 일치하는 설비 목록
+     */
+    List<TcEqp> findAllByRoutePartitionsAndEnabled(
+            @Param("routePartitions") List<Integer> routePartitions,
+            @Param("enabled") boolean enabled,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
+
     
     /**
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
