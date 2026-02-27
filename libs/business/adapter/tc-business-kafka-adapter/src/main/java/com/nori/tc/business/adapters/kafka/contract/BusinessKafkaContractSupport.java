@@ -61,8 +61,8 @@ public class BusinessKafkaContractSupport {
         log.info("BusinessKafkaContractSupport initialized. supportedTopics={}, businessUiEventsTopic={}",
                 TcKafkaTopics.allTopics(),
                 TcKafkaTopics.UI_EVENTS_BUSINESS);
-        if (log.isDebugEnabled()) {
-            log.debug("Business Kafka source allowlist configured for UI business topic. topic={}, allowedSources={}",
+        if (log.isTraceEnabled()) {
+            log.trace("Business Kafka source allowlist configured for UI business topic. topic={}, allowedSources={}",
                     TcKafkaTopics.UI_EVENTS_BUSINESS,
                     allowlist.get(TcKafkaTopics.UI_EVENTS_BUSINESS));
         }
@@ -142,8 +142,8 @@ public class BusinessKafkaContractSupport {
             );
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka envelope metadata validated. topic={}, eventType={}, source={}, schemaVersion={}",
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka envelope metadata validated. topic={}, eventType={}, source={}, schemaVersion={}",
                     topic,
                     envelope.metadata().eventType(),
                     envelope.metadata().source(),
@@ -194,7 +194,9 @@ public class BusinessKafkaContractSupport {
             );
         }
 
-        log.debug("Kafka record key validated. topic={}, key={}", topic, normalizedActual);
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka record key validated. topic={}, key={}", topic, normalizedActual);
+        }
     }
 
     /**
@@ -213,7 +215,9 @@ public class BusinessKafkaContractSupport {
         }
 
         final String canonical = normalized.substring(0, normalized.length() - APP_SUFFIX.length());
-        log.debug("Kafka source normalized from app alias. original={}, canonical={}", normalized, canonical);
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka source normalized from app alias. original={}, canonical={}", normalized, canonical);
+        }
 
         return canonical;
     }

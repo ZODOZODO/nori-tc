@@ -7,6 +7,7 @@ import com.nori.tc.comm.adapters.kafka.contract.GatewayKafkaContractSupport;
 import com.nori.tc.comm.gateway.config.props.GatewayKafkaShardProperties;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogSampler;
+import com.nori.tc.comm.gateway.observability.logging.GatewayObservationLogger;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
 import com.nori.tc.messaging.domain.kafka.contract.TcCommonKafkaMetadata;
 import com.nori.tc.messaging.kafka.runtime.KafkaConsumerBindingMode;
@@ -161,7 +162,7 @@ public class GatewayEqpCommandKafkaSubscriber extends AbstractGatewayKafkaSubscr
         try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(eqpIdForLog, traceIdForLog)) {
             if (message == null) {
                 if (logSampler.shouldLogCommandDrop()) {
-                    log.warn("Command drop (null message). topic={}, partition={}, offset={}",
+                    log.warn("GW_CMD_KAFKA_IN_REJECTED. reason=NULL_MESSAGE, topic={}, partition={}, offset={}",
                             record.topic(), record.partition(), record.offset());
                 }
                 return;
@@ -176,23 +177,21 @@ public class GatewayEqpCommandKafkaSubscriber extends AbstractGatewayKafkaSubscr
                 );
             } catch (IllegalArgumentException ex) {
                 if (logSampler.shouldLogCommandDrop()) {
-                    log.warn("Command drop (contract validation failed). topic={}, partition={}, offset={}, key={}",
+                    log.warn("GW_CMD_KAFKA_IN_REJECTED. reason=CONTRACT_VALIDATION_FAILED, topic={}, partition={}, offset={}, key={}",
                             record.topic(), record.partition(), record.offset(), key, ex);
                 }
                 return;
             }
 
             final String messageEqpId = message.data().eqpId();
-            if (log.isDebugEnabled()) {
-                log.debug("Dispatching business command. eventType={}, interfaceType={}, eqpId={}, traceId={}, topic={}, partition={}, offset={}",
-                        metadata.eventType(),
-                        message.data().interfaceType(),
-                        messageEqpId,
-                        metadata.traceId(),
-                        record.topic(),
-                        record.partition(),
-                        record.offset());
-            }
+            GatewayObservationLogger.logCmdKafkaInboundAccepted(
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    messageEqpId,
+                    metadata.traceId(),
+                    metadata.eventType()
+            );
             dispatcher.dispatchBusinessCommand(
                     message,
                     record.topic(),

@@ -80,10 +80,9 @@ public final class KafkaEventTypeNamingPolicy {
             ));
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("eventType naming validation passed. eventType={}", normalizedEventType);
+        if (log.isTraceEnabled()) {
+            log.trace("eventType naming validation passed. eventType={}", normalizedEventType);
         }
         return Optional.empty();
     }
 }
-

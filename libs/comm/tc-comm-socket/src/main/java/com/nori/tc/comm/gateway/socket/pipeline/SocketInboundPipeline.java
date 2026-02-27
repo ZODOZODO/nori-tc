@@ -18,6 +18,7 @@ import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
 import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,6 +36,11 @@ import java.util.Objects;
  * <p>4) 코어 후속 단계(EqpSequentialProcessor)가 처리할 InboundProcessResult를 반환합니다.</p>
  */
 public final class SocketInboundPipeline implements InboundPipelinePort {
+
+    /**
+     * 단건 요약 로그 출력 시 MDC traceId 주입에 사용하는 키입니다.
+     */
+    private static final String TRACE_ID_MDC_KEY = "traceId";
 
     /**
      * 파이프라인 동작 추적 로그입니다.
@@ -137,14 +143,69 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
         }
 
         if (log.isDebugEnabled() && !parsedMessages.isEmpty()) {
-            log.debug("SOCKET inbound parsing completed. eqpId={}, socketType={}, parsedCount={}",
-                    eqpId,
-                    socketType,
-                    parsedMessages.size());
+            if (parsedMessages.size() == 1) {
+                final ParsedMessage first = parsedMessages.get(0);
+                logSingleParseSummaryWithTraceContext(eqpId, socketType, parsedMessages.size(), first);
+            } else {
+                log.debug("GW_EQP_RX_PARSE_SUMMARY. eqpId={}, interfaceType={}, socketType={}, parsedCount={}, traceIds={}, messageNames={}",
+                        eqpId,
+                        CommInterfaceType.SOCKET.name(),
+                        socketType,
+                        parsedMessages.size(),
+                        previewTraceIds(parsedMessages),
+                        previewMessageNames(parsedMessages));
+            }
         }
 
         // 현재 단계에서는 즉시 outbound 프레임을 생성하지 않습니다.
         return new InboundProcessResult(parsedMessages, List.of());
+    }
+
+    /**
+     * 단건 파싱 요약 로그를 출력할 때 MDC traceId 헤더를 임시로 맞춰 기록합니다.
+     *
+     * <p>출력 이후에는 기존 MDC traceId 값을 반드시 복구해 후속 로그 오염을 방지합니다.</p>
+     *
+     * @param eqpId       장비 ID
+     * @param socketType  소켓 타입
+     * @param parsedCount 파싱 건수(단건 시 1)
+     * @param message     단건 파싱 메시지
+     */
+    private void logSingleParseSummaryWithTraceContext(
+            final String eqpId,
+            final String socketType,
+            final int parsedCount,
+            final ParsedMessage message
+    ) {
+        final String previousTraceId = MDC.get(TRACE_ID_MDC_KEY);
+        final String traceId = message.traceId();
+        if (traceId != null && !traceId.isBlank()) {
+            MDC.put(TRACE_ID_MDC_KEY, traceId);
+        }
+        try {
+            log.debug("GW_EQP_RX_PARSE_SUMMARY. eqpId={}, interfaceType={}, socketType={}, parsedCount={}, traceId={}, messageName={}",
+                    eqpId,
+                    CommInterfaceType.SOCKET.name(),
+                    socketType,
+                    parsedCount,
+                    message.traceId(),
+                    message.messageName().value());
+        } finally {
+            restoreTraceIdMdc(previousTraceId);
+        }
+    }
+
+    /**
+     * 저장해둔 기존 traceId 값을 MDC로 복구합니다.
+     *
+     * @param previousTraceId 단건 로그 출력 이전 traceId 값
+     */
+    private static void restoreTraceIdMdc(final String previousTraceId) {
+        if (previousTraceId == null || previousTraceId.isBlank()) {
+            MDC.remove(TRACE_ID_MDC_KEY);
+            return;
+        }
+        MDC.put(TRACE_ID_MDC_KEY, previousTraceId);
     }
 
     /**
@@ -174,5 +235,59 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
             return pluginHandler;
         }
         return registry.getRequired(socketType);
+    }
+
+    /**
+     * 파싱된 메시지 목록에서 traceId 미리보기를 한 줄 문자열로 구성합니다.
+     *
+     * @param parsedMessages 파싱 완료 메시지 목록
+     * @return traceId 미리보기 문자열
+     */
+    private static String previewTraceIds(final List<ParsedMessage> parsedMessages) {
+        return previewParsedField(parsedMessages, true);
+    }
+
+    /**
+     * 파싱된 메시지 목록에서 messageName 미리보기를 한 줄 문자열로 구성합니다.
+     *
+     * @param parsedMessages 파싱 완료 메시지 목록
+     * @return messageName 미리보기 문자열
+     */
+    private static String previewMessageNames(final List<ParsedMessage> parsedMessages) {
+        return previewParsedField(parsedMessages, false);
+    }
+
+    /**
+     * 파싱 메시지 목록의 공통 필드(traceId 또는 messageName) 미리보기를 구성합니다.
+     *
+     * @param parsedMessages 파싱 완료 메시지 목록
+     * @param traceField true면 traceId, false면 messageName
+     * @return 로그 출력용 미리보기 문자열
+     */
+    private static String previewParsedField(final List<ParsedMessage> parsedMessages, final boolean traceField) {
+        if (parsedMessages == null || parsedMessages.isEmpty()) {
+            return "[]";
+        }
+
+        final int previewLimit = 5;
+        final StringBuilder sb = new StringBuilder(128);
+        sb.append('[');
+        final int count = Math.min(parsedMessages.size(), previewLimit);
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            final ParsedMessage message = parsedMessages.get(i);
+            if (message == null) {
+                sb.append("null");
+                continue;
+            }
+            sb.append(traceField ? message.traceId() : message.messageName().value());
+        }
+        if (parsedMessages.size() > previewLimit) {
+            sb.append(", ...");
+        }
+        sb.append(']');
+        return sb.toString();
     }
 }

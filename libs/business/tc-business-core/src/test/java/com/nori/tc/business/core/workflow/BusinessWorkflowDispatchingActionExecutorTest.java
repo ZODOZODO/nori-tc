@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * {@link BusinessWorkflowDispatchingActionExecutor} ?⑥쐞 ?뚯뒪?몄엯?덈떎.
+ * {@link BusinessWorkflowDispatchingActionExecutor} 단위 테스트입니다.
  */
 class BusinessWorkflowDispatchingActionExecutorTest {
 
@@ -39,9 +39,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         final AtomicInteger coreExecutionCount = new AtomicInteger(0);
         final AbstractSocketActionExecutor coreSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -66,7 +66,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        Assertions.assertEquals(1, coreExecutionCount.get(), "plugin???놁쑝硫?core action??1???ㅽ뻾?섏뼱???⑸땲??");
+        Assertions.assertEquals(1, coreExecutionCount.get(), "plugin이 없으면 core action이 1회 실행되어야 합니다.");
     }
 
     @Test
@@ -76,9 +76,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
 
         final AbstractSocketActionExecutor coreSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -87,9 +87,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         };
         final AbstractSocketActionExecutor pluginSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -119,8 +119,8 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        Assertions.assertEquals(0, coreExecutionCount.get(), "plugin action???덉쑝硫?core action? ?ㅽ뻾?섎㈃ ???⑸땲??");
-        Assertions.assertEquals(1, pluginExecutionCount.get(), "plugin action? 1???ㅽ뻾?섏뼱???⑸땲??");
+        Assertions.assertEquals(0, coreExecutionCount.get(), "plugin action이 있으면 core action은 실행되면 안 됩니다.");
+        Assertions.assertEquals(1, pluginExecutionCount.get(), "plugin action은 1회 실행되어야 합니다.");
     }
 
     @Test
@@ -130,9 +130,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
 
         final AbstractSocketActionExecutor coreSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -141,9 +141,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         };
         final AbstractSocketActionExecutor pluginSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("PLUGIN_ONLY_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -171,8 +171,8 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        Assertions.assertEquals(1, coreExecutionCount.get(), "plugin key媛 ?놁쑝硫?core fallback?쇰줈 ?ㅽ뻾?섏뼱???⑸땲??");
-        Assertions.assertEquals(0, pluginExecutionCount.get(), "key媛 ?ㅻⅨ plugin action? ?ㅽ뻾?섎㈃ ???⑸땲??");
+        Assertions.assertEquals(1, coreExecutionCount.get(), "plugin key가 없으면 core fallback으로 실행되어야 합니다.");
+        Assertions.assertEquals(0, pluginExecutionCount.get(), "key가 다른 plugin action은 실행되면 안 됩니다.");
     }
 
     @Test
@@ -182,9 +182,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
 
         final AbstractSocketActionExecutor coreSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -193,9 +193,9 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         };
         final AbstractSocketActionExecutor pluginSocketExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_ACT")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -221,14 +221,14 @@ class BusinessWorkflowDispatchingActionExecutorTest {
 
         final BusinessInboundRecord record = createRecord("EQP-DELETE-01", "SOCKET_IN");
 
-        // 1) ?뚮윭洹몄씤 議댁옱 ??plugin ?곗꽑 ?ㅽ뻾
+        // 1) 플러그인 존재 시 plugin 우선 실행
         dispatchingExecutor.execute(
                 record,
                 createRuntime(ProtocolType.SOCKET),
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        // 2) ?뚮윭洹몄씤 ?고????쒓굅(??젣) ?꾩뿉??core fallback ?ㅽ뻾
+        // 2) 플러그인 런타임 제거(삭제) 후에는 core fallback 실행
         pluginRuntimeRef.set(Optional.empty());
         dispatchingExecutor.execute(
                 record,
@@ -236,8 +236,8 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 createMatchResult(record, "SOCKET_ACT")
         );
 
-        Assertions.assertEquals(1, pluginExecutionCount.get(), "?뚮윭洹몄씤 ??젣 ?꾩뿉??plugin??1???ㅽ뻾?섏뼱???⑸땲??");
-        Assertions.assertEquals(1, coreExecutionCount.get(), "?뚮윭洹몄씤 ??젣 ?꾩뿉??core fallback??1???ㅽ뻾?섏뼱???⑸땲??");
+        Assertions.assertEquals(1, pluginExecutionCount.get(), "플러그인 삭제 전에는 plugin이 1회 실행되어야 합니다.");
+        Assertions.assertEquals(1, coreExecutionCount.get(), "플러그인 삭제 후에는 core fallback이 1회 실행되어야 합니다.");
     }
 
     @Test
@@ -264,12 +264,12 @@ class BusinessWorkflowDispatchingActionExecutorTest {
 
         Assertions.assertTrue(
                 exception.getMessage().contains("resolution="),
-                "誘명빐寃??덉쇅?먮뒗 ?댁꽍 trace ?붿빟???ы븿?섏뼱???⑸땲??"
+                "미해결 예외에는 해석 trace 요약이 포함되어야 합니다."
         );
     }
 
     /**
-     * ?뚯뒪?몄슜 inbound record瑜??앹꽦?⑸땲??
+     * 테스트용 inbound record를 생성합니다.
      */
     private static BusinessInboundRecord createRecord(final String eqpId, final String messageName) {
         return new BusinessInboundRecord(
@@ -277,6 +277,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 0,
                 1L,
                 eqpId,
+                "TRACE-DISPATCH-TEST",
                 BusinessMessageType.EQP,
                 messageName,
                 "payload://test/1",
@@ -285,7 +286,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
     }
 
     /**
-     * ?뚯뒪?몄슜 model runtime???앹꽦?⑸땲??
+     * 테스트용 model runtime을 생성합니다.
      */
     private static TcModelRuntime createRuntime(final ProtocolType protocolType) {
         final OffsetDateTime now = OffsetDateTime.now();
@@ -311,7 +312,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
     }
 
     /**
-     * ?⑥씪 workflow 留ㅼ묶 寃곌낵瑜??앹꽦?⑸땲??
+     * 단일 workflow 매칭 결과를 생성합니다.
      */
     private static BusinessWorkflowMatchResult createMatchResult(
             final BusinessInboundRecord record,

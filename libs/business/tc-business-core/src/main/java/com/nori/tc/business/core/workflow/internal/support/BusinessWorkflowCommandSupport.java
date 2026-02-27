@@ -76,6 +76,10 @@ public final class BusinessWorkflowCommandSupport {
      */
     public static String resolveTraceId(final BusinessWorkflowActionContext context) {
         Objects.requireNonNull(context, "context is null");
+        final String fromRecord = normalize(context.record().traceId());
+        if (fromRecord != null) {
+            return fromRecord;
+        }
         final String fromVariables = firstText(
                 context.messageVariables(),
                 "metadata.traceId",

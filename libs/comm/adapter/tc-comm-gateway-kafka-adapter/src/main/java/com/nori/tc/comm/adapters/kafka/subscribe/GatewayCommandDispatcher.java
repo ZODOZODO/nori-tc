@@ -83,6 +83,7 @@ public class GatewayCommandDispatcher {
      * disposition 메트릭/로그에서 사용하는 처리 흐름 식별자입니다.
      */
     private static final String FLOW_COMMAND = "COMMAND";
+    private static final String REASON_MISSING_TRACE_ID = "MISSING_TRACE_ID";
     /**
      * 토픽 정보가 없을 때 사용하는 기본 토픽명입니다.
      */
@@ -221,6 +222,10 @@ public class GatewayCommandDispatcher {
         final DispatchContext dispatchContext = normalizeDispatchContext(topic, partition, offset);
         final String traceId = resolveTraceId(message.metadata() == null ? null : message.metadata().traceId());
         final String eqpIdForLog = normalizeText(message.data() == null ? null : message.data().eqpId());
+        if (traceId == null) {
+            rejectMissingTraceId(message, eqpIdForLog, dispatchContext);
+            return;
+        }
 
         try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(eqpIdForLog, traceId)) {
             final CommandEnvelope envelope = validateEnvelope(message, traceId, dispatchContext);
@@ -340,7 +345,7 @@ public class GatewayCommandDispatcher {
                         "BUSINESS_SOCKET_ENQUEUED"
                 );
                 if (log.isDebugEnabled()) {
-                    log.debug("Business SOCKET command enqueued. eqpId={}, traceId={}, socketType={}, rawLen={}, encodedBytes={}",
+                    log.debug("GW_CMD_MAILBOX_ENQUEUED. eqpId={}, traceId={}, socketType={}, rawLen={}, encodedBytes={}",
                             envelope.eqpId(),
                             traceId,
                             socketType,
@@ -583,8 +588,8 @@ public class GatewayCommandDispatcher {
             return false;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Business command route_partition validation passed. eqpId={}, traceId={}, routePartition={}, topic={}, offset={}",
+        if (log.isTraceEnabled()) {
+            log.trace("Business command route_partition validation passed. eqpId={}, traceId={}, routePartition={}, topic={}, offset={}",
                     envelope.eqpId(),
                     traceId,
                     expectedRoutePartition,
@@ -732,7 +737,7 @@ public class GatewayCommandDispatcher {
     ) {
         final String resolvedEqpId = normalizeText(message.data() == null ? null : message.data().eqpId());
         final String finalEqpId = resolvedEqpId == null ? UNKNOWN_EQP_ID : resolvedEqpId;
-        final String resolvedTraceId = resolveTraceId(traceId);
+        final String resolvedTraceId = resolveTraceIdForDlq(traceId);
         final CommInterfaceType commInterfaceType = parseInterfaceTypeOrDefault(
                 message.data() == null ? null : message.data().interfaceType(),
                 CommInterfaceType.SOCKET
@@ -920,7 +925,7 @@ public class GatewayCommandDispatcher {
     private String buildBusinessPayloadRef(final GatewayBusinessCommandMessage message, final String traceId) {
         final String rawMessage = message.data() == null ? null : message.data().rawMessage();
         final int payloadLength = rawMessage == null ? 0 : rawMessage.getBytes(StandardCharsets.UTF_8).length;
-        return "payload://business/" + resolveTraceId(traceId) + "/len/" + payloadLength;
+        return "payload://business/" + resolveTraceIdForDlq(traceId) + "/len/" + payloadLength;
     }
 
     /**
@@ -987,8 +992,60 @@ public class GatewayCommandDispatcher {
      * @return 사용할 traceId
      */
     private String resolveTraceId(final String traceId) {
-        final String normalized = normalizeText(traceId);
-        return normalized == null ? traceIdGeneratorPort.newTraceId() : normalized;
+        return normalizeText(traceId);
+    }
+
+    private String resolveTraceIdForDlq(final String traceId) {
+        final String normalized = resolveTraceId(traceId);
+        if (normalized != null) {
+            return normalized;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("traceId missing during command DLQ/payloadRef composition. flow={}, fallbackMarker={}",
+                    FLOW_COMMAND,
+                    REASON_MISSING_TRACE_ID);
+        }
+        return REASON_MISSING_TRACE_ID;
+    }
+
+    private void rejectMissingTraceId(
+            final GatewayBusinessCommandMessage message,
+            final String eqpIdForLog,
+            final DispatchContext dispatchContext
+    ) {
+        final String eventType = message == null || message.metadata() == null ? null : message.metadata().eventType();
+        if (eqpIdForLog == null || eqpIdForLog.isBlank()) {
+            recordCommandDisposition(
+                    dispatchContext,
+                    UNKNOWN_EQP_ID,
+                    null,
+                    GatewayDisposition.REJECTED,
+                    REASON_MISSING_TRACE_ID
+            );
+            log.warn("Business command rejected: traceId is required. topic={}, partition={}, offset={}, eqpId={}, eventType={}",
+                    dispatchContext.topic(),
+                    dispatchContext.partition(),
+                    dispatchContext.offset(),
+                    UNKNOWN_EQP_ID,
+                    eventType);
+            return;
+        }
+
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpIdForLog)) {
+            recordCommandDisposition(
+                    dispatchContext,
+                    eqpIdForLog,
+                    null,
+                    GatewayDisposition.REJECTED,
+                    REASON_MISSING_TRACE_ID
+            );
+            log.warn("Business command rejected: traceId is required. topic={}, partition={}, offset={}, eqpId={}, eventType={}",
+                    dispatchContext.topic(),
+                    dispatchContext.partition(),
+                    dispatchContext.offset(),
+                    eqpIdForLog,
+                    eventType);
+        }
     }
 
     /**
@@ -1083,7 +1140,7 @@ public class GatewayCommandDispatcher {
 
         if (disposition == GatewayDisposition.ACCEPTED) {
             if (log.isDebugEnabled()) {
-                log.debug("GATEWAY_TASK_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}",
+                log.debug("GW_CMD_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}",
                         FLOW_COMMAND,
                         disposition,
                         reason,
@@ -1096,7 +1153,7 @@ public class GatewayCommandDispatcher {
             return;
         }
 
-        log.info("GATEWAY_TASK_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}",
+        log.info("GW_CMD_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}",
                 FLOW_COMMAND,
                 disposition,
                 reason,

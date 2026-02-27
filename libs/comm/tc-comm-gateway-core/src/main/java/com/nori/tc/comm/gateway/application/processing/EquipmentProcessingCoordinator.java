@@ -269,16 +269,43 @@ public class EquipmentProcessingCoordinator implements SmartLifecycle {
                 return;
             }
 
-            sequentialProcessor.drain(mailbox.context());
+            final EqpSequentialProcessor.DrainSummary drainSummary = sequentialProcessor.drain(mailbox.context());
             drainOutbound(mailbox);
 
             if (hasPending(mailbox)) {
                 schedule(mailbox);
-            } else if (log.isDebugEnabled()) {
-                log.debug("Eqp processing cycle completed. eqpId={}, inboundSize={}, outboundSize={}",
-                        eqpId,
-                        mailbox.inboundQueue().size(),
-                        mailbox.outboundQueue().size());
+            } else if (log.isTraceEnabled()) {
+                if (drainSummary.singleTraceId() != null) {
+                    try (GatewayLogContext traceContext = GatewayLogContext.withEqpAndTraceId(
+                            eqpId,
+                            drainSummary.singleTraceId()
+                    )) {
+                        log.trace("GW_MBX_CYCLE_DRAINED. eqpId={}, traceId={}, pending=false, inboundQueueDepth={}, outboundQueueDepth={}, processedChunks={}, parsedCount={}, outboundSentCount={}, durationMs={}, failed={}, failureReason={}",
+                                eqpId,
+                                drainSummary.singleTraceId(),
+                                mailbox.inboundQueue().size(),
+                                mailbox.outboundQueue().size(),
+                                drainSummary.processedChunks(),
+                                drainSummary.parsedMessageCount(),
+                                drainSummary.outboundFrameCount(),
+                                Math.max(0L, drainSummary.endedAtEpochMs() - drainSummary.startedAtEpochMs()),
+                                drainSummary.failed(),
+                                drainSummary.failureReason());
+                    }
+                } else {
+                    log.trace("GW_MBX_CYCLE_DRAINED. eqpId={}, traceIds={}, messageNames={}, pending=false, inboundQueueDepth={}, outboundQueueDepth={}, processedChunks={}, parsedCount={}, outboundSentCount={}, durationMs={}, failed={}, failureReason={}",
+                            eqpId,
+                            drainSummary.traceIdsPreview(),
+                            drainSummary.messageNamesPreview(),
+                            mailbox.inboundQueue().size(),
+                            mailbox.outboundQueue().size(),
+                            drainSummary.processedChunks(),
+                            drainSummary.parsedMessageCount(),
+                            drainSummary.outboundFrameCount(),
+                            Math.max(0L, drainSummary.endedAtEpochMs() - drainSummary.startedAtEpochMs()),
+                            drainSummary.failed(),
+                            drainSummary.failureReason());
+                }
             }
         }
     }

@@ -39,7 +39,7 @@ public final class EquipmentChannelRegistry {
 
         final EquipmentChannel existing = channels.putIfAbsent(eqpId, channel);
         if (existing == null) {
-            log.info("Channel bound. eqpId={}", eqpId);
+            log.info("GW_CH_BIND_ACCEPTED. eqpId={}", eqpId);
             return true;
         }
 
@@ -48,7 +48,7 @@ public final class EquipmentChannelRegistry {
             channels.remove(eqpId, existing);
             final boolean rebound = channels.putIfAbsent(eqpId, channel) == null;
             if (rebound) {
-                log.info("Channel rebound (previous inactive). eqpId={}", eqpId);
+                log.info("GW_CH_REBIND_ACCEPTED. reason=PREVIOUS_INACTIVE, eqpId={}", eqpId);
             }
             return rebound;
         }
@@ -73,7 +73,7 @@ public final class EquipmentChannelRegistry {
         Objects.requireNonNull(channel, "channel is null");
         final boolean removed = channels.remove(equipmentId.value(), channel);
         if (removed) {
-            log.info("Channel timeout evicted. eqpId={}", equipmentId.value());
+            log.info("GW_CH_UNREGISTERED. reason=TIMEOUT_EVICTED, eqpId={}", equipmentId.value());
         }
         return removed;
     }
@@ -86,7 +86,7 @@ public final class EquipmentChannelRegistry {
     public void unregister(final EquipmentId equipmentId) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         channels.remove(equipmentId.value());
-        log.info("Channel unregistered. eqpId={}", equipmentId.value());
+        log.info("GW_CH_UNREGISTERED. reason=REMOVE, eqpId={}", equipmentId.value());
     }
 
     /**
@@ -100,7 +100,7 @@ public final class EquipmentChannelRegistry {
         Objects.requireNonNull(channel, "channel is null");
         final boolean removed = channels.remove(equipmentId.value(), channel);
         if (removed) {
-            log.info("Channel unregistered (match). eqpId={}", equipmentId.value());
+            log.info("GW_CH_UNREGISTERED. reason=REMOVE_MATCH, eqpId={}", equipmentId.value());
             return true;
         }
 

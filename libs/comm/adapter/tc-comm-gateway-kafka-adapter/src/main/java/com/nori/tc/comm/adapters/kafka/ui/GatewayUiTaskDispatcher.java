@@ -5,6 +5,7 @@ import com.nori.tc.comm.gateway.config.props.GatewayUiTaskPolicyProperties;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayDisposition;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayDispositionMetrics;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
+import com.nori.tc.comm.gateway.observability.logging.GatewayObservationLogger;
 import com.nori.tc.common.mailbox.MailboxScheduler;
 import com.nori.tc.common.mailbox.MailboxTask;
 import com.nori.tc.common.mailbox.execution.MailboxExecutionRuntime;
@@ -42,6 +43,10 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
     private static final Logger log = LoggerFactory.getLogger(GatewayUiTaskDispatcher.class);
 
     private static final String FLOW_UI_TASK = "UI_TASK";
+    /**
+     * traceId 누락으로 이벤트를 즉시 거부할 때 사용하는 disposition reason 입니다.
+     */
+    private static final String REASON_MISSING_TRACE_ID = "MISSING_TRACE_ID";
     private static final int UNKNOWN_PARTITION = -1;
     private static final long UNKNOWN_OFFSET = -1L;
     private static final String UNKNOWN_TEXT = "N/A";
@@ -119,7 +124,7 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
         Objects.requireNonNull(message, "message is null");
 
         final String eqpId = requireRoutingKey(message);
-        final String traceId = extractTraceId(message);
+        final String traceId = requireTraceIdOrReject(message, eqpId);
         final String eventType = extractEventType(message);
 
         withEqpAndTraceLogContext(eqpId, traceId, () -> {
@@ -169,17 +174,14 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
                 throw new IllegalStateException("Gateway UI mailbox overflow: eqpId=" + eqpId);
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "Gateway UI task enqueued. topic={}, eqpId={}, traceId={}, eventType={}, mailboxCount={}, readyQueueSize={}",
-                        topicProperties.getUiEvents(),
-                        eqpId,
-                        traceId,
-                        eventType,
-                        mailboxScheduler.mailboxCount(),
-                        mailboxScheduler.readyQueueSize()
-                );
-            }
+            GatewayObservationLogger.logUiMailboxEnqueued(
+                    topicProperties.getUiEvents(),
+                    eqpId,
+                    traceId,
+                    eventType,
+                    mailboxScheduler.mailboxCount(),
+                    mailboxScheduler.readyQueueSize()
+            );
         });
     }
 
@@ -196,16 +198,13 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
          * worker 진입 시점에 eqpId/traceId를 다시 주입합니다.
          */
         try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(task.routingKey(), task.traceId())) {
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "Gateway UI mailbox task processing started. topic={}, eqpId={}, traceId={}, eventType={}, enqueuedAtEpochMs={}",
-                        topicProperties.getUiEvents(),
-                        task.routingKey(),
-                        safeText(task.traceId()),
-                        safeText(task.eventType()),
-                        task.enqueuedAtEpochMs()
-                );
-            }
+            GatewayObservationLogger.logUiTaskStarted(
+                    topicProperties.getUiEvents(),
+                    task.routingKey(),
+                    task.traceId(),
+                    task.eventType(),
+                    task.enqueuedAtEpochMs()
+            );
 
             final KafkaTaskDispatchReport report = uiTaskPipeline.dispatch(task.message());
             if (report.result().status() == KafkaTaskReplyStatus.FAIL) {
@@ -319,29 +318,11 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
     ) {
         dispositionMetrics.increment(FLOW_UI_TASK, disposition);
 
-        if (disposition == GatewayDisposition.ACCEPTED) {
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "GATEWAY_TASK_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}, eventType={}, replyEventType={}, errorCode={}, duplicateSkipped={}",
-                        FLOW_UI_TASK,
-                        disposition,
-                        reason,
-                        topicProperties.getUiEvents(),
-                        UNKNOWN_PARTITION,
-                        UNKNOWN_OFFSET,
-                        safeText(eqpId),
-                        safeText(traceId),
-                        safeText(eventType),
-                        safeText(replyEventType),
-                        safeText(errorCode),
-                        duplicateSkipped
-                );
-            }
+        if (!log.isDebugEnabled()) {
             return;
         }
-
-        log.info(
-                "GATEWAY_TASK_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}, eventType={}, replyEventType={}, errorCode={}, duplicateSkipped={}",
+        log.debug(
+                "GW_UI_DISPOSITION. flow={}, disposition={}, reason={}, topic={}, partition={}, offset={}, eqpId={}, traceId={}, eventType={}, replyEventType={}, errorCode={}, duplicateSkipped={}",
                 FLOW_UI_TASK,
                 disposition,
                 reason,
@@ -445,6 +426,42 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
     }
 
     /**
+     * UI 이벤트 메시지의 traceId를 강제 추출합니다.
+     *
+     * <p>이 디스패처는 이벤트 생명주기 관측용 traceId가 필수라는 정책을 적용하므로,
+     * traceId가 없으면 mailbox enqueue 이전에 즉시 disposition 로그를 남기고 예외를 발생시킵니다.</p>
+     *
+     * @param message 원본 UI 메시지
+     * @param eqpId   이미 검증된 routingKey(eqpId)
+     * @return 비어있지 않은 traceId
+     */
+    private String requireTraceIdOrReject(final KafkaUiTaskMessage message, final String eqpId) {
+        final String traceId = extractTraceId(message);
+        if (traceId != null) {
+            return traceId;
+        }
+
+        final String eventType = extractEventType(message);
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            recordDisposition(
+                    GatewayDisposition.REJECTED,
+                    REASON_MISSING_TRACE_ID,
+                    eventType,
+                    eqpId,
+                    null,
+                    null,
+                    null,
+                    false
+            );
+            log.warn("Gateway UI task rejected: traceId is required. topic={}, eqpId={}, eventType={}",
+                    topicProperties.getUiEvents(),
+                    safeText(eqpId),
+                    safeText(eventType));
+        }
+        throw new IllegalArgumentException("UI task traceId is required");
+    }
+
+    /**
      * UI 메시지에서 eventType을 추출합니다.
      *
      * @param message 원본 메시지
@@ -522,10 +539,7 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
             return;
         }
         if (traceId == null || traceId.isBlank()) {
-            try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
-                task.run();
-            }
-            return;
+            throw new IllegalArgumentException("traceId is required for UI event lifecycle logging");
         }
         try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(eqpId, traceId)) {
             task.run();
@@ -548,5 +562,20 @@ public class GatewayUiTaskDispatcher implements KafkaMessageDispatcher<KafkaUiTa
             String traceId,
             long enqueuedAtEpochMs
     ) implements MailboxTask {
+        /**
+         * mailbox payload 생성 시점에 traceId/routingKey 최소 유효성을 강제합니다.
+         *
+         * <p>worker 스레드로 넘어간 뒤에야 traceId 누락이 드러나면 생명주기 관측이 끊기므로,
+         * enqueue 이전에 실패시키기 위한 방어 코드입니다.</p>
+         */
+        private GatewayUiMailboxTask {
+            Objects.requireNonNull(message, "message is null");
+            if (routingKey == null || routingKey.isBlank()) {
+                throw new IllegalArgumentException("routingKey is required");
+            }
+            if (traceId == null || traceId.isBlank()) {
+                throw new IllegalArgumentException("traceId is required");
+            }
+        }
     }
 }

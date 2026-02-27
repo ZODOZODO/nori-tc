@@ -53,15 +53,15 @@ public final class ProtocolInboundPipelineRouter implements InboundPipelinePort 
         Objects.requireNonNull(ctx, "ctx is null");
 
         if (ctx instanceof HsmsEquipmentRuntimeContext) {
-            if (log.isDebugEnabled()) {
-                log.debug("Inbound pipeline routed to HSMS. eqpId={}", ctx.profile().equipmentId().value());
+            if (log.isTraceEnabled()) {
+                log.trace("Inbound pipeline routed to HSMS. eqpId={}", ctx.profile().equipmentId().value());
             }
             return hsmsInboundPipeline.drain(ctx);
         }
 
         if (ctx instanceof SocketEquipmentRuntimeContext) {
-            if (log.isDebugEnabled()) {
-                log.debug("Inbound pipeline routed to SOCKET. eqpId={}", ctx.profile().equipmentId().value());
+            if (log.isTraceEnabled()) {
+                log.trace("Inbound pipeline routed to SOCKET. eqpId={}", ctx.profile().equipmentId().value());
             }
             return socketInboundPipeline.drain(ctx);
         }

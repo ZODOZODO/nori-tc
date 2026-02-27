@@ -121,8 +121,8 @@ public final class KafkaSourceAllowlistPolicy {
             ));
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("source allowlist validation passed. topic={}, source={}", normalizedTopic, normalizedSource);
+        if (log.isTraceEnabled()) {
+            log.trace("source allowlist validation passed. topic={}, source={}", normalizedTopic, normalizedSource);
         }
         return Optional.empty();
     }

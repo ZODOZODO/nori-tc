@@ -1,6 +1,7 @@
 package com.nori.tc.business.adapters.kafka.subscribe;
 
 import com.nori.tc.business.core.logging.BusinessLogContext;
+import com.nori.tc.business.core.logging.BusinessObservationLogger;
 import com.nori.tc.business.core.runtime.BusinessTaskIngressPort;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.business.domain.runtime.BusinessMessageType;
@@ -78,7 +79,10 @@ public class BusinessUiEventKafkaSubscriber {
 
     public void onMessage(final ConsumerRecord<String, String> record) throws Exception {
         final BusinessInboundRecord inboundRecord = recordMapper.map(record, BusinessMessageType.UI);
-        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(inboundRecord.eqpId())) {
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(
+                inboundRecord.eqpId(),
+                inboundRecord.traceId()
+        )) {
             final boolean accepted = ingressPort.submit(inboundRecord);
             if (!accepted) {
                 throw new IllegalStateException(
@@ -91,14 +95,15 @@ public class BusinessUiEventKafkaSubscriber {
                 );
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug("UI event ingested. topic={}, partition={}, offset={}, eqpId={}, eventType={}",
-                        inboundRecord.topic(),
-                        inboundRecord.partition(),
-                        inboundRecord.offset(),
-                        inboundRecord.eqpId(),
-                        inboundRecord.messageName());
-            }
+            BusinessObservationLogger.logKafkaInboundAccepted(
+                    inboundRecord.topic(),
+                    inboundRecord.partition(),
+                    inboundRecord.offset(),
+                    inboundRecord.eqpId(),
+                    inboundRecord.traceId(),
+                    inboundRecord.messageName(),
+                    null
+            );
         }
     }
 }

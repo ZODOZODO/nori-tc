@@ -8,6 +8,7 @@ import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.core.message.ParsedMessage;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.DlqPublisherPort;
+import com.nori.tc.comm.core.port.EventLogContextPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
 import com.nori.tc.comm.core.port.OutboundSenderPort;
 import com.nori.tc.comm.core.port.QuarantinePort;
@@ -16,6 +17,8 @@ import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -43,6 +46,16 @@ import java.util.Objects;
  */
 public final class EqpSequentialProcessor {
 
+    /**
+     * mailbox cycle 완료 로그에서 다건 처리 미리보기 개수를 제한하기 위한 상수입니다.
+     */
+    private static final int LOG_PREVIEW_LIMIT = 5;
+
+    /**
+     * 설비 이벤트 생명주기 시작/실패 로그를 남기는 로거입니다.
+     *
+     * <p>이 로거는 "이벤트 단위" 관측용 로그만 담당하며, 스케줄러/운영 잡로그와는 목적이 다릅니다.</p>
+     */
     private final ClockPort clockPort;
     private final TraceIdGeneratorPort traceIdGeneratorPort;
 
@@ -53,11 +66,63 @@ public final class EqpSequentialProcessor {
 
     private final DlqPublisherPort dlqPublisherPort;
     private final QuarantinePort quarantinePort;
+    /**
+     * 이벤트 단위 로그 컨텍스트(MDC 등) 스코프를 열어주는 포트입니다.
+     *
+     * <p>core는 구체 구현(logback/MDC)을 몰라도 되도록 포트로 추상화합니다.</p>
+     */
+    private final EventLogContextPort eventLogContextPort;
 
     /**
      * 한 번 drain 호출 시, 큐에서 최대 몇 개 chunk를 처리할지(공정성/지연 제어)
      */
     private final int maxChunksPerDrain;
+
+    /**
+     * 단일 drain 호출의 처리 요약 결과입니다.
+     *
+     * <p>gateway-core가 mailbox cycle 완료 로그를 기록할 때 traceId/건수/처리시간을 함께 남길 수 있도록
+     * core에서 집계한 최소 관측 정보를 전달합니다.</p>
+     */
+    public record DrainSummary(
+            int processedChunks,
+            int parsedMessageCount,
+            int outboundFrameCount,
+            String singleTraceId,
+            List<String> traceIdsPreview,
+            List<String> messageNamesPreview,
+            long startedAtEpochMs,
+            long endedAtEpochMs,
+            boolean failed,
+            String failureReason
+    ) {
+        /**
+         * 불변 미리보기 목록을 보장합니다.
+         *
+         * @param processedChunks 처리한 inbound chunk 개수
+         * @param parsedMessageCount 파싱 완료 메시지 개수
+         * @param outboundFrameCount 전송 시도 outbound frame 개수
+         * @param singleTraceId 단건 파싱 시 traceId
+         * @param traceIdsPreview traceId 미리보기 목록
+         * @param messageNamesPreview messageName 미리보기 목록
+         * @param startedAtEpochMs drain 시작 시각(epoch ms)
+         * @param endedAtEpochMs drain 종료 시각(epoch ms)
+         * @param failed 처리 실패 여부
+         * @param failureReason 실패 사유 요약
+         */
+        public DrainSummary {
+            if (traceIdsPreview == null) {
+                traceIdsPreview = List.of();
+            } else {
+                traceIdsPreview = List.copyOf(traceIdsPreview);
+            }
+            if (messageNamesPreview == null) {
+                messageNamesPreview = List.of();
+            } else {
+                messageNamesPreview = List.copyOf(messageNamesPreview);
+            }
+        }
+    }
 
     
     /**
@@ -81,6 +146,7 @@ public final class EqpSequentialProcessor {
             final RouteAndPublishUseCase routeAndPublishUseCase,
             final DlqPublisherPort dlqPublisherPort,
             final QuarantinePort quarantinePort,
+            final EventLogContextPort eventLogContextPort,
             final int maxChunksPerDrain
     ) {
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
@@ -90,6 +156,7 @@ public final class EqpSequentialProcessor {
         this.routeAndPublishUseCase = Objects.requireNonNull(routeAndPublishUseCase, "routeAndPublishUseCase is null");
         this.dlqPublisherPort = Objects.requireNonNull(dlqPublisherPort, "dlqPublisherPort is null");
         this.quarantinePort = Objects.requireNonNull(quarantinePort, "quarantinePort is null");
+        this.eventLogContextPort = eventLogContextPort == null ? EventLogContextPort.noOp() : eventLogContextPort;
 
         if (maxChunksPerDrain <= 0) {
             throw new IllegalArgumentException("maxChunksPerDrain must be > 0");
@@ -104,15 +171,32 @@ public final class EqpSequentialProcessor {
      * - 앱(KeyedExecutor 등)에서 eqpId별로 이 메서드를 호출하여,
      *   한 번에 너무 오래 점유하지 않도록 배치 제한(maxChunksPerDrain)을 적용합니다.
      */
-    public void drain(final EquipmentRuntimeContext ctx) {
+    public DrainSummary drain(final EquipmentRuntimeContext ctx) {
         Objects.requireNonNull(ctx, "ctx is null");
 
+        final long startedAtEpochMs = clockPort.nowEpochMillis();
         int processedChunks = 0;
+        int parsedMessageCount = 0;
+        int outboundFrameCount = 0;
+        String firstTraceId = null;
+        final List<String> traceIdsPreview = new ArrayList<>(LOG_PREVIEW_LIMIT);
+        final List<String> messageNamesPreview = new ArrayList<>(LOG_PREVIEW_LIMIT);
 
         while (processedChunks < maxChunksPerDrain) {
             final InboundChunk chunk = ctx.inboundQueue().poll();
             if (chunk == null) {
-                return; // 더 이상 처리할 chunk 없음
+                return new DrainSummary(
+                        processedChunks,
+                        parsedMessageCount,
+                        outboundFrameCount,
+                        parsedMessageCount == 1 ? firstTraceId : null,
+                        traceIdsPreview,
+                        messageNamesPreview,
+                        startedAtEpochMs,
+                        clockPort.nowEpochMillis(),
+                        false,
+                        null
+                ); // 더 이상 처리할 chunk 없음
             }
 
             processedChunks++;
@@ -127,19 +211,59 @@ public final class EqpSequentialProcessor {
                 // 3) outbounds 먼저 송신(세션 유지/응답 요구에 도움)
                 for (OutboundRawFrame frame : result.outboundFrames()) {
                     outboundSenderPort.send(frame);
+                    outboundFrameCount++;
                 }
 
                 // 4) parsed messages 라우팅/발행
                 for (ParsedMessage message : result.parsedMessages()) {
-                    routeAndPublishUseCase.routeAndPublish(message);
+                    parsedMessageCount++;
+                    if (parsedMessageCount == 1 && message != null) {
+                        firstTraceId = message.traceId();
+                    } else if (parsedMessageCount > 1) {
+                        firstTraceId = null;
+                    }
+                    addPreview(traceIdsPreview, message == null ? null : message.traceId());
+                    addPreview(messageNamesPreview,
+                            message == null || message.messageName() == null ? null : message.messageName().value());
+
+                    final AutoCloseable eventLogContext = openEventLogContextSafely(message);
+                    try {
+                        routeAndPublishUseCase.routeAndPublish(message);
+                    } finally {
+                        closeEventLogContextSafely(eventLogContext);
+                    }
                 }
 
             } catch (Exception ex) {
                 // 한 설비 문제를 전체로 번지지 않게: DLQ + Quarantine
                 handleFailure(ctx, chunk, ex);
-                return;
+                return new DrainSummary(
+                        processedChunks,
+                        parsedMessageCount,
+                        outboundFrameCount,
+                        parsedMessageCount == 1 ? firstTraceId : null,
+                        traceIdsPreview,
+                        messageNamesPreview,
+                        startedAtEpochMs,
+                        clockPort.nowEpochMillis(),
+                        true,
+                        safeMessage(ex)
+                );
             }
         }
+
+        return new DrainSummary(
+                processedChunks,
+                parsedMessageCount,
+                outboundFrameCount,
+                parsedMessageCount == 1 ? firstTraceId : null,
+                traceIdsPreview,
+                messageNamesPreview,
+                startedAtEpochMs,
+                clockPort.nowEpochMillis(),
+                false,
+                null
+        );
     }
 
     // -------------------------
@@ -201,6 +325,54 @@ public final class EqpSequentialProcessor {
         ctx.reassemblyBuffer().clear();
     }
 
+    /**
+     * 이벤트 단위 로그 컨텍스트를 안전하게 엽니다.
+     *
+     * <p>로깅 컨텍스트 생성 실패가 실제 이벤트 처리 흐름을 중단시키면 안 되므로,
+     * 실패 시 no-op 컨텍스트로 대체하고 디버그 로그만 남깁니다.</p>
+     *
+     * @param message 현재 처리 중인 파싱 이벤트
+     * @return null 이 아닌 closeable 컨텍스트
+     */
+    private AutoCloseable openEventLogContextSafely(final ParsedMessage message) {
+        if (message == null) {
+            return EventLogContextPort.NoOpCloseable.INSTANCE;
+        }
+        try {
+            final EventLogContextPort.EventLogContextRequest request = new EventLogContextPort.EventLogContextRequest(
+                    message.equipmentId().value(),
+                    message.traceId(),
+                    message.messageName().value(),
+                    message.commInterfaceType().name(),
+                    message.socketType()
+            );
+            final AutoCloseable context = eventLogContextPort.open(request);
+            return context == null ? EventLogContextPort.NoOpCloseable.INSTANCE : context;
+        } catch (Exception contextOpenFailure) {
+            return EventLogContextPort.NoOpCloseable.INSTANCE;
+        }
+    }
+
+    /**
+     * 이벤트 단위 로그 컨텍스트를 안전하게 닫습니다.
+     *
+     * <p>컨텍스트 close 실패 역시 비즈니스 처리 결과를 바꾸지 않도록 삼키고 디버그 로그만 남깁니다.</p>
+     *
+     * @param context 닫을 컨텍스트
+     * @param message 현재 처리 중인 파싱 이벤트(로그 보강용)
+     */
+    private void closeEventLogContextSafely(final AutoCloseable context) {
+        if (context == null) {
+            return;
+        }
+        try {
+            context.close();
+        } catch (Exception contextCloseFailure) {
+            // 이벤트 처리 본 흐름을 보호하기 위해 로그 컨텍스트 close 실패는 삼킵니다.
+            // 관측용 MDC 복구 실패가 비즈니스 처리 결과를 바꾸면 안 되므로 no-op 처리합니다.
+        }
+    }
+
     
     /**
      * 통신 코어 모듈 도메인 처리 로직을 수행합니다.
@@ -216,5 +388,27 @@ public final class EqpSequentialProcessor {
         // 운영 로그 폭주 방지: 메시지를 너무 길게 싣지 않습니다.
         final int limit = 300;
         return msg.length() <= limit ? msg : msg.substring(0, limit) + "...";
+    }
+
+    /**
+     * 로그 미리보기 목록에 값을 제한 개수 내에서만 추가합니다.
+     *
+     * <p>mailbox cycle 완료 로그는 단일 라인 가독성이 중요하므로 앞부분만 보존합니다.</p>
+     *
+     * @param previewList 미리보기 대상 목록
+     * @param value 추가할 값
+     */
+    private static void addPreview(final List<String> previewList, final String value) {
+        if (previewList == null) {
+            return;
+        }
+        if (previewList.size() >= LOG_PREVIEW_LIMIT) {
+            return;
+        }
+        if (value == null || value.isBlank()) {
+            previewList.add("N/A");
+            return;
+        }
+        previewList.add(value.trim());
     }
 }

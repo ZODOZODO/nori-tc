@@ -1,18 +1,18 @@
 package com.nori.tc.business.starter;
 
+import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
+import com.nori.tc.business.core.logging.BusinessObservationLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 
 /**
- * tc-business-core starter 자동 구성 진입점입니다.
- *
- * <p>역할은 다음과 같습니다.</p>
- * <p>1) business 계층(core/adapter)의 컴포넌트를 스캔해 애플리케이션 컨텍스트에 등록합니다.</p>
- * <p>2) 런타임/파이프라인 관련 수동 설정 클래스를 함께 Import하여 조립을 완료합니다.</p>
- *
- * <p>주의 사항:</p>
- * <p>- app 모듈은 본 auto-configuration 하나만 의존하면 실행 조립이 가능해야 합니다.</p>
+ * tc-business-core starter auto configuration entrypoint.
  */
 @AutoConfiguration
 @ComponentScan(basePackages = "com.nori.tc.business")
@@ -20,12 +20,48 @@ import org.springframework.context.annotation.Import;
         BusinessCoreRuntimeConfiguration.class,
         BusinessUiTaskPipelineConfiguration.class
 })
-/**
- * TcBusinessCoreAutoConfiguration 클래스입니다.
- *
- * <p>해당 모듈에서 공통 계약과 동작 경계를 정의하며,
- * 호출 계층에서 일관된 사용이 가능하도록 설계되었습니다.</p>
- */
-
 public class TcBusinessCoreAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(TcBusinessCoreAutoConfiguration.class);
+
+    public TcBusinessCoreAutoConfiguration() {
+        log.info("BIZ_BOOT_STARTING. imports=[BusinessCoreRuntimeConfiguration, BusinessUiTaskPipelineConfiguration]");
+    }
+
+    /**
+     * Emits a compact business startup summary after the application is ready.
+     */
+    @Bean
+    public ApplicationListener<ApplicationReadyEvent> businessStartupReadyObservationListener(
+            final BusinessCoreRuntimeProperties properties
+    ) {
+        return event -> {
+            log.info("BIZ_BOOT_COMPONENT_READY. component=BusinessRuntime");
+            log.info("BIZ_BOOT_COMPONENT_READY. component=KafkaTopics");
+
+            final String appName = event.getApplicationContext()
+                    .getEnvironment()
+                    .getProperty("spring.application.name", "tc-business-core-app");
+            final BusinessCoreRuntimeProperties.Kafka kafka = properties.getKafka();
+            final BusinessCoreRuntimeProperties.Runtime runtime = properties.getRuntime();
+
+            final String consumeTopics = String.join(",",
+                    kafka.getEqpEventsTopic(),
+                    kafka.getMesEventsTopic(),
+                    kafka.getUiEventsTopic());
+            final String produceTopics = String.join(",",
+                    kafka.getEqpCommandsTopic(),
+                    kafka.getMesCommandsTopic(),
+                    kafka.getUiCommandsTopic());
+
+            BusinessObservationLogger.logBootReady(
+                    appName,
+                    consumeTopics,
+                    produceTopics,
+                    kafka.getSource(),
+                    runtime.getWorkerThreads(),
+                    runtime.getTimeoutSchedulerThreads()
+            );
+        };
+    }
 }

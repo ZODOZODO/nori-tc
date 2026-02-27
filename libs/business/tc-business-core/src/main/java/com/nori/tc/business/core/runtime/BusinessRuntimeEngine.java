@@ -3,6 +3,7 @@ package com.nori.tc.business.core.runtime;
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
 import com.nori.tc.business.core.logging.BusinessLogContext;
+import com.nori.tc.business.core.logging.BusinessObservationLogger;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeProvider;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
@@ -67,7 +68,6 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
     /**
      * 트레이스 ID를 얻을 수 없을 때 사용하는 기본 값입니다.
      */
-    private static final String TRACE_ID_NOT_AVAILABLE = "N/A";
 
     private final BusinessCoreRuntimeProperties properties;
     private final BusinessModelRuntimeProvider modelRuntimeProvider;
@@ -449,7 +449,10 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
          * worker reject 콜백은 비동기 경계에서 실행되므로 기존 MDC 컨텍스트가 유지되지 않을 수 있습니다.
          * 따라서 task에 포함된 eqpId를 기준으로 MDC를 다시 주입해 로그 상관관계를 보장합니다.
          */
-        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(task.record().eqpId())) {
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(
+                task.record().eqpId(),
+                task.record().traceId()
+        )) {
             log.error("Worker pool rejected task. eqpId={}, topic={}, partition={}, offset={}",
                     task.record().eqpId(),
                     task.record().topic(),
@@ -471,21 +474,23 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
          * worker 진입 시점에 eqpId 기반 MDC를 설정합니다.
          * 성공/실패/재시도 분기 로그를 동일한 상관키로 추적하기 위함입니다.
          */
-        try (BusinessLogContext ignored = BusinessLogContext.withEqpId(task.record().eqpId())) {
-            if (log.isDebugEnabled()) {
-                log.debug("Business task processing started. topic={}, eqpId={}, partition={}, offset={}, messageType={}, messageName={}",
-                        task.record().topic(),
-                        task.record().eqpId(),
-                        task.record().partition(),
-                        task.record().offset(),
-                        task.record().messageType(),
-                        task.record().messageName());
-            }
+        try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(
+                task.record().eqpId(),
+                task.record().traceId()
+        )) {
+            BusinessObservationLogger.logTaskStarted(
+                    task.record().topic(),
+                    task.record().eqpId(),
+                    task.record().partition(),
+                    task.record().offset(),
+                    String.valueOf(task.record().messageType()),
+                    task.record().messageName()
+            );
 
             try {
                 final TaskExecutionOutcome outcome = executeWithTimeout(task);
                 if (outcome == TaskExecutionOutcome.WORKFLOW_NOT_FOUND) {
-                    log.info("No workflow matched. topic={}, eqpId={}, messageName={}, partition={}, offset={}",
+                    log.info("BIZ_TASK_NO_WORKFLOW_MATCHED. topic={}, eqpId={}, messageName={}, partition={}, offset={}",
                             task.record().topic(),
                             task.record().eqpId(),
                             task.record().messageName(),
@@ -742,7 +747,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 record.eqpId(),
                 record.messageType().name(),
                 record.messageName(),
-                null,
+                record.traceId(),
                 record.payloadRef(),
                 tags
         );
@@ -829,7 +834,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                         record.partition(),
                         record.offset(),
                         record.eqpId(),
-                        TRACE_ID_NOT_AVAILABLE,
+                        record.traceId(),
                         record.messageName());
             }
             return;
@@ -843,7 +848,7 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                 record.partition(),
                 record.offset(),
                 record.eqpId(),
-                TRACE_ID_NOT_AVAILABLE,
+                record.traceId(),
                 record.messageName());
     }
 

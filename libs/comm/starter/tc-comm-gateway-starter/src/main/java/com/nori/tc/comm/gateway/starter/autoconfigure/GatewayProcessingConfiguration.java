@@ -10,6 +10,7 @@ import com.nori.tc.comm.gateway.hsms.pipeline.HsmsInboundPipeline;
 import com.nori.tc.comm.gateway.socket.pipeline.SocketInboundPipeline;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.DlqPublisherPort;
+import com.nori.tc.comm.core.port.EventLogContextPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
 import com.nori.tc.comm.core.port.KafkaPublisherPort;
 import com.nori.tc.comm.core.port.OutboundSenderPort;
@@ -18,6 +19,7 @@ import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.core.routing.PublishPolicy;
 import com.nori.tc.comm.core.usecase.EqpSequentialProcessor;
 import com.nori.tc.comm.core.usecase.RouteAndPublishUseCase;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -42,8 +44,8 @@ public class GatewayProcessingConfiguration {
      */
     @Bean
     public EquipmentChannelRegistry equipmentChannelRegistry() {
-        if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: EquipmentChannelRegistry");
+        if (log.isTraceEnabled()) {
+            log.trace("처리 파이프라인 Bean 생성: EquipmentChannelRegistry");
         }
         return new EquipmentChannelRegistry();
     }
@@ -60,8 +62,8 @@ public class GatewayProcessingConfiguration {
             final EquipmentRuntimeContextFactory contextFactory,
             final GatewayRuntimeProperties runtimeProperties
     ) {
-        if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: EquipmentMailboxRegistry. inboundQueueCapacity={}, outboundQueueCapacity={}",
+        if (log.isTraceEnabled()) {
+            log.trace("처리 파이프라인 Bean 생성: EquipmentMailboxRegistry. inboundQueueCapacity={}, outboundQueueCapacity={}",
                     runtimeProperties.getInboundQueueCapacity(),
                     runtimeProperties.getOutboundQueueCapacity());
         }
@@ -76,8 +78,8 @@ public class GatewayProcessingConfiguration {
      */
     @Bean
     public OutboundSenderPort outboundSenderPort(final EquipmentChannelRegistry registry) {
-        if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: OutboundSenderPort(ChannelBasedOutboundSender)");
+        if (log.isTraceEnabled()) {
+            log.trace("처리 파이프라인 Bean 생성: OutboundSenderPort(ChannelBasedOutboundSender)");
         }
         return new ChannelBasedOutboundSender(registry);
     }
@@ -94,8 +96,8 @@ public class GatewayProcessingConfiguration {
             final HsmsInboundPipeline hsmsInboundPipeline,
             final SocketInboundPipeline socketInboundPipeline
     ) {
-        if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: InboundPipelinePort(ProtocolInboundPipelineRouter)");
+        if (log.isTraceEnabled()) {
+            log.trace("처리 파이프라인 Bean 생성: InboundPipelinePort(ProtocolInboundPipelineRouter)");
         }
         return new ProtocolInboundPipelineRouter(hsmsInboundPipeline, socketInboundPipeline);
     }
@@ -115,8 +117,8 @@ public class GatewayProcessingConfiguration {
             final PublishPolicy publishPolicy,
             final KafkaPublisherPort kafkaPublisherPort
     ) {
-        if (log.isDebugEnabled()) {
-            log.debug("RouteAndPublishUseCase bean created. mode=direct-kafka-only");
+        if (log.isTraceEnabled()) {
+            log.trace("RouteAndPublishUseCase bean created. mode=direct-kafka-only");
         }
         return new RouteAndPublishUseCase(publishPolicy, kafkaPublisherPort);
     }
@@ -149,8 +151,8 @@ public class GatewayProcessingConfiguration {
         final int maxChunksPerDrain = runtimeProperties.getMaxChunksPerDrain();
 
         log.info("EqpSequentialProcessor Bean 생성. maxChunksPerDrain={}", maxChunksPerDrain);
-        if (log.isDebugEnabled()) {
-            log.debug("처리 파이프라인 Bean 생성: EqpSequentialProcessor");
+        if (log.isTraceEnabled()) {
+            log.trace("처리 파이프라인 Bean 생성: EqpSequentialProcessor");
         }
 
         return new EqpSequentialProcessor(
@@ -161,7 +163,32 @@ public class GatewayProcessingConfiguration {
                 routeAndPublishUseCase,
                 dlqPublisherPort,
                 quarantinePort,
+                gatewayEventLogContextPort(),
                 maxChunksPerDrain
         );
+    }
+
+
+    /**
+     * Gateway 설비 이벤트 처리 구간에 이벤트 단위 MDC(eqpId/traceId)를 주입하는 포트를 반환합니다.
+     *
+     * <p>core 계층은 이 포트를 통해서만 로그 컨텍스트를 열고 닫으며,
+     * 실제 MDC 구현은 gateway 로깅 어댑터({@link GatewayLogContext})가 담당합니다.</p>
+     *
+     * @return 이벤트 로그 컨텍스트 포트 구현
+     */
+    private EventLogContextPort gatewayEventLogContextPort() {
+        return request -> {
+            if (request == null) {
+                return EventLogContextPort.NoOpCloseable.INSTANCE;
+            }
+
+            /*
+             * 운영 관측용 EQP 수신 시작 로그는 payload까지 함께 보여주기 위해
+             * Kafka publisher 레이어에서 <rcvd EQP : ...> 형식으로 출력합니다.
+             * 여기서는 메시지 단위 MDC 컨텍스트(eqpId/traceId)만 열어 후속 로그 상관관계를 보장합니다.
+             */
+            return GatewayLogContext.withEqpAndTraceId(request.eqpId(), request.traceId());
+        };
     }
 }

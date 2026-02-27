@@ -25,4 +25,5 @@ logging:
     root: INFO
     # 프로젝트 패키지 로그 레벨
     com.nori.tc: DEBUG
-    org.springframework.kafka: INFO
+    org.springframework.kafka: WARN
+    org.apache.kafka: WARN

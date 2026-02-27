@@ -61,8 +61,8 @@ public class GatewayKafkaContractSupport {
         log.info("GatewayKafkaContractSupport initialized. supportedTopics={}, gatewayUiEventsTopic={}",
                 TcKafkaTopics.allTopics(),
                 TcKafkaTopics.UI_EVENTS_GATEWAY);
-        if (log.isDebugEnabled()) {
-            log.debug("Gateway Kafka source allowlist configured for UI gateway topic. topic={}, allowedSources={}",
+        if (log.isTraceEnabled()) {
+            log.trace("Gateway Kafka source allowlist configured for UI gateway topic. topic={}, allowedSources={}",
                     TcKafkaTopics.UI_EVENTS_GATEWAY,
                     allowlist.get(TcKafkaTopics.UI_EVENTS_GATEWAY));
         }
@@ -253,8 +253,8 @@ public class GatewayKafkaContractSupport {
             );
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka envelope metadata validated. topic={}, eventType={}, source={}, schemaVersion={}",
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka envelope metadata validated. topic={}, eventType={}, source={}, schemaVersion={}",
                     topic,
                     envelope.metadata().eventType(),
                     envelope.metadata().source(),
@@ -305,8 +305,8 @@ public class GatewayKafkaContractSupport {
             );
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka record key validated. topic={}, key={}", topic, normalizedActual);
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka record key validated. topic={}, key={}", topic, normalizedActual);
         }
     }
 
@@ -325,8 +325,8 @@ public class GatewayKafkaContractSupport {
         }
 
         final String canonical = normalized.substring(0, normalized.length() - APP_SUFFIX.length());
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka source normalized from app alias. original={}, canonical={}", normalized, canonical);
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka source normalized from app alias. original={}, canonical={}", normalized, canonical);
         }
         return canonical;
     }

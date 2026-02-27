@@ -79,8 +79,8 @@ public class GatewayCommConfiguration {
      */
     @Bean
     public ClockPort clockPort() {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: ClockPort(SystemClock)");
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: ClockPort(SystemClock)");
         }
         return new SystemClock();
     }
@@ -94,8 +94,8 @@ public class GatewayCommConfiguration {
      */
     @Bean
     public TraceIdGeneratorPort traceIdGeneratorPort() {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: TraceIdGeneratorPort(UlidTraceIdGenerator)");
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: TraceIdGeneratorPort(UlidTraceIdGenerator)");
         }
         return new UlidTraceIdGenerator();
     }
@@ -128,8 +128,8 @@ public class GatewayCommConfiguration {
      */
     @Bean
     public PublishPolicy publishPolicy(final GatewayPublishPolicyProperties properties) {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: PublishPolicy(PublishPolicyEngine). policyVersion={}", properties.getVersion());
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: PublishPolicy(PublishPolicyEngine). policyVersion={}", properties.getVersion());
         }
         return new PublishPolicyEngine(properties.toSpec());
     }
@@ -144,8 +144,8 @@ public class GatewayCommConfiguration {
      */
     @Bean
     public HsmsFrameExtractor hsmsFrameExtractor(final GatewayHsmsProperties hsmsProperties) {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: HsmsFrameExtractor. maxFrameBytes={}", hsmsProperties.getMaxFrameBytes());
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: HsmsFrameExtractor. maxFrameBytes={}", hsmsProperties.getMaxFrameBytes());
         }
         // 운영 중 비정상 대형 프레임으로부터 런타임을 보호하기 위해 최대 프레임 크기를 강제한다.
         return new HsmsFrameExtractor(hsmsProperties.getMaxFrameBytes());
@@ -158,8 +158,8 @@ public class GatewayCommConfiguration {
      */
     @Bean
     public Secs2Decoder secs2Decoder() {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: Secs2Decoder(BasicSecs2Decoder)");
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: Secs2Decoder(BasicSecs2Decoder)");
         }
         return new BasicSecs2Decoder();
     }
@@ -182,8 +182,8 @@ public class GatewayCommConfiguration {
             final HsmsFrameExtractor frameExtractor,
             final Secs2Decoder secs2Decoder
     ) {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: HsmsInboundPipeline");
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: HsmsInboundPipeline");
         }
         return new HsmsInboundPipeline(clockPort, traceIdGeneratorPort, frameExtractor, secs2Decoder);
     }
@@ -204,8 +204,8 @@ public class GatewayCommConfiguration {
             final TraceIdGeneratorPort traceIdGeneratorPort,
             final GatewaySocketPluginRuntimeProvider pluginRuntimeProvider
     ) {
-        if (log.isDebugEnabled()) {
-            log.debug("공통 Bean 생성: SocketInboundPipeline");
+        if (log.isTraceEnabled()) {
+            log.trace("공통 Bean 생성: SocketInboundPipeline");
         }
         return new SocketInboundPipeline(clockPort, traceIdGeneratorPort, pluginRuntimeProvider);
     }

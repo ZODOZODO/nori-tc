@@ -5,7 +5,9 @@ import com.nori.tc.comm.gateway.db.GatewayEquipmentInfo;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.gateway.equipment.port.EquipmentInfoProvider;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogSampler;
+import com.nori.tc.comm.gateway.observability.logging.GatewayObservationLogger;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
 import com.nori.tc.comm.gateway.runtime.channel.EquipmentChannel;
 import com.nori.tc.comm.gateway.runtime.mailbox.EquipmentMailbox;
@@ -102,38 +104,45 @@ public class GatewayIngressService {
     public void enqueueInbound(final String equipmentId, final byte[] payload) {
         Objects.requireNonNull(equipmentId, "equipmentId is null");
         Objects.requireNonNull(payload, "payload is null");
+        final String inboundTraceId = traceIdGeneratorPort.newTraceId();
 
-        final EquipmentMailbox mailbox = mailboxRegistry.get(equipmentId);
-        if (mailbox == null) {
-            // UNBOUND 또는 소유하지 않은 eqp -> drop
-            if (log.isDebugEnabled()) {
-                log.debug("Inbound drop (no mailbox). eqpId={}", equipmentId);
+        withEqpAndTraceLogContext(equipmentId, inboundTraceId, () -> {
+            final EquipmentMailbox mailbox = mailboxRegistry.get(equipmentId);
+            if (mailbox == null) {
+                // UNBOUND 또는 초기화되지 않은 eqp -> drop
+                if (log.isDebugEnabled()) {
+                    log.debug("Inbound drop (no mailbox). eqpId={}", equipmentId);
+                }
+                return;
             }
-            return;
-        }
 
-        // 수신 시각을 함께 저장해 후속 처리 지연/timeout 계산에 활용합니다.
-        final boolean offered = mailbox.inboundQueue()
-                .offer(new InboundChunk(payload, clockPort.nowEpochMillis()));
+            // 수신 시각을 함께 저장해 후속 처리 지연/timeout 계산에 사용합니다.
+            final boolean offered = mailbox.inboundQueue()
+                    .offer(new InboundChunk(payload, clockPort.nowEpochMillis()));
 
-        metrics.recordInboundQueueDepth(equipmentId, mailbox.inboundQueue().size());
+            metrics.recordInboundQueueDepth(equipmentId, mailbox.inboundQueue().size());
 
-        if (!offered) {
-            metrics.incrementInboundQueueOverflow();
-            if (logSampler.shouldLogQueueOverflow()) {
-                // overflow는 burst 상황에서 연속 발생할 수 있으므로 핵심 정보만 경고로 남깁니다.
-                log.warn("Inbound queue overflow. eqpId={}", equipmentId);
+            if (!offered) {
+                metrics.incrementInboundQueueOverflow();
+                if (logSampler.shouldLogQueueOverflow()) {
+                    // overflow는 burst 상황에서 연속 발생할 수 있으므로 진단 정보만 경고로 남깁니다.
+                    log.warn("Inbound queue overflow. eqpId={}", equipmentId);
+                }
+                // overflow 후속 정책(DLQ/격리)은 별도 메서드에서 일괄 처리합니다.
+                handleQueueOverflow(mailbox, payload);
+                return;
             }
-            // overflow 후속 정책(DLQ/격리)은 별도 메서드에서 일괄 처리합니다.
-            handleQueueOverflow(mailbox, payload);
-            return;
-        }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Inbound queued. eqpId={}, queueDepth={}", equipmentId, mailbox.inboundQueue().size());
-        }
-        processingCoordinator.schedule(mailbox);
+            GatewayObservationLogger.logEqpInboundMailboxEnqueued(
+                    equipmentId,
+                    inboundTraceId,
+                    mailbox.inboundQueue().size(),
+                    payload.length
+            );
+            processingCoordinator.schedule(mailbox);
+        });
     }
+
 
     /**
      * Kafka 등 외부 채널에서 들어온 outbound 프레임을 설비별 outbound 큐에 적재합니다.
@@ -147,38 +156,45 @@ public class GatewayIngressService {
         Objects.requireNonNull(frame, "frame is null");
 
         final String eqpId = frame.equipmentId().value();
-        final EquipmentMailbox mailbox = mailboxRegistry.get(eqpId);
-        if (mailbox == null) {
-            // 연결 없으면 drop
-            if (log.isDebugEnabled()) {
-                log.debug("Outbound drop (no mailbox). eqpId={}", eqpId);
+        withEqpLogContext(eqpId, () -> {
+            final EquipmentMailbox mailbox = mailboxRegistry.get(eqpId);
+            if (mailbox == null) {
+                // 연결 없으면 drop
+                if (log.isDebugEnabled()) {
+                    log.debug("Outbound drop (no mailbox). eqpId={}", eqpId);
+                }
+                return;
             }
-            return;
-        }
 
-        // attempt=0 으로 시작하며 재시도 시 coordinator가 증가시킵니다.
-        final boolean offered = mailbox.outboundQueue()
-                .offer(new OutboundQueueCommand(frame, 0, clockPort.nowEpochMillis()));
-        metrics.recordOutboundQueueDepth(eqpId, mailbox.outboundQueue().size());
-        if (!offered) {
-            metrics.incrementOutboundQueueOverflow();
-            if (logSampler.shouldLogQueueOverflow()) {
-                log.warn("Outbound queue overflow. eqpId={}", eqpId);
+            // attempt=0 으로 시작하고 재시도는 coordinator가 증가시킵니다.
+            final boolean offered = mailbox.outboundQueue()
+                    .offer(new OutboundQueueCommand(frame, 0, clockPort.nowEpochMillis()));
+            metrics.recordOutboundQueueDepth(eqpId, mailbox.outboundQueue().size());
+            if (!offered) {
+                metrics.incrementOutboundQueueOverflow();
+                if (logSampler.shouldLogQueueOverflow()) {
+                    log.warn("Outbound queue overflow. eqpId={}", eqpId);
+                }
+                // outbound overflow는 송신 지연이 누적된 상태일 수 있으므로 격리 후 채널 종료로 복구를 시도합니다.
+                safeQuarantine(mailbox, "Outbound queue overflow");
+                final EquipmentChannel channel = mailbox.channel();
+                if (channel != null) {
+                    channel.close();
+                }
+                return;
             }
-            // outbound overflow는 송신 지연이 누적된 상태일 수 있으므로 격리 후 채널 종료로 회복을 유도합니다.
-            safeQuarantine(mailbox, "Outbound queue overflow");
-            final EquipmentChannel channel = mailbox.channel();
-            if (channel != null) {
-                channel.close();
-            }
-            return;
-        }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Outbound queued. eqpId={}, queueDepth={}", eqpId, mailbox.outboundQueue().size());
-        }
-        processingCoordinator.schedule(mailbox);
+            GatewayObservationLogger.logEqpOutboundMailboxEnqueued(
+                    eqpId,
+                    null,
+                    frame.description(),
+                    mailbox.outboundQueue().size(),
+                    frame.bytes().length
+            );
+            processingCoordinator.schedule(mailbox);
+        });
     }
+
 
     /**
      * BOUND 시점에 설비 mailbox를 생성하고 채널을 바인딩합니다.
@@ -220,10 +236,9 @@ public class GatewayIngressService {
         mailboxRegistry.remove(equipmentId);
         processingCoordinator.clearSchedulingState(equipmentId);
         metrics.clearQueueDepth(equipmentId);
-        if (log.isDebugEnabled()) {
-            log.debug("Mailbox removed via processingService. eqpId={}", equipmentId);
-        }
+        log.debug("GW_MBX_REGISTRY_CLEARED. reason=REMOVE, eqpId={}", equipmentId);
     }
+
 
     /**
      * 설비 mailbox를 "eqpId + 채널 인스턴스 일치" 조건으로만 제거하고 후속 스케줄링/메트릭 상태를 정리합니다.
@@ -251,11 +266,10 @@ public class GatewayIngressService {
 
         processingCoordinator.clearSchedulingState(equipmentId);
         metrics.clearQueueDepth(equipmentId);
-        if (log.isDebugEnabled()) {
-            log.debug("Mailbox removed(match) via processingService. eqpId={}", equipmentId);
-        }
+        log.debug("GW_MBX_REGISTRY_CLEARED. reason=REMOVE_MATCH, eqpId={}", equipmentId);
         return true;
     }
+
 
     /**
      * 설비 ID로 메타 정보를 조회합니다.
@@ -271,6 +285,48 @@ public class GatewayIngressService {
         return equipmentInfoProvider.findById(equipmentId).orElseThrow(
                 () -> new IllegalArgumentException("No equipment found for eqpId=" + equipmentId)
         );
+    }
+
+    /**
+     * `eqpId`를 MDC에 바인딩한 상태로 task를 실행합니다.
+     *
+     * <p>eqp 라우팅 로그(`GW_EQP_RX_MAILBOX_ENQUEUED` 등)가 app 로그로 새지 않고
+     * eqp 로그 파일로 기록되도록 보장합니다.</p>
+     *
+     * @param eqpId MDC에 바인딩할 장비 ID
+     * @param task MDC 스코프 내부에서 실행할 작업
+     */
+    private void withEqpLogContext(final String eqpId, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (eqpId == null || eqpId.isBlank()) {
+            task.run();
+            return;
+        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpId(eqpId)) {
+            task.run();
+        }
+    }
+
+    /**
+     * Runs a task with both `eqpId` and `traceId` bound to MDC.
+     *
+     * @param eqpId equipment id to bind into MDC
+     * @param traceId trace id to bind into MDC
+     * @param task task to execute inside the MDC scope
+     */
+    private void withEqpAndTraceLogContext(final String eqpId, final String traceId, final Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (eqpId == null || eqpId.isBlank()) {
+            task.run();
+            return;
+        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(eqpId, traceId)) {
+            task.run();
+        }
     }
 
     /**

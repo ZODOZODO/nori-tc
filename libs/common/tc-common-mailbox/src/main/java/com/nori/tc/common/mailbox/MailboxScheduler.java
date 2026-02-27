@@ -117,9 +117,9 @@ public final class MailboxScheduler<T extends MailboxTask> {
 
         if (!mailbox.inFlightFlag().get() && mailbox.scheduledFlag().compareAndSet(false, true)) {
             readyQueue.offer(routingKey);
-            if (log.isDebugEnabled()) {
-                withRoutingKeyLogContext(routingKey, () -> log.debug(
-                        "Routing key registered to ReadyQueue. routingKey={}, mailboxSize={}",
+            if (log.isTraceEnabled()) {
+                withRoutingKeyLogContext(routingKey, () -> log.trace(
+                        "MBX_READY_KEY_ENQUEUED. routingKey={}, mailboxSize={}",
                         routingKey,
                         mailbox.size()
                 ));
@@ -171,9 +171,9 @@ public final class MailboxScheduler<T extends MailboxTask> {
             return null;
         }
 
-        if (log.isDebugEnabled()) {
-            withRoutingKeyLogContext(routingKey, () -> log.debug(
-                    "Mailbox acquire granted. routingKey={}, mailboxSize={}",
+        if (log.isTraceEnabled()) {
+            withRoutingKeyLogContext(routingKey, () -> log.trace(
+                    "MBX_ACQUIRE_GRANTED. routingKey={}, mailboxSize={}",
                     routingKey,
                     mailbox.size()
             ));
@@ -206,9 +206,9 @@ public final class MailboxScheduler<T extends MailboxTask> {
             return;
         }
 
-        if (log.isDebugEnabled()) {
-            withRoutingKeyLogContext(routingKey, () -> log.debug(
-                    "Mailbox release completed. routingKey={}, remainingSize={}",
+        if (log.isTraceEnabled()) {
+            withRoutingKeyLogContext(routingKey, () -> log.trace(
+                    "MBX_RELEASE_DONE. routingKey={}, remainingSize={}",
                     routingKey,
                     mailbox.size()
             ));

@@ -129,7 +129,7 @@ public final class EquipmentMailboxRegistry {
             }
             return;
         }
-        log.info("Mailbox removed. eqpId={}", eqpId);
+        log.info("GW_MBX_UNBOUND. reason=REMOVE, eqpId={}", eqpId);
     }
 
     /**
@@ -171,7 +171,7 @@ public final class EquipmentMailboxRegistry {
 
         final boolean removed = mailboxes.remove(eqpId, mailbox);
         if (removed) {
-            log.info("Mailbox removed (match). eqpId={}", eqpId);
+            log.info("GW_MBX_UNBOUND. reason=REMOVE_MATCH, eqpId={}", eqpId);
             return true;
         }
 

@@ -85,6 +85,7 @@ public class BusinessKafkaInboundRecordMapper {
         if (eqpId == null) {
             throw new IllegalArgumentException("eqpId is required in Kafka payload");
         }
+        final String traceId = resolveTraceIdForRecord(record.topic(), envelope.metadata());
 
         // 6) Kafka key 정책(MES=correlationId, 그 외=eqpId) 준수 여부를 검증합니다.
         contractSupport.verifyKafkaRecordKey(
@@ -100,17 +101,19 @@ public class BusinessKafkaInboundRecordMapper {
                 record.partition(),
                 record.offset(),
                 eqpId,
+                traceId,
                 messageType,
                 envelope.metadata().eventType(),
                 payloadRef,
                 payload
         );
 
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka inbound record mapped. topic={}, key={}, eqpId={}, eventType={}, partition={}, offset={}",
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka inbound record mapped. topic={}, key={}, eqpId={}, traceId={}, eventType={}, partition={}, offset={}",
                     record.topic(),
                     record.key(),
                     mapped.eqpId(),
+                    mapped.traceId(),
                     mapped.messageName(),
                     mapped.partition(),
                     mapped.offset());
@@ -181,8 +184,8 @@ public class BusinessKafkaInboundRecordMapper {
         if (messageType != BusinessMessageType.MES) {
             final String fromKey = normalize(record.key());
             if (fromKey != null) {
-                if (log.isDebugEnabled()) {
-                    log.debug("eqpId fallback to Kafka key. topic={}, partition={}, offset={}, key={}",
+                if (log.isTraceEnabled()) {
+                    log.trace("eqpId fallback to Kafka key. topic={}, partition={}, offset={}, key={}",
                             record.topic(),
                             record.partition(),
                             record.offset(),
@@ -193,6 +196,42 @@ public class BusinessKafkaInboundRecordMapper {
         }
 
         return null;
+    }
+
+    /**
+     * Business 내부 생명주기 로깅에 사용할 traceId를 결정합니다.
+     *
+     * <p>정책:</p>
+     * <p>1) 비-MES 토픽: metadata.traceId 사용</p>
+     * <p>2) MES 토픽: metadata.correlationId를 내부 traceId로 매핑</p>
+     * <p>3) 결과가 비어 있으면 즉시 예외로 실패</p>
+     *
+     * @param topic 수신 topic
+     * @param metadata 검증 완료된 Kafka metadata
+     * @return 내부 생명주기 추적용 traceId
+     */
+    private String resolveTraceIdForRecord(final String topic, final TcKafkaMetadata metadata) {
+        Objects.requireNonNull(metadata, "metadata is null");
+
+        if (TcKafkaTopics.isMesTopic(topic)) {
+            if (metadata instanceof TcMesKafkaMetadata mesMetadata) {
+                final String traceId = normalize(mesMetadata.correlationId());
+                if (traceId == null) {
+                    throw new IllegalArgumentException("correlationId is required for MES topic trace lifecycle");
+                }
+                return traceId;
+            }
+            throw new IllegalArgumentException("MES topic metadata must be TcMesKafkaMetadata");
+        }
+
+        if (metadata instanceof TcCommonKafkaMetadata commonMetadata) {
+            final String traceId = normalize(commonMetadata.traceId());
+            if (traceId == null) {
+                throw new IllegalArgumentException("traceId is required for non-MES topic trace lifecycle");
+            }
+            return traceId;
+        }
+        throw new IllegalArgumentException("Non-MES topic metadata must be TcCommonKafkaMetadata");
     }
 
     /**

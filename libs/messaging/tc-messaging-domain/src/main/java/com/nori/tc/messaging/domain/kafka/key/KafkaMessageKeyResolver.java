@@ -36,15 +36,15 @@ public final class KafkaMessageKeyResolver {
         validateTopic(topic);
         if (TcKafkaTopics.isMesTopic(topic)) {
             final String normalizedCorrelationId = normalizeRequired(correlationId, "correlationId");
-            if (log.isDebugEnabled()) {
-                log.debug("Kafka key resolved by correlationId. topic={}, key={}", topic, normalizedCorrelationId);
+            if (log.isTraceEnabled()) {
+                log.trace("Kafka key resolved by correlationId. topic={}, key={}", topic, normalizedCorrelationId);
             }
             return normalizedCorrelationId;
         }
 
         final String normalizedEqpId = normalizeRequired(eqpid, "eqpid");
-        if (log.isDebugEnabled()) {
-            log.debug("Kafka key resolved by eqpid. topic={}, key={}", topic, normalizedEqpId);
+        if (log.isTraceEnabled()) {
+            log.trace("Kafka key resolved by eqpid. topic={}, key={}", topic, normalizedEqpId);
         }
         return normalizedEqpId;
     }
@@ -103,4 +103,3 @@ public final class KafkaMessageKeyResolver {
         return value.trim();
     }
 }
-

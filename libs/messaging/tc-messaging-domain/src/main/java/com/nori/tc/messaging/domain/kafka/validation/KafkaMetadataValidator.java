@@ -111,8 +111,8 @@ public final class KafkaMetadataValidator {
         }
 
         if (failures.isEmpty()) {
-            if (log.isDebugEnabled()) {
-                log.debug("Kafka metadata validation passed. topic={}, eventType={}, source={}, schemaVersion={}",
+            if (log.isTraceEnabled()) {
+                log.trace("Kafka metadata validation passed. topic={}, eventType={}, source={}, schemaVersion={}",
                         topic, metadata.eventType(), metadata.source(), metadata.schemaVersion());
             }
             return List.of();
@@ -177,4 +177,3 @@ public final class KafkaMetadataValidator {
         }
     }
 }
-

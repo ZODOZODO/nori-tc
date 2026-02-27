@@ -124,8 +124,8 @@ public final class KafkaSchemaVersionPolicy {
             ));
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("schemaVersion validation passed. topic={}, schemaVersion={}", normalizedTopic, normalizedVersion);
+        if (log.isTraceEnabled()) {
+            log.trace("schemaVersion validation passed. topic={}, schemaVersion={}", normalizedTopic, normalizedVersion);
         }
         return Optional.empty();
     }
@@ -147,4 +147,3 @@ public final class KafkaSchemaVersionPolicy {
         return normalized;
     }
 }
-

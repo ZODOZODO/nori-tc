@@ -3,6 +3,7 @@ package com.nori.tc.comm.adapters.kafka.publish;
 import com.nori.tc.comm.adapters.kafka.config.GatewayKafkaTopicProperties;
 import com.nori.tc.comm.adapters.kafka.contract.GatewayKafkaContractSupport;
 import com.nori.tc.comm.core.port.ClockPort;
+import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.contract.KafkaHeaderSupport;
@@ -111,75 +112,278 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
         final String topic = topicProperties.getUiCommands();
         final String key = request.data().eqpId();
 
-        try {
-            contractSupport.validateUiTaskCommandRecord(topic, key, payload);
-        } catch (IllegalArgumentException ex) {
-            log.error(
-                    "UI reply publish blocked by contract validation. topic={}, eqpId={}, traceId={}, eventType={}",
-                    topic,
-                    key,
-                    request.metadata().traceId(),
-                    replyEventType,
-                    ex
-            );
-            throw new IllegalStateException("UI reply payload validation failed", ex);
-        }
+        try (GatewayLogContext ignored = GatewayLogContext.withEqpAndTraceId(key, metadata.traceId())) {
+            try {
+                contractSupport.validateUiTaskCommandRecord(topic, key, payload);
+            } catch (IllegalArgumentException ex) {
+                log.warn(
+                        "<warn UI validate : reason={}> topic={}, eqpId={}, traceId={}, eventType={}",
+                        "{\"code\":\"CONTRACT_VALIDATION_FAILED\"}",
+                        topic,
+                        key,
+                        request.metadata().traceId(),
+                        replyEventType,
+                        ex
+                );
+                throw new IllegalStateException("UI reply payload validation failed", ex);
+            }
 
-        final ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, payload);
-        KafkaHeaderSupport.addTracingHeaders(
-                record,
-                metadata.traceId(),
-                metadata.eventType(),
-                metadata.source()
+            final ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, payload);
+            KafkaHeaderSupport.addTracingHeaders(
+                    record,
+                    metadata.traceId(),
+                    metadata.eventType(),
+                    metadata.source()
+            );
+
+            final long sendStartNano = System.nanoTime();
+            logUiSendAttempt(topic, key, payload);
+
+            try {
+                kafkaTemplate.send(record).whenComplete((sendResult, ex) -> {
+                    try (GatewayLogContext callbackContext = GatewayLogContext.withEqpAndTraceId(key, metadata.traceId())) {
+                        if (ex != null) {
+                            logUiSendCompleted(topic, key, payload, result.status().name(), "KAFKA_PUBLISH_EXCEPTION", -1L);
+                            log.error(
+                                    "UI reply publish failed asynchronously. topic={}, eqpId={}, traceId={}, eventType={}",
+                                    topic,
+                                    key,
+                                    request.metadata().traceId(),
+                                    replyEventType,
+                                    ex
+                            );
+                            return;
+                        }
+
+                        logUiSendCompleted(
+                                topic,
+                                key,
+                                payload,
+                                result.status().name(),
+                                "KAFKA_PUBLISHED",
+                                elapsedMillis(sendStartNano)
+                        );
+                    }
+                });
+            } catch (Exception ex) {
+                logUiSendCompleted(topic, key, payload, result.status().name(), "SCHEDULE_FAILED", -1L);
+                log.error(
+                        "UI reply publish scheduling failed. topic={}, eqpId={}, traceId={}, eventType={}",
+                        topic,
+                        key,
+                        request.metadata().traceId(),
+                        replyEventType,
+                        ex
+                );
+                throw new IllegalStateException("Failed to schedule UI reply publish", ex);
+            }
+        }
+    }
+
+    /**
+     * UI Kafka 발행 시도 로그를 INFO 레벨로 출력합니다.
+     *
+     * @param topic 대상 topic
+     * @param key Kafka key(eqpId)
+     * @param payload UI reply payload
+     */
+    private void logUiSendAttempt(
+            final String topic,
+            final String key,
+            final KafkaUiTaskReplyMessage payload
+    ) {
+        if (payload == null) {
+            return;
+        }
+        log.info(
+                "<send UI : metadata={} data={}> topic={}, eqpId={}, traceId={}",
+                buildUiMetadataJsonForLog(payload.metadata()),
+                buildUiDataJsonForLog(payload.data()),
+                safeLogText(topic),
+                safeLogText(key),
+                safeLogText(payload.metadata() == null ? null : payload.metadata().traceId())
         );
+    }
 
-        if (log.isDebugEnabled()) {
-            log.debug(
-                    "UI reply publish requested. topic={}, eqpId={}, traceId={}, eventType={}, status={}",
-                    topic,
-                    key,
-                    request.metadata().traceId(),
-                    replyEventType,
-                    result.status()
-            );
+    /**
+     * UI Kafka 발행 완료(성공/실패) 로그를 INFO 레벨로 출력합니다.
+     *
+     * @param topic 대상 topic
+     * @param key Kafka key(eqpId)
+     * @param payload UI reply payload
+     * @param status UI reply status
+     * @param reason 결과 사유
+     * @param latencyMs 발행 지연 시간(ms), 미측정 시 음수
+     */
+    private void logUiSendCompleted(
+            final String topic,
+            final String key,
+            final KafkaUiTaskReplyMessage payload,
+            final String status,
+            final String reason,
+            final long latencyMs
+    ) {
+        log.info(
+                "<done UI send : result={}> topic={}, eqpId={}, traceId={}, eventType={}, status={}, latencyMs={}",
+                buildUiSendResultJsonForLog(status, reason),
+                safeLogText(topic),
+                safeLogText(key),
+                safeLogText(payload == null || payload.metadata() == null ? null : payload.metadata().traceId()),
+                safeLogText(payload == null || payload.metadata() == null ? null : payload.metadata().eventType()),
+                safeLogText(status),
+                latencyMs
+        );
+    }
+
+    /**
+     * UI reply metadata를 로그용 JSON으로 요약합니다.
+     *
+     * @param metadata UI reply metadata
+     * @return 로그용 JSON 문자열
+     */
+    private static String buildUiMetadataJsonForLog(final KafkaUiTaskMessage.KafkaUiTaskMetadata metadata) {
+        final StringBuilder sb = new StringBuilder(160);
+        sb.append('{');
+        appendJsonStringField(sb, "eventType", metadata == null ? null : metadata.eventType(), false);
+        appendJsonStringField(sb, "traceId", metadata == null ? null : metadata.traceId(), true);
+        appendJsonStringField(sb, "source", metadata == null ? null : metadata.source(), true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * UI reply data를 로그용 JSON으로 요약합니다.
+     *
+     * @param data UI reply data
+     * @return 로그용 JSON 문자열
+     */
+    private static String buildUiDataJsonForLog(final KafkaUiTaskReplyMessage.KafkaUiTaskReplyData data) {
+        final StringBuilder sb = new StringBuilder(192);
+        sb.append('{');
+        appendJsonStringField(sb, "eqpId", data == null ? null : data.eqpId(), false);
+        appendJsonStringField(sb, "interfaceType", data == null ? null : data.interfaceType(), true);
+        appendJsonStringField(sb, "status", data == null ? null : data.STATUS(), true);
+        appendJsonStringField(sb, "errorCode", data == null ? null : data.ERRORCODE(), true);
+        appendJsonStringField(sb, "errorMessagePreview",
+                previewForLog(data == null ? null : data.ERRORMSG(), 160), true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * UI 발행 완료 결과를 로그용 JSON으로 구성합니다.
+     *
+     * @param status UI 처리 결과 상태
+     * @param reason 발행 결과 사유
+     * @return 로그용 JSON 문자열
+     */
+    private static String buildUiSendResultJsonForLog(final String status, final String reason) {
+        final StringBuilder sb = new StringBuilder(80);
+        sb.append('{');
+        appendJsonStringField(sb, "status", status, false);
+        appendJsonStringField(sb, "reason", reason, true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * 단일 줄 로그 가독성을 위한 문자열 미리보기를 생성합니다.
+     *
+     * @param value 원본 문자열
+     * @param limit 최대 길이
+     * @return 미리보기 문자열
+     */
+    private static String previewForLog(final String value, final int limit) {
+        final String normalized = normalizeNullable(value);
+        if (normalized == null) {
+            return null;
         }
-
-        try {
-            kafkaTemplate.send(record).whenComplete((sendResult, ex) -> {
-                if (ex != null) {
-                    log.error(
-                            "UI reply publish failed asynchronously. topic={}, eqpId={}, traceId={}, eventType={}",
-                            topic,
-                            key,
-                            request.metadata().traceId(),
-                            replyEventType,
-                            ex
-                    );
-                    return;
-                }
-
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "UI reply published asynchronously. topic={}, eqpId={}, traceId={}, eventType={}, status={}",
-                            topic,
-                            key,
-                            request.metadata().traceId(),
-                            replyEventType,
-                            result.status()
-                    );
-                }
-            });
-        } catch (Exception ex) {
-            log.error(
-                    "UI reply publish scheduling failed. topic={}, eqpId={}, traceId={}, eventType={}",
-                    topic,
-                    key,
-                    request.metadata().traceId(),
-                    replyEventType,
-                    ex
-            );
-            throw new IllegalStateException("Failed to schedule UI reply publish", ex);
+        if (limit <= 0 || normalized.length() <= limit) {
+            return normalized;
         }
+        return normalized.substring(0, limit) + "...(truncated)";
+    }
+
+    /**
+     * 로그용 JSON 문자열에 문자열 필드를 추가합니다.
+     *
+     * @param sb 대상 버퍼
+     * @param fieldName 필드명
+     * @param value 필드값
+     * @param prependComma 앞에 콤마를 붙일지 여부
+     */
+    private static void appendJsonStringField(
+            final StringBuilder sb,
+            final String fieldName,
+            final String value,
+            final boolean prependComma
+    ) {
+        if (prependComma) {
+            sb.append(',');
+        }
+        sb.append('"').append(escapeJson(fieldName)).append("\":");
+        if (value == null) {
+            sb.append("null");
+            return;
+        }
+        sb.append('"').append(escapeJson(value)).append('"');
+    }
+
+    /**
+     * JSON 문자열 값 escape 처리 유틸리티입니다.
+     *
+     * @param value 원본 문자열
+     * @return JSON 안전 문자열
+     */
+    private static String escapeJson(final String value) {
+        if (value == null) {
+            return "null";
+        }
+        final StringBuilder escaped = new StringBuilder(value.length() + 16);
+        for (int i = 0; i < value.length(); i++) {
+            final char ch = value.charAt(i);
+            switch (ch) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\r' -> escaped.append("\\r");
+                case '\n' -> escaped.append("\\n");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (Character.isISOControl(ch)) {
+                        escaped.append("\\u");
+                        final String hex = String.format("%04X", (int) ch);
+                        escaped.append(hex);
+                    } else {
+                        escaped.append(ch);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
+    }
+
+    /**
+     * 운영 로그 출력용 null/blank 치환 유틸리티입니다.
+     *
+     * @param value 원본 문자열
+     * @return 로그 표시 문자열
+     */
+    private static String safeLogText(final String value) {
+        final String normalized = normalizeNullable(value);
+        return normalized == null ? "N/A" : normalized;
+    }
+
+    /**
+     * nanoTime 기준 경과 시간을 ms로 변환합니다.
+     *
+     * @param startNano 시작 시각(nanoTime)
+     * @return 경과 시간(ms)
+     */
+    private static long elapsedMillis(final long startNano) {
+        if (startNano <= 0L) {
+            return -1L;
+        }
+        return Math.max(0L, (System.nanoTime() - startNano) / 1_000_000L);
     }
 
     /**

@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * {@link BusinessWorkflowActionRegistryBuilder} ?⑥쐞 ?뚯뒪?몄엯?덈떎.
+ * {@link BusinessWorkflowActionRegistryBuilder} 단위 테스트입니다.
  */
 class BusinessWorkflowActionRegistryBuilderTest {
 
@@ -34,9 +34,9 @@ class BusinessWorkflowActionRegistryBuilderTest {
         final AtomicInteger counter = new AtomicInteger(0);
         final AbstractSocketActionExecutor executor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("SOCKET_TEST_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -60,9 +60,9 @@ class BusinessWorkflowActionRegistryBuilderTest {
     void shouldThrowWhenDuplicateActionKeyIsRegistered() {
         final AbstractSocketActionExecutor first = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("DUP_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -71,9 +71,9 @@ class BusinessWorkflowActionRegistryBuilderTest {
         };
         final AbstractSocketActionExecutor second = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @param context ?낅젰 媛?             */
+             * @param context 입력 값             */
 
             @TcAction("DUP_ACTION")
             public void execute(final BusinessWorkflowActionContext context) {
@@ -94,9 +94,9 @@ class BusinessWorkflowActionRegistryBuilderTest {
     void shouldThrowWhenTcActionMethodSignatureIsInvalid() {
         final AbstractSocketActionExecutor invalidExecutor = new AbstractSocketActionExecutor() {
             /**
-             * execute 湲곕뒫???섑뻾?⑸땲??
+             * execute 기능을 수행합니다.
              *
-             * @return 泥섎━ 寃곌낵
+             * @return 처리 결과
              */
 
             @TcAction("INVALID_SIG")
@@ -113,7 +113,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
     }
 
     /**
-     * ?≪뀡 ?몄텧 ?뚯뒪?몄슜 而⑦뀓?ㅽ듃瑜??앹꽦?⑸땲??
+     * 액션 호출 테스트용 컨텍스트를 생성합니다.
      */
     private static BusinessWorkflowActionContext createContext() {
         final BusinessInboundRecord record = new BusinessInboundRecord(
@@ -121,6 +121,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
                 0,
                 1L,
                 "EQP-CTX-01",
+                "TRACE-CTX-01",
                 BusinessMessageType.EQP,
                 "SOCKET_IN",
                 "payload://ctx/1",
@@ -154,7 +155,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
     }
 
     /**
-     * ?뚯뒪?몄슜 model runtime???앹꽦?⑸땲??
+     * 테스트용 model runtime을 생성합니다.
      */
     private static TcModelRuntime createRuntime() {
         final OffsetDateTime now = OffsetDateTime.now();

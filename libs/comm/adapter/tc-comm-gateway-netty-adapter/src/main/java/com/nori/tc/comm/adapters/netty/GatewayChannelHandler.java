@@ -5,6 +5,7 @@ import com.nori.tc.comm.gateway.config.props.GatewayNettyProperties;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import com.nori.tc.comm.gateway.observability.logging.GatewayLogSampler;
+import com.nori.tc.comm.gateway.observability.logging.GatewayObservationLogger;
 import com.nori.tc.comm.gateway.observability.metrics.GatewayMetrics;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -555,23 +556,33 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         final String payloadDescription = SocketWirePayloadLogFormatter.describe(payload);
         final String eqpIdForLog = resolveLogEqpId(channel);
         final String remoteAddress = String.valueOf(channel.remoteAddress());
+        final boolean bound = state != BindState.UNBOUND;
 
         withEqpLogContext(eqpIdForLog, () -> {
-            if (state == BindState.UNBOUND) {
-                log.info(
-                        "SOCKET_WIRE_RX_UNBOUND. presetEqpId={}, socketType={}, remote={}, payload={}",
-                        presetEqpId,
-                        socketType,
-                        remoteAddress,
-                        payloadDescription
-                );
-                return;
-            }
+            GatewayObservationLogger.logEqpWireAccepted(
+                    eqpIdForLog,
+                    interfaceType.name(),
+                    socketType,
+                    remoteAddress,
+                    payload.length,
+                    bound
+            );
 
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "SOCKET_WIRE_RX. eqpId={}, socketType={}, remote={}, payload={}",
-                        eqpIdForLog,
+            if (log.isTraceEnabled()) {
+                if (bound) {
+                    log.trace(
+                            "SOCKET_WIRE_RX_RAW. eqpId={}, socketType={}, remote={}, payload={}",
+                            eqpIdForLog,
+                            socketType,
+                            remoteAddress,
+                            payloadDescription
+                    );
+                    return;
+                }
+
+                log.trace(
+                        "SOCKET_WIRE_RX_UNBOUND_RAW. presetEqpId={}, socketType={}, remote={}, payload={}",
+                        presetEqpId,
                         socketType,
                         remoteAddress,
                         payloadDescription

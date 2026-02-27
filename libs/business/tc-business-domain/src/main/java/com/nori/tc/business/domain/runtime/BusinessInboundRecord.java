@@ -19,6 +19,7 @@ public record BusinessInboundRecord(
         int partition,
         long offset,
         String eqpId,
+        String traceId,
         BusinessMessageType messageType,
         String messageName,
         String payloadRef,
@@ -40,6 +41,9 @@ public record BusinessInboundRecord(
         }
         if (eqpId == null || eqpId.isBlank()) {
             throw new IllegalArgumentException("eqpId is required");
+        }
+        if (traceId == null || traceId.isBlank()) {
+            throw new IllegalArgumentException("traceId is required");
         }
         Objects.requireNonNull(messageType, "messageType is null");
         if (messageName == null || messageName.isBlank()) {
