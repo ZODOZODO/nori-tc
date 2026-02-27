@@ -399,7 +399,19 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
                             record.topic(), record.eqpId(), record.partition(), record.offset());
                     recordDisposition(record, BusinessRuntimeDisposition.DLQ, "MAILBOX_ENQUEUE_OVERFLOW");
                     emitAck(record, AckStatus.DLQ);
+                    continue;
                 }
+                BusinessObservationLogger.logRxMailboxEnqueued(
+                        record.messageType() == null ? null : record.messageType().name(),
+                        record.topic(),
+                        record.partition(),
+                        record.offset(),
+                        record.eqpId(),
+                        record.traceId(),
+                        mailboxQueueDepth(record.eqpId()),
+                        mailboxScheduler.mailboxCount(),
+                        mailboxScheduler.readyQueueSize()
+                );
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 return;
@@ -877,6 +889,23 @@ public class BusinessRuntimeEngine implements SmartLifecycle, BusinessTaskIngres
 
     private static long now() {
         return System.currentTimeMillis();
+    }
+
+    /**
+     * Returns the current mailbox queue depth for a routing key.
+     *
+     * <p>This helper is used only for observability logging and must never
+     * affect runtime control flow.</p>
+     *
+     * @param routingKey mailbox routing key(eqpId)
+     * @return queue depth for the routing key, or {@code 0} when absent
+     */
+    private int mailboxQueueDepth(final String routingKey) {
+        if (routingKey == null || routingKey.isBlank()) {
+            return 0;
+        }
+        final var mailbox = mailboxScheduler.getMailbox(routingKey);
+        return mailbox == null ? 0 : mailbox.size();
     }
 
     /**

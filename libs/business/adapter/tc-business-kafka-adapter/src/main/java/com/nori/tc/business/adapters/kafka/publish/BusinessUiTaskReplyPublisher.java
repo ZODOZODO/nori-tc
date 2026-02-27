@@ -2,6 +2,7 @@ package com.nori.tc.business.adapters.kafka.publish;
 
 import com.nori.tc.business.adapters.kafka.config.BusinessUiTaskPolicyProperties;
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
+import com.nori.tc.business.core.logging.BusinessObservationLogger;
 import com.nori.tc.common.task.execution.pipeline.port.KafkaTaskReplyPublisher;
 import com.nori.tc.common.task.execution.pipeline.types.KafkaTaskResult;
 import com.nori.tc.messaging.kafka.contract.KafkaHeaderSupport;
@@ -96,6 +97,14 @@ public class BusinessUiTaskReplyPublisher implements KafkaTaskReplyPublisher<Kaf
                 metadata.eventType(),
                 metadata.source()
         );
+        BusinessObservationLogger.logSend(
+                "UI",
+                buildMetadataJsonForLog(metadata),
+                buildDataJsonForLog(data),
+                topic,
+                eqpId,
+                traceId
+        );
 
         if (log.isDebugEnabled()) {
             log.debug(
@@ -171,5 +180,82 @@ public class BusinessUiTaskReplyPublisher implements KafkaTaskReplyPublisher<Kaf
             return null;
         }
         return value.trim();
+    }
+
+    /**
+     * Builds a compact metadata JSON string for operational send logs.
+     */
+    private static String buildMetadataJsonForLog(final KafkaUiTaskMessage.KafkaUiTaskMetadata metadata) {
+        final StringBuilder sb = new StringBuilder(128);
+        sb.append('{');
+        appendJsonField(sb, "eventType", metadata == null ? null : metadata.eventType(), false);
+        appendJsonField(sb, "traceId", metadata == null ? null : metadata.traceId(), true);
+        appendJsonField(sb, "source", metadata == null ? null : metadata.source(), true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * Builds a compact payload JSON string for operational send logs.
+     */
+    private static String buildDataJsonForLog(final KafkaUiTaskReplyMessage.KafkaUiTaskReplyData data) {
+        final StringBuilder sb = new StringBuilder(192);
+        sb.append('{');
+        appendJsonField(sb, "eqpId", data == null ? null : data.eqpId(), false);
+        appendJsonField(sb, "interfaceType", data == null ? null : data.interfaceType(), true);
+        appendJsonField(sb, "status", data == null ? null : data.STATUS(), true);
+        appendJsonField(sb, "errorCode", data == null ? null : data.ERRORCODE(), true);
+        appendJsonField(sb, "errorMessage", data == null ? null : data.ERRORMSG(), true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * Appends one JSON field into a mutable buffer.
+     */
+    private static void appendJsonField(
+            final StringBuilder sb,
+            final String key,
+            final String value,
+            final boolean prependComma
+    ) {
+        if (prependComma) {
+            sb.append(',');
+        }
+        sb.append('"').append(escapeJson(key)).append("\":");
+        if (value == null) {
+            sb.append("null");
+            return;
+        }
+        sb.append('"').append(escapeJson(value)).append('"');
+    }
+
+    /**
+     * Escapes control characters so generated JSON remains parse-safe.
+     */
+    private static String escapeJson(final String value) {
+        if (value == null) {
+            return "null";
+        }
+        final StringBuilder escaped = new StringBuilder(value.length() + 16);
+        for (int i = 0; i < value.length(); i++) {
+            final char ch = value.charAt(i);
+            switch (ch) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\r' -> escaped.append("\\r");
+                case '\n' -> escaped.append("\\n");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (Character.isISOControl(ch)) {
+                        escaped.append("\\u");
+                        escaped.append(String.format("%04X", (int) ch));
+                    } else {
+                        escaped.append(ch);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
     }
 }

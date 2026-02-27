@@ -67,6 +67,17 @@ public class BusinessEqpEventKafkaSubscriber {
                 inboundRecord.eqpId(),
                 inboundRecord.traceId()
         )) {
+            BusinessObservationLogger.logReceivedMessage(
+                    "EQP",
+                    inboundRecord.messageName(),
+                    inboundRecord.topic(),
+                    inboundRecord.partition(),
+                    inboundRecord.offset(),
+                    inboundRecord.eqpId(),
+                    inboundRecord.traceId(),
+                    inboundRecord.payload()
+            );
+
             final boolean accepted = ingressPort.submit(inboundRecord);
             if (!accepted) {
                 throw new IllegalStateException(
@@ -86,7 +97,7 @@ public class BusinessEqpEventKafkaSubscriber {
                     inboundRecord.eqpId(),
                     inboundRecord.traceId(),
                     inboundRecord.messageName(),
-                    null
+                    "EQP"
             );
         }
     }

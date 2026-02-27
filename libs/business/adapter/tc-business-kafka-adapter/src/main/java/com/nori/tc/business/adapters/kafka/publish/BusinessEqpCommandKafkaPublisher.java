@@ -3,6 +3,7 @@ package com.nori.tc.business.adapters.kafka.publish;
 import com.nori.tc.business.adapters.kafka.contract.BusinessKafkaContractSupport;
 import com.nori.tc.business.adapters.kafka.publish.contract.BusinessEqpCommandKafkaMessage;
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
+import com.nori.tc.business.core.logging.BusinessObservationLogger;
 import com.nori.tc.business.core.messaging.BusinessEqpCommandMessage;
 import com.nori.tc.business.core.messaging.BusinessEqpCommandPublishPort;
 import com.nori.tc.business.core.messaging.BusinessEqpRoutePartitionLookupPort;
@@ -132,6 +133,24 @@ public class BusinessEqpCommandKafkaPublisher implements BusinessEqpCommandPubli
                 metadata.source()
         );
 
+        BusinessObservationLogger.logSend(
+                "EQP",
+                buildMetadataJsonForLog(
+                        metadata.eventType(),
+                        metadata.traceId(),
+                        metadata.source()
+                ),
+                buildEqpDataJsonForLog(
+                        command.eqpId(),
+                        command.interfaceType(),
+                        command.rawMessage(),
+                        command.transactionId()
+                ),
+                topic,
+                command.eqpId(),
+                metadata.traceId()
+        );
+
         log.debug("EQP 명령 발행 준비 완료. topic={}, partition={}, key={}, eqpId={}, eventType={}, traceId={}, interfaceType={}",
                 topic,
                 routePartition,
@@ -240,5 +259,104 @@ public class BusinessEqpCommandKafkaPublisher implements BusinessEqpCommandPubli
                     traceId);
         }
         return routePartition;
+    }
+
+    /**
+     * Builds a compact JSON string for metadata logging.
+     */
+    private static String buildMetadataJsonForLog(
+            final String eventType,
+            final String traceId,
+            final String source
+    ) {
+        final StringBuilder sb = new StringBuilder(128);
+        sb.append('{');
+        appendJsonField(sb, "eventType", eventType, false);
+        appendJsonField(sb, "traceId", traceId, true);
+        appendJsonField(sb, "source", source, true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * Builds a compact JSON string for payload data logging.
+     */
+    private static String buildEqpDataJsonForLog(
+            final String eqpId,
+            final String interfaceType,
+            final String rawMessage,
+            final String transactionId
+    ) {
+        final StringBuilder sb = new StringBuilder(256);
+        sb.append('{');
+        appendJsonField(sb, "eqpId", eqpId, false);
+        appendJsonField(sb, "interfaceType", interfaceType, true);
+        appendJsonField(sb, "transactionId", transactionId, true);
+        appendJsonField(sb, "rawMessagePreview", previewForLog(rawMessage, 256), true);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * Trims and bounds a potentially large text payload for INFO logs.
+     */
+    private static String previewForLog(final String value, final int limit) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        final String normalized = value.trim();
+        if (limit <= 0 || normalized.length() <= limit) {
+            return normalized;
+        }
+        return normalized.substring(0, limit) + "...(truncated)";
+    }
+
+    /**
+     * Appends one JSON string field into a mutable buffer.
+     */
+    private static void appendJsonField(
+            final StringBuilder sb,
+            final String key,
+            final String value,
+            final boolean prependComma
+    ) {
+        if (prependComma) {
+            sb.append(',');
+        }
+        sb.append('"').append(escapeJson(key)).append("\":");
+        if (value == null) {
+            sb.append("null");
+            return;
+        }
+        sb.append('"').append(escapeJson(value)).append('"');
+    }
+
+    /**
+     * Escapes control characters so the built JSON stays parse-safe.
+     */
+    private static String escapeJson(final String value) {
+        if (value == null) {
+            return "null";
+        }
+        final StringBuilder escaped = new StringBuilder(value.length() + 16);
+        for (int i = 0; i < value.length(); i++) {
+            final char ch = value.charAt(i);
+            switch (ch) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\r' -> escaped.append("\\r");
+                case '\n' -> escaped.append("\\n");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (Character.isISOControl(ch)) {
+                        escaped.append("\\u");
+                        escaped.append(String.format("%04X", (int) ch));
+                    } else {
+                        escaped.append(ch);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
     }
 }

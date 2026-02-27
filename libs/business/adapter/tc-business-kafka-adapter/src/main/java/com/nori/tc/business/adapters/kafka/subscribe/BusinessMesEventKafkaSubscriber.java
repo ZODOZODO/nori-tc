@@ -2,6 +2,7 @@ package com.nori.tc.business.adapters.kafka.subscribe;
 
 import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.nori.tc.business.core.logging.BusinessObservationLogger;
+import com.nori.tc.business.core.logging.BusinessTraceIdGenerator;
 import com.nori.tc.business.core.runtime.BusinessTaskIngressPort;
 import com.nori.tc.business.domain.runtime.BusinessInboundRecord;
 import com.nori.tc.business.domain.runtime.BusinessMessageType;
@@ -62,11 +63,32 @@ public class BusinessMesEventKafkaSubscriber {
      */
 
     public void onMessage(final ConsumerRecord<String, String> record) throws Exception {
-        final BusinessInboundRecord inboundRecord = recordMapper.map(record, BusinessMessageType.MES);
+        final BusinessInboundRecord mappedRecord = recordMapper.map(record, BusinessMessageType.MES);
+        /*
+         * MES inbound traceId policy:
+         * - Kafka correlationId는 메시지 계약/키 검증에 사용합니다.
+         * - Business 내부 처리 생명주기 traceId는 구독 직후 신규 발급하여
+         *   mailbox enqueue 이전부터 일관되게 추적합니다.
+         */
+        final BusinessInboundRecord inboundRecord = withTraceId(
+                mappedRecord,
+                BusinessTraceIdGenerator.newTraceId()
+        );
         try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(
                 inboundRecord.eqpId(),
                 inboundRecord.traceId()
         )) {
+            BusinessObservationLogger.logReceivedMessage(
+                    "MES",
+                    inboundRecord.messageName(),
+                    inboundRecord.topic(),
+                    inboundRecord.partition(),
+                    inboundRecord.offset(),
+                    inboundRecord.eqpId(),
+                    inboundRecord.traceId(),
+                    inboundRecord.payload()
+            );
+
             final boolean accepted = ingressPort.submit(inboundRecord);
             if (!accepted) {
                 throw new IllegalStateException(
@@ -86,8 +108,32 @@ public class BusinessMesEventKafkaSubscriber {
                     inboundRecord.eqpId(),
                     inboundRecord.traceId(),
                     inboundRecord.messageName(),
-                    null
+                    "MES"
             );
         }
+    }
+
+    /**
+     * Creates a copy of an inbound record with a replaced traceId.
+     *
+     * @param source source record mapped from Kafka payload
+     * @param traceId newly generated business runtime traceId
+     * @return copied record with the new traceId
+     */
+    private static BusinessInboundRecord withTraceId(
+            final BusinessInboundRecord source,
+            final String traceId
+    ) {
+        return new BusinessInboundRecord(
+                source.topic(),
+                source.partition(),
+                source.offset(),
+                source.eqpId(),
+                traceId,
+                source.messageType(),
+                source.messageName(),
+                source.payloadRef(),
+                source.payload()
+        );
     }
 }

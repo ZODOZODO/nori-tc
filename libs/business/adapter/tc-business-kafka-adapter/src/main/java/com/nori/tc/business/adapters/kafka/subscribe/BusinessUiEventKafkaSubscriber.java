@@ -83,6 +83,17 @@ public class BusinessUiEventKafkaSubscriber {
                 inboundRecord.eqpId(),
                 inboundRecord.traceId()
         )) {
+            BusinessObservationLogger.logReceivedMessage(
+                    "UI",
+                    inboundRecord.messageName(),
+                    inboundRecord.topic(),
+                    inboundRecord.partition(),
+                    inboundRecord.offset(),
+                    inboundRecord.eqpId(),
+                    inboundRecord.traceId(),
+                    inboundRecord.payload()
+            );
+
             final boolean accepted = ingressPort.submit(inboundRecord);
             if (!accepted) {
                 throw new IllegalStateException(
@@ -102,7 +113,7 @@ public class BusinessUiEventKafkaSubscriber {
                     inboundRecord.eqpId(),
                     inboundRecord.traceId(),
                     inboundRecord.messageName(),
-                    null
+                    "UI"
             );
         }
     }
