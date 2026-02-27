@@ -203,7 +203,7 @@ public final class EqpSequentialProcessor {
 
             try {
                 // 1) chunk 누적
-                ctx.reassemblyBuffer().append(chunk.bytes());
+                ctx.reassemblyBuffer().append(chunk.bytes(), chunk.traceId());
 
                 // 2) 누적 버퍼에서 가능한 만큼 프레임/메시지 drain
                 final InboundProcessResult result = inboundPipelinePort.drain(ctx);

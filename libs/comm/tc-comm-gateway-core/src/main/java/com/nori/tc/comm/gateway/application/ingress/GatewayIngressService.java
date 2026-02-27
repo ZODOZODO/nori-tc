@@ -118,7 +118,7 @@ public class GatewayIngressService {
 
             // 수신 시각을 함께 저장해 후속 처리 지연/timeout 계산에 사용합니다.
             final boolean offered = mailbox.inboundQueue()
-                    .offer(new InboundChunk(payload, clockPort.nowEpochMillis()));
+                    .offer(new InboundChunk(payload, clockPort.nowEpochMillis(), inboundTraceId));
 
             metrics.recordInboundQueueDepth(equipmentId, mailbox.inboundQueue().size());
 

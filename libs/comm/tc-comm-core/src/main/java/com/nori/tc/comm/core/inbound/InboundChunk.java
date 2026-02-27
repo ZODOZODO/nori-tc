@@ -13,11 +13,15 @@ package com.nori.tc.comm.core.inbound;
  */
 public record InboundChunk(
         byte[] bytes,
-        long receivedAtEpochMs
+        long receivedAtEpochMs,
+        String traceId
 ) {
     public InboundChunk {
         if (bytes == null) {
             throw new IllegalArgumentException("bytes is required");
+        }
+        if (traceId == null || traceId.isBlank()) {
+            throw new IllegalArgumentException("traceId is required");
         }
     }
 }

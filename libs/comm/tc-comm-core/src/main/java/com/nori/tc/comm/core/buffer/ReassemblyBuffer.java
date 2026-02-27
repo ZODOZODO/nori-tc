@@ -1,43 +1,60 @@
 package com.nori.tc.comm.core.buffer;
 
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.Objects;
 
 /**
- * eqp별 수신 바이트 재조립(Reassembly) 버퍼
+ * Reassembly buffer used by the sequential EQP processor.
  *
- * 배경
- * - Netty channelRead에서는 파싱/프레이밍을 하지 않고 raw bytes chunk를 eqp별 큐에 적재만 합니다.
- * - 이후 eqp별 순차 처리 루프에서 chunk를 하나씩 꺼내어 버퍼에 누적한 후,
- *   HSMS/SOCKET 프레이밍(프레임 추출) 로직이 "완전한 프레임"이 될 때까지 버퍼를 읽습니다.
+ * <p>This buffer accumulates raw bytes from inbound chunks and exposes
+ * random-access read/copy/discard operations used by protocol frame extractors.
+ * It also tracks per-byte trace provenance so that the parser can reuse the
+ * enqueue-time traceId instead of generating a second traceId.</p>
  *
- * 설계 원칙
- * - core 엔진 레벨에서 동작하는 범용 버퍼로, Netty(ByteBuf) 등에 의존하지 않습니다.
- * - read(프레임 추출)가 완료되면 consumed 바이트를 discard 하여 메모리 폭발을 방지합니다.
- *
- * 성능 참고
- * - 매우 고성능이 필요하면 ring-buffer/DirectByteBuffer 등으로 대체할 수 있습니다.
- * - 현재 구현은 "가독성/안정성"을 우선합니다.
+ * <p>Design constraints:</p>
+ * <p>1) No dependency on Netty-specific buffer types</p>
+ * <p>2) Bounded memory with explicit maxBytes guard</p>
+ * <p>3) Deterministic provenance behavior across append/discard/clear</p>
  */
 public final class ReassemblyBuffer {
 
     /**
-     * 내부 저장 배열
-     * - head: 읽기 시작 위치
-     * - tail: 쓰기 끝 위치(미포함)
+     * Internal storage.
+     * - head: first readable byte index
+     * - tail: one-past-last readable byte index
      */
     private byte[] buffer;
     private int head;
     private int tail;
 
     /**
-     * 안전 상한(이 값을 초과하면 더 이상 append를 허용하지 않는 정책을 권장)
-     * - 폭주/비정상 입력으로 인한 OOM을 예방하기 위한 상한입니다.
+     * Hard upper memory bound for the accumulated readable bytes.
      */
     private final int maxBytes;
 
     /**
-     * @param initialCapacity 초기 버퍼 크기(최소 1)
-     * @param maxBytes       버퍼에 누적 가능한 최대 바이트(최소 1)
+     * Trace provenance segments aligned with readable bytes.
+     *
+     * <p>Each segment length is measured in bytes and segment order always
+     * matches current readable byte order in this buffer.</p>
+     */
+    private final Deque<TraceSegment> traceSegments;
+
+    /**
+     * TraceId of the last byte consumed by the latest discard operation.
+     *
+     * <p>Frame extractors can read this value immediately after they discard
+     * an extracted frame to bind the parsed message traceId.</p>
+     */
+    private String lastDiscardedTraceId;
+
+    /**
+     * Creates the reassembly buffer.
+     *
+     * @param initialCapacity initial backing array size (> 0)
+     * @param maxBytes maximum readable bytes allowed (> 0)
      */
     public ReassemblyBuffer(final int initialCapacity, final int maxBytes) {
         if (initialCapacity <= 0) {
@@ -53,51 +70,65 @@ public final class ReassemblyBuffer {
         this.maxBytes = maxBytes;
         this.head = 0;
         this.tail = 0;
+        this.traceSegments = new ArrayDeque<>();
+        this.lastDiscardedTraceId = null;
     }
 
     /**
-     * 현재 읽을 수 있는 바이트 수
+     * Returns current readable bytes.
      */
     public int readableBytes() {
         return tail - head;
     }
 
     /**
-     * 내부 상한
+     * Returns configured maximum readable bytes.
      */
     public int maxBytes() {
         return maxBytes;
     }
 
     /**
-     * 버퍼에 raw chunk를 추가합니다.
+     * Appends a chunk without trace provenance metadata.
      *
-     * @param chunk 추가할 바이트(Null 불가)
-     * @throws IllegalStateException 누적 크기가 maxBytes를 초과하는 경우
+     * <p>This method remains for backward compatibility paths that do not
+     * require per-frame trace propagation.</p>
+     *
+     * @param chunk chunk bytes
      */
     public void append(final byte[] chunk) {
-        if (chunk == null) {
-            throw new IllegalArgumentException("chunk is null");
-        }
-        if (chunk.length == 0) {
-            return;
-        }
-
-        // 현재 누적 크기 + 추가 크기가 상한을 넘는지 1차 방어
-        final int newSize = readableBytes() + chunk.length;
-        if (newSize > maxBytes) {
-            throw new IllegalStateException("ReassemblyBuffer overflow: " + newSize + " > " + maxBytes);
-        }
-
-        ensureWritable(chunk.length);
-        System.arraycopy(chunk, 0, buffer, tail, chunk.length);
-        tail += chunk.length;
+        appendInternal(chunk, null, false);
     }
 
     /**
-     * head 기준 offset 위치의 바이트를 읽습니다(소비하지 않음).
+     * Appends a chunk with trace provenance metadata.
      *
-     * @param offset head 기준 0부터
+     * <p>The provided traceId is recorded as the provenance for every appended
+     * byte so that later discard operations can resolve the traceId of the last
+     * consumed byte range.</p>
+     *
+     * @param chunk chunk bytes
+     * @param traceId traceId created at enqueue time
+     */
+    public void append(final byte[] chunk, final String traceId) {
+        appendInternal(chunk, traceId, true);
+    }
+
+    /**
+     * Returns traceId of the most recent discard operation.
+     *
+     * <p>If no discard happened yet, or the last discarded bytes were appended
+     * through a path that does not provide provenance, this method returns null.</p>
+     */
+    public String lastDiscardedTraceId() {
+        return lastDiscardedTraceId;
+    }
+
+    /**
+     * Reads one byte at relative offset without consuming.
+     *
+     * @param offset zero-based offset from current head
+     * @return byte value
      */
     public byte get(final int offset) {
         final int idx = head + offset;
@@ -108,10 +139,11 @@ public final class ReassemblyBuffer {
     }
 
     /**
-     * head 기준 offset부터 length만큼을 복사하여 반환합니다(소비하지 않음).
+     * Copies bytes from current readable area without consuming.
      *
-     * @param offset head 기준 0부터
-     * @param length 읽을 길이
+     * @param offset zero-based offset from current head
+     * @param length number of bytes to copy
+     * @return copied bytes
      */
     public byte[] copy(final int offset, final int length) {
         if (offset < 0 || length < 0) {
@@ -126,47 +158,146 @@ public final class ReassemblyBuffer {
     }
 
     /**
-     * 앞에서부터 length 바이트를 소비(discard)합니다.
-     * - 프레임 추출이 완료되어 해당 구간이 더 이상 필요 없을 때 호출합니다.
+     * Discards bytes from head.
      *
-     * @param length 소비할 길이
+     * <p>In addition to byte consumption, this method advances provenance
+     * segments and updates {@link #lastDiscardedTraceId()} to the traceId
+     * associated with the last consumed byte.</p>
+     *
+     * @param length bytes to discard
      */
     public void discard(final int length) {
         if (length < 0) {
             throw new IllegalArgumentException("length must be >= 0");
         }
-        if (length == 0) return;
-
+        if (length == 0) {
+            return;
+        }
         if (length > readableBytes()) {
             throw new IndexOutOfBoundsException("length > readableBytes");
         }
 
+        consumeTraceSegments(length);
         head += length;
         compactIfNeeded();
     }
 
     /**
-     * 버퍼를 비웁니다.
-     * - eqp quarantine/재연결 등으로 상태 초기화가 필요할 때 사용
+     * Clears all buffered data and provenance state.
      */
     public void clear() {
         head = 0;
         tail = 0;
+        traceSegments.clear();
+        lastDiscardedTraceId = null;
     }
 
-    // ------------------------------
-    // internal
-    // ------------------------------
-
-    
     /**
-     * 통신 코어 모듈 도메인 처리 로직을 수행합니다.
+     * Shared append implementation.
      *
-     * <p>포트/유스케이스 규약과 메시지 처리 흐름을 기준으로 동작합니다.</p>
-     * @param additionalBytes 처리할 원본 데이터
+     * @param chunk chunk bytes
+     * @param traceId candidate traceId
+     * @param requireTrace whether traceId is mandatory
+     */
+    private void appendInternal(final byte[] chunk, final String traceId, final boolean requireTrace) {
+        if (chunk == null) {
+            throw new IllegalArgumentException("chunk is null");
+        }
+        if (chunk.length == 0) {
+            return;
+        }
+
+        final String normalizedTraceId = normalizeTraceId(traceId, requireTrace);
+        final int newSize = readableBytes() + chunk.length;
+        if (newSize > maxBytes) {
+            throw new IllegalStateException("ReassemblyBuffer overflow: " + newSize + " > " + maxBytes);
+        }
+
+        ensureWritable(chunk.length);
+        System.arraycopy(chunk, 0, buffer, tail, chunk.length);
+        tail += chunk.length;
+        appendTraceSegment(chunk.length, normalizedTraceId);
+    }
+
+    /**
+     * Normalizes traceId according to the selected contract.
+     *
+     * @param traceId candidate traceId
+     * @param requireTrace true when caller requires non-empty traceId
+     * @return normalized traceId or null when optional path has no value
+     */
+    private static String normalizeTraceId(final String traceId, final boolean requireTrace) {
+        if (traceId == null) {
+            if (requireTrace) {
+                throw new IllegalArgumentException("traceId is required");
+            }
+            return null;
+        }
+        final String normalized = traceId.trim();
+        if (normalized.isEmpty()) {
+            if (requireTrace) {
+                throw new IllegalArgumentException("traceId is required");
+            }
+            return null;
+        }
+        return normalized;
+    }
+
+    /**
+     * Adds one provenance segment and merges with previous segment when possible.
+     *
+     * @param length segment length in bytes
+     * @param traceId segment traceId
+     */
+    private void appendTraceSegment(final int length, final String traceId) {
+        if (length <= 0) {
+            return;
+        }
+        final TraceSegment tailSegment = traceSegments.peekLast();
+        if (tailSegment != null && Objects.equals(tailSegment.traceId, traceId)) {
+            tailSegment.length += length;
+            return;
+        }
+        traceSegments.addLast(new TraceSegment(length, traceId));
+    }
+
+    /**
+     * Consumes provenance segments according to discarded byte length.
+     *
+     * @param length bytes consumed by discard
+     */
+    private void consumeTraceSegments(final int length) {
+        int remaining = length;
+        String consumedTraceId = null;
+
+        while (remaining > 0) {
+            final TraceSegment current = traceSegments.peekFirst();
+            if (current == null) {
+                throw new IllegalStateException(
+                        "Trace provenance underflow while discarding. requested=" + length + ", remaining=" + remaining
+                );
+            }
+
+            if (current.length <= remaining) {
+                remaining -= current.length;
+                consumedTraceId = current.traceId;
+                traceSegments.pollFirst();
+            } else {
+                current.length -= remaining;
+                consumedTraceId = current.traceId;
+                remaining = 0;
+            }
+        }
+
+        lastDiscardedTraceId = consumedTraceId;
+    }
+
+    /**
+     * Ensures there is enough writable capacity for additional bytes.
+     *
+     * @param additionalBytes number of bytes that will be appended
      */
     private void ensureWritable(final int additionalBytes) {
-        // 우선 앞쪽 공간(head) 회수로 해결 가능한지 시도
         compactIfNeeded();
 
         int required = tail + additionalBytes;
@@ -178,7 +309,6 @@ public final class ReassemblyBuffer {
             return;
         }
 
-        // 부족하면 확장(단, maxBytes를 넘지 않도록)
         final int currentSize = readableBytes();
         int newCapacity = buffer.length;
 
@@ -200,18 +330,19 @@ public final class ReassemblyBuffer {
         tail = currentSize;
     }
 
-    
     /**
-     * 통신 코어 모듈 도메인 처리 로직을 수행합니다.
-     *
-     * <p>포트/유스케이스 규약과 메시지 처리 흐름을 기준으로 동작합니다.</p>
+     * Compacts the backing array when head offset grows enough.
      */
     private void compactIfNeeded() {
-        if (head == 0) return;
+        if (head == 0) {
+            return;
+        }
 
         final int currentSize = readableBytes();
         final boolean shouldCompact = head > (buffer.length / 2) || tail == buffer.length;
-        if (!shouldCompact) return;
+        if (!shouldCompact) {
+            return;
+        }
 
         if (currentSize == 0) {
             head = 0;
@@ -221,11 +352,8 @@ public final class ReassemblyBuffer {
         compact();
     }
 
-    
     /**
-     * 통신 코어 모듈 도메인 처리 로직을 수행합니다.
-     *
-     * <p>포트/유스케이스 규약과 메시지 처리 흐름을 기준으로 동작합니다.</p>
+     * Moves readable bytes to the beginning of the backing array.
      */
     private void compact() {
         final int currentSize = readableBytes();
@@ -238,5 +366,18 @@ public final class ReassemblyBuffer {
         System.arraycopy(buffer, head, buffer, 0, currentSize);
         head = 0;
         tail = currentSize;
+    }
+
+    /**
+     * Internal mutable provenance segment.
+     */
+    private static final class TraceSegment {
+        private int length;
+        private final String traceId;
+
+        private TraceSegment(final int length, final String traceId) {
+            this.length = length;
+            this.traceId = traceId;
+        }
     }
 }

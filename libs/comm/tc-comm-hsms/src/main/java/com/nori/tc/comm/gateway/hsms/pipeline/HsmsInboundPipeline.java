@@ -8,7 +8,6 @@ import com.nori.tc.comm.core.message.OutboundRawFrame;
 import com.nori.tc.comm.core.message.ParsedMessage;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
-import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.hsms.frame.HsmsFrame;
 import com.nori.tc.comm.gateway.hsms.frame.HsmsFrameEncoder;
@@ -42,8 +41,6 @@ import java.util.Objects;
 public final class HsmsInboundPipeline implements InboundPipelinePort {
 
     private final ClockPort clockPort;
-    private final TraceIdGeneratorPort traceIdGeneratorPort;
-
     private final HsmsFrameExtractor frameExtractor;
     private final Secs2Decoder secs2Decoder;
 
@@ -67,12 +64,10 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
      */
     public HsmsInboundPipeline(
             final ClockPort clockPort,
-            final TraceIdGeneratorPort traceIdGeneratorPort,
             final HsmsFrameExtractor frameExtractor,
             final Secs2Decoder secs2Decoder
     ) {
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
-        this.traceIdGeneratorPort = Objects.requireNonNull(traceIdGeneratorPort, "traceIdGeneratorPort is null");
         this.frameExtractor = Objects.requireNonNull(frameExtractor, "frameExtractor is null");
         this.secs2Decoder = Objects.requireNonNull(secs2Decoder, "secs2Decoder is null");
     }
@@ -126,7 +121,7 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
                 final Secs2Message secs = secs2Decoder.decode(frame);
 
                 // traceId: 메시지 단위로 신규 생성(운영 추적)
-                final String traceId = traceIdGeneratorPort.newTraceId();
+                final String traceId = resolveRequiredTraceId(hsmsCtx, profile.equipmentId().value());
 
                 // attributes: 운영/분석에 유용한 헤더 메타를 담습니다.
                 final Map<String, String> attributes = new HashMap<>();
@@ -152,6 +147,29 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
         }
 
         return new InboundProcessResult(parsedMessages, outboundFrames);
+    }
+
+    /**
+     * Resolves mandatory traceId from reassembly provenance.
+     *
+     * <p>HSMS parser must reuse enqueue-time traceId. A missing provenance
+     * indicates an invalid processing state and is treated as a hard failure.</p>
+     *
+     * @param hsmsCtx runtime context that owns the reassembly buffer
+     * @param eqpId equipment id for diagnostics
+     * @return traceId for the extracted frame
+     */
+    private static String resolveRequiredTraceId(
+            final HsmsRuntimeContext hsmsCtx,
+            final String eqpId
+    ) {
+        final String traceId = hsmsCtx.reassemblyBuffer().lastDiscardedTraceId();
+        if (traceId == null || traceId.isBlank()) {
+            throw new IllegalStateException(
+                    "Trace provenance is missing after HSMS frame extraction. eqpId=" + eqpId
+            );
+        }
+        return traceId;
     }
 
     

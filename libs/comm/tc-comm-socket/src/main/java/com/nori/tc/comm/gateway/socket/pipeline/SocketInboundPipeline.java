@@ -7,7 +7,6 @@ import com.nori.tc.comm.core.message.MessageName;
 import com.nori.tc.comm.core.message.ParsedMessage;
 import com.nori.tc.comm.core.port.ClockPort;
 import com.nori.tc.comm.core.port.InboundPipelinePort;
-import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
 import com.nori.tc.comm.gateway.socket.config.SocketTypeConfig;
 import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
@@ -57,8 +56,6 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
     /**
      * 메시지 단위 traceId 생성 포트입니다.
      */
-    private final TraceIdGeneratorPort traceIdGeneratorPort;
-
     /**
      * 설비별 SOCKET 플러그인 핸들러 조회 포트입니다.
      */
@@ -73,11 +70,9 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
      */
     public SocketInboundPipeline(
             final ClockPort clockPort,
-            final TraceIdGeneratorPort traceIdGeneratorPort,
             final GatewaySocketPluginRuntimeProvider pluginRuntimeProvider
     ) {
         this.clockPort = Objects.requireNonNull(clockPort, "clockPort is null");
-        this.traceIdGeneratorPort = Objects.requireNonNull(traceIdGeneratorPort, "traceIdGeneratorPort is null");
         this.pluginRuntimeProvider = Objects.requireNonNull(pluginRuntimeProvider, "pluginRuntimeProvider is null");
     }
 
@@ -124,7 +119,7 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
             }
 
             final SocketTypeDecodeResult decoded = handler.decode(frame.bytes());
-            final String traceId = traceIdGeneratorPort.newTraceId();
+            final String traceId = resolveRequiredTraceId(socketCtx, eqpId, socketType);
 
             final Map<String, String> attributes = new HashMap<>();
             attributes.put("socketType", socketType);
@@ -206,6 +201,35 @@ public final class SocketInboundPipeline implements InboundPipelinePort {
             return;
         }
         MDC.put(TRACE_ID_MDC_KEY, previousTraceId);
+    }
+
+    /**
+     * Extracts the required traceId from the reassembly provenance state.
+     *
+     * <p>SOCKET inbound parser must never create a second traceId. The parser
+     * resolves the traceId that was already assigned when the source bytes were
+     * enqueued and consumed by frame extraction.</p>
+     *
+     * @param socketCtx socket runtime context that owns the reassembly buffer
+     * @param eqpId equipment id used for diagnostic messages
+     * @param socketType socket type used for diagnostic messages
+     * @return traceId that belongs to the consumed frame bytes
+     */
+    private static String resolveRequiredTraceId(
+            final SocketRuntimeContext socketCtx,
+            final String eqpId,
+            final String socketType
+    ) {
+        final String traceId = socketCtx.reassemblyBuffer().lastDiscardedTraceId();
+        if (traceId == null || traceId.isBlank()) {
+            throw new IllegalStateException(
+                    "Trace provenance is missing after SOCKET frame extraction. eqpId="
+                            + eqpId
+                            + ", socketType="
+                            + socketType
+            );
+        }
+        return traceId;
     }
 
     /**

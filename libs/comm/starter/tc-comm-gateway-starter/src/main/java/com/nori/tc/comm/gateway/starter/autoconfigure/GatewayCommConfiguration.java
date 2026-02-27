@@ -178,14 +178,13 @@ public class GatewayCommConfiguration {
     @Bean
     public HsmsInboundPipeline hsmsInboundPipeline(
             final ClockPort clockPort,
-            final TraceIdGeneratorPort traceIdGeneratorPort,
             final HsmsFrameExtractor frameExtractor,
             final Secs2Decoder secs2Decoder
     ) {
         if (log.isTraceEnabled()) {
             log.trace("공통 Bean 생성: HsmsInboundPipeline");
         }
-        return new HsmsInboundPipeline(clockPort, traceIdGeneratorPort, frameExtractor, secs2Decoder);
+        return new HsmsInboundPipeline(clockPort, frameExtractor, secs2Decoder);
     }
 
     /**
@@ -201,13 +200,12 @@ public class GatewayCommConfiguration {
     @Bean
     public SocketInboundPipeline socketInboundPipeline(
             final ClockPort clockPort,
-            final TraceIdGeneratorPort traceIdGeneratorPort,
             final GatewaySocketPluginRuntimeProvider pluginRuntimeProvider
     ) {
         if (log.isTraceEnabled()) {
             log.trace("공통 Bean 생성: SocketInboundPipeline");
         }
-        return new SocketInboundPipeline(clockPort, traceIdGeneratorPort, pluginRuntimeProvider);
+        return new SocketInboundPipeline(clockPort, pluginRuntimeProvider);
     }
 
     /**
