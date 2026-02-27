@@ -799,3 +799,5 @@ CREATE TABLE TC_MSG_SEND_LOG (
 
 CREATE INDEX ix_tc_msg_send_log_msg_key_attempt_no ON TC_MSG_SEND_LOG (msg_key, attempt_no);
 CREATE INDEX ix_tc_msg_send_log_sent_at           ON TC_MSG_SEND_LOG (sent_at);
+
+COMMIT;

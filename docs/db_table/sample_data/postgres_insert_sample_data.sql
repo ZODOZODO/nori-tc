@@ -132,8 +132,9 @@ INSERT INTO tc_eqp_socket_protocol_type (
   description
 )
 VALUES
-  ('JSONL',  'JSON Lines', NULL, E'\n', NULL, '각 라인이 1 JSON 메시지'),
-  ('STXETX', 'STX/ETX',    E'\x02', E'\x03', NULL, 'STX(0x02)~ETX(0x03) 프레이밍');
+  -- Gateway 기본 내장 핸들러 이름과 동일한 타입명을 사용해야 tc_eqp_socket FK 및 런타임 조회가 일관됩니다.
+  ('LINE_DELIMITED',  'Line Delimited',  NULL, E'\n',     NULL,      'LF(\\n) 종료 기준으로 프레임 분리'),
+  ('REGEX_DELIMITED', 'Regex Delimited', NULL, NULL,      E'END\\n', '정규식 종료 패턴(예: END\\n) 기준으로 프레임 분리');
 
 -- =====================================================================
 -- 3) tc_model 10개 + 하위 테이블
