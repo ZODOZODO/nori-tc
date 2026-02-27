@@ -214,7 +214,7 @@ CREATE TABLE public.tc_model_workflow (
     transaction_id    VARCHAR(200) NULL,
     workflow_filter   VARCHAR(200) NULL,
     action_name       VARCHAR(200) NOT NULL,
-    action_data_index VARCHAR(1000) NULL,
+    action_data_index VARCHAR(4000) NULL,
     updated_at        TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_tc_model_workflow PRIMARY KEY (workflow_key),

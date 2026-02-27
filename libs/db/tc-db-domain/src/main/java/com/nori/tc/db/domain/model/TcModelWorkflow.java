@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
  * - transaction_id    : varchar(200) NULL
  * - workflow_filter   : varchar(200) NULL
  * - action_name       : varchar(200) NOT NULL
- * - action_data_index : varchar(1000) NULL
+ * - action_data_index : varchar(4000) NULL
  * - updated_at        : timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
  *
  * [제약/인덱스]

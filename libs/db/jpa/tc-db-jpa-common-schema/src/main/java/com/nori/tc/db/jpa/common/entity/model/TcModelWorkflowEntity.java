@@ -22,7 +22,7 @@ import jakarta.persistence.UniqueConstraint;
  * - transaction_id    : varchar(200) NULL
  * - workflow_filter   : varchar(200) NULL
  * - action_name       : varchar(200) NOT NULL
- * - action_data_index : varchar(1000) NULL
+ * - action_data_index : varchar(4000) NULL
  * - updated_at        : timestamptz NOT NULL (AbstractUpdatedEntity 상속)
  * - Constraints       : UNIQUE (model_version_key, workflow_name, message_name)
  *
@@ -71,7 +71,7 @@ public class TcModelWorkflowEntity extends AbstractUpdatedEntity {
     @Column(name = "action_name", length = 200, nullable = false)
     private String actionName;
 
-    @Column(name = "action_data_index", length = 1000)
+    @Column(name = "action_data_index", length = 4000)
     private String actionDataIndex;
 
     // =========================================================================

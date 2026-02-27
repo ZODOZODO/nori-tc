@@ -233,7 +233,7 @@ CREATE TABLE dbo.tc_model_workflow (
   transaction_id    NVARCHAR(200) NULL,
   workflow_filter   NVARCHAR(200) NULL,
   action_name       NVARCHAR(200) NOT NULL,
-  action_data_index NVARCHAR(1000) NULL,
+  action_data_index NVARCHAR(4000) NULL,
   updated_at        DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_workflow_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_workflow PRIMARY KEY (workflow_key),
