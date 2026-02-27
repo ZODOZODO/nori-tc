@@ -48,13 +48,13 @@ public class TcModelVariableIdMybatisStore implements TcModelVariableIdStore {
     @Transactional
     public TcModelVariableId upsert(UpsertTcModelVariableId command) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final VariableIdType variableIdType = command.variableIdType();
         final String variableId = command.variableId();
 
         final TcModelVariableId row = new TcModelVariableId(
                 0L,
-                modelKey,
+                modelVersionKey,
                 variableId,
                 variableIdType,
                 command.description(),
@@ -71,27 +71,27 @@ public class TcModelVariableIdMybatisStore implements TcModelVariableIdStore {
                 }
             }
 
-            return mapper.findByModelKeyAndTypeAndVariableId(modelKey, variableIdType, variableId)
+            return mapper.findByModelVersionKeyAndTypeAndVariableId(modelVersionKey, variableIdType, variableId)
                     .orElseThrow(() -> new DbAccessException(
-                            "tc_model_variableid upsert succeeded but row not found. modelKey=" + modelKey
+                            "tc_model_variableid upsert succeeded but row not found. modelVersionKey=" + modelVersionKey
                                     + ", variableIdType=" + variableIdType + ", variableId=" + variableId
                     ));
 
         } catch (DuplicateKeyException e) {
             throw new DbDuplicateKeyException(
-                    "tc_model_variableid upsert duplicate key. modelKey=" + modelKey
+                    "tc_model_variableid upsert duplicate key. modelVersionKey=" + modelVersionKey
                             + ", variableIdType=" + variableIdType + ", variableId=" + variableId,
                     e
             );
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_variableid upsert failed. modelKey=" + modelKey
+                    "tc_model_variableid upsert failed. modelVersionKey=" + modelVersionKey
                             + ", variableIdType=" + variableIdType + ", variableId=" + variableId,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_variableid upsert failed (unexpected). modelKey=" + modelKey
+                    "tc_model_variableid upsert failed (unexpected). modelVersionKey=" + modelVersionKey
                             + ", variableIdType=" + variableIdType + ", variableId=" + variableId,
                     e
             );
@@ -123,29 +123,29 @@ public class TcModelVariableIdMybatisStore implements TcModelVariableIdStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param variableIdType DB MyBatis 계층 처리에 사용하는 입력 값
      * @param variableId DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelVariableId> findByModelKeyAndTypeAndVariableId(
-            long modelKey,
+    public Optional<TcModelVariableId> findByModelVersionKeyAndTypeAndVariableId(
+            long modelVersionKey,
             VariableIdType variableIdType,
             String variableId
     ) {
         try {
-            return mapper.findByModelKeyAndTypeAndVariableId(modelKey, variableIdType, variableId);
+            return mapper.findByModelVersionKeyAndTypeAndVariableId(modelVersionKey, variableIdType, variableId);
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_variableid findByModelKeyAndTypeAndVariableId failed. modelKey=" + modelKey
+                    "tc_model_variableid findByModelVersionKeyAndTypeAndVariableId failed. modelVersionKey=" + modelVersionKey
                             + ", variableIdType=" + variableIdType + ", variableId=" + variableId,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_variableid findByModelKeyAndTypeAndVariableId failed (unexpected). modelKey=" + modelKey
+                    "tc_model_variableid findByModelVersionKeyAndTypeAndVariableId failed (unexpected). modelVersionKey=" + modelVersionKey
                             + ", variableIdType=" + variableIdType + ", variableId=" + variableId,
                     e
             );
@@ -157,21 +157,21 @@ public class TcModelVariableIdMybatisStore implements TcModelVariableIdStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelVariableId> findAllByModelKey(long modelKey, PageRequest page) {
+    public List<TcModelVariableId> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
+            return mapper.findAllByModelVersionKey(modelVersionKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_variableid findAllByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_variableid findAllByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_variableid findAllByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_variableid findAllByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 

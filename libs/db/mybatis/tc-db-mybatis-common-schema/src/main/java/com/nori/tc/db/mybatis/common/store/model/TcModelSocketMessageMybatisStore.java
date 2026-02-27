@@ -19,7 +19,7 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelSocketMessageMapper;
 /**
  * tc_model_socket_message MyBatis Store 구현체.
  *
- * - Unique: (model_key, socket_msg_name)
+ * - Unique: (model_version_key, socket_msg_name)
  * - upsert는 update-first 전략으로 벤더 중립 구현
  */
 @Repository
@@ -52,12 +52,12 @@ public class TcModelSocketMessageMybatisStore implements TcModelSocketMessageSto
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateCommand(command);
 
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final String socketMsgName = command.socketMsgName();
 
         final TcModelSocketMessage row = new TcModelSocketMessage(
                 0L,
-                modelKey,
+                modelVersionKey,
                 socketMsgName,
                 command.description(),
                 command.dataIndex(),
@@ -74,15 +74,15 @@ public class TcModelSocketMessageMybatisStore implements TcModelSocketMessageSto
                 }
             }
 
-            return mapper.findByModelKeySocketMsgName(modelKey, socketMsgName)
-                    .orElseThrow(() -> new DbAccessException("tc_model_socket_message upsert succeeded but row not found. modelKey/socketMsgName=" + modelKey + "/" + socketMsgName));
+            return mapper.findByModelVersionKeySocketMsgName(modelVersionKey, socketMsgName)
+                    .orElseThrow(() -> new DbAccessException("tc_model_socket_message upsert succeeded but row not found. modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_socket_message upsert duplicate key. modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbDuplicateKeyException("tc_model_socket_message upsert duplicate key. modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_socket_message upsert failed. modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbAccessException("tc_model_socket_message upsert failed. modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_socket_message upsert failed (unexpected). modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbAccessException("tc_model_socket_message upsert failed (unexpected). modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         }
     }
 
@@ -91,25 +91,25 @@ public class TcModelSocketMessageMybatisStore implements TcModelSocketMessageSto
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param socketMsgName 통신 채널/세션 정보
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelSocketMessage> findByModelKeySocketMsgName(long modelKey, String socketMsgName) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelSocketMessage> findByModelVersionKeySocketMsgName(long modelVersionKey, String socketMsgName) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (socketMsgName == null || socketMsgName.isBlank()) {
             throw new IllegalArgumentException("socketMsgName must not be null/blank");
         }
         try {
-            return mapper.findByModelKeySocketMsgName(modelKey, socketMsgName);
+            return mapper.findByModelVersionKeySocketMsgName(modelVersionKey, socketMsgName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_socket_message findByModelKeySocketMsgName failed. modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbAccessException("tc_model_socket_message findByModelVersionKeySocketMsgName failed. modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_socket_message findByModelKeySocketMsgName failed (unexpected). modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbAccessException("tc_model_socket_message findByModelVersionKeySocketMsgName failed (unexpected). modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         }
     }
 
@@ -118,24 +118,24 @@ public class TcModelSocketMessageMybatisStore implements TcModelSocketMessageSto
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelSocketMessage> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelSocketMessage> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
+            return mapper.findAllByModelVersionKey(modelVersionKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_socket_message findAllByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_socket_message findAllByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_socket_message findAllByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_socket_message findAllByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -144,25 +144,25 @@ public class TcModelSocketMessageMybatisStore implements TcModelSocketMessageSto
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param socketMsgName 통신 채널/세션 정보
      */
     @Override
     @Transactional
-    public void deleteByModelKeySocketMsgName(long modelKey, String socketMsgName) {
+    public void deleteByModelVersionKeySocketMsgName(long modelVersionKey, String socketMsgName) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (socketMsgName == null || socketMsgName.isBlank()) {
             throw new IllegalArgumentException("socketMsgName must not be null/blank");
         }
         try {
-            mapper.deleteByModelKeySocketMsgName(modelKey, socketMsgName);
+            mapper.deleteByModelVersionKeySocketMsgName(modelVersionKey, socketMsgName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_socket_message deleteByModelKeySocketMsgName failed. modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbAccessException("tc_model_socket_message deleteByModelVersionKeySocketMsgName failed. modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_socket_message deleteByModelKeySocketMsgName failed (unexpected). modelKey/socketMsgName=" + modelKey + "/" + socketMsgName, e);
+            throw new DbAccessException("tc_model_socket_message deleteByModelVersionKeySocketMsgName failed (unexpected). modelVersionKey/socketMsgName=" + modelVersionKey + "/" + socketMsgName, e);
         }
     }
 
@@ -175,7 +175,7 @@ public class TcModelSocketMessageMybatisStore implements TcModelSocketMessageSto
      */
     private void validateCommand(UpsertTcModelSocketMessage command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.socketMsgName() == null || command.socketMsgName().isBlank()) {
             throw new IllegalArgumentException("command.socketMsgName must not be null/blank");
         }

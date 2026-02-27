@@ -29,7 +29,7 @@ public interface TcModelMdfStore {
      *
      * <p>
      * - mdf_key가 있으면 해당 PK 기반으로 갱신합니다.
-     * - mdf_key가 없으면 (model_key, mdf_name) 유니크 키 기준으로
+     * - mdf_key가 없으면 (model_version_key, mdf_name) 유니크 키 기준으로
      * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
      * </p>
      *
@@ -52,17 +52,17 @@ public interface TcModelMdfStore {
      * DB Core 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param mdfName DB Core 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelMdf> findByModelKeyAndName(long modelKey, String mdfName);
+    Optional<TcModelMdf> findByModelVersionKeyAndName(long modelVersionKey, String mdfName);
 
     /**
-     * 특정 모델(model_key)에 연결된 MDF 목록 조회.
+     * 특정 모델(model_version_key)에 연결된 MDF 목록 조회.
      * - 페이징은 반드시 DB 레벨에서 처리해야 한다.
      */
-    List<TcModelMdf> findAllByModelKey(long modelKey, PageRequest page);
+    List<TcModelMdf> findAllByModelVersionKey(long modelVersionKey, PageRequest page);
 
     
     /**

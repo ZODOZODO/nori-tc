@@ -21,7 +21,7 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelMdfMapper;
  *
  * upsert 주의
  * - common-schema의 TcModelMdfMapper.xml은 벤더 중립성을 위해 "generated key 반환"을 하지 않는다.
- * - 따라서 insert 후 (model_key, mdf_name)으로 재조회하여 mdf_key를 확보한다.
+ * - 따라서 insert 후 (model_version_key, mdf_name)으로 재조회하여 mdf_key를 확보한다.
  */
 @Repository
 public class TcModelMdfMybatisStore implements TcModelMdfStore {
@@ -52,14 +52,14 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
     public TcModelMdf upsert(UpsertTcModelMdf command) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         final Long mdfKey = command.mdfKey();
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final String mdfName = command.mdfName();
 
-        final long resolvedKey = resolveKey(mdfKey, modelKey, mdfName);
+        final long resolvedKey = resolveKey(mdfKey, modelVersionKey, mdfName);
 
         final TcModelMdf row = new TcModelMdf(
                 resolvedKey,
-                modelKey,
+                modelVersionKey,
                 mdfName,
                 command.mdfFile(),
                 null
@@ -74,15 +74,15 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
                 }
             }
 
-            return mapper.findByModelKeyAndName(modelKey, mdfName)
-                    .orElseThrow(() -> new DbAccessException("tc_model_mdf upsert succeeded but row not found. modelKey/name=" + modelKey + "/" + mdfName));
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, mdfName)
+                    .orElseThrow(() -> new DbAccessException("tc_model_mdf upsert succeeded but row not found. modelVersionKey/name=" + modelVersionKey + "/" + mdfName));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_mdf upsert duplicate (model_key, mdf_name). modelKey/name=" + modelKey + "/" + mdfName, e);
+            throw new DbDuplicateKeyException("tc_model_mdf upsert duplicate (model_version_key, mdf_name). modelVersionKey/name=" + modelVersionKey + "/" + mdfName, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_mdf upsert failed. modelKey/name=" + modelKey + "/" + mdfName, e);
+            throw new DbAccessException("tc_model_mdf upsert failed. modelVersionKey/name=" + modelVersionKey + "/" + mdfName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_mdf upsert failed (unexpected). modelKey/name=" + modelKey + "/" + mdfName, e);
+            throw new DbAccessException("tc_model_mdf upsert failed (unexpected). modelVersionKey/name=" + modelVersionKey + "/" + mdfName, e);
         }
     }
 
@@ -111,19 +111,19 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param mdfName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelMdf> findByModelKeyAndName(long modelKey, String mdfName) {
+    public Optional<TcModelMdf> findByModelVersionKeyAndName(long modelVersionKey, String mdfName) {
         try {
-            return mapper.findByModelKeyAndName(modelKey, mdfName);
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, mdfName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_mdf findByModelKeyAndName failed. modelKey/name=" + modelKey + "/" + mdfName, e);
+            throw new DbAccessException("tc_model_mdf findByModelVersionKeyAndName failed. modelVersionKey/name=" + modelVersionKey + "/" + mdfName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_mdf findByModelKeyAndName failed (unexpected). modelKey/name=" + modelKey + "/" + mdfName, e);
+            throw new DbAccessException("tc_model_mdf findByModelVersionKeyAndName failed (unexpected). modelVersionKey/name=" + modelVersionKey + "/" + mdfName, e);
         }
     }
 
@@ -132,21 +132,21 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelMdf> findAllByModelKey(long modelKey, PageRequest page) {
+    public List<TcModelMdf> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
+            return mapper.findAllByModelVersionKey(modelVersionKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_mdf findAllByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_mdf findAllByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_mdf findAllByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_mdf findAllByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -176,11 +176,11 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
      * @param mdfKey 대상 키 값
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param mdfName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return DB MyBatis 계층 처리 결과
      */
-    private long resolveKey(Long mdfKey, long modelKey, String mdfName) {
+    private long resolveKey(Long mdfKey, long modelVersionKey, String mdfName) {
         if (mdfKey != null) {
             if (mdfKey <= 0) {
                 throw new IllegalArgumentException("mdfKey must be > 0 when provided");
@@ -188,7 +188,7 @@ public class TcModelMdfMybatisStore implements TcModelMdfStore {
             return mdfKey;
         }
 
-        return mapper.findByModelKeyAndName(modelKey, mdfName)
+        return mapper.findByModelVersionKeyAndName(modelVersionKey, mdfName)
                 .map(TcModelMdf::mdfKey)
                 .orElse(0L);
     }

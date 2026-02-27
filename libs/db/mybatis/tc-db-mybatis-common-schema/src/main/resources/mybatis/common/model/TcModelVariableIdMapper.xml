@@ -9,7 +9,7 @@
     <resultMap id="TcModelVariableIdMap" type="com.nori.tc.db.domain.model.TcModelVariableId">
         <constructor>
             <idArg column="variable_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
             <arg column="variable_id" javaType="java.lang.String"/>
             <arg column="variable_id_type"
                  javaType="com.nori.tc.db.domain.common.VariableIdType"
@@ -22,14 +22,14 @@
     </resultMap>
 
     <sql id="TcModelVariableIdColumns">
-        variable_key, model_key, variable_id, variable_id_type, description, updated_at
+        variable_key, model_version_key, variable_id, variable_id_type, description, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model_variableid
-            (model_key, variable_id, variable_id_type, description)
+            (model_version_key, variable_id, variable_id_type, description)
         VALUES
-            (#{m.modelKey},
+            (#{m.modelVersionKey},
              #{m.variableId},
              #{m.variableIdType, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
              #{m.description})
@@ -39,7 +39,7 @@
         UPDATE tc_model_variableid
            SET description = #{m.description},
                updated_at = CURRENT_TIMESTAMP
-         WHERE model_key = #{m.modelKey}
+         WHERE model_version_key = #{m.modelVersionKey}
            AND variable_id_type = #{m.variableIdType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
            AND variable_id = #{m.variableId}
     </update>
@@ -50,18 +50,18 @@
          WHERE variable_key = #{variableKey}
     </select>
 
-    <select id="findByModelKeyAndTypeAndVariableId" resultMap="TcModelVariableIdMap">
+    <select id="findByModelVersionKeyAndTypeAndVariableId" resultMap="TcModelVariableIdMap">
         SELECT <include refid="TcModelVariableIdColumns"/>
           FROM tc_model_variableid
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND variable_id_type = #{variableIdType, typeHandler=org.apache.ibatis.type.EnumTypeHandler}
            AND variable_id = #{variableId}
     </select>
 
-    <select id="findAllByModelKey" resultMap="TcModelVariableIdMap">
+    <select id="findAllByModelVersionKey" resultMap="TcModelVariableIdMap">
         SELECT <include refid="TcModelVariableIdColumns"/>
           FROM tc_model_variableid
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY variable_key ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

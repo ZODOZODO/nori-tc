@@ -258,11 +258,12 @@ class BusinessRuntimeEngineTest {
     /**
      * 테스트용 {@link TcModelRuntime} 인스턴스를 생성합니다.
      */
-    private static TcModelRuntime createRuntime(final long modelKey, final ProtocolType protocolType) {
+    private static TcModelRuntime createRuntime(final long modelVersionKey, final ProtocolType protocolType) {
         final OffsetDateTime now = OffsetDateTime.now();
         final TcModel model = new TcModel(
-                modelKey,
-                "MODEL-" + modelKey,
+                modelVersionKey,
+                modelVersionKey,
+                "MODEL-" + modelVersionKey,
                 "v1",
                 protocolType,
                 ModelStatus.ACTIVE,

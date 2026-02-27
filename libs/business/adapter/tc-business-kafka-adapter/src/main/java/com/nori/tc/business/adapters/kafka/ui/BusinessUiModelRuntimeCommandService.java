@@ -1,8 +1,8 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nori.tc.business.core.logging.BusinessLogContext;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeMutationPort;
@@ -18,12 +18,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * UI 紐낅졊 ?대깽?몃줈 model runtime??媛깆떊?섎뒗 ?쒕퉬?ㅼ엯?덈떎.
+ * UI 이벤트를 기반으로 model runtime 캐시를 제어하는 서비스입니다.
  *
- * <p>吏???쒕굹由ъ삤:</p>
- * <p>- EQP_CREATE / EQP_UPDATE: eqpId -> modelKey 諛붿씤??媛깆떊</p>
- * <p>- EQP_DELETE: eqpId 諛붿씤???쒓굅 + plugin runtime ?쒓굅</p>
- * <p>- EQP_UPDATE_JARFILE: model runtime 由щ줈??+ workflow plugin runtime 由щ줈??/p>
+ * <p>지원 시나리오:</p>
+ * <p>1) EQP_CREATE / EQP_UPDATE: eqpId -> modelVersionKey 바인딩 갱신</p>
+ * <p>2) EQP_UPDATE_JARFILE: model runtime 리로드 + workflow plugin runtime 리로드</p>
+ * <p>3) EQP_DELETE: eqpId 바인딩 제거 + workflow plugin runtime 제거</p>
  */
 @Service
 public class BusinessUiModelRuntimeCommandService {
@@ -31,20 +31,20 @@ public class BusinessUiModelRuntimeCommandService {
     private static final Logger log = LoggerFactory.getLogger(BusinessUiModelRuntimeCommandService.class);
 
     /**
-     * "modelKey=123" ?뺥깭 ?띿뒪?몃? ?뚯떛?섍린 ?꾪븳 ?⑦꽩?낅땲??
+     * 키-값 텍스트 파싱 패턴입니다.
+     *
+     * <p>신규 키(`modelVersionKey`)와 구키(`modelKey`)를 모두 허용해
+     * 운영 중 점진적 전환 시 호환성을 보장합니다.</p>
      */
-    private static final Pattern MODEL_KEY_KV_PATTERN = Pattern.compile("(?i)\\bmodelKey\\s*=\\s*([0-9]+)\\b");
+    private static final Pattern MODEL_VERSION_KEY_KV_PATTERN =
+            Pattern.compile("(?i)\\b(?:modelVersionKey|modelKey)\\s*=\\s*([0-9]+)\\b");
 
     private final BusinessModelRuntimeMutationPort runtimeMutationPort;
     private final BusinessWorkflowPluginRuntimeMutationPort pluginRuntimeMutationPort;
     private final ObjectMapper objectMapper;
 
     /**
-     * ?쒕퉬???섏〈?깆쓣 珥덇린?뷀빀?덈떎.
-     *
-     * @param runtimeMutationPort model runtime 蹂寃??ы듃
-     * @param pluginRuntimeMutationPort workflow plugin runtime 蹂寃??ы듃
-     * @param objectMapper JSON ?뚯꽌
+     * 필수 의존성을 주입합니다.
      */
     public BusinessUiModelRuntimeCommandService(
             final BusinessModelRuntimeMutationPort runtimeMutationPort,
@@ -57,172 +57,145 @@ public class BusinessUiModelRuntimeCommandService {
     }
 
     /**
-     * EQP_CREATE / EQP_UPDATE瑜?泥섎━?⑸땲??
+     * EQP_CREATE / EQP_UPDATE 이벤트를 처리합니다.
      *
-     * <p>uiMessage?먯꽌 modelKey瑜?異붿텧??eqp 諛붿씤?⑹쓣 媛깆떊?⑸땲??</p>
-     *
-     * @param request UI ?붿껌 硫붿떆吏
-     * @return 泥섎━ 寃곌낵
+     * <p>uiMessage에서 modelVersionKey를 추출하여 eqp 바인딩을 갱신합니다.</p>
      */
     public KafkaTaskResult handleEqpCreateOrUpdate(final KafkaUiTaskMessage request) {
         final String eqpId = normalize(request.data().eqpId());
         final String traceId = normalize(request.metadata().traceId());
         final String eventType = request.metadata().eventType();
         if (eqpId == null) {
-            return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.EQP_ID_REQUIRED,
-                    "eqpId???꾩닔?낅땲??"
-            );
+            return KafkaTaskResult.fail(BusinessUiTaskErrorCode.EQP_ID_REQUIRED, "eqpId는 필수입니다.");
         }
 
         try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(eqpId, traceId)) {
             log.info("UI {} request received. eqpId={}, traceId={}", eventType, eqpId, traceId);
 
-            final Long modelKey = resolveModelKey(request.data().uiMessage());
-            if (modelKey == null) {
-                log.warn("UI {} failed: modelKey not found. eqpId={}, traceId={}", eventType, eqpId, traceId);
+            final Long modelVersionKey = resolveModelVersionKey(request.data().uiMessage());
+            if (modelVersionKey == null) {
+                log.warn("UI {} failed: modelVersionKey not found. eqpId={}, traceId={}", eventType, eqpId, traceId);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.MODEL_KEY_REQUIRED,
-                        "uiMessage?먯꽌 modelKey瑜?李얠쓣 ???놁뒿?덈떎."
+                        "uiMessage에서 modelVersionKey를 찾을 수 없습니다."
                 );
             }
 
             try {
-                runtimeMutationPort.updateEqpBinding(eqpId, modelKey);
+                runtimeMutationPort.updateEqpBinding(eqpId, modelVersionKey);
             } catch (Exception ex) {
-                log.error("UI {} failed during binding update. eqpId={}, traceId={}, modelKey={}",
-                        eventType,
-                        eqpId,
-                        traceId,
-                        modelKey,
-                        ex);
+                log.error("UI {} failed during binding update. eqpId={}, traceId={}, modelVersionKey={}",
+                        eventType, eqpId, traceId, modelVersionKey, ex);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
-                        "eqpId-modelKey 諛붿씤??媛깆떊???ㅽ뙣?덉뒿?덈떎."
+                        "eqpId-modelVersionKey 바인딩 갱신에 실패했습니다."
                 );
             }
 
-            log.info("UI {} success. eqpId={}, traceId={}, modelKey={}", eventType, eqpId, traceId, modelKey);
+            log.info("UI {} success. eqpId={}, traceId={}, modelVersionKey={}",
+                    eventType, eqpId, traceId, modelVersionKey);
             if (log.isDebugEnabled()) {
-                log.debug("UI {} binding update detail. eqpId={}, modelKey={}", eventType, eqpId, modelKey);
+                log.debug("UI {} binding update detail. eqpId={}, modelVersionKey={}",
+                        eventType, eqpId, modelVersionKey);
             }
             return KafkaTaskResult.pass();
         }
     }
 
     /**
-     * EQP_UPDATE_JARFILE瑜?泥섎━?⑸땲??
+     * EQP_UPDATE_JARFILE 이벤트를 처리합니다.
      *
-     * <p>uiMessage??modelKey瑜??곗꽑 ?ъ슜?섍퀬, ?놁쑝硫?eqpId 諛붿씤?⑹뿉??議고쉶??     * modelKey濡?runtime??由щ줈?쒗빀?덈떎.</p>
-     *
-     * @param request UI ?붿껌 硫붿떆吏
-     * @return 泥섎━ 寃곌낵
+     * <p>우선순위:</p>
+     * <p>1) uiMessage의 modelVersionKey</p>
+     * <p>2) eqpId 바인딩에 저장된 modelVersionKey</p>
      */
     public KafkaTaskResult handleEqpUpdateJarfile(final KafkaUiTaskMessage request) {
         final String eqpId = normalize(request.data().eqpId());
         final String traceId = normalize(request.metadata().traceId());
         if (eqpId == null) {
-            return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.EQP_ID_REQUIRED,
-                    "eqpId???꾩닔?낅땲??"
-            );
+            return KafkaTaskResult.fail(BusinessUiTaskErrorCode.EQP_ID_REQUIRED, "eqpId는 필수입니다.");
         }
 
         try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(eqpId, traceId)) {
             log.info("UI EQP_UPDATE_JARFILE request received. eqpId={}, traceId={}", eqpId, traceId);
 
-            final Long modelKeyFromMessage = resolveModelKey(request.data().uiMessage());
-            final Long modelKey = modelKeyFromMessage != null
-                    ? modelKeyFromMessage
-                    : runtimeMutationPort.findModelKeyByEqpId(eqpId).orElse(null);
-            if (modelKey == null) {
+            final Long modelVersionKeyFromMessage = resolveModelVersionKey(request.data().uiMessage());
+            final Long modelVersionKey = modelVersionKeyFromMessage != null
+                    ? modelVersionKeyFromMessage
+                    : runtimeMutationPort.findModelVersionKeyByEqpId(eqpId).orElse(null);
+
+            if (modelVersionKey == null) {
                 log.warn("UI EQP_UPDATE_JARFILE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
-                        "eqpId??留ㅽ븨??modelKey瑜?李얠쓣 ???놁뒿?덈떎."
+                        "eqpId에 매핑된 modelVersionKey를 찾을 수 없습니다."
                 );
             }
 
             try {
-                runtimeMutationPort.reloadModelRuntime(modelKey);
+                runtimeMutationPort.reloadModelRuntime(modelVersionKey);
             } catch (Exception ex) {
-                log.error("UI EQP_UPDATE_JARFILE failed during runtime reload. eqpId={}, traceId={}, modelKey={}",
-                        eqpId,
-                        traceId,
-                        modelKey,
-                        ex);
+                log.error("UI EQP_UPDATE_JARFILE failed during runtime reload. eqpId={}, traceId={}, modelVersionKey={}",
+                        eqpId, traceId, modelVersionKey, ex);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.MODEL_RUNTIME_UPDATE_FAILED,
-                        "model runtime 由щ줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎."
+                        "model runtime 리로드에 실패했습니다."
                 );
             }
 
-            /*
-             * model runtime 由щ줈???깃났 ??plugin runtime 由щ줈?쒕? ?쒖감 ?섑뻾?⑸땲??
-             * ???④퀎媛 ?ㅽ뙣?섎㈃ ?꾩껜 ?붿껌???ㅽ뙣濡?泥섎━?⑸땲??
-             */
             try {
                 pluginRuntimeMutationPort.reloadByEqpId(eqpId);
             } catch (Exception ex) {
-                log.error("UI EQP_UPDATE_JARFILE failed during plugin runtime reload. eqpId={}, traceId={}, modelKey={}",
-                        eqpId,
-                        traceId,
-                        modelKey,
-                        ex);
+                log.error("UI EQP_UPDATE_JARFILE failed during plugin runtime reload. eqpId={}, traceId={}, modelVersionKey={}",
+                        eqpId, traceId, modelVersionKey, ex);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED,
-                        "workflow plugin runtime 由щ줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎."
+                        "workflow plugin runtime 리로드에 실패했습니다."
                 );
             }
 
-            log.info("UI EQP_UPDATE_JARFILE success. eqpId={}, traceId={}, modelKey={}", eqpId, traceId, modelKey);
+            log.info("UI EQP_UPDATE_JARFILE success. eqpId={}, traceId={}, modelVersionKey={}",
+                    eqpId, traceId, modelVersionKey);
             if (log.isDebugEnabled()) {
-                log.debug("UI EQP_UPDATE_JARFILE detail. eqpId={}, modelKey={}", eqpId, modelKey);
+                log.debug("UI EQP_UPDATE_JARFILE detail. eqpId={}, modelVersionKey={}", eqpId, modelVersionKey);
             }
             return KafkaTaskResult.pass();
         }
     }
 
     /**
-     * EQP_DELETE瑜?泥섎━?⑸땲??
+     * EQP_DELETE 이벤트를 처리합니다.
      *
-     * <p>泥섎━ ?뺤콉:</p>
-     * <p>1) eqpId -> modelKey 諛붿씤?⑹쓣 癒쇱? ?쒓굅?⑸땲??</p>
-     * <p>2) 諛붿씤???쒓굅 ???대떦 eqp??workflow plugin runtime???쒓굅?⑸땲??</p>
-     * <p>3) model runtime 罹먯떆??諛붿씤???쒓굅 ?④퀎?먯꽌 "李몄“ 0媛????뚮쭔 ?먮룞 ?쒓굅?⑸땲??</p>
-     *
-     * @param request UI ?붿껌 硫붿떆吏
-     * @return 泥섎━ 寃곌낵
+     * <p>처리 순서:</p>
+     * <p>1) eqp 바인딩 제거</p>
+     * <p>2) workflow plugin runtime 제거</p>
      */
     public KafkaTaskResult handleEqpDelete(final KafkaUiTaskMessage request) {
         final String eqpId = normalize(request.data().eqpId());
         final String traceId = normalize(request.metadata().traceId());
         if (eqpId == null) {
-            return KafkaTaskResult.fail(
-                    BusinessUiTaskErrorCode.EQP_ID_REQUIRED,
-                    "eqpId???꾩닔?낅땲??"
-            );
+            return KafkaTaskResult.fail(BusinessUiTaskErrorCode.EQP_ID_REQUIRED, "eqpId는 필수입니다.");
         }
 
         try (BusinessLogContext ignored = BusinessLogContext.withEqpAndTraceId(eqpId, traceId)) {
             log.info("UI EQP_DELETE request received. eqpId={}, traceId={}", eqpId, traceId);
 
-            final Optional<Long> removedModelKey;
+            final Optional<Long> removedModelVersionKey;
             try {
-                removedModelKey = runtimeMutationPort.removeEqpBinding(eqpId);
+                removedModelVersionKey = runtimeMutationPort.removeEqpBinding(eqpId);
             } catch (Exception ex) {
                 log.error("UI EQP_DELETE failed during binding remove. eqpId={}, traceId={}", eqpId, traceId, ex);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.MODEL_BINDING_DELETE_FAILED,
-                        "eqpId-modelKey 諛붿씤????젣???ㅽ뙣?덉뒿?덈떎."
+                        "eqpId-modelVersionKey 바인딩 제거에 실패했습니다."
                 );
             }
 
-            if (removedModelKey.isEmpty()) {
+            if (removedModelVersionKey.isEmpty()) {
                 log.warn("UI EQP_DELETE failed: model binding not found. eqpId={}, traceId={}", eqpId, traceId);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.MODEL_BINDING_NOT_FOUND,
-                        "??젣??eqpId-modelKey 諛붿씤?⑹씠 議댁옱?섏? ?딆뒿?덈떎."
+                        "삭제할 eqpId-modelVersionKey 바인딩이 존재하지 않습니다."
                 );
             }
 
@@ -232,70 +205,64 @@ public class BusinessUiModelRuntimeCommandService {
                 log.error("UI EQP_DELETE failed during plugin runtime remove. eqpId={}, traceId={}", eqpId, traceId, ex);
                 return KafkaTaskResult.fail(
                         BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_REMOVE_FAILED,
-                        "workflow plugin runtime ?쒓굅???ㅽ뙣?덉뒿?덈떎."
+                        "workflow plugin runtime 제거에 실패했습니다."
                 );
             }
 
-            log.info("UI EQP_DELETE success. eqpId={}, traceId={}, removedModelKey={}",
-                    eqpId,
-                    traceId,
-                    removedModelKey.orElse(null));
+            log.info("UI EQP_DELETE success. eqpId={}, traceId={}, removedModelVersionKey={}",
+                    eqpId, traceId, removedModelVersionKey.orElse(null));
             if (log.isDebugEnabled()) {
-                log.debug("UI EQP_DELETE detail. eqpId={}, removedModelKey={}", eqpId, removedModelKey.orElse(null));
+                log.debug("UI EQP_DELETE detail. eqpId={}, removedModelVersionKey={}",
+                        eqpId, removedModelVersionKey.orElse(null));
             }
             return KafkaTaskResult.pass();
         }
     }
 
     /**
-     * uiMessage?먯꽌 modelKey瑜?異붿텧?⑸땲??
+     * uiMessage에서 modelVersionKey를 추출합니다.
      *
-     * <p>吏???щ㎎:</p>
-     * <p>1) JSON: {"modelKey":123}</p>
-     * <p>2) JSON 以묒꺽: {"data":{"modelKey":123}}</p>
-     * <p>3) ?レ옄 臾몄옄?? "123"</p>
-     * <p>4) key=value 臾몄옄?? "modelKey=123"</p>
-     *
-     * @param uiMessage UI 硫붿떆吏 蹂몃Ц
-     * @return modelKey(?놁쑝硫?null)
+     * <p>지원 포맷:</p>
+     * <p>1) JSON: {"modelVersionKey":123} 또는 {"modelKey":123}</p>
+     * <p>2) 중첩 JSON: {"data":{"modelVersionKey":123}} 또는 {"data":{"modelKey":123}}</p>
+     * <p>3) 숫자 문자열: "123"</p>
+     * <p>4) key=value 문자열: "modelVersionKey=123" 또는 "modelKey=123"</p>
      */
-    Long resolveModelKey(final String uiMessage) {
+    Long resolveModelVersionKey(final String uiMessage) {
         final String normalized = normalize(uiMessage);
         if (normalized == null) {
             return null;
         }
 
-        /*
-         * 1李? JSON ?뚯떛?쇰줈 modelKey瑜??먯깋?⑸땲??
-         * JSON ?뚯떛 ?ㅽ뙣 ???덉쇅瑜??꾪뙆?섏? ?딄퀬 ?ㅼ쓬 ?щ㎎ ?뚯떛?쇰줈 吏꾪뻾?⑸땲??
-         */
         try {
             final JsonNode root = objectMapper.readTree(normalized);
-            final Long fromJson = extractModelKeyFromJson(root);
+            final Long fromJson = extractModelVersionKeyFromJson(root);
             if (fromJson != null) {
                 if (log.isDebugEnabled()) {
-                    log.debug("modelKey resolved from JSON. modelKey={}, uiMessage={}", fromJson, normalized);
+                    log.debug("modelVersionKey resolved from JSON. modelVersionKey={}, uiMessage={}",
+                            fromJson, normalized);
                 }
                 return fromJson;
             }
         } catch (Exception ignored) {
-            // JSON???꾨땲硫?plain text 寃쎈줈濡?怨꾩냽 泥섎━?⑸땲??
+            // JSON 파싱 실패는 예외로 처리하지 않고 다음 전략으로 진행합니다.
         }
 
         final Long plainNumber = parsePositiveLong(normalized);
         if (plainNumber != null) {
             if (log.isDebugEnabled()) {
-                log.debug("modelKey resolved from plain number. modelKey={}", plainNumber);
+                log.debug("modelVersionKey resolved from plain number. modelVersionKey={}", plainNumber);
             }
             return plainNumber;
         }
 
-        final Matcher matcher = MODEL_KEY_KV_PATTERN.matcher(normalized);
+        final Matcher matcher = MODEL_VERSION_KEY_KV_PATTERN.matcher(normalized);
         if (matcher.find()) {
             final Long fromKv = parsePositiveLong(matcher.group(1));
             if (fromKv != null) {
                 if (log.isDebugEnabled()) {
-                    log.debug("modelKey resolved from key-value text. modelKey={}, text={}", fromKv, normalized);
+                    log.debug("modelVersionKey resolved from key-value text. modelVersionKey={}, text={}",
+                            fromKv, normalized);
                 }
                 return fromKv;
             }
@@ -305,35 +272,37 @@ public class BusinessUiModelRuntimeCommandService {
     }
 
     /**
-     * JSON 猷⑦듃/以묒꺽 寃쎈줈?먯꽌 modelKey瑜?異붿텧?⑸땲??
-     *
-     * @param root JSON 猷⑦듃 ?몃뱶
-     * @return modelKey(?놁쑝硫?null)
+     * JSON 루트/중첩 경로에서 modelVersionKey를 추출합니다.
      */
-    private Long extractModelKeyFromJson(final JsonNode root) {
+    private Long extractModelVersionKeyFromJson(final JsonNode root) {
         if (root == null || root.isNull()) {
             return null;
         }
 
-        final Long direct = parsePositiveLong(root.path("modelKey").asText(null));
+        final Long direct = firstPositive(
+                parsePositiveLong(root.path("modelVersionKey").asText(null)),
+                parsePositiveLong(root.path("modelKey").asText(null))
+        );
         if (direct != null) {
             return direct;
         }
 
         final JsonNode dataNode = root.path("data");
         if (!dataNode.isMissingNode() && !dataNode.isNull()) {
-            final Long nested = parsePositiveLong(dataNode.path("modelKey").asText(null));
-            if (nested != null) {
-                return nested;
-            }
+            return firstPositive(
+                    parsePositiveLong(dataNode.path("modelVersionKey").asText(null)),
+                    parsePositiveLong(dataNode.path("modelKey").asText(null))
+            );
         }
         return null;
     }
 
+    private static Long firstPositive(final Long primary, final Long secondary) {
+        return primary != null ? primary : secondary;
+    }
+
     /**
-     * ?묒닔 long 臾몄옄?댁쓣 ?뚯떛?⑸땲??
-     *
-     * @param text ?뚯떛 ???臾몄옄??     * @return ?묒닔 long 媛??ㅽ뙣 ??null)
+     * 양의 정수 long 문자열을 파싱합니다.
      */
     private static Long parsePositiveLong(final String text) {
         final String normalized = normalize(text);
@@ -352,9 +321,7 @@ public class BusinessUiModelRuntimeCommandService {
     }
 
     /**
-     * 臾몄옄?댁쓣 null-safe?섍쾶 ?뺢퇋?뷀빀?덈떎.
-     *
-     * @param value ?먮낯 臾몄옄??     * @return trim 寃곌낵(鍮?臾몄옄?댁씠硫?null)
+     * 문자열을 null-safe 하게 정규화합니다.
      */
     private static String normalize(final String value) {
         if (value == null) {
@@ -367,8 +334,3 @@ public class BusinessUiModelRuntimeCommandService {
         return normalized;
     }
 }
-
-
-
-
-

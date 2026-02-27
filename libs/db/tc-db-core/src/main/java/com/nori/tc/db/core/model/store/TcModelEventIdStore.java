@@ -8,7 +8,7 @@ import com.nori.tc.db.domain.model.TcModelEventId;
 /**
  * tc_model_eventid CRUD 인터페이스.
  *
- * - (model_key, event_id) 유니크 키를 기준으로 upsert합니다.
+ * - (model_version_key, event_id) 유니크 키를 기준으로 upsert합니다.
  */
 public interface TcModelEventIdStore {
 
@@ -37,11 +37,11 @@ public interface TcModelEventIdStore {
      * DB Core 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param eventId 처리할 이벤트 정보
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelEventId> findByModelKeyAndEventId(long modelKey, String eventId);
+    Optional<TcModelEventId> findByModelVersionKeyAndEventId(long modelVersionKey, String eventId);
 
     
     /**

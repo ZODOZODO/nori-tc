@@ -80,7 +80,7 @@ public class TcEqpMybatisStore implements TcEqpStore {
                 command.routePartition(),
                 command.eqpIp(),
                 command.eqpPort(),
-                command.modelKey(),
+                command.modelVersionKey(),
                 command.enabled(),
                 null,
                 null,
@@ -251,6 +251,6 @@ public class TcEqpMybatisStore implements TcEqpStore {
         }
         if (command.eqpIp() == null || command.eqpIp().isBlank()) throw new IllegalArgumentException("command.eqpIp must not be null/blank");
         if (command.eqpPort() <= 0) throw new IllegalArgumentException("command.eqpPort must be > 0");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
     }
 }

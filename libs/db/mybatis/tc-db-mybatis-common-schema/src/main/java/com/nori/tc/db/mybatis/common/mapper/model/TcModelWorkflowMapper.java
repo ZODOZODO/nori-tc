@@ -50,23 +50,23 @@ public interface TcModelWorkflowMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param workflowName DB MyBatis 계층 처리에 사용하는 입력 값
      * @param messageName 처리할 원본 데이터
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
-            @Param("modelKey") long modelKey,
+    Optional<TcModelWorkflow> findByModelVersionKeyAndWorkflowNameAndMessageName(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("workflowName") String workflowName,
             @Param("messageName") String messageName
     );
 
     /**
-     * 특정 모델(model_key)의 워크플로 목록 조회.
+     * 특정 모델(model_version_key)의 워크플로 목록 조회.
      * - DB 페이징 적용
      */
-    List<TcModelWorkflow> findAllByModelKey(
-            @Param("modelKey") long modelKey,
+    List<TcModelWorkflow> findAllByModelVersionKey(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

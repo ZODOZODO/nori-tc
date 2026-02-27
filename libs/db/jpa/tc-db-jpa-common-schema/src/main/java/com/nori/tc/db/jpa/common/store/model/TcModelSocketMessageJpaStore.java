@@ -31,7 +31,7 @@ import com.nori.tc.db.jpa.common.repository.model.TcModelSocketMessageJpaReposit
  * <p>
  * <b>설계 전략:</b>
  * <ul>
- * <li><b>Upsert:</b> (model_key, socket_msg_name) 유니크 키로 조회 후 저장합니다.</li>
+ * <li><b>Upsert:</b> (model_version_key, socket_msg_name) 유니크 키로 조회 후 저장합니다.</li>
  * <li><b>Paging:</b> PageRequest(offset/limit)를 Criteria API로 직접 적용합니다.</li>
  * </ul>
  * </p>
@@ -76,11 +76,11 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
         validateCommand(command);
 
         try {
-            final long modelKey = command.modelKey();
+            final long modelVersionKey = command.modelVersionKey();
             final String socketMsgName = command.socketMsgName();
 
-            TcModelSocketMessageEntity entity = repository.findByModelKeyAndSocketMsgName(modelKey, socketMsgName)
-                    .orElseGet(() -> TcModelSocketMessageEntity.newEntity(modelKey, socketMsgName));
+            TcModelSocketMessageEntity entity = repository.findByModelVersionKeyAndSocketMsgName(modelVersionKey, socketMsgName)
+                    .orElseGet(() -> TcModelSocketMessageEntity.newEntity(modelVersionKey, socketMsgName));
 
             mapper.updateEntity(command, entity);
 
@@ -99,23 +99,23 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param socketMsgName 통신 채널/세션 정보
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelSocketMessage> findByModelKeySocketMsgName(long modelKey, String socketMsgName) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelSocketMessage> findByModelVersionKeySocketMsgName(long modelVersionKey, String socketMsgName) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (socketMsgName == null || socketMsgName.isBlank()) {
             throw new IllegalArgumentException("socketMsgName must not be null/blank");
         }
         try {
-            return repository.findByModelKeyAndSocketMsgName(modelKey, socketMsgName).map(mapper::toDomain);
+            return repository.findByModelVersionKeyAndSocketMsgName(modelVersionKey, socketMsgName).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_socket_message] findByModelKeySocketMsgName failed", e);
+            throw new DbAccessException("[tc_model_socket_message] findByModelVersionKeySocketMsgName failed", e);
         }
     }
 
@@ -124,15 +124,15 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelSocketMessage> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelSocketMessage> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
@@ -141,7 +141,7 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
             CriteriaQuery<TcModelSocketMessageEntity> cq = cb.createQuery(TcModelSocketMessageEntity.class);
             Root<TcModelSocketMessageEntity> root = cq.from(TcModelSocketMessageEntity.class);
 
-            Predicate predicate = cb.equal(root.get("modelKey"), modelKey);
+            Predicate predicate = cb.equal(root.get("modelVersionKey"), modelVersionKey);
             cq.select(root).where(predicate);
             cq.orderBy(cb.asc(root.get("socketMsgName")), cb.asc(root.get("socketMsgKey")));
 
@@ -151,7 +151,7 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
 
             return query.getResultList().stream().map(mapper::toDomain).toList();
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_socket_message] findAllByModelKey failed", e);
+            throw new DbAccessException("[tc_model_socket_message] findAllByModelVersionKey failed", e);
         }
     }
 
@@ -160,23 +160,23 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param socketMsgName 통신 채널/세션 정보
      */
     @Override
     @Transactional
-    public void deleteByModelKeySocketMsgName(long modelKey, String socketMsgName) {
+    public void deleteByModelVersionKeySocketMsgName(long modelVersionKey, String socketMsgName) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (socketMsgName == null || socketMsgName.isBlank()) {
             throw new IllegalArgumentException("socketMsgName must not be null/blank");
         }
         try {
-            repository.findByModelKeyAndSocketMsgName(modelKey, socketMsgName).ifPresent(repository::delete);
+            repository.findByModelVersionKeyAndSocketMsgName(modelVersionKey, socketMsgName).ifPresent(repository::delete);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_socket_message] deleteByModelKeySocketMsgName failed", e);
+            throw new DbAccessException("[tc_model_socket_message] deleteByModelVersionKeySocketMsgName failed", e);
         }
     }
 
@@ -189,7 +189,7 @@ public class TcModelSocketMessageJpaStore implements TcModelSocketMessageStore {
      */
     private void validateCommand(UpsertTcModelSocketMessage command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.socketMsgName() == null || command.socketMsgName().isBlank()) {
             throw new IllegalArgumentException("command.socketMsgName must not be null/blank");
         }

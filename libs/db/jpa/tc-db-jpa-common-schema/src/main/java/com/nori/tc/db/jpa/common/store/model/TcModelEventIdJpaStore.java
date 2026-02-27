@@ -54,11 +54,11 @@ public class TcModelEventIdJpaStore implements TcModelEventIdStore {
         validateCommand(normalized);
 
         try {
-            final Long modelKey = normalized.modelKey();
+            final Long modelVersionKey = normalized.modelVersionKey();
             final String eventId = normalized.eventId();
 
-            final TcModelEventIdEntity entity = repository.findByModelKeyAndEventId(modelKey, eventId)
-                    .orElseGet(() -> TcModelEventIdEntity.newEntity(modelKey, eventId));
+            final TcModelEventIdEntity entity = repository.findByModelVersionKeyAndEventId(modelVersionKey, eventId)
+                    .orElseGet(() -> TcModelEventIdEntity.newEntity(modelVersionKey, eventId));
 
             mapper.updateEntity(normalized, entity);
 
@@ -98,23 +98,23 @@ public class TcModelEventIdJpaStore implements TcModelEventIdStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param eventId 처리할 이벤트 정보
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelEventId> findByModelKeyAndEventId(long modelKey, String eventId) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be positive");
+    public Optional<TcModelEventId> findByModelVersionKeyAndEventId(long modelVersionKey, String eventId) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be positive");
         }
         if (eventId == null || eventId.isBlank()) {
             throw new IllegalArgumentException("eventId must not be null/blank");
         }
         try {
-            return repository.findByModelKeyAndEventId(modelKey, eventId).map(mapper::toDomain);
+            return repository.findByModelVersionKeyAndEventId(modelVersionKey, eventId).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_eventid] findByModelKeyAndEventId failed: modelKey=" + modelKey + ", eventId=" + eventId, e);
+            throw new DbAccessException("[tc_model_eventid] findByModelVersionKeyAndEventId failed: modelVersionKey=" + modelVersionKey + ", eventId=" + eventId, e);
         }
     }
 
@@ -152,8 +152,8 @@ public class TcModelEventIdJpaStore implements TcModelEventIdStore {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
         }
-        if (command.modelKey() == null || command.modelKey() <= 0) {
-            throw new IllegalArgumentException("command.modelKey must be positive");
+        if (command.modelVersionKey() == null || command.modelVersionKey() <= 0) {
+            throw new IllegalArgumentException("command.modelVersionKey must be positive");
         }
         if (command.eventId() == null || command.eventId().isBlank()) {
             throw new IllegalArgumentException("command.eventId must not be null/blank");
@@ -176,7 +176,7 @@ public class TcModelEventIdJpaStore implements TcModelEventIdStore {
             throw new IllegalArgumentException("command must not be null");
         }
         return new UpsertTcModelEventId(
-                command.modelKey(),
+                command.modelVersionKey(),
                 command.eventId(),
                 command.reportId(),
                 command.enabled() == null ? Boolean.FALSE : command.enabled()

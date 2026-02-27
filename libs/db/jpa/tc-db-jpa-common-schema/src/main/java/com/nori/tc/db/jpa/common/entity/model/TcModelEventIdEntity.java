@@ -16,12 +16,12 @@ import jakarta.persistence.UniqueConstraint;
  *
  * [DB 스키마]
  * - event_key  : bigint PK (IDENTITY)
- * - model_key  : bigint NOT NULL (tc_model FK)
+ * - model_version_key  : bigint NOT NULL (tc_model FK)
  * - event_id   : varchar(100) NOT NULL
  * - report_id  : varchar(1000) NULL
  * - enabled    : boolean NOT NULL default false
  * - updated_at : timestamptz NOT NULL
- * - Constraints: UNIQUE (model_key, event_id)
+ * - Constraints: UNIQUE (model_version_key, event_id)
  *
  * [설계 포인트]
  * 1. MapStruct 호환성:
@@ -34,7 +34,7 @@ import jakarta.persistence.UniqueConstraint;
 @Table(
         name = "tc_model_eventid",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_tc_model_eventid_model_key_event_id", columnNames = {"model_key", "event_id"})
+                @UniqueConstraint(name = "uk_tc_model_eventid_model_version_key_event_id", columnNames = {"model_version_key", "event_id"})
         }
 )
 public class TcModelEventIdEntity extends AbstractUpdatedEntity {
@@ -44,8 +44,8 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     @Column(name = "event_key", nullable = false)
     private Long eventKey;
 
-    @Column(name = "model_key", nullable = false)
-    private Long modelKey;
+    @Column(name = "model_version_key", nullable = false)
+    private Long modelVersionKey;
 
     @Column(name = "event_id", length = 100, nullable = false)
     private String eventId;
@@ -69,9 +69,9 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     /**
      * 전체 인자 생성자
      */
-    public TcModelEventIdEntity(Long eventKey, Long modelKey, String eventId, String reportId, Boolean enabled) {
+    public TcModelEventIdEntity(Long eventKey, Long modelVersionKey, String eventId, String reportId, Boolean enabled) {
         this.eventKey = eventKey;
-        this.modelKey = modelKey;
+        this.modelVersionKey = modelVersionKey;
         this.eventId = eventId;
         this.reportId = reportId;
         this.enabled = enabled;
@@ -86,19 +86,19 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
      * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param eventId 처리할 이벤트 정보
      * @return DB JPA 계층 처리 결과
      */
-    public static TcModelEventIdEntity newEntity(Long modelKey, String eventId) {
-        if (modelKey == null || modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be positive");
+    public static TcModelEventIdEntity newEntity(Long modelVersionKey, String eventId) {
+        if (modelVersionKey == null || modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be positive");
         }
         if (eventId == null || eventId.isBlank()) {
             throw new IllegalArgumentException("eventId must not be null/blank");
         }
         TcModelEventIdEntity e = new TcModelEventIdEntity();
-        e.setModelKey(modelKey);
+        e.setModelVersionKey(modelVersionKey);
         e.setEventId(eventId);
         return e;
     }
@@ -153,8 +153,8 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
      * @return DB JPA 계층 처리 결과
      */
-    public Long getModelKey() {
-        return modelKey;
+    public Long getModelVersionKey() {
+        return modelVersionKey;
     }
 
     
@@ -162,10 +162,10 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
      * DB JPA 계층 설정 값을 반영합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      */
-    public void setModelKey(Long modelKey) {
-        this.modelKey = modelKey;
+    public void setModelVersionKey(Long modelVersionKey) {
+        this.modelVersionKey = modelVersionKey;
     }
 
     

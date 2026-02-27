@@ -21,7 +21,7 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelSecsMessageMapper;
  *
  * upsert 주의
  * - common-schema의 TcModelSecsMessageMapper.xml은 벤더 중립성을 위해 "generated key 반환"을 하지 않는다.
- * - 따라서 insert 후 (model_key, secs_msg_name)으로 재조회하여 secs_msg_key를 확보한다.
+ * - 따라서 insert 후 (model_version_key, secs_msg_name)으로 재조회하여 secs_msg_key를 확보한다.
  */
 @Repository
 public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
@@ -54,14 +54,14 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
         validateUpsert(command);
 
         final Long secsMsgKey = command.secsMsgKey();
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final String secsMsgName = command.secsMsgName();
 
-        final long resolvedKey = resolveKey(secsMsgKey, modelKey, secsMsgName);
+        final long resolvedKey = resolveKey(secsMsgKey, modelVersionKey, secsMsgName);
 
         final TcModelSecsMessage row = new TcModelSecsMessage(
                 resolvedKey,
-                modelKey,
+                modelVersionKey,
                 secsMsgName,
                 command.description(),
                 command.dataIndex(),
@@ -77,15 +77,15 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
                 }
             }
 
-            return mapper.findByModelKeyAndName(modelKey, secsMsgName)
-                    .orElseThrow(() -> new DbAccessException("tc_model_secs_message upsert succeeded but row not found. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName));
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, secsMsgName)
+                    .orElseThrow(() -> new DbAccessException("tc_model_secs_message upsert succeeded but row not found. modelVersionKey=" + modelVersionKey + ", secsMsgName=" + secsMsgName));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_secs_message upsert duplicate (model_key, secs_msg_name). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbDuplicateKeyException("tc_model_secs_message upsert duplicate (model_version_key, secs_msg_name). modelVersionKey=" + modelVersionKey + ", secsMsgName=" + secsMsgName, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_secs_message upsert failed. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbAccessException("tc_model_secs_message upsert failed. modelVersionKey=" + modelVersionKey + ", secsMsgName=" + secsMsgName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_secs_message upsert failed (unexpected). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbAccessException("tc_model_secs_message upsert failed (unexpected). modelVersionKey=" + modelVersionKey + ", secsMsgName=" + secsMsgName, e);
         }
     }
 
@@ -114,19 +114,19 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param secsMsgName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelSecsMessage> findByModelKeyAndName(long modelKey, String secsMsgName) {
+    public Optional<TcModelSecsMessage> findByModelVersionKeyAndName(long modelVersionKey, String secsMsgName) {
         try {
-            return mapper.findByModelKeyAndName(modelKey, secsMsgName);
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, secsMsgName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_secs_message findByModelKeyAndName failed. modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbAccessException("tc_model_secs_message findByModelVersionKeyAndName failed. modelVersionKey=" + modelVersionKey + ", secsMsgName=" + secsMsgName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_secs_message findByModelKeyAndName failed (unexpected). modelKey=" + modelKey + ", secsMsgName=" + secsMsgName, e);
+            throw new DbAccessException("tc_model_secs_message findByModelVersionKeyAndName failed (unexpected). modelVersionKey=" + modelVersionKey + ", secsMsgName=" + secsMsgName, e);
         }
     }
 
@@ -135,20 +135,20 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelSecsMessage> findAllByModelKey(long modelKey, PageRequest page) {
+    public List<TcModelSecsMessage> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
         try {
-            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
+            return mapper.findAllByModelVersionKey(modelVersionKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_secs_message findAllByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_secs_message findAllByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_secs_message findAllByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_secs_message findAllByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -186,8 +186,8 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
         if (command.secsMsgKey() != null && command.secsMsgKey() <= 0) {
             throw new IllegalArgumentException("command.secsMsgKey must be > 0 when provided");
         }
-        if (command.modelKey() <= 0) {
-            throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) {
+            throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         }
         if (command.secsMsgName() == null || command.secsMsgName().isBlank()) {
             throw new IllegalArgumentException("command.secsMsgName must not be null/blank");
@@ -200,11 +200,11 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
      * @param secsMsgKey 대상 키 값
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param secsMsgName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return DB MyBatis 계층 처리 결과
      */
-    private long resolveKey(Long secsMsgKey, long modelKey, String secsMsgName) {
+    private long resolveKey(Long secsMsgKey, long modelVersionKey, String secsMsgName) {
         if (secsMsgKey != null) {
             if (secsMsgKey <= 0) {
                 throw new IllegalArgumentException("secsMsgKey must be > 0 when provided");
@@ -212,7 +212,7 @@ public class TcModelSecsMessageMybatisStore implements TcModelSecsMessageStore {
             return secsMsgKey;
         }
 
-        return mapper.findByModelKeyAndName(modelKey, secsMsgName)
+        return mapper.findByModelVersionKeyAndName(modelVersionKey, secsMsgName)
                 .map(TcModelSecsMessage::secsMsgKey)
                 .orElse(0L);
     }

@@ -9,7 +9,7 @@
     <resultMap id="TcModelMdfMap" type="com.nori.tc.db.domain.model.TcModelMdf">
         <constructor>
             <idArg column="mdf_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
             <arg column="mdf_name" javaType="java.lang.String"/>
             <arg column="mdf_file" javaType="byte[]" typeHandler="org.apache.ibatis.type.ByteArrayTypeHandler"/>
             <arg column="updated_at"
@@ -19,21 +19,21 @@
     </resultMap>
 
     <sql id="TcModelMdfColumns">
-        mdf_key, model_key, mdf_name, mdf_file, updated_at
+        mdf_key, model_version_key, mdf_name, mdf_file, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model_mdf
-            (model_key, mdf_name, mdf_file)
+            (model_version_key, mdf_name, mdf_file)
         VALUES
-            (#{m.modelKey},
+            (#{m.modelVersionKey},
              #{m.mdfName},
              #{m.mdfFile, typeHandler=org.apache.ibatis.type.ByteArrayTypeHandler})
     </insert>
 
     <update id="update">
         UPDATE tc_model_mdf
-           SET model_key  = #{m.modelKey},
+           SET model_version_key  = #{m.modelVersionKey},
                mdf_name   = #{m.mdfName},
                mdf_file   = #{m.mdfFile, typeHandler=org.apache.ibatis.type.ByteArrayTypeHandler},
                updated_at = CURRENT_TIMESTAMP
@@ -46,17 +46,17 @@
          WHERE mdf_key = #{mdfKey}
     </select>
 
-    <select id="findByModelKeyAndName" resultMap="TcModelMdfMap">
+    <select id="findByModelVersionKeyAndName" resultMap="TcModelMdfMap">
         SELECT <include refid="TcModelMdfColumns"/>
           FROM tc_model_mdf
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND mdf_name = #{mdfName}
     </select>
 
-    <select id="findAllByModelKey" resultMap="TcModelMdfMap">
+    <select id="findAllByModelVersionKey" resultMap="TcModelMdfMap">
         SELECT <include refid="TcModelMdfColumns"/>
           FROM tc_model_mdf
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY mdf_key DESC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

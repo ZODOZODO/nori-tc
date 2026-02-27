@@ -27,7 +27,7 @@ import java.util.Set;
 class BusinessUiModelRuntimeCommandServiceTest {
 
     @Test
-    void shouldUpdateEqpBindingWhenModelKeyExistsInUiMessageJson() {
+    void shouldUpdateEqpBindingWhenModelVersionKeyExistsInUiMessageJson() {
         final FakeRuntimeMutationPort runtimePort = new FakeRuntimeMutationPort();
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
@@ -39,7 +39,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final KafkaUiTaskMessage request = createRequest(
                 "EQP_UPDATE",
                 "EQP-01",
-                "{\"modelKey\":101}"
+                "{\"modelVersionKey\":101}"
         );
 
         final KafkaTaskResult result = service.handleEqpCreateOrUpdate(request);
@@ -49,7 +49,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
     }
 
     @Test
-    void shouldReturnFailWhenModelKeyMissingOnEqpUpdate() {
+    void shouldReturnFailWhenModelVersionKeyMissingOnEqpUpdate() {
         final FakeRuntimeMutationPort runtimePort = new FakeRuntimeMutationPort();
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
@@ -61,7 +61,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final KafkaUiTaskMessage request = createRequest(
                 "EQP_UPDATE",
                 "EQP-01",
-                "{\"notModelKey\":1}"
+                "{\"notModelVersionKey\":1}"
         );
 
         final KafkaTaskResult result = service.handleEqpCreateOrUpdate(request);
@@ -71,7 +71,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
     }
 
     @Test
-    void shouldReloadModelRuntimeUsingExistingBindingWhenUiMessageHasNoModelKey() {
+    void shouldReloadModelRuntimeUsingExistingBindingWhenUiMessageHasNoModelVersionKey() {
         final FakeRuntimeMutationPort runtimePort = new FakeRuntimeMutationPort();
         runtimePort.bindings.put("EQP-02", 200L);
 
@@ -91,7 +91,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final KafkaTaskResult result = service.handleEqpUpdateJarfile(request);
 
         Assertions.assertEquals(KafkaTaskReplyStatus.PASS, result.status());
-        Assertions.assertTrue(runtimePort.reloadedModelKeys.contains(200L));
+        Assertions.assertTrue(runtimePort.reloadedModelVersionKeys.contains(200L));
     }
 
     @Test
@@ -140,7 +140,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
 
         Assertions.assertEquals(KafkaTaskReplyStatus.FAIL, result.status());
         Assertions.assertEquals(BusinessUiTaskErrorCode.WORKFLOW_PLUGIN_RELOAD_FAILED, result.errorCode());
-        Assertions.assertTrue(runtimePort.reloadedModelKeys.contains(400L));
+        Assertions.assertTrue(runtimePort.reloadedModelVersionKeys.contains(400L));
     }
 
     @Test
@@ -217,7 +217,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
      */
     private static final class FakeRuntimeMutationPort implements BusinessModelRuntimeMutationPort {
         private final Map<String, Long> bindings = new LinkedHashMap<>();
-        private final Set<Long> reloadedModelKeys = new LinkedHashSet<>();
+        private final Set<Long> reloadedModelVersionKeys = new LinkedHashSet<>();
 
         /**
          * reloadAll 湲곕뒫???섑뻾?⑸땲??
@@ -232,21 +232,21 @@ class BusinessUiModelRuntimeCommandServiceTest {
         /**
          * reloadModelRuntime 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey ?낅젰 媛?         */
+         * @param modelVersionKey ?낅젰 媛?         */
 
         @Override
-        public void reloadModelRuntime(final long modelKey) {
-            reloadedModelKeys.add(modelKey);
+        public void reloadModelRuntime(final long modelVersionKey) {
+            reloadedModelVersionKeys.add(modelVersionKey);
         }
 
         /**
          * updateEqpBinding 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId ?낅젰 媛?         * @param modelKey ?낅젰 媛?         */
+         * @param eqpId ?낅젰 媛?         * @param modelVersionKey ?낅젰 媛?         */
 
         @Override
-        public void updateEqpBinding(final String eqpId, final long modelKey) {
-            bindings.put(eqpId, modelKey);
+        public void updateEqpBinding(final String eqpId, final long modelVersionKey) {
+            bindings.put(eqpId, modelVersionKey);
         }
 
         /**
@@ -272,13 +272,13 @@ class BusinessUiModelRuntimeCommandServiceTest {
         }
 
         /**
-         * findRuntimeByModelKey 湲곕뒫???섑뻾?⑸땲??
+         * findRuntimeByModelVersionKey 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * @param modelVersionKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
          */
 
         @Override
-        public Optional<TcModelRuntime> findRuntimeByModelKey(final long modelKey) {
+        public Optional<TcModelRuntime> findRuntimeByModelVersionKey(final long modelVersionKey) {
             return Optional.empty();
         }
     }

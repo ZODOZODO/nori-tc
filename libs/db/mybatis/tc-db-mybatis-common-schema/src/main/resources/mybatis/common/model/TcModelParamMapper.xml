@@ -9,7 +9,7 @@
     <resultMap id="TcModelParamMap" type="com.nori.tc.db.domain.model.TcModelParam">
         <constructor>
             <idArg column="model_param_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
             <arg column="param_name" javaType="java.lang.String"/>
             <arg column="param_value" javaType="java.lang.String"/>
             <arg column="updated_at"
@@ -19,14 +19,14 @@
     </resultMap>
 
     <sql id="TcModelParamColumns">
-        model_param_key, model_key, param_name, param_value, updated_at
+        model_param_key, model_version_key, param_name, param_value, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model_param
-            (model_key, param_name, param_value)
+            (model_version_key, param_name, param_value)
         VALUES
-            (#{m.modelKey},
+            (#{m.modelVersionKey},
              #{m.paramName},
              #{m.paramValue})
     </insert>
@@ -35,21 +35,21 @@
         UPDATE tc_model_param
            SET param_value = #{m.paramValue},
                updated_at  = CURRENT_TIMESTAMP
-         WHERE model_key = #{m.modelKey}
+         WHERE model_version_key = #{m.modelVersionKey}
            AND param_name = #{m.paramName}
     </update>
 
-    <select id="findByModelKeyAndName" resultMap="TcModelParamMap">
+    <select id="findByModelVersionKeyAndName" resultMap="TcModelParamMap">
         SELECT <include refid="TcModelParamColumns"/>
           FROM tc_model_param
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND param_name = #{paramName}
     </select>
 
-    <select id="findAllByModelKey" resultMap="TcModelParamMap">
+    <select id="findAllByModelVersionKey" resultMap="TcModelParamMap">
         SELECT <include refid="TcModelParamColumns"/>
           FROM tc_model_param
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY model_param_key ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

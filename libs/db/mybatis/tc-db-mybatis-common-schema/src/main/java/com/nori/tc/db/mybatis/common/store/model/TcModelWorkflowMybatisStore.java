@@ -21,7 +21,7 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelWorkflowMapper;
  *
  * upsert 주의
  * - common-schema의 TcModelWorkflowMapper.xml은 벤더 중립성을 위해 "generated key 반환"을 하지 않는다.
- * - 따라서 insert 후 (model_key, workflow_name, message_name)으로 재조회하여 workflow_key를 확보한다.
+ * - 따라서 insert 후 (model_version_key, workflow_name, message_name)으로 재조회하여 workflow_key를 확보한다.
  */
 @Repository
 public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
@@ -52,15 +52,15 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
     public TcModelWorkflow upsert(UpsertTcModelWorkflow command) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         final Long workflowKey = command.workflowKey();
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final String workflowName = command.workflowName();
         final String messageName = command.messageName();
 
-        final long resolvedKey = resolveKey(workflowKey, modelKey, workflowName, messageName);
+        final long resolvedKey = resolveKey(workflowKey, modelVersionKey, workflowName, messageName);
 
         final TcModelWorkflow row = new TcModelWorkflow(
                 resolvedKey,
-                modelKey,
+                modelVersionKey,
                 workflowName,
                 messageName,
                 command.eventId(),
@@ -80,24 +80,24 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
                 }
             }
 
-            return mapper.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName)
+            return mapper.findByModelVersionKeyAndWorkflowNameAndMessageName(modelVersionKey, workflowName, messageName)
                     .orElseThrow(() -> new DbAccessException(
-                            "tc_model_workflow upsert succeeded but row not found. key=" + modelKey + "/" + workflowName + "/" + messageName
+                            "tc_model_workflow upsert succeeded but row not found. key=" + modelVersionKey + "/" + workflowName + "/" + messageName
                     ));
 
         } catch (DuplicateKeyException e) {
             throw new DbDuplicateKeyException(
-                    "tc_model_workflow upsert duplicate (model_key, workflow_name, message_name). key=" + modelKey + "/" + workflowName + "/" + messageName,
+                    "tc_model_workflow upsert duplicate (model_version_key, workflow_name, message_name). key=" + modelVersionKey + "/" + workflowName + "/" + messageName,
                     e
             );
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_workflow upsert failed. key=" + modelKey + "/" + workflowName + "/" + messageName,
+                    "tc_model_workflow upsert failed. key=" + modelVersionKey + "/" + workflowName + "/" + messageName,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_workflow upsert failed (unexpected). key=" + modelKey + "/" + workflowName + "/" + messageName,
+                    "tc_model_workflow upsert failed (unexpected). key=" + modelVersionKey + "/" + workflowName + "/" + messageName,
                     e
             );
         }
@@ -128,24 +128,24 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param workflowName DB MyBatis 계층 처리에 사용하는 입력 값
      * @param messageName 처리할 원본 데이터
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
-            long modelKey,
+    public Optional<TcModelWorkflow> findByModelVersionKeyAndWorkflowNameAndMessageName(
+            long modelVersionKey,
             String workflowName,
             String messageName
     ) {
         try {
-            return mapper.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName);
+            return mapper.findByModelVersionKeyAndWorkflowNameAndMessageName(modelVersionKey, workflowName, messageName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_workflow findByUnique failed. key=" + modelKey + "/" + workflowName + "/" + messageName, e);
+            throw new DbAccessException("tc_model_workflow findByUnique failed. key=" + modelVersionKey + "/" + workflowName + "/" + messageName, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_workflow findByUnique failed (unexpected). key=" + modelKey + "/" + workflowName + "/" + messageName, e);
+            throw new DbAccessException("tc_model_workflow findByUnique failed (unexpected). key=" + modelVersionKey + "/" + workflowName + "/" + messageName, e);
         }
     }
 
@@ -154,25 +154,25 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page) {
+    public List<TcModelWorkflow> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(
-                    modelKey,
+            return mapper.findAllByModelVersionKey(
+                    modelVersionKey,
                     p.offset(),
                     p.limit()
             );
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_workflow findAllByModelKey failed.", e);
+            throw new DbAccessException("tc_model_workflow findAllByModelVersionKey failed.", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_workflow findAllByModelKey failed (unexpected).", e);
+            throw new DbAccessException("tc_model_workflow findAllByModelVersionKey failed (unexpected).", e);
         }
     }
 
@@ -203,12 +203,12 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
      * @param workflowKey 대상 키 값
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param workflowName DB MyBatis 계층 처리에 사용하는 입력 값
      * @param messageName 처리할 원본 데이터
      * @return DB MyBatis 계층 처리 결과
      */
-    private long resolveKey(Long workflowKey, long modelKey, String workflowName, String messageName) {
+    private long resolveKey(Long workflowKey, long modelVersionKey, String workflowName, String messageName) {
         if (workflowKey != null) {
             if (workflowKey <= 0) {
                 throw new IllegalArgumentException("workflowKey must be > 0 when provided");
@@ -216,7 +216,7 @@ public class TcModelWorkflowMybatisStore implements TcModelWorkflowStore {
             return workflowKey;
         }
 
-        return mapper.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName)
+        return mapper.findByModelVersionKeyAndWorkflowNameAndMessageName(modelVersionKey, workflowName, messageName)
                 .map(TcModelWorkflow::workflowKey)
                 .orElse(0L);
     }

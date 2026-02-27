@@ -21,11 +21,11 @@ public interface TcModelVariableIdEntityMapper {
      * Command -> Entity (Write/Update)
      * - variableKey는 DB 생성(IDENTITY)이므로 무시
      * - updatedAt은 JPA Auditing이 관리하므로 무시
-     * - modelKey/variableIdType/variableId는 Unique Key이므로 변경 금지 (ignore)
+     * - modelVersionKey/variableIdType/variableId는 Unique Key이므로 변경 금지 (ignore)
      */
     @Mapping(target = "variableKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "modelKey", ignore = true)
+    @Mapping(target = "modelVersionKey", ignore = true)
     @Mapping(target = "variableIdType", ignore = true)
     @Mapping(target = "variableId", ignore = true)
     void updateEntity(UpsertTcModelVariableId command, @MappingTarget TcModelVariableIdEntity entity);

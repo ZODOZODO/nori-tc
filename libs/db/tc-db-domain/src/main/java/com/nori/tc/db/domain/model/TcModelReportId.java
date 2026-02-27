@@ -7,14 +7,14 @@ import java.time.OffsetDateTime;
  *
  * PK/FK:
  * - report_key (PK, identity)
- * - model_key (FK -> tc_model.model_key, ON DELETE CASCADE)
+ * - model_version_key (FK -> tc_model_version.model_version_key, ON DELETE CASCADE)
  *
  * Unique:
- * - (model_key, report_id)
+ * - (model_version_key, report_id)
  */
 public record TcModelReportId(
         long reportKey,
-        long modelKey,
+        long modelVersionKey,
         String reportId,
         String variableId,
         boolean enabled,

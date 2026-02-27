@@ -23,11 +23,12 @@ class BusinessModelRuntimeAssemblerTest {
 
     @Test
     void shouldAssembleWorkflowIndexesAndMetadata() {
-        final long modelKey = 101L;
+        final long modelVersionKey = 101L;
         final OffsetDateTime now = OffsetDateTime.now();
 
         final TcModel model = new TcModel(
-                modelKey,
+                modelVersionKey,
+                modelVersionKey,
                 "MODEL-A",
                 "v1",
                 ProtocolType.HSMS,
@@ -40,35 +41,35 @@ class BusinessModelRuntimeAssemblerTest {
         );
 
         final List<TcModelWorkflow> workflows = List.of(
-                new TcModelWorkflow(1L, modelKey, "WF-1", "S6F11", "E1", "T1", "{\"op\":\"eq\"}", "ACT-1", "IDX-1", now),
-                new TcModelWorkflow(2L, modelKey, "WF-2", "S6F11", "E1", "T2", null, "ACT-2", null, now),
-                new TcModelWorkflow(3L, modelKey, "WF-3", "MES_START", null, null, null, "ACT-3", null, now)
+                new TcModelWorkflow(1L, modelVersionKey, "WF-1", "S6F11", "E1", "T1", "{\"op\":\"eq\"}", "ACT-1", "IDX-1", now),
+                new TcModelWorkflow(2L, modelVersionKey, "WF-2", "S6F11", "E1", "T2", null, "ACT-2", null, now),
+                new TcModelWorkflow(3L, modelVersionKey, "WF-3", "MES_START", null, null, null, "ACT-3", null, now)
         );
 
         final List<TcModelSecsMessage> secsMessages = List.of(
-                new TcModelSecsMessage(1L, modelKey, "S6F11", "Alarm report", "IDX-SECS", now)
+                new TcModelSecsMessage(1L, modelVersionKey, "S6F11", "Alarm report", "IDX-SECS", now)
         );
         final List<TcModelSocketMessage> socketMessages = List.of(
-                new TcModelSocketMessage(1L, modelKey, "SOCKET_HEARTBEAT", "Heartbeat", "IDX-SOCKET", now)
+                new TcModelSocketMessage(1L, modelVersionKey, "SOCKET_HEARTBEAT", "Heartbeat", "IDX-SOCKET", now)
         );
         final List<TcModelVariableId> variableIds = List.of(
-                new TcModelVariableId(1L, modelKey, "SV_TEMP", VariableIdType.SVID, "Temperature", now)
+                new TcModelVariableId(1L, modelVersionKey, "SV_TEMP", VariableIdType.SVID, "Temperature", now)
         );
 
         final BusinessModelCacheProperties properties = createValidModelCachePropertiesForTest(2);
 
         final BusinessModelRuntimeAssembler assembler = new BusinessModelRuntimeAssembler(
                 new ModelCacheTestFixtures.InMemoryModelStore(List.of(model)),
-                new ModelCacheTestFixtures.InMemoryWorkflowStore(Map.of(modelKey, workflows)),
-                new ModelCacheTestFixtures.InMemorySecsMessageStore(Map.of(modelKey, secsMessages)),
-                new ModelCacheTestFixtures.InMemorySocketMessageStore(Map.of(modelKey, socketMessages)),
-                new ModelCacheTestFixtures.InMemoryVariableIdStore(Map.of(modelKey, variableIds)),
+                new ModelCacheTestFixtures.InMemoryWorkflowStore(Map.of(modelVersionKey, workflows)),
+                new ModelCacheTestFixtures.InMemorySecsMessageStore(Map.of(modelVersionKey, secsMessages)),
+                new ModelCacheTestFixtures.InMemorySocketMessageStore(Map.of(modelVersionKey, socketMessages)),
+                new ModelCacheTestFixtures.InMemoryVariableIdStore(Map.of(modelVersionKey, variableIds)),
                 properties
         );
 
-        final TcModelRuntime runtime = assembler.assemble(modelKey);
+        final TcModelRuntime runtime = assembler.assemble(modelVersionKey);
 
-        Assertions.assertEquals(modelKey, runtime.modelKey());
+        Assertions.assertEquals(modelVersionKey, runtime.modelVersionKey());
         Assertions.assertTrue(runtime.hasWorkflow("S6F11"));
         Assertions.assertTrue(runtime.hasWorkflow("MES_START"));
         Assertions.assertEquals(2, runtime.findWorkflowsByMessageName("S6F11").size());

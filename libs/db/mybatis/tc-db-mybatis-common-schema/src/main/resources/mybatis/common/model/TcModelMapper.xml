@@ -8,6 +8,7 @@
 
     <resultMap id="TcModelMap" type="com.nori.tc.db.domain.model.TcModel">
         <constructor>
+            <idArg column="model_version_key" javaType="long"/>
             <idArg column="model_key" javaType="long"/>
             <arg column="model_name" javaType="java.lang.String"/>
             <arg column="model_version" javaType="java.lang.String"/>
@@ -30,58 +31,103 @@
     </resultMap>
 
     <sql id="TcModelColumns">
-        model_key, model_name, model_version, comm_interface, status, maker, created_at, updated_at, created_by, updated_by
+        mv.model_version_key,
+        m.model_key,
+        m.model_name,
+        mv.model_version,
+        m.comm_interface,
+        mv.status,
+        m.maker,
+        mv.created_at,
+        mv.updated_at,
+        mv.created_by,
+        mv.updated_by
     </sql>
 
     <insert id="insert">
-        INSERT INTO tc_model
-            (model_name, model_version, comm_interface, status, maker, created_by, updated_by)
-        VALUES
-            (#{m.modelName},
-             #{m.modelVersion},
-             #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-             #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-             #{m.maker},
-             #{m.createdBy},
-             #{m.updatedBy})
+        WITH upsert_model AS (
+            INSERT INTO tc_model
+                (model_name, comm_interface, maker, created_by, updated_by)
+            VALUES
+                (#{m.modelName},
+                 #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                 #{m.maker},
+                 #{m.createdBy},
+                 #{m.updatedBy})
+            ON CONFLICT (model_name)
+            DO UPDATE
+                   SET comm_interface = EXCLUDED.comm_interface,
+                       maker = EXCLUDED.maker,
+                       updated_by = EXCLUDED.updated_by,
+                       updated_at = CURRENT_TIMESTAMP
+            RETURNING model_key
+        )
+        INSERT INTO tc_model_version
+            (model_key, model_version, status, created_by, updated_by)
+        SELECT model_key,
+               #{m.modelVersion},
+               #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               #{m.createdBy},
+               #{m.updatedBy}
+          FROM upsert_model
+        ON CONFLICT (model_key, model_version)
+        DO UPDATE
+               SET status = EXCLUDED.status,
+                   updated_by = EXCLUDED.updated_by,
+                   updated_at = CURRENT_TIMESTAMP
     </insert>
 
     <update id="update">
-        UPDATE tc_model
-           SET model_name    = #{m.modelName},
-               model_version = #{m.modelVersion},
-               comm_interface = #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-               status         = #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-               maker          = #{m.maker},
-               updated_by     = #{m.updatedBy},
-               updated_at    = CURRENT_TIMESTAMP
-         WHERE model_key     = #{m.modelKey}
+        WITH target_model AS (
+            SELECT model_key
+              FROM tc_model_version
+             WHERE model_version_key = #{m.modelVersionKey}
+        ),
+        update_model AS (
+            UPDATE tc_model
+               SET model_name = #{m.modelName},
+                   comm_interface = #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                   maker = #{m.maker},
+                   updated_by = #{m.updatedBy},
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE model_key = (SELECT model_key FROM target_model)
+            RETURNING model_key
+        )
+        UPDATE tc_model_version
+           SET model_version = #{m.modelVersion},
+               status = #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               updated_by = #{m.updatedBy},
+               updated_at = CURRENT_TIMESTAMP
+         WHERE model_version_key = #{m.modelVersionKey}
     </update>
 
-    <select id="findByModelKey" resultMap="TcModelMap">
+    <select id="findByModelVersionKey" resultMap="TcModelMap">
         SELECT <include refid="TcModelColumns"/>
-          FROM tc_model
-         WHERE model_key = #{modelKey}
+          FROM tc_model_version mv
+          JOIN tc_model m ON m.model_key = mv.model_key
+         WHERE mv.model_version_key = #{modelVersionKey}
     </select>
 
     <select id="findByNameVersion" resultMap="TcModelMap">
         SELECT <include refid="TcModelColumns"/>
-          FROM tc_model
-         WHERE model_name = #{modelName}
-           AND model_version = #{modelVersion}
+          FROM tc_model_version mv
+          JOIN tc_model m ON m.model_key = mv.model_key
+         WHERE m.model_name = #{modelName}
+           AND mv.model_version = #{modelVersion}
     </select>
 
     <select id="findAll" resultMap="TcModelMap">
         SELECT <include refid="TcModelColumns"/>
-          FROM tc_model
-        ORDER BY model_key DESC
+          FROM tc_model_version mv
+          JOIN tc_model m ON m.model_key = mv.model_key
+        ORDER BY mv.model_version_key DESC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}
         </if>
     </select>
 
-    <delete id="deleteByModelKey">
-        DELETE FROM tc_model WHERE model_key = #{modelKey}
+    <delete id="deleteByModelVersionKey">
+        DELETE FROM tc_model_version WHERE model_version_key = #{modelVersionKey}
     </delete>
 
 </mapper>

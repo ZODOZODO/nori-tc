@@ -10,7 +10,7 @@ import com.nori.tc.db.domain.common.model.DcopCollectionRule;
  *
  * [DB 스키마 요약]
  * - dcop_item_key    : bigint PK (IDENTITY)
- * - model_key        : bigint NOT NULL (FK -> tc_model.model_key)
+ * - model_version_key        : bigint NOT NULL (FK -> tc_model_version.model_version_key)
  * - dcop_item_name   : varchar(200) NOT NULL
  * - workflow_name    : varchar(200) NULL
  * - event_id         : varchar(100) NULL
@@ -21,11 +21,11 @@ import com.nori.tc.db.domain.common.model.DcopCollectionRule;
  * - updated_at       : timestamptz NOT NULL default CURRENT_TIMESTAMP
  *
  * [유니크 제약]
- * - UNIQUE (model_key, dcop_item_name)
+ * - UNIQUE (model_version_key, dcop_item_name)
  */
 public record TcModelDcopItem(
         Long dcopItemKey,
-        long modelKey,
+        long modelVersionKey,
         String dcopItemName,
         String workflowName,
         String eventId,

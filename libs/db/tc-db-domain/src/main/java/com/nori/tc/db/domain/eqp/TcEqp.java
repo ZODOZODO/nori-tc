@@ -26,7 +26,7 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
  * <p>- route_partition : int nullable (Gateway 대상 토픽 고정 라우팅 partition)</p>
  * <p>- eqp_ip          : varchar(45)</p>
  * <p>- eqp_port        : int (1~65535)</p>
- * <p>- model_key       : bigint FK -> tc_model.model_key</p>
+ * <p>- model_version_key       : bigint FK -> tc_model_version.model_version_key</p>
  * <p>- enabled         : boolean (default true)</p>
  * <p>- created_at      : timestamptz</p>
  * <p>- updated_at      : timestamptz</p>
@@ -41,7 +41,7 @@ public record TcEqp(
         Integer routePartition,
         String eqpIp,
         int eqpPort,
-        long modelKey,
+        long modelVersionKey,
         boolean enabled,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,

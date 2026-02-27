@@ -28,7 +28,7 @@ public record UpsertTcEqp(
         Integer routePartition,
         String eqpIp,
         int eqpPort,
-        long modelKey,
+        long modelVersionKey,
         boolean enabled,
         String createdBy,
         String updatedBy

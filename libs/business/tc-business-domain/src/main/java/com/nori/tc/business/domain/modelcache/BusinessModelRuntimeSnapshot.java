@@ -30,8 +30,8 @@ public final class BusinessModelRuntimeSnapshot {
     /**
      * 신규 스냅샷을 생성합니다.
      *
-     * @param eqpModelBindings eqpId -> modelKey 매핑
-     * @param modelRuntimes modelKey -> runtime 매핑
+     * @param eqpModelBindings eqpId -> modelVersionKey 매핑
+     * @param modelRuntimes modelVersionKey -> runtime 매핑
      * @return 불변 스냅샷
      */
     public static BusinessModelRuntimeSnapshot of(
@@ -71,12 +71,12 @@ public final class BusinessModelRuntimeSnapshot {
     }
 
     /**
-     * eqpId로 modelKey를 조회합니다.
+     * eqpId로 modelVersionKey를 조회합니다.
      *
      * @param eqpId 장비 ID
-     * @return modelKey(optional)
+     * @return modelVersionKey(optional)
      */
-    public Optional<Long> findModelKeyByEqpId(final String eqpId) {
+    public Optional<Long> findModelVersionKeyByEqpId(final String eqpId) {
         final String normalized = normalizeEqpId(eqpId);
         if (normalized == null) {
             return Optional.empty();
@@ -91,17 +91,17 @@ public final class BusinessModelRuntimeSnapshot {
      * @return runtime(optional)
      */
     public Optional<TcModelRuntime> findRuntimeByEqpId(final String eqpId) {
-        return findModelKeyByEqpId(eqpId).flatMap(this::findRuntimeByModelKey);
+        return findModelVersionKeyByEqpId(eqpId).flatMap(this::findRuntimeByModelVersionKey);
     }
 
     /**
-     * modelKey로 runtime을 조회합니다.
+     * modelVersionKey로 runtime을 조회합니다.
      *
-     * @param modelKey model key
+     * @param modelVersionKey model key
      * @return runtime(optional)
      */
-    public Optional<TcModelRuntime> findRuntimeByModelKey(final long modelKey) {
-        return Optional.ofNullable(modelRuntimes.get(modelKey));
+    public Optional<TcModelRuntime> findRuntimeByModelVersionKey(final long modelVersionKey) {
+        return Optional.ofNullable(modelRuntimes.get(modelVersionKey));
     }
 
     /**

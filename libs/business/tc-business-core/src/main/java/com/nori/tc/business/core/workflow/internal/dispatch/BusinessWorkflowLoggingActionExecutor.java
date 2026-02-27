@@ -36,10 +36,10 @@ public class BusinessWorkflowLoggingActionExecutor implements BusinessWorkflowAc
 
         // INFO 레벨에는 전체 실행 요약을, DEBUG 레벨에는 워크플로우 개별 항목을 출력합니다.
         if (log.isInfoEnabled()) {
-            log.info("Workflow action stage completed in logging mode. eqpId={}, messageName={}, modelKey={}, matchedCount={}",
+            log.info("Workflow action stage completed in logging mode. eqpId={}, messageName={}, modelVersionKey={}, matchedCount={}",
                     record.eqpId(),
                     record.messageName(),
-                    modelRuntime.modelKey(),
+                    modelRuntime.modelVersionKey(),
                     matchResult.matchedWorkflows().size());
         }
 

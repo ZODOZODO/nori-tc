@@ -21,11 +21,11 @@ public interface TcModelParamEntityMapper {
      * Command -> Entity (Write/Update)
      * - modelParamKey는 DB 생성(IDENTITY)이므로 무시
      * - updatedAt은 JPA Auditing이 관리하므로 무시
-     * - modelKey/paramName은 Unique Key이므로 변경 금지 (ignore)
+     * - modelVersionKey/paramName은 Unique Key이므로 변경 금지 (ignore)
      */
     @Mapping(target = "modelParamKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "modelKey", ignore = true)
+    @Mapping(target = "modelVersionKey", ignore = true)
     @Mapping(target = "paramName", ignore = true)
     void updateEntity(UpsertTcModelParam command, @MappingTarget TcModelParamEntity entity);
 }

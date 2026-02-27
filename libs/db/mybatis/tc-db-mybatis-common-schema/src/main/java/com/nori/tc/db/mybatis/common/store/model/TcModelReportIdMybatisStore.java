@@ -49,14 +49,14 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateUpsert(command);
 
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final String reportId = command.reportId();
 
         // [FIX] 도메인 모델 시그니처에 맞춰 variableId/updatedAt만 채운다.
         // - 기존 구현은 reportName/createdAt/updatedAt 필드를 참조해 컴파일 오류가 발생했다.
         final TcModelReportId row = new TcModelReportId(
                 0L,
-                modelKey,
+                modelVersionKey,
                 reportId,
                 command.variableId(),
                 command.enabled(),
@@ -68,12 +68,12 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
             if (updated == 0) {
                 mapper.insert(row);
             }
-            return mapper.findByModelKeyAndReportId(modelKey, reportId)
-                    .orElseThrow(() -> new DbAccessException("tc_model_reportid upsert succeeded but row not found. modelKey/reportId=" + modelKey + "/" + reportId));
+            return mapper.findByModelVersionKeyAndReportId(modelVersionKey, reportId)
+                    .orElseThrow(() -> new DbAccessException("tc_model_reportid upsert succeeded but row not found. modelVersionKey/reportId=" + modelVersionKey + "/" + reportId));
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_reportid duplicate key. modelKey/reportId=" + modelKey + "/" + reportId, e);
+            throw new DbDuplicateKeyException("tc_model_reportid duplicate key. modelVersionKey/reportId=" + modelVersionKey + "/" + reportId, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_reportid upsert failed. modelKey/reportId=" + modelKey + "/" + reportId, e);
+            throw new DbAccessException("tc_model_reportid upsert failed. modelVersionKey/reportId=" + modelVersionKey + "/" + reportId, e);
         }
     }
 
@@ -102,23 +102,23 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param reportId DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelReportId> findByModelKeyAndReportId(long modelKey, String reportId) {
+    public Optional<TcModelReportId> findByModelVersionKeyAndReportId(long modelVersionKey, String reportId) {
         try {
-            return mapper.findByModelKeyAndReportId(modelKey, reportId);
+            return mapper.findByModelVersionKeyAndReportId(modelVersionKey, reportId);
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_reportid findByModelKeyAndReportId failed. modelKey=" + modelKey + ", reportId=" + reportId,
+                    "tc_model_reportid findByModelVersionKeyAndReportId failed. modelVersionKey=" + modelVersionKey + ", reportId=" + reportId,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_reportid findByModelKeyAndReportId failed (unexpected). modelKey=" + modelKey + ", reportId=" + reportId,
+                    "tc_model_reportid findByModelVersionKeyAndReportId failed (unexpected). modelVersionKey=" + modelVersionKey + ", reportId=" + reportId,
                     e
             );
         }
@@ -129,25 +129,25 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelReportId> findAllByModelKey(long modelKey, PageRequest page) {
+    public List<TcModelReportId> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(
-                    modelKey,
+            return mapper.findAllByModelVersionKey(
+                    modelVersionKey,
                     p.offset(),
                     p.limit()
             );
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_reportid findAllByModelKey failed.", e);
+            throw new DbAccessException("tc_model_reportid findAllByModelVersionKey failed.", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_reportid findAllByModelKey failed (unexpected).", e);
+            throw new DbAccessException("tc_model_reportid findAllByModelVersionKey failed (unexpected).", e);
         }
     }
 
@@ -180,7 +180,7 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
      */
     private void validateUpsert(UpsertTcModelReportId command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.reportId() == null || command.reportId().isBlank()) {
             throw new IllegalArgumentException("command.reportId must not be null/blank");
         }

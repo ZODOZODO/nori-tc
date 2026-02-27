@@ -128,6 +128,7 @@ class BusinessWorkflowMatcherImplTest {
         final OffsetDateTime now = OffsetDateTime.now();
         final TcModel model = new TcModel(
                 100L,
+                100L,
                 "MODEL-100",
                 "v1",
                 protocolType,
@@ -157,7 +158,7 @@ class BusinessWorkflowMatcherImplTest {
      */
     private static TcModelWorkflow workflow(
             final long workflowKey,
-            final long modelKey,
+            final long modelVersionKey,
             final String workflowName,
             final String messageName,
             final String eventId,
@@ -166,7 +167,7 @@ class BusinessWorkflowMatcherImplTest {
     ) {
         return new TcModelWorkflow(
                 workflowKey,
-                modelKey,
+                modelVersionKey,
                 workflowName,
                 messageName,
                 eventId,

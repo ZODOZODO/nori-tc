@@ -16,12 +16,12 @@ public final class BusinessUiTaskErrorCode {
     public static final String INVALID_UI_MESSAGE = "INVALID_UI_MESSAGE";
 
     /**
-     * modelKey가 누락되었거나 파싱에 실패했습니다.
+     * modelVersionKey가 누락되었거나 파싱에 실패했습니다.
      */
     public static final String MODEL_KEY_REQUIRED = "MODEL_KEY_REQUIRED";
 
     /**
-     * eqpId 기준 modelKey 바인딩이 존재하지 않습니다.
+     * eqpId 기준 modelVersionKey 바인딩이 존재하지 않습니다.
      */
     public static final String MODEL_BINDING_NOT_FOUND = "MODEL_BINDING_NOT_FOUND";
 
@@ -31,7 +31,7 @@ public final class BusinessUiTaskErrorCode {
     public static final String MODEL_RUNTIME_UPDATE_FAILED = "MODEL_RUNTIME_UPDATE_FAILED";
 
     /**
-     * eqpId -> modelKey 바인딩 삭제 처리 중 예외가 발생했습니다.
+     * eqpId -> modelVersionKey 바인딩 삭제 처리 중 예외가 발생했습니다.
      */
     public static final String MODEL_BINDING_DELETE_FAILED = "MODEL_BINDING_DELETE_FAILED";
 

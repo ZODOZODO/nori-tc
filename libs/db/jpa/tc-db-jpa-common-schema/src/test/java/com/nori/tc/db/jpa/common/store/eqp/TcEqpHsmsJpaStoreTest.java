@@ -120,7 +120,7 @@ class TcEqpHsmsJpaStoreTest {
         entity.setRoutePartition(routePartition);
         entity.setEqpIp(eqpIp);
         entity.setEqpPort(eqpPort);
-        entity.setModelKey(1L);
+        entity.setModelVersionKey(1L);
         entity.setEnabled(true);
         entity.setCreatedBy("SYSTEM");
         entity.setUpdatedBy("SYSTEM");

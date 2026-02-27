@@ -176,14 +176,14 @@ final class ModelCacheTestFixtures {
      * {@link TcModelStore} in-memory 구현입니다.
      */
     static final class InMemoryModelStore implements TcModelStore {
-        private final Map<Long, TcModel> byModelKey;
+        private final Map<Long, TcModel> byModelVersionKey;
 
         InMemoryModelStore(final List<TcModel> models) {
             final Map<Long, TcModel> mapped = new LinkedHashMap<>();
             for (TcModel model : models) {
-                mapped.put(model.modelKey(), model);
+                mapped.put(model.modelVersionKey(), model);
             }
-            this.byModelKey = Map.copyOf(mapped);
+            this.byModelVersionKey = Map.copyOf(mapped);
         }
 
         /**
@@ -199,15 +199,15 @@ final class ModelCacheTestFixtures {
         }
 
         /**
-         * findByModelKey 기능을 수행합니다.
+         * findByModelVersionKey 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @return 처리 결과
          */
 
         @Override
-        public Optional<TcModel> findByModelKey(final long modelKey) {
-            return Optional.ofNullable(byModelKey.get(modelKey));
+        public Optional<TcModel> findByModelVersionKey(final long modelVersionKey) {
+            return Optional.ofNullable(byModelVersionKey.get(modelVersionKey));
         }
 
         /**
@@ -220,7 +220,7 @@ final class ModelCacheTestFixtures {
 
         @Override
         public Optional<TcModel> findByNameVersion(final String modelName, final String modelVersion) {
-            return byModelKey.values().stream()
+            return byModelVersionKey.values().stream()
                     .filter(model -> model.modelName().equals(modelName) && model.modelVersion().equals(modelVersion))
                     .findFirst();
         }
@@ -234,19 +234,19 @@ final class ModelCacheTestFixtures {
 
         @Override
         public List<TcModel> findAll(final PageRequest page) {
-            final List<TcModel> values = new ArrayList<>(byModelKey.values());
-            values.sort(Comparator.comparingLong(TcModel::modelKey));
+            final List<TcModel> values = new ArrayList<>(byModelVersionKey.values());
+            values.sort(Comparator.comparingLong(TcModel::modelVersionKey));
             return page(values, page);
         }
 
         /**
-         * deleteByModelKey 기능을 수행합니다.
+         * deleteByModelVersionKey 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          */
 
         @Override
-        public void deleteByModelKey(final long modelKey) {
+        public void deleteByModelVersionKey(final long modelVersionKey) {
             throw new UnsupportedOperationException("not used");
         }
     }
@@ -255,14 +255,14 @@ final class ModelCacheTestFixtures {
      * {@link TcModelWorkflowStore} in-memory 구현입니다.
      */
     static final class InMemoryWorkflowStore implements TcModelWorkflowStore {
-        private final Map<Long, List<TcModelWorkflow>> byModelKey;
+        private final Map<Long, List<TcModelWorkflow>> byModelVersionKey;
 
-        InMemoryWorkflowStore(final Map<Long, List<TcModelWorkflow>> byModelKey) {
+        InMemoryWorkflowStore(final Map<Long, List<TcModelWorkflow>> byModelVersionKey) {
             final Map<Long, List<TcModelWorkflow>> copied = new LinkedHashMap<>();
-            for (Map.Entry<Long, List<TcModelWorkflow>> entry : byModelKey.entrySet()) {
+            for (Map.Entry<Long, List<TcModelWorkflow>> entry : byModelVersionKey.entrySet()) {
                 copied.put(entry.getKey(), List.copyOf(entry.getValue()));
             }
-            this.byModelKey = Map.copyOf(copied);
+            this.byModelVersionKey = Map.copyOf(copied);
         }
 
         /**
@@ -286,35 +286,35 @@ final class ModelCacheTestFixtures {
 
         @Override
         public Optional<TcModelWorkflow> findByWorkflowKey(final long workflowKey) {
-            return byModelKey.values().stream()
+            return byModelVersionKey.values().stream()
                     .flatMap(List::stream)
                     .filter(workflow -> workflow.workflowKey() == workflowKey)
                     .findFirst();
         }
 
         @Override
-        public Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
-                final long modelKey,
+        public Optional<TcModelWorkflow> findByModelVersionKeyAndWorkflowNameAndMessageName(
+                final long modelVersionKey,
                 final String workflowName,
                 final String messageName
         ) {
-            return byModelKey.getOrDefault(modelKey, List.of()).stream()
+            return byModelVersionKey.getOrDefault(modelVersionKey, List.of()).stream()
                     .filter(workflow -> workflow.workflowName().equals(workflowName))
                     .filter(workflow -> workflow.messageName().equals(messageName))
                     .findFirst();
         }
 
         /**
-         * findAllByModelKey 기능을 수행합니다.
+         * findAllByModelVersionKey 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @param page 입력 값
          * @return 처리 결과
          */
 
         @Override
-        public List<TcModelWorkflow> findAllByModelKey(final long modelKey, final PageRequest page) {
-            return pageWorkflow(byModelKey.getOrDefault(modelKey, List.of()), page);
+        public List<TcModelWorkflow> findAllByModelVersionKey(final long modelVersionKey, final PageRequest page) {
+            return pageWorkflow(byModelVersionKey.getOrDefault(modelVersionKey, List.of()), page);
         }
 
         /**
@@ -333,14 +333,14 @@ final class ModelCacheTestFixtures {
      * {@link TcModelSecsMessageStore} in-memory 구현입니다.
      */
     static final class InMemorySecsMessageStore implements TcModelSecsMessageStore {
-        private final Map<Long, List<TcModelSecsMessage>> byModelKey;
+        private final Map<Long, List<TcModelSecsMessage>> byModelVersionKey;
 
-        InMemorySecsMessageStore(final Map<Long, List<TcModelSecsMessage>> byModelKey) {
+        InMemorySecsMessageStore(final Map<Long, List<TcModelSecsMessage>> byModelVersionKey) {
             final Map<Long, List<TcModelSecsMessage>> copied = new LinkedHashMap<>();
-            for (Map.Entry<Long, List<TcModelSecsMessage>> entry : byModelKey.entrySet()) {
+            for (Map.Entry<Long, List<TcModelSecsMessage>> entry : byModelVersionKey.entrySet()) {
                 copied.put(entry.getKey(), List.copyOf(entry.getValue()));
             }
-            this.byModelKey = Map.copyOf(copied);
+            this.byModelVersionKey = Map.copyOf(copied);
         }
 
         /**
@@ -364,38 +364,38 @@ final class ModelCacheTestFixtures {
 
         @Override
         public Optional<TcModelSecsMessage> findBySecsMsgKey(final long secsMsgKey) {
-            return byModelKey.values().stream()
+            return byModelVersionKey.values().stream()
                     .flatMap(List::stream)
                     .filter(message -> message.secsMsgKey() == secsMsgKey)
                     .findFirst();
         }
 
         /**
-         * findByModelKeyAndName 기능을 수행합니다.
+         * findByModelVersionKeyAndName 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @param secsMsgName 입력 값
          * @return 처리 결과
          */
 
         @Override
-        public Optional<TcModelSecsMessage> findByModelKeyAndName(final long modelKey, final String secsMsgName) {
-            return byModelKey.getOrDefault(modelKey, List.of()).stream()
+        public Optional<TcModelSecsMessage> findByModelVersionKeyAndName(final long modelVersionKey, final String secsMsgName) {
+            return byModelVersionKey.getOrDefault(modelVersionKey, List.of()).stream()
                     .filter(message -> message.secsMsgName().equals(secsMsgName))
                     .findFirst();
         }
 
         /**
-         * findAllByModelKey 기능을 수행합니다.
+         * findAllByModelVersionKey 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @param page 입력 값
          * @return 처리 결과
          */
 
         @Override
-        public List<TcModelSecsMessage> findAllByModelKey(final long modelKey, final PageRequest page) {
-            return pageSecs(byModelKey.getOrDefault(modelKey, List.of()), page);
+        public List<TcModelSecsMessage> findAllByModelVersionKey(final long modelVersionKey, final PageRequest page) {
+            return pageSecs(byModelVersionKey.getOrDefault(modelVersionKey, List.of()), page);
         }
 
         /**
@@ -414,14 +414,14 @@ final class ModelCacheTestFixtures {
      * {@link TcModelSocketMessageStore} in-memory 구현입니다.
      */
     static final class InMemorySocketMessageStore implements TcModelSocketMessageStore {
-        private final Map<Long, List<TcModelSocketMessage>> byModelKey;
+        private final Map<Long, List<TcModelSocketMessage>> byModelVersionKey;
 
-        InMemorySocketMessageStore(final Map<Long, List<TcModelSocketMessage>> byModelKey) {
+        InMemorySocketMessageStore(final Map<Long, List<TcModelSocketMessage>> byModelVersionKey) {
             final Map<Long, List<TcModelSocketMessage>> copied = new LinkedHashMap<>();
-            for (Map.Entry<Long, List<TcModelSocketMessage>> entry : byModelKey.entrySet()) {
+            for (Map.Entry<Long, List<TcModelSocketMessage>> entry : byModelVersionKey.entrySet()) {
                 copied.put(entry.getKey(), List.copyOf(entry.getValue()));
             }
-            this.byModelKey = Map.copyOf(copied);
+            this.byModelVersionKey = Map.copyOf(copied);
         }
 
         /**
@@ -437,37 +437,37 @@ final class ModelCacheTestFixtures {
         }
 
         @Override
-        public Optional<TcModelSocketMessage> findByModelKeySocketMsgName(
-                final long modelKey,
+        public Optional<TcModelSocketMessage> findByModelVersionKeySocketMsgName(
+                final long modelVersionKey,
                 final String socketMsgName
         ) {
-            return byModelKey.getOrDefault(modelKey, List.of()).stream()
+            return byModelVersionKey.getOrDefault(modelVersionKey, List.of()).stream()
                     .filter(message -> message.socketMsgName().equals(socketMsgName))
                     .findFirst();
         }
 
         /**
-         * findAllByModelKey 기능을 수행합니다.
+         * findAllByModelVersionKey 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @param page 입력 값
          * @return 처리 결과
          */
 
         @Override
-        public List<TcModelSocketMessage> findAllByModelKey(final long modelKey, final PageRequest page) {
-            return pageSocket(byModelKey.getOrDefault(modelKey, List.of()), page);
+        public List<TcModelSocketMessage> findAllByModelVersionKey(final long modelVersionKey, final PageRequest page) {
+            return pageSocket(byModelVersionKey.getOrDefault(modelVersionKey, List.of()), page);
         }
 
         /**
-         * deleteByModelKeySocketMsgName 기능을 수행합니다.
+         * deleteByModelVersionKeySocketMsgName 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @param socketMsgName 입력 값
          */
 
         @Override
-        public void deleteByModelKeySocketMsgName(final long modelKey, final String socketMsgName) {
+        public void deleteByModelVersionKeySocketMsgName(final long modelVersionKey, final String socketMsgName) {
             throw new UnsupportedOperationException("not used");
         }
     }
@@ -476,14 +476,14 @@ final class ModelCacheTestFixtures {
      * {@link TcModelVariableIdStore} in-memory 구현입니다.
      */
     static final class InMemoryVariableIdStore implements TcModelVariableIdStore {
-        private final Map<Long, List<TcModelVariableId>> byModelKey;
+        private final Map<Long, List<TcModelVariableId>> byModelVersionKey;
 
-        InMemoryVariableIdStore(final Map<Long, List<TcModelVariableId>> byModelKey) {
+        InMemoryVariableIdStore(final Map<Long, List<TcModelVariableId>> byModelVersionKey) {
             final Map<Long, List<TcModelVariableId>> copied = new LinkedHashMap<>();
-            for (Map.Entry<Long, List<TcModelVariableId>> entry : byModelKey.entrySet()) {
+            for (Map.Entry<Long, List<TcModelVariableId>> entry : byModelVersionKey.entrySet()) {
                 copied.put(entry.getKey(), List.copyOf(entry.getValue()));
             }
-            this.byModelKey = Map.copyOf(copied);
+            this.byModelVersionKey = Map.copyOf(copied);
         }
 
         /**
@@ -507,35 +507,35 @@ final class ModelCacheTestFixtures {
 
         @Override
         public Optional<TcModelVariableId> findByVariableKey(final long variableKey) {
-            return byModelKey.values().stream()
+            return byModelVersionKey.values().stream()
                     .flatMap(List::stream)
                     .filter(variable -> variable.variableKey() == variableKey)
                     .findFirst();
         }
 
         @Override
-        public Optional<TcModelVariableId> findByModelKeyAndTypeAndVariableId(
-                final long modelKey,
+        public Optional<TcModelVariableId> findByModelVersionKeyAndTypeAndVariableId(
+                final long modelVersionKey,
                 final VariableIdType variableIdType,
                 final String variableId
         ) {
-            return byModelKey.getOrDefault(modelKey, List.of()).stream()
+            return byModelVersionKey.getOrDefault(modelVersionKey, List.of()).stream()
                     .filter(variable -> variable.variableIdType() == variableIdType)
                     .filter(variable -> variable.variableId().equals(variableId))
                     .findFirst();
         }
 
         /**
-         * findAllByModelKey 기능을 수행합니다.
+         * findAllByModelVersionKey 기능을 수행합니다.
          *
-         * @param modelKey 입력 값
+         * @param modelVersionKey 입력 값
          * @param page 입력 값
          * @return 처리 결과
          */
 
         @Override
-        public List<TcModelVariableId> findAllByModelKey(final long modelKey, final PageRequest page) {
-            return pageVariable(byModelKey.getOrDefault(modelKey, List.of()), page);
+        public List<TcModelVariableId> findAllByModelVersionKey(final long modelVersionKey, final PageRequest page) {
+            return pageVariable(byModelVersionKey.getOrDefault(modelVersionKey, List.of()), page);
         }
 
         /**

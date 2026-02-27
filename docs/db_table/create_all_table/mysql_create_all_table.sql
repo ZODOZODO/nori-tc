@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS tc_model_variableid;
 DROP TABLE IF EXISTS tc_model_socket_message;
 DROP TABLE IF EXISTS tc_model_secs_message;
 DROP TABLE IF EXISTS tc_model_param;
+DROP TABLE IF EXISTS tc_model_version;
 DROP TABLE IF EXISTS tc_model;
 
 DROP TABLE IF EXISTS tc_work_processjob_lot_map;
@@ -62,9 +63,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE tc_model (
   model_key      BIGINT AUTO_INCREMENT NOT NULL,
   model_name     VARCHAR(128) NOT NULL,
-  model_version  VARCHAR(32)  NOT NULL,
   comm_interface VARCHAR(16)  NOT NULL,
-  status         VARCHAR(16)  NOT NULL,
   maker          VARCHAR(32)  NULL,
   created_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -72,122 +71,139 @@ CREATE TABLE tc_model (
   updated_by     VARCHAR(50)  NOT NULL DEFAULT 'SYSTEM',
 
   CONSTRAINT pk_tc_model PRIMARY KEY (model_key),
-  CONSTRAINT uk_tc_model_model_name_model_version UNIQUE (model_name, model_version),
-  CONSTRAINT ck_tc_model_comm_interface CHECK (comm_interface IN ('HSMS', 'SOCKET')),
-  CONSTRAINT ck_tc_model_status CHECK (status IN ('DRAFT', 'ACTIVE', 'DEPRECATED'))
+  CONSTRAINT uk_tc_model_model_name UNIQUE (model_name),
+  CONSTRAINT ck_tc_model_comm_interface CHECK (comm_interface IN ('HSMS', 'SOCKET'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX ix_tc_model_model_name     ON tc_model (model_name);
 CREATE INDEX ix_tc_model_comm_interface ON tc_model (comm_interface);
-CREATE INDEX ix_tc_model_status         ON tc_model (status);
 CREATE INDEX ix_tc_model_maker          ON tc_model (maker);
+
+CREATE TABLE tc_model_version (
+  model_version_key BIGINT AUTO_INCREMENT NOT NULL,
+  model_key         BIGINT NOT NULL,
+  model_version     VARCHAR(32) NOT NULL,
+  status            VARCHAR(16) NOT NULL,
+  created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_by        VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
+  updated_by        VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
+
+  CONSTRAINT pk_tc_model_version PRIMARY KEY (model_version_key),
+  CONSTRAINT fk_tc_model_version_model_key__tc_model
+    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_version_model_key_model_version UNIQUE (model_key, model_version),
+  CONSTRAINT ck_tc_model_version_status CHECK (status IN ('DRAFT', 'ACTIVE', 'DEPRECATED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX ix_tc_model_version_model_key ON tc_model_version (model_key);
+CREATE INDEX ix_tc_model_version_status    ON tc_model_version (status);
 
 
 CREATE TABLE tc_model_param (
   model_param_key BIGINT AUTO_INCREMENT NOT NULL,
-  model_key       BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   param_name      VARCHAR(128) NOT NULL,
   param_value     VARCHAR(2000) NULL,
   updated_at      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_param PRIMARY KEY (model_param_key),
-  CONSTRAINT fk_tc_model_param_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_param_model_key_param_name UNIQUE (model_key, param_name)
+  CONSTRAINT fk_tc_model_param_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_param_model_version_key_param_name UNIQUE (model_version_key, param_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_param_model_key ON tc_model_param (model_key);
+CREATE INDEX ix_tc_model_param_model_version_key ON tc_model_param (model_version_key);
 
 
 CREATE TABLE tc_model_secs_message (
   secs_msg_key  BIGINT AUTO_INCREMENT NOT NULL,
-  model_key     BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   secs_msg_name VARCHAR(100) NOT NULL,
   description   VARCHAR(2000) NULL,
   data_index    VARCHAR(200) NULL,
   updated_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_secs_message PRIMARY KEY (secs_msg_key),
-  CONSTRAINT fk_tc_model_secs_message_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_secs_message_model_key_secs_msg_name UNIQUE (model_key, secs_msg_name)
+  CONSTRAINT fk_tc_model_secs_message_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_secs_message_model_version_key UNIQUE (model_version_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_secs_message_model_key     ON tc_model_secs_message (model_key);
+CREATE INDEX ix_tc_model_secs_message_model_version_key ON tc_model_secs_message (model_version_key);
 CREATE INDEX ix_tc_model_secs_message_secs_msg_name ON tc_model_secs_message (secs_msg_name);
 
 
 CREATE TABLE tc_model_socket_message (
   socket_msg_key  BIGINT AUTO_INCREMENT NOT NULL,
-  model_key       BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   socket_msg_name VARCHAR(100) NOT NULL,
   description     VARCHAR(2000) NULL,
   data_index      VARCHAR(200) NULL,
   updated_at      DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_socket_message PRIMARY KEY (socket_msg_key),
-  CONSTRAINT fk_tc_model_socket_message_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_socket_message_model_key_socket_msg_name UNIQUE (model_key, socket_msg_name)
+  CONSTRAINT fk_tc_model_socket_message_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_socket_message_model_version_key UNIQUE (model_version_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_socket_message_model_key       ON tc_model_socket_message (model_key);
+CREATE INDEX ix_tc_model_socket_message_model_version_key ON tc_model_socket_message (model_version_key);
 CREATE INDEX ix_tc_model_socket_message_socket_msg_name ON tc_model_socket_message (socket_msg_name);
 
 
 CREATE TABLE tc_model_variableid (
   variable_key     BIGINT AUTO_INCREMENT NOT NULL,
-  model_key        BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   variable_id      VARCHAR(100) NOT NULL,
   variable_id_type VARCHAR(10) NOT NULL DEFAULT 'SVID',
   description      VARCHAR(2000) NULL,
   updated_at       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_variableid PRIMARY KEY (variable_key),
-  CONSTRAINT fk_tc_model_variableid_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_variableid_model_key_type_variable_id UNIQUE (model_key, variable_id_type, variable_id),
+  CONSTRAINT fk_tc_model_variableid_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_variableid_model_version_key_type_variable_id UNIQUE (model_version_key, variable_id_type, variable_id),
   CONSTRAINT ck_tc_model_variableid_type CHECK (variable_id_type IN ('SVID', 'DVID', 'ECID', 'CEID'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_variableid_model_key   ON tc_model_variableid (model_key);
+CREATE INDEX ix_tc_model_variableid_model_version_key ON tc_model_variableid (model_version_key);
 CREATE INDEX ix_tc_model_variableid_variable_id ON tc_model_variableid (variable_id);
 
 
 CREATE TABLE tc_model_reportid (
   report_key  BIGINT AUTO_INCREMENT NOT NULL,
-  model_key   BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   report_id   VARCHAR(100) NOT NULL,
   variable_id VARCHAR(1000) NULL,
   enabled     TINYINT(1) NOT NULL DEFAULT 0,
   updated_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_reportid PRIMARY KEY (report_key),
-  CONSTRAINT fk_tc_model_reportid_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_reportid_model_key_report_id UNIQUE (model_key, report_id),
+  CONSTRAINT fk_tc_model_reportid_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_reportid_model_version_key_report_id UNIQUE (model_version_key, report_id),
   CONSTRAINT ck_tc_model_reportid_enabled CHECK (enabled IN (0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_reportid_model_key ON tc_model_reportid (model_key);
+CREATE INDEX ix_tc_model_reportid_model_version_key ON tc_model_reportid (model_version_key);
 CREATE INDEX ix_tc_model_reportid_enabled  ON tc_model_reportid (enabled);
 
 
 CREATE TABLE tc_model_eventid (
   event_key  BIGINT AUTO_INCREMENT NOT NULL,
-  model_key  BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   event_id   VARCHAR(100) NOT NULL,
   report_id  VARCHAR(1000) NULL,
   enabled    TINYINT(1) NOT NULL DEFAULT 0,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_eventid PRIMARY KEY (event_key),
-  CONSTRAINT fk_tc_model_eventid_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_eventid_model_key_event_id UNIQUE (model_key, event_id),
+  CONSTRAINT fk_tc_model_eventid_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_eventid_model_version_key_event_id UNIQUE (model_version_key, event_id),
   CONSTRAINT ck_tc_model_eventid_enabled CHECK (enabled IN (0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_eventid_model_key ON tc_model_eventid (model_key);
+CREATE INDEX ix_tc_model_eventid_model_version_key ON tc_model_eventid (model_version_key);
 CREATE INDEX ix_tc_model_eventid_enabled  ON tc_model_eventid (enabled);
 
 
 CREATE TABLE tc_model_workflow (
   workflow_key      BIGINT AUTO_INCREMENT NOT NULL,
-  model_key         BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   workflow_name     VARCHAR(200) NOT NULL,
   message_name      VARCHAR(200) NOT NULL,
   event_id          VARCHAR(200) NULL,
@@ -198,33 +214,33 @@ CREATE TABLE tc_model_workflow (
   updated_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_workflow PRIMARY KEY (workflow_key),
-  CONSTRAINT fk_tc_model_workflow_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_workflow_model_key_workflow_name_message_name
-    UNIQUE (model_key, workflow_name, message_name)
+  CONSTRAINT fk_tc_model_workflow_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_workflow_model_version_key_workflow_name_message_name
+    UNIQUE (model_version_key, workflow_name, message_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_workflow_model_key     ON tc_model_workflow (model_key);
+CREATE INDEX ix_tc_model_workflow_model_version_key ON tc_model_workflow (model_version_key);
 CREATE INDEX ix_tc_model_workflow_workflow_name ON tc_model_workflow (workflow_name);
 
 
 CREATE TABLE tc_model_mdf (
   mdf_key    BIGINT AUTO_INCREMENT NOT NULL,
-  model_key  BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   mdf_name   VARCHAR(100) NOT NULL,
   mdf_file   LONGBLOB NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_mdf PRIMARY KEY (mdf_key),
-  CONSTRAINT fk_tc_model_mdf_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_mdf_model_key_mdf_name UNIQUE (model_key, mdf_name)
+  CONSTRAINT fk_tc_model_mdf_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_mdf_model_version_key UNIQUE (model_version_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_mdf_model_key ON tc_model_mdf (model_key);
+CREATE INDEX ix_tc_model_mdf_model_version_key ON tc_model_mdf (model_version_key);
 
 
 CREATE TABLE tc_model_dcop_item (
   dcop_item_key    BIGINT AUTO_INCREMENT NOT NULL,
-  model_key        BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   dcop_item_name   VARCHAR(200) NOT NULL,
   workflow_name    VARCHAR(200) NULL,
   event_id         VARCHAR(100) NULL,
@@ -235,9 +251,9 @@ CREATE TABLE tc_model_dcop_item (
   updated_at       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   CONSTRAINT pk_tc_model_dcop_item PRIMARY KEY (dcop_item_key),
-  CONSTRAINT fk_tc_model_dcop_item_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_dcop_item_model_key_dcop_item_name UNIQUE (model_key, dcop_item_name),
+  CONSTRAINT fk_tc_model_dcop_item_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_dcop_item_model_version_key_dcop_item_name UNIQUE (model_version_key, dcop_item_name),
   CONSTRAINT ck_tc_model_dcop_item_collection_rule
     CHECK (collection_rule IS NULL OR collection_rule IN ('FIRST','LAST')),
   CONSTRAINT ck_tc_model_dcop_item_calculation_rule
@@ -245,7 +261,7 @@ CREATE TABLE tc_model_dcop_item (
   CONSTRAINT ck_tc_model_dcop_item_order_rule
     CHECK (order_rule IS NULL OR order_rule >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX ix_tc_model_dcop_item_model_key ON tc_model_dcop_item (model_key);
+CREATE INDEX ix_tc_model_dcop_item_model_version_key ON tc_model_dcop_item (model_version_key);
 CREATE INDEX ix_tc_model_dcop_item_event_id  ON tc_model_dcop_item (event_id);
 
 
@@ -272,7 +288,7 @@ CREATE TABLE tc_eqp (
   comm_interface VARCHAR(16) NOT NULL,
   eqp_ip         VARCHAR(45) NOT NULL,
   eqp_port       INT NOT NULL,
-  model_key      BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   enabled        TINYINT(1) NOT NULL DEFAULT 1,
   created_at     DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at     DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -281,14 +297,15 @@ CREATE TABLE tc_eqp (
 
   CONSTRAINT pk_tc_eqp PRIMARY KEY (eqp_key),
   CONSTRAINT uk_tc_eqp_eqp_id UNIQUE (eqp_id),
-  CONSTRAINT fk_tc_eqp_model_key__tc_model FOREIGN KEY (model_key) REFERENCES tc_model(model_key),
+  CONSTRAINT fk_tc_eqp_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key),
   CONSTRAINT ck_tc_eqp_comm_interface CHECK (comm_interface IN ('HSMS','SOCKET')),
   CONSTRAINT ck_tc_eqp_eqp_port CHECK (eqp_port BETWEEN 1 AND 65535),
   CONSTRAINT ck_tc_eqp_enabled CHECK (enabled IN (0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE INDEX ix_tc_eqp_enabled        ON tc_eqp (enabled);
-CREATE INDEX ix_tc_eqp_model_key      ON tc_eqp (model_key);
+CREATE INDEX ix_tc_eqp_model_version_key ON tc_eqp (model_version_key);
 CREATE INDEX ix_tc_eqp_comm_interface ON tc_eqp (comm_interface);
 CREATE INDEX ix_tc_eqp_eqp_ip_port    ON tc_eqp (eqp_ip, eqp_port);
 

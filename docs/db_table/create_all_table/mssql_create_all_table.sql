@@ -27,6 +27,7 @@ IF OBJECT_ID('dbo.tc_model_variableid', 'U') IS NOT NULL DROP TABLE dbo.tc_model
 IF OBJECT_ID('dbo.tc_model_socket_message', 'U') IS NOT NULL DROP TABLE dbo.tc_model_socket_message;
 IF OBJECT_ID('dbo.tc_model_secs_message', 'U') IS NOT NULL DROP TABLE dbo.tc_model_secs_message;
 IF OBJECT_ID('dbo.tc_model_param', 'U') IS NOT NULL DROP TABLE dbo.tc_model_param;
+IF OBJECT_ID('dbo.tc_model_version', 'U') IS NOT NULL DROP TABLE dbo.tc_model_version;
 IF OBJECT_ID('dbo.tc_model', 'U') IS NOT NULL DROP TABLE dbo.tc_model;
 
 IF OBJECT_ID('dbo.tc_work_processjob_lot_map', 'U') IS NOT NULL DROP TABLE dbo.tc_work_processjob_lot_map;
@@ -61,9 +62,7 @@ GO
 CREATE TABLE dbo.tc_model (
   model_key      BIGINT IDENTITY(1,1) NOT NULL,
   model_name     NVARCHAR(128) NOT NULL,
-  model_version  NVARCHAR(32)  NOT NULL,
   comm_interface NVARCHAR(16)  NOT NULL,
-  status         NVARCHAR(16)  NOT NULL,
   maker          NVARCHAR(32)  NULL,
   created_at     DATETIME2(3)  NOT NULL CONSTRAINT df_tc_model_created_at DEFAULT (SYSUTCDATETIME()),
   updated_at     DATETIME2(3)  NOT NULL CONSTRAINT df_tc_model_updated_at DEFAULT (SYSUTCDATETIME()),
@@ -71,143 +70,163 @@ CREATE TABLE dbo.tc_model (
   updated_by     NVARCHAR(50)  NOT NULL CONSTRAINT df_tc_model_updated_by DEFAULT (N'SYSTEM'),
 
   CONSTRAINT pk_tc_model PRIMARY KEY (model_key),
-  CONSTRAINT uk_tc_model_model_name_model_version UNIQUE (model_name, model_version),
-  CONSTRAINT ck_tc_model_comm_interface CHECK (comm_interface IN (N'HSMS', N'SOCKET')),
-  CONSTRAINT ck_tc_model_status CHECK (status IN (N'DRAFT', N'ACTIVE', N'DEPRECATED'))
+  CONSTRAINT uk_tc_model_model_name UNIQUE (model_name),
+  CONSTRAINT ck_tc_model_comm_interface CHECK (comm_interface IN (N'HSMS', N'SOCKET'))
 );
 GO
 
 CREATE INDEX ix_tc_model_model_name     ON dbo.tc_model (model_name);
 CREATE INDEX ix_tc_model_comm_interface ON dbo.tc_model (comm_interface);
-CREATE INDEX ix_tc_model_status         ON dbo.tc_model (status);
 CREATE INDEX ix_tc_model_maker          ON dbo.tc_model (maker);
+GO
+
+CREATE TABLE dbo.tc_model_version (
+  model_version_key BIGINT IDENTITY(1,1) NOT NULL,
+  model_key         BIGINT NOT NULL,
+  model_version     NVARCHAR(32) NOT NULL,
+  status            NVARCHAR(16) NOT NULL,
+  created_at        DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_version_created_at DEFAULT (SYSUTCDATETIME()),
+  updated_at        DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_version_updated_at DEFAULT (SYSUTCDATETIME()),
+  created_by        NVARCHAR(50) NOT NULL CONSTRAINT df_tc_model_version_created_by DEFAULT (N'SYSTEM'),
+  updated_by        NVARCHAR(50) NOT NULL CONSTRAINT df_tc_model_version_updated_by DEFAULT (N'SYSTEM'),
+
+  CONSTRAINT pk_tc_model_version PRIMARY KEY (model_version_key),
+  CONSTRAINT fk_tc_model_version_model_key__tc_model
+    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_version_model_key_model_version UNIQUE (model_key, model_version),
+  CONSTRAINT ck_tc_model_version_status CHECK (status IN (N'DRAFT', N'ACTIVE', N'DEPRECATED'))
+);
+GO
+
+CREATE INDEX ix_tc_model_version_model_key ON dbo.tc_model_version (model_key);
+CREATE INDEX ix_tc_model_version_status    ON dbo.tc_model_version (status);
 GO
 
 
 CREATE TABLE dbo.tc_model_param (
   model_param_key BIGINT IDENTITY(1,1) NOT NULL,
-  model_key       BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   param_name      NVARCHAR(128) NOT NULL,
   param_value     NVARCHAR(2000) NULL,
   updated_at      DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_param_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_param PRIMARY KEY (model_param_key),
-  CONSTRAINT fk_tc_model_param_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_param_model_key_param_name UNIQUE (model_key, param_name)
+  CONSTRAINT fk_tc_model_param_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_param_model_version_key_param_name UNIQUE (model_version_key, param_name)
 );
 GO
 
-CREATE INDEX ix_tc_model_param_model_key ON dbo.tc_model_param (model_key);
+CREATE INDEX ix_tc_model_param_model_version_key ON dbo.tc_model_param (model_version_key);
 GO
 
 
 CREATE TABLE dbo.tc_model_secs_message (
   secs_msg_key   BIGINT IDENTITY(1,1) NOT NULL,
-  model_key      BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   secs_msg_name  NVARCHAR(100) NOT NULL,
   description    NVARCHAR(2000) NULL,
   data_index     NVARCHAR(200) NULL,
   updated_at     DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_secs_message_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_secs_message PRIMARY KEY (secs_msg_key),
-  CONSTRAINT fk_tc_model_secs_message_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_secs_message_model_key_secs_msg_name UNIQUE (model_key, secs_msg_name)
+  CONSTRAINT fk_tc_model_secs_message_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_secs_message_model_version_key UNIQUE (model_version_key)
 );
 GO
 
-CREATE INDEX ix_tc_model_secs_message_model_key     ON dbo.tc_model_secs_message (model_key);
+CREATE INDEX ix_tc_model_secs_message_model_version_key ON dbo.tc_model_secs_message (model_version_key);
 CREATE INDEX ix_tc_model_secs_message_secs_msg_name ON dbo.tc_model_secs_message (secs_msg_name);
 GO
 
 
 CREATE TABLE dbo.tc_model_socket_message (
   socket_msg_key  BIGINT IDENTITY(1,1) NOT NULL,
-  model_key       BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   socket_msg_name NVARCHAR(100) NOT NULL,
   description     NVARCHAR(2000) NULL,
   data_index      NVARCHAR(200) NULL,
   updated_at      DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_socket_message_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_socket_message PRIMARY KEY (socket_msg_key),
-  CONSTRAINT fk_tc_model_socket_message_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_socket_message_model_key_socket_msg_name UNIQUE (model_key, socket_msg_name)
+  CONSTRAINT fk_tc_model_socket_message_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_socket_message_model_version_key UNIQUE (model_version_key)
 );
 GO
 
-CREATE INDEX ix_tc_model_socket_message_model_key       ON dbo.tc_model_socket_message (model_key);
+CREATE INDEX ix_tc_model_socket_message_model_version_key ON dbo.tc_model_socket_message (model_version_key);
 CREATE INDEX ix_tc_model_socket_message_socket_msg_name ON dbo.tc_model_socket_message (socket_msg_name);
 GO
 
 
 CREATE TABLE dbo.tc_model_variableid (
   variable_key     BIGINT IDENTITY(1,1) NOT NULL,
-  model_key        BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   variable_id      NVARCHAR(100) NOT NULL,
   variable_id_type NVARCHAR(10) NOT NULL CONSTRAINT df_tc_model_variableid_type DEFAULT (N'SVID'),
   description      NVARCHAR(2000) NULL,
   updated_at       DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_variableid_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_variableid PRIMARY KEY (variable_key),
-  CONSTRAINT fk_tc_model_variableid_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_variableid_model_key_type_variable_id UNIQUE (model_key, variable_id_type, variable_id),
+  CONSTRAINT fk_tc_model_variableid_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_variableid_model_version_key_type_variable_id UNIQUE (model_version_key, variable_id_type, variable_id),
   CONSTRAINT ck_tc_model_variableid_type CHECK (variable_id_type IN (N'SVID', N'DVID', N'ECID', N'CEID'))
 );
 GO
 
-CREATE INDEX ix_tc_model_variableid_model_key   ON dbo.tc_model_variableid (model_key);
+CREATE INDEX ix_tc_model_variableid_model_version_key ON dbo.tc_model_variableid (model_version_key);
 CREATE INDEX ix_tc_model_variableid_variable_id ON dbo.tc_model_variableid (variable_id);
 GO
 
 
 CREATE TABLE dbo.tc_model_reportid (
   report_key  BIGINT IDENTITY(1,1) NOT NULL,
-  model_key   BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   report_id   NVARCHAR(100) NOT NULL,
   variable_id NVARCHAR(1000) NULL,
   enabled     BIT NOT NULL CONSTRAINT df_tc_model_reportid_enabled DEFAULT (0),
   updated_at  DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_reportid_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_reportid PRIMARY KEY (report_key),
-  CONSTRAINT fk_tc_model_reportid_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_reportid_model_key_report_id UNIQUE (model_key, report_id),
+  CONSTRAINT fk_tc_model_reportid_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_reportid_model_version_key_report_id UNIQUE (model_version_key, report_id),
   CONSTRAINT ck_tc_model_reportid_enabled CHECK (enabled IN (0,1))
 );
 GO
 
-CREATE INDEX ix_tc_model_reportid_model_key ON dbo.tc_model_reportid (model_key);
+CREATE INDEX ix_tc_model_reportid_model_version_key ON dbo.tc_model_reportid (model_version_key);
 CREATE INDEX ix_tc_model_reportid_enabled  ON dbo.tc_model_reportid (enabled);
 GO
 
 
 CREATE TABLE dbo.tc_model_eventid (
   event_key  BIGINT IDENTITY(1,1) NOT NULL,
-  model_key  BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   event_id   NVARCHAR(100) NOT NULL,
   report_id  NVARCHAR(1000) NULL,
   enabled    BIT NOT NULL CONSTRAINT df_tc_model_eventid_enabled DEFAULT (0),
   updated_at DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_eventid_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_eventid PRIMARY KEY (event_key),
-  CONSTRAINT fk_tc_model_eventid_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_eventid_model_key_event_id UNIQUE (model_key, event_id),
+  CONSTRAINT fk_tc_model_eventid_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_eventid_model_version_key_event_id UNIQUE (model_version_key, event_id),
   CONSTRAINT ck_tc_model_eventid_enabled CHECK (enabled IN (0,1))
 );
 GO
 
-CREATE INDEX ix_tc_model_eventid_model_key ON dbo.tc_model_eventid (model_key);
+CREATE INDEX ix_tc_model_eventid_model_version_key ON dbo.tc_model_eventid (model_version_key);
 CREATE INDEX ix_tc_model_eventid_enabled  ON dbo.tc_model_eventid (enabled);
 GO
 
 
 CREATE TABLE dbo.tc_model_workflow (
   workflow_key      BIGINT IDENTITY(1,1) NOT NULL,
-  model_key         BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   workflow_name     NVARCHAR(200) NOT NULL,
   message_name      NVARCHAR(200) NOT NULL,
   event_id          NVARCHAR(200) NULL,
@@ -218,38 +237,38 @@ CREATE TABLE dbo.tc_model_workflow (
   updated_at        DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_workflow_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_workflow PRIMARY KEY (workflow_key),
-  CONSTRAINT fk_tc_model_workflow_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_workflow_model_key_workflow_name_message_name UNIQUE (model_key, workflow_name, message_name)
+  CONSTRAINT fk_tc_model_workflow_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_workflow_model_version_key_workflow_name_message_name UNIQUE (model_version_key, workflow_name, message_name)
 );
 GO
 
-CREATE INDEX ix_tc_model_workflow_model_key     ON dbo.tc_model_workflow (model_key);
+CREATE INDEX ix_tc_model_workflow_model_version_key ON dbo.tc_model_workflow (model_version_key);
 CREATE INDEX ix_tc_model_workflow_workflow_name ON dbo.tc_model_workflow (workflow_name);
 GO
 
 
 CREATE TABLE dbo.tc_model_mdf (
   mdf_key    BIGINT IDENTITY(1,1) NOT NULL,
-  model_key  BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   mdf_name   NVARCHAR(100) NOT NULL,
   mdf_file   VARBINARY(MAX) NOT NULL,
   updated_at DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_mdf_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_mdf PRIMARY KEY (mdf_key),
-  CONSTRAINT fk_tc_model_mdf_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_mdf_model_key_mdf_name UNIQUE (model_key, mdf_name)
+  CONSTRAINT fk_tc_model_mdf_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_mdf_model_version_key UNIQUE (model_version_key)
 );
 GO
 
-CREATE INDEX ix_tc_model_mdf_model_key ON dbo.tc_model_mdf (model_key);
+CREATE INDEX ix_tc_model_mdf_model_version_key ON dbo.tc_model_mdf (model_version_key);
 GO
 
 
 CREATE TABLE dbo.tc_model_dcop_item (
   dcop_item_key    BIGINT IDENTITY(1,1) NOT NULL,
-  model_key        BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   dcop_item_name   NVARCHAR(200) NOT NULL,
   workflow_name    NVARCHAR(200) NULL,
   event_id         NVARCHAR(100) NULL,
@@ -260,16 +279,16 @@ CREATE TABLE dbo.tc_model_dcop_item (
   updated_at       DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_dcop_item_updated_at DEFAULT (SYSUTCDATETIME()),
 
   CONSTRAINT pk_tc_model_dcop_item PRIMARY KEY (dcop_item_key),
-  CONSTRAINT fk_tc_model_dcop_item_model_key__tc_model
-    FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_dcop_item_model_key_dcop_item_name UNIQUE (model_key, dcop_item_name),
+  CONSTRAINT fk_tc_model_dcop_item_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_dcop_item_model_version_key_dcop_item_name UNIQUE (model_version_key, dcop_item_name),
   CONSTRAINT ck_tc_model_dcop_item_collection_rule CHECK (collection_rule IS NULL OR collection_rule IN (N'FIRST', N'LAST')),
   CONSTRAINT ck_tc_model_dcop_item_calculation_rule CHECK (calculation_rule IS NULL OR calculation_rule IN (N'ADD', N'MULTIPLY', N'SUBTRACT', N'NONE')),
   CONSTRAINT ck_tc_model_dcop_item_order_rule CHECK (order_rule IS NULL OR order_rule >= 0)
 );
 GO
 
-CREATE INDEX ix_tc_model_dcop_item_model_key ON dbo.tc_model_dcop_item (model_key);
+CREATE INDEX ix_tc_model_dcop_item_model_version_key ON dbo.tc_model_dcop_item (model_version_key);
 CREATE INDEX ix_tc_model_dcop_item_event_id  ON dbo.tc_model_dcop_item (event_id);
 GO
 
@@ -298,7 +317,7 @@ CREATE TABLE dbo.tc_eqp (
   comm_interface NVARCHAR(16) NOT NULL,
   eqp_ip         NVARCHAR(45) NOT NULL,
   eqp_port       INT NOT NULL,
-  model_key      BIGINT NOT NULL,
+  model_version_key BIGINT NOT NULL,
   enabled        BIT NOT NULL CONSTRAINT df_tc_eqp_enabled DEFAULT (1),
   created_at     DATETIME2(3) NOT NULL CONSTRAINT df_tc_eqp_created_at DEFAULT (SYSUTCDATETIME()),
   updated_at     DATETIME2(3) NOT NULL CONSTRAINT df_tc_eqp_updated_at DEFAULT (SYSUTCDATETIME()),
@@ -307,7 +326,8 @@ CREATE TABLE dbo.tc_eqp (
 
   CONSTRAINT pk_tc_eqp PRIMARY KEY (eqp_key),
   CONSTRAINT uk_tc_eqp_eqp_id UNIQUE (eqp_id),
-  CONSTRAINT fk_tc_eqp_model_key__tc_model FOREIGN KEY (model_key) REFERENCES dbo.tc_model(model_key),
+  CONSTRAINT fk_tc_eqp_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key),
   CONSTRAINT ck_tc_eqp_comm_interface CHECK (comm_interface IN (N'HSMS', N'SOCKET')),
   CONSTRAINT ck_tc_eqp_eqp_port CHECK (eqp_port BETWEEN 1 AND 65535),
   CONSTRAINT ck_tc_eqp_enabled CHECK (enabled IN (0,1))
@@ -315,7 +335,7 @@ CREATE TABLE dbo.tc_eqp (
 GO
 
 CREATE INDEX ix_tc_eqp_enabled        ON dbo.tc_eqp (enabled);
-CREATE INDEX ix_tc_eqp_model_key      ON dbo.tc_eqp (model_key);
+CREATE INDEX ix_tc_eqp_model_version_key ON dbo.tc_eqp (model_version_key);
 CREATE INDEX ix_tc_eqp_comm_interface ON dbo.tc_eqp (comm_interface);
 CREATE INDEX ix_tc_eqp_eqp_ip_port    ON dbo.tc_eqp (eqp_ip, eqp_port);
 GO

@@ -87,19 +87,19 @@ public class TcModelJpaStore implements TcModelStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModel> findByModelKey(long modelKey) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be positive");
+    public Optional<TcModel> findByModelVersionKey(long modelVersionKey) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be positive");
         }
         try {
-            return repository.findById(modelKey).map(mapper::toDomain);
+            return repository.findByModelVersionKey(modelVersionKey).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model] findByModelKey failed: modelKey=" + modelKey, e);
+            throw new DbAccessException("[tc_model] findByModelVersionKey failed: modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -162,21 +162,21 @@ public class TcModelJpaStore implements TcModelStore {
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      */
     @Override
     @Transactional
-    public void deleteByModelKey(long modelKey) {
+    public void deleteByModelVersionKey(long modelVersionKey) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be positive");
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be positive");
         }
         try {
-            repository.deleteById(modelKey);
+            repository.deleteByModelVersionKey(modelVersionKey);
         } catch (EmptyResultDataAccessException ignore) {
             // Idempotent delete
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model] deleteByModelKey failed", e);
+            throw new DbAccessException("[tc_model] deleteByModelVersionKey failed", e);
         }
     }
 

@@ -5,7 +5,7 @@ package com.nori.tc.db.core.model.upsert;
  *
  * <p>
  * - workflow_key가 있으면 해당 PK 기반으로 갱신합니다.
- * - workflow_key가 없으면 (model_key, workflow_name, message_name) 유니크 키 기준으로
+ * - workflow_key가 없으면 (model_version_key, workflow_name, message_name) 유니크 키 기준으로
  *   존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
  * </p>
  *
@@ -16,7 +16,7 @@ package com.nori.tc.db.core.model.upsert;
  */
 public record UpsertTcModelWorkflow(
         Long workflowKey,
-        long modelKey,
+        long modelVersionKey,
         String workflowName,
         String messageName,
         String eventId,

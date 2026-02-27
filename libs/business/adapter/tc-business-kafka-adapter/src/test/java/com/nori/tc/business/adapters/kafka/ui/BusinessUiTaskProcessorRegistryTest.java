@@ -49,7 +49,7 @@ class BusinessUiTaskProcessorRegistryTest {
                 new KafkaUiTaskMessage.KafkaUiTaskData(
                         "EQP-TEST-01",
                         "SOCKET",
-                        "{\"modelKey\":101}"
+                        "{\"modelVersionKey\":101}"
                 )
         );
         Assertions.assertEquals(KafkaTaskReplyStatus.PASS, spec.processor().process(request).status());
@@ -118,20 +118,20 @@ class BusinessUiTaskProcessorRegistryTest {
         /**
          * reloadModelRuntime 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey ?낅젰 媛?         */
+         * @param modelVersionKey ?낅젰 媛?         */
 
         @Override
-        public void reloadModelRuntime(final long modelKey) {
+        public void reloadModelRuntime(final long modelVersionKey) {
             // no-op
         }
 
         /**
          * updateEqpBinding 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param eqpId ?낅젰 媛?         * @param modelKey ?낅젰 媛?         */
+         * @param eqpId ?낅젰 媛?         * @param modelVersionKey ?낅젰 媛?         */
 
         @Override
-        public void updateEqpBinding(final String eqpId, final long modelKey) {
+        public void updateEqpBinding(final String eqpId, final long modelVersionKey) {
             // no-op
         }
 
@@ -157,13 +157,13 @@ class BusinessUiTaskProcessorRegistryTest {
         }
 
         /**
-         * findRuntimeByModelKey 湲곕뒫???섑뻾?⑸땲??
+         * findRuntimeByModelVersionKey 湲곕뒫???섑뻾?⑸땲??
          *
-         * @param modelKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
+         * @param modelVersionKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
          */
 
         @Override
-        public Optional<TcModelRuntime> findRuntimeByModelKey(final long modelKey) {
+        public Optional<TcModelRuntime> findRuntimeByModelVersionKey(final long modelVersionKey) {
             return Optional.empty();
         }
     }

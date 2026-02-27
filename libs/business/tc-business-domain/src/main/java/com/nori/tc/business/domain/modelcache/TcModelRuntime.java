@@ -16,14 +16,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * modelKey 단위 런타임 컨텍스트입니다.
+ * modelVersionKey 단위 런타임 컨텍스트입니다.
  *
  * <p>핫패스에서 DB 조회를 피하기 위해 workflow/message/variable 인덱스를
  * 모두 불변 구조로 보관합니다.</p>
  */
 public final class TcModelRuntime {
 
-    private final long modelKey;
+    private final long modelVersionKey;
     private final String modelName;
     private final String modelVersion;
     private final ProtocolType protocolType;
@@ -35,7 +35,7 @@ public final class TcModelRuntime {
     private final Map<VariableRuntimeKey, TcModelVariableId> variableIds;
 
     private TcModelRuntime(
-            final long modelKey,
+            final long modelVersionKey,
             final String modelName,
             final String modelVersion,
             final ProtocolType protocolType,
@@ -45,7 +45,7 @@ public final class TcModelRuntime {
             final Map<String, TcModelSocketMessage> socketMessagesByName,
             final Map<VariableRuntimeKey, TcModelVariableId> variableIds
     ) {
-        this.modelKey = modelKey;
+        this.modelVersionKey = modelVersionKey;
         this.modelName = modelName;
         this.modelVersion = modelVersion;
         this.protocolType = protocolType;
@@ -126,7 +126,7 @@ public final class TcModelRuntime {
         }
 
         return new TcModelRuntime(
-                model.modelKey(),
+                model.modelVersionKey(),
                 model.modelName(),
                 model.modelVersion(),
                 model.commInterface(),
@@ -139,13 +139,13 @@ public final class TcModelRuntime {
     }
 
     /**
-     * modelKey 기능을 수행합니다.
+     * modelVersionKey 기능을 수행합니다.
      *
      * @return 처리 결과
      */
 
-    public long modelKey() {
-        return modelKey;
+    public long modelVersionKey() {
+        return modelVersionKey;
     }
 
     /**

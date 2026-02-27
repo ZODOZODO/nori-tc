@@ -239,7 +239,7 @@ class BusinessWorkflowPluginRuntimeManagerTest {
     /**
      * 테스트용 eqp 레코드를 생성합니다.
      */
-    private static TcEqp createEqp(final long eqpKey, final String eqpId, final long modelKey) {
+    private static TcEqp createEqp(final long eqpKey, final String eqpId, final long modelVersionKey) {
         final OffsetDateTime now = OffsetDateTime.now();
         return new TcEqp(
                 eqpKey,
@@ -249,7 +249,7 @@ class BusinessWorkflowPluginRuntimeManagerTest {
                 0,
                 "127.0.0.1",
                 5000,
-                modelKey,
+                modelVersionKey,
                 true,
                 now,
                 now,

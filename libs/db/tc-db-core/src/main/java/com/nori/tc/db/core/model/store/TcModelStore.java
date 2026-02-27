@@ -38,10 +38,10 @@ public interface TcModelStore {
      * DB Core 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @return 조회 결과(Optional)
      */
-    Optional<TcModel> findByModelKey(long modelKey);
+    Optional<TcModel> findByModelVersionKey(long modelVersionKey);
 
     
     /**
@@ -60,8 +60,8 @@ public interface TcModelStore {
     List<TcModel> findAll(PageRequest page);
 
     /**
-     * 삭제. FK(tc_eqp.model_key)가 존재하므로, 운영 정책상 금지할 수도 있습니다.
+     * 삭제. FK(tc_eqp.model_version_key)가 존재하므로, 운영 정책상 금지할 수도 있습니다.
      * (금지 정책은 상위 계층에서 통제하는 것을 권장)
      */
-    void deleteByModelKey(long modelKey);
+    void deleteByModelVersionKey(long modelVersionKey);
 }

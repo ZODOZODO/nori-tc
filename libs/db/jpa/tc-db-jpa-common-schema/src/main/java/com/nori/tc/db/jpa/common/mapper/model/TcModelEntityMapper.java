@@ -15,6 +15,7 @@ public interface TcModelEntityMapper {
     /**
      * Entity -> Domain (Read)
      */
+    @Mapping(target = "modelVersionKey", source = "modelKey")
     TcModel toDomain(TcModelEntity entity);
 
     /**

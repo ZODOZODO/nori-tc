@@ -30,7 +30,7 @@ import com.nori.tc.db.jpa.common.repository.model.TcModelMdfJpaRepository;
  * <b>주요 기능:</b>
  * <ul>
  * <li><b>Upsert:</b> MDF 키 또는 유니크 키로 존재 여부를 확인한 뒤 생성/갱신을 수행합니다.</li>
- * <li><b>목록 조회:</b> 특정 model_key 기준으로 최신 mdf_key DESC 정렬 + 페이징을 제공합니다.</li>
+ * <li><b>목록 조회:</b> 특정 model_version_key 기준으로 최신 mdf_key DESC 정렬 + 페이징을 제공합니다.</li>
  * </ul>
  * </p>
  */
@@ -116,20 +116,20 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param mdfName DB JPA 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelMdf> findByModelKeyAndName(long modelKey, String mdfName) {
-        if (modelKey <= 0) throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelMdf> findByModelVersionKeyAndName(long modelVersionKey, String mdfName) {
+        if (modelVersionKey <= 0) throw new IllegalArgumentException("modelVersionKey must be > 0");
         if (mdfName == null || mdfName.isBlank()) throw new IllegalArgumentException("mdfName must not be null/blank");
 
         try {
-            return repository.findByModelKeyAndMdfName(modelKey, mdfName).map(mapper::toDomain);
+            return repository.findByModelVersionKeyAndMdfName(modelVersionKey, mdfName).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] findByModelKeyAndName failed", e);
+            throw new DbAccessException("[tc_model_mdf] findByModelVersionKeyAndName failed", e);
         }
     }
 
@@ -138,27 +138,27 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelMdf> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelMdf> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) throw new IllegalArgumentException("modelVersionKey must be > 0");
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
             TypedQuery<TcModelMdfEntity> query = em.createQuery(
-                    "SELECT e FROM TcModelMdfEntity e WHERE e.modelKey = :modelKey ORDER BY e.mdfKey DESC",
+                    "SELECT e FROM TcModelMdfEntity e WHERE e.modelVersionKey = :modelVersionKey ORDER BY e.mdfKey DESC",
                     TcModelMdfEntity.class
             );
-            query.setParameter("modelKey", modelKey);
+            query.setParameter("modelVersionKey", modelVersionKey);
             query.setFirstResult(p.offset());
             query.setMaxResults(p.limit());
             return query.getResultList().stream().map(mapper::toDomain).toList();
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] findAllByModelKey failed: modelKey=" + modelKey, e);
+            throw new DbAccessException("[tc_model_mdf] findAllByModelVersionKey failed: modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -197,7 +197,7 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
         if (command.mdfKey() != null && command.mdfKey() <= 0) {
             throw new IllegalArgumentException("command.mdfKey must be > 0 when provided");
         }
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.mdfName() == null || command.mdfName().isBlank()) {
             throw new IllegalArgumentException("command.mdfName must not be null/blank");
         }
@@ -220,7 +220,7 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
                     .orElseThrow(() -> new DbEntityNotFoundException("[tc_model_mdf] not found: mdfKey=" + command.mdfKey()));
         }
 
-        return repository.findByModelKeyAndMdfName(command.modelKey(), command.mdfName())
-                .orElseGet(() -> TcModelMdfEntity.newEntity(command.modelKey(), command.mdfName(), command.mdfFile()));
+        return repository.findByModelVersionKeyAndMdfName(command.modelVersionKey(), command.mdfName())
+                .orElseGet(() -> TcModelMdfEntity.newEntity(command.modelVersionKey(), command.mdfName(), command.mdfFile()));
     }
 }

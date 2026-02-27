@@ -53,7 +53,7 @@ public class TcModelMybatisStore implements TcModelStore {
             } else {
                 mapper.insert(row);
             }
-            // model_key가 반환되지 않으므로 이름/버전으로 재조회한다.
+            // model_version_key가 반환되지 않으므로 이름/버전으로 재조회한다.
             return mapper.findByNameVersion(command.modelName(), command.modelVersion())
                     .orElseThrow(() -> new DbAccessException("tc_model upsert failed: cannot re-fetch by name/version"));
 
@@ -69,18 +69,18 @@ public class TcModelMybatisStore implements TcModelStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModel> findByModelKey(long modelKey) {
+    public Optional<TcModel> findByModelVersionKey(long modelVersionKey) {
         try {
-            return mapper.findByModelKey(modelKey);
+            return mapper.findByModelVersionKey(modelVersionKey);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model findByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model findByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model findByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model findByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -132,19 +132,19 @@ public class TcModelMybatisStore implements TcModelStore {
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      */
     @Override
     @Transactional
-    public void deleteByModelKey(long modelKey) {
+    public void deleteByModelVersionKey(long modelVersionKey) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         try {
             // 삭제는 멱등으로 둔다: 없어도 예외를 던지지 않는다.
-            mapper.deleteByModelKey(modelKey);
+            mapper.deleteByModelVersionKey(modelVersionKey);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model deleteByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model deleteByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model deleteByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model deleteByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -157,9 +157,10 @@ public class TcModelMybatisStore implements TcModelStore {
      * @return DB MyBatis 계층 처리 결과
      */
     private TcModel toRow(UpsertTcModel command) {
-        long modelKey = command.modelKey() == null ? 0L : command.modelKey();
+        long modelVersionKey = command.modelKey() == null ? 0L : command.modelKey();
         return new TcModel(
-                modelKey,
+                modelVersionKey,
+                0L,
                 command.modelName(),
                 command.modelVersion(),
                 command.commInterface(),

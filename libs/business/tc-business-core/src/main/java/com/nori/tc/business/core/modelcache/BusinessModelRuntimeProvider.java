@@ -20,13 +20,13 @@ public interface BusinessModelRuntimeProvider {
     BusinessModelRuntimeSnapshot currentSnapshot();
 
     /**
-     * eqpId에 매핑된 modelKey를 조회합니다.
+     * eqpId에 매핑된 modelVersionKey를 조회합니다.
      *
      * @param eqpId 장비 ID
-     * @return modelKey(optional)
+     * @return modelVersionKey(optional)
      */
-    default Optional<Long> findModelKeyByEqpId(final String eqpId) {
-        return currentSnapshot().findModelKeyByEqpId(eqpId);
+    default Optional<Long> findModelVersionKeyByEqpId(final String eqpId) {
+        return currentSnapshot().findModelVersionKeyByEqpId(eqpId);
     }
 
     /**
@@ -40,13 +40,13 @@ public interface BusinessModelRuntimeProvider {
     }
 
     /**
-     * modelKey로 model runtime을 조회합니다.
+     * modelVersionKey로 model runtime을 조회합니다.
      *
-     * @param modelKey model key
+     * @param modelVersionKey model key
      * @return model runtime(optional)
      */
-    default Optional<TcModelRuntime> findRuntimeByModelKey(final long modelKey) {
-        return currentSnapshot().findRuntimeByModelKey(modelKey);
+    default Optional<TcModelRuntime> findRuntimeByModelVersionKey(final long modelVersionKey) {
+        return currentSnapshot().findRuntimeByModelVersionKey(modelVersionKey);
     }
 
     /**

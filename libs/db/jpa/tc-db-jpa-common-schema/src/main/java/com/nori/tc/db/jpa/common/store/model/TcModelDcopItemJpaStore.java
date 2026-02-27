@@ -65,7 +65,7 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
         validateUpsert(command);
 
         try {
-            TcModelDcopItemEntity entity = repository.findByModelKeyAndDcopItemName(command.modelKey(), command.dcopItemName())
+            TcModelDcopItemEntity entity = repository.findByModelVersionKeyAndDcopItemName(command.modelVersionKey(), command.dcopItemName())
                     .orElseGet(TcModelDcopItemEntity::new);
 
             // 1. 엔티티 필드 업데이트 (명칭 변경 반영)
@@ -87,25 +87,25 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param dcopItemName DB JPA 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelDcopItem> findByModelKeyAndName(long modelKey, String dcopItemName) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelDcopItem> findByModelVersionKeyAndName(long modelVersionKey, String dcopItemName) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (dcopItemName == null || dcopItemName.isBlank()) {
             throw new IllegalArgumentException("dcopItemName must not be null/blank");
         }
 
         try {
-            return repository.findByModelKeyAndDcopItemName(modelKey, dcopItemName)
+            return repository.findByModelVersionKeyAndDcopItemName(modelVersionKey, dcopItemName)
                     .map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_dcop_item] findByModelKeyAndName failed", e);
+            throw new DbAccessException("[tc_model_dcop_item] findByModelVersionKeyAndName failed", e);
         }
     }
 
@@ -114,15 +114,15 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelDcopItem> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelDcopItem> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
@@ -131,7 +131,7 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
             CriteriaQuery<TcModelDcopItemEntity> cq = cb.createQuery(TcModelDcopItemEntity.class);
             Root<TcModelDcopItemEntity> root = cq.from(TcModelDcopItemEntity.class);
 
-            cq.select(root).where(cb.equal(root.get("modelKey"), modelKey));
+            cq.select(root).where(cb.equal(root.get("modelVersionKey"), modelVersionKey));
             cq.orderBy(cb.asc(root.get("orderRule")), cb.asc(root.get("dcopItemName")));
 
             TypedQuery<TcModelDcopItemEntity> query = em.createQuery(cq);
@@ -141,7 +141,7 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
             return query.getResultList().stream().map(mapper::toDomain).toList();
 
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_dcop_item] findAllByModelKey failed", e);
+            throw new DbAccessException("[tc_model_dcop_item] findAllByModelVersionKey failed", e);
         }
     }
 
@@ -150,25 +150,25 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param dcopItemName DB JPA 계층 처리에 사용하는 입력 값
      */
     @Override
     @Transactional
-    public void deleteByModelKeyAndName(long modelKey, String dcopItemName) {
+    public void deleteByModelVersionKeyAndName(long modelVersionKey, String dcopItemName) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (dcopItemName == null || dcopItemName.isBlank()) {
             throw new IllegalArgumentException("dcopItemName must not be null/blank");
         }
         try {
-            repository.deleteByModelKeyAndDcopItemName(modelKey, dcopItemName);
+            repository.deleteByModelVersionKeyAndDcopItemName(modelVersionKey, dcopItemName);
         } catch (EmptyResultDataAccessException ignore) {
             // Idempotent delete
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_dcop_item] deleteByModelKeyAndName failed", e);
+            throw new DbAccessException("[tc_model_dcop_item] deleteByModelVersionKeyAndName failed", e);
         }
     }
 
@@ -181,7 +181,7 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
      */
     private void validateUpsert(UpsertTcModelDcopItem command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.dcopItemName() == null || command.dcopItemName().isBlank()) {
             throw new IllegalArgumentException("command.dcopItemName must not be null/blank");
         }

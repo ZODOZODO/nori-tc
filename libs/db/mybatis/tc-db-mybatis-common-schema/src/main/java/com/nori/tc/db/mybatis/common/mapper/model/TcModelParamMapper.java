@@ -10,8 +10,8 @@ import com.nori.tc.db.domain.model.TcModelParam;
 /**
  * tc_model_param Mapper (FIX)
  *
- * - Unique(model_key, param_name) 기준으로 upsert 지원
- * - findAllByModelKey는 반드시 DB 페이징을 적용한다.
+ * - Unique(model_version_key, param_name) 기준으로 upsert 지원
+ * - findAllByModelVersionKey는 반드시 DB 페이징을 적용한다.
  */
 public interface TcModelParamMapper {
 
@@ -40,12 +40,12 @@ public interface TcModelParamMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param paramName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelParam> findByModelKeyAndName(
-            @Param("modelKey") long modelKey,
+    Optional<TcModelParam> findByModelVersionKeyAndName(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("paramName") String paramName
     );
 
@@ -54,13 +54,13 @@ public interface TcModelParamMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param offset 페이징/조회 범위 조건
      * @param limit 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
-    List<TcModelParam> findAllByModelKey(
-            @Param("modelKey") long modelKey,
+    List<TcModelParam> findAllByModelVersionKey(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

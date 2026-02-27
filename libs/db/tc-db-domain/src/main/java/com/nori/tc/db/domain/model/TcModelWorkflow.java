@@ -7,7 +7,7 @@ import java.time.OffsetDateTime;
  *
  * [DB 스키마 요약]
  * - workflow_key      : bigint PK (IDENTITY)
- * - model_key         : bigint FK -> tc_model.model_key (ON DELETE CASCADE)
+ * - model_version_key         : bigint FK -> tc_model_version.model_version_key (ON DELETE CASCADE)
  * - workflow_name     : varchar(200) NOT NULL
  * - message_name      : varchar(200) NOT NULL
  * - event_id          : varchar(200) NULL
@@ -19,12 +19,12 @@ import java.time.OffsetDateTime;
  *
  * [제약/인덱스]
  * - PK: workflow_key
- * - UK: (model_key, workflow_name, message_name)
- * - INDEX: model_key, workflow_name
+ * - UK: (model_version_key, workflow_name, message_name)
+ * - INDEX: model_version_key, workflow_name
  */
 public record TcModelWorkflow(
         long workflowKey,
-        long modelKey,
+        long modelVersionKey,
         String workflowName,
         String messageName,
         String eventId,

@@ -69,15 +69,15 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
         validateUpsert(command);
 
         try {
-            Optional<TcModelVariableIdEntity> existing = repository.findByModelKeyAndVariableIdTypeAndVariableId(
-                    command.modelKey(),
+            Optional<TcModelVariableIdEntity> existing = repository.findByModelVersionKeyAndVariableIdTypeAndVariableId(
+                    command.modelVersionKey(),
                     command.variableIdType(),
                     command.variableId()
             );
 
             TcModelVariableIdEntity entity = existing.orElseGet(
                     () -> TcModelVariableIdEntity.newEntity(
-                            command.modelKey(),
+                            command.modelVersionKey(),
                             command.variableIdType(),
                             command.variableId()
                     )
@@ -122,20 +122,20 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param variableIdType DB JPA 계층 처리에 사용하는 입력 값
      * @param variableId DB JPA 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelVariableId> findByModelKeyAndTypeAndVariableId(
-            long modelKey,
+    public Optional<TcModelVariableId> findByModelVersionKeyAndTypeAndVariableId(
+            long modelVersionKey,
             VariableIdType variableIdType,
             String variableId
     ) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (variableIdType == null) {
             throw new IllegalArgumentException("variableIdType must not be null");
@@ -145,10 +145,10 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
         }
 
         try {
-            return repository.findByModelKeyAndVariableIdTypeAndVariableId(modelKey, variableIdType, variableId)
+            return repository.findByModelVersionKeyAndVariableIdTypeAndVariableId(modelVersionKey, variableIdType, variableId)
                     .map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_variableid] findByModelKeyAndTypeAndVariableId failed", e);
+            throw new DbAccessException("[tc_model_variableid] findByModelVersionKeyAndTypeAndVariableId failed", e);
         }
     }
 
@@ -157,15 +157,15 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelVariableId> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelVariableId> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
@@ -175,7 +175,7 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
             Root<TcModelVariableIdEntity> root = cq.from(TcModelVariableIdEntity.class);
 
             cq.select(root)
-                    .where(cb.equal(root.get("modelKey"), modelKey))
+                    .where(cb.equal(root.get("modelVersionKey"), modelVersionKey))
                     .orderBy(cb.asc(root.get("variableKey")));
 
             TypedQuery<TcModelVariableIdEntity> query = em.createQuery(cq);
@@ -185,7 +185,7 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
             return query.getResultList().stream().map(mapper::toDomain).toList();
 
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_variableid] findAllByModelKey failed", e);
+            throw new DbAccessException("[tc_model_variableid] findAllByModelVersionKey failed", e);
         }
     }
 
@@ -221,7 +221,7 @@ public class TcModelVariableIdJpaStore implements TcModelVariableIdStore {
      */
     private void validateUpsert(UpsertTcModelVariableId command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.variableIdType() == null) throw new IllegalArgumentException("command.variableIdType must not be null");
         if (command.variableId() == null || command.variableId().isBlank()) throw new IllegalArgumentException("command.variableId must not be null/blank");
     }

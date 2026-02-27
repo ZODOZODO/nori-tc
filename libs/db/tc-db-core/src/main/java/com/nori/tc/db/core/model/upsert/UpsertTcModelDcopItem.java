@@ -6,11 +6,11 @@ import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 /**
  * tc_model_dcop_item upsert 입력(Command)
  *
- * - (modelKey, dcopItemName)이 유니크 키이므로 upsert 기준 키로 사용한다.
+ * - (modelVersionKey, dcopItemName)이 유니크 키이므로 upsert 기준 키로 사용한다.
  * - updatedAt은 DB가 관리하는 것을 권장한다.
  */
 public record UpsertTcModelDcopItem(
-        long modelKey,
+        long modelVersionKey,
         String dcopItemName,
         String workflowName,
         String eventId,

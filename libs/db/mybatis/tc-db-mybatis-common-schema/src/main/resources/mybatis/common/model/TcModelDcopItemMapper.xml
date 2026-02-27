@@ -1,9 +1,9 @@
 <insert id="insert">
         INSERT INTO tc_model_dcop_item (
-            model_key, dcop_item_name, dcop_item_desc, workflow_name, event_id, variable_id,
+            model_version_key, dcop_item_name, dcop_item_desc, workflow_name, event_id, variable_id,
             collection_rule, calculation_rule, order_rule, created_at, updated_at
         ) VALUES (
-            #{i.modelKey}, #{i.dcopItemName}, #{i.dcopItemDesc}, #{i.workflowName}, #{i.eventId}, #{i.variableId},
+            #{i.modelVersionKey}, #{i.dcopItemName}, #{i.dcopItemDesc}, #{i.workflowName}, #{i.eventId}, #{i.variableId},
             #{i.collectionRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
             #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
             #{i.orderRule}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -19,30 +19,30 @@
                calculation_rule = #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
                order_rule       = #{i.orderRule},
                updated_at       = CURRENT_TIMESTAMP
-         WHERE model_key        = #{i.modelKey}
+         WHERE model_version_key        = #{i.modelVersionKey}
            AND dcop_item_name   = #{i.dcopItemName}
     </update>
 
-    <select id="findByModelKeyAndName" resultMap="TcModelDcopItemMap">
+    <select id="findByModelVersionKeyAndName" resultMap="TcModelDcopItemMap">
         SELECT <include refid="TcModelDcopItemColumns"/>
           FROM tc_model_dcop_item
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND dcop_item_name = #{dcopItemName}
     </select>
 
-    <select id="findAllByModelKey" resultMap="TcModelDcopItemMap">
+    <select id="findAllByModelVersionKey" resultMap="TcModelDcopItemMap">
         SELECT <include refid="TcModelDcopItemColumns"/>
           FROM tc_model_dcop_item
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY order_rule ASC, dcop_item_name ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}
         </if>
     </select>
 
-    <delete id="deleteByModelKeyAndName">
+    <delete id="deleteByModelVersionKeyAndName">
         DELETE FROM tc_model_dcop_item
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND dcop_item_name = #{dcopItemName}
     </delete>
 

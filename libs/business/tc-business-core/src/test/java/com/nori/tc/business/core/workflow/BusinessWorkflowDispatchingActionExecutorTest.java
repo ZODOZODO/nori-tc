@@ -292,6 +292,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         final OffsetDateTime now = OffsetDateTime.now();
         final TcModel model = new TcModel(
                 300L,
+                300L,
                 "MODEL-300",
                 "v1",
                 protocolType,
@@ -337,4 +338,3 @@ class BusinessWorkflowDispatchingActionExecutorTest {
         return new BusinessWorkflowMatchResult(List.of(entry), filterContext);
     }
 }
-

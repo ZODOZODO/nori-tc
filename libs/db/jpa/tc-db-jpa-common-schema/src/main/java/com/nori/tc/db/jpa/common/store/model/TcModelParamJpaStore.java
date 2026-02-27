@@ -65,13 +65,13 @@ public class TcModelParamJpaStore implements TcModelParamStore {
         validateUpsert(command);
 
         try {
-            Optional<TcModelParamEntity> existing = repository.findByModelKeyAndParamName(
-                    command.modelKey(),
+            Optional<TcModelParamEntity> existing = repository.findByModelVersionKeyAndParamName(
+                    command.modelVersionKey(),
                     command.paramName()
             );
 
             TcModelParamEntity entity = existing.orElseGet(
-                    () -> TcModelParamEntity.newEntity(command.modelKey(), command.paramName())
+                    () -> TcModelParamEntity.newEntity(command.modelVersionKey(), command.paramName())
             );
 
             mapper.updateEntity(command, entity);
@@ -91,25 +91,25 @@ public class TcModelParamJpaStore implements TcModelParamStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param paramName DB JPA 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelParam> findByModelKeyAndName(long modelKey, String paramName) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelParam> findByModelVersionKeyAndName(long modelVersionKey, String paramName) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (paramName == null || paramName.isBlank()) {
             throw new IllegalArgumentException("paramName must not be null/blank");
         }
 
         try {
-            return repository.findByModelKeyAndParamName(modelKey, paramName)
+            return repository.findByModelVersionKeyAndParamName(modelVersionKey, paramName)
                     .map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_param] findByModelKeyAndName failed", e);
+            throw new DbAccessException("[tc_model_param] findByModelVersionKeyAndName failed", e);
         }
     }
 
@@ -118,15 +118,15 @@ public class TcModelParamJpaStore implements TcModelParamStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelParam> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelParam> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
@@ -136,7 +136,7 @@ public class TcModelParamJpaStore implements TcModelParamStore {
             Root<TcModelParamEntity> root = cq.from(TcModelParamEntity.class);
 
             cq.select(root)
-                    .where(cb.equal(root.get("modelKey"), modelKey))
+                    .where(cb.equal(root.get("modelVersionKey"), modelVersionKey))
                     .orderBy(cb.asc(root.get("modelParamKey")));
 
             TypedQuery<TcModelParamEntity> query = em.createQuery(cq);
@@ -146,7 +146,7 @@ public class TcModelParamJpaStore implements TcModelParamStore {
             return query.getResultList().stream().map(mapper::toDomain).toList();
 
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_param] findAllByModelKey failed", e);
+            throw new DbAccessException("[tc_model_param] findAllByModelVersionKey failed", e);
         }
     }
 
@@ -182,7 +182,7 @@ public class TcModelParamJpaStore implements TcModelParamStore {
      */
     private void validateUpsert(UpsertTcModelParam command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.paramName() == null || command.paramName().isBlank()) throw new IllegalArgumentException("command.paramName must not be null/blank");
     }
 }

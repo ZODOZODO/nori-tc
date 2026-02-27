@@ -7,14 +7,14 @@ import java.time.OffsetDateTime;
  *
  * PK/FK:
  * - socket_msg_key : bigint identity (PK)
- * - model_key      : tc_model.model_key FK (ON DELETE CASCADE)
+ * - model_version_key      : tc_model_version.model_version_key FK (ON DELETE CASCADE)
  *
  * Unique:
- * - (model_key, socket_msg_name)
+ * - (model_version_key, socket_msg_name)
  */
 public record TcModelSocketMessage(
         long socketMsgKey,
-        long modelKey,
+        long modelVersionKey,
         String socketMsgName,
         String description,
         String dataIndex,

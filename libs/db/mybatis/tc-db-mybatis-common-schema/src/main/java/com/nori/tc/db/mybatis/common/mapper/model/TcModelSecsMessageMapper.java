@@ -10,7 +10,7 @@ import com.nori.tc.db.domain.model.TcModelSecsMessage;
 /**
  * tc_model_secs_message Mapper (FIX)
  *
- * - model_key + secs_msg_name 유니크
+ * - model_version_key + secs_msg_name 유니크
  */
 public interface TcModelSecsMessageMapper {
 
@@ -49,12 +49,12 @@ public interface TcModelSecsMessageMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param secsMsgName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelSecsMessage> findByModelKeyAndName(
-            @Param("modelKey") long modelKey,
+    Optional<TcModelSecsMessage> findByModelVersionKeyAndName(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("secsMsgName") String secsMsgName
     );
 
@@ -63,13 +63,13 @@ public interface TcModelSecsMessageMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param offset 페이징/조회 범위 조건
      * @param limit 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
-    List<TcModelSecsMessage> findAllByModelKey(
-            @Param("modelKey") long modelKey,
+    List<TcModelSecsMessage> findAllByModelVersionKey(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

@@ -58,20 +58,20 @@ public class BusinessModelRuntimeAssembler {
     }
 
     /**
-     * modelKey 기준으로 런타임 컨텍스트를 조립합니다.
+     * modelVersionKey 기준으로 런타임 컨텍스트를 조립합니다.
      *
-     * @param modelKey model key
+     * @param modelVersionKey model key
      * @return 조립된 runtime
      */
-    public TcModelRuntime assemble(final long modelKey) {
-        if (modelKey <= 0L) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public TcModelRuntime assemble(final long modelVersionKey) {
+        if (modelVersionKey <= 0L) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
 
-        final TcModel model = modelStore.findByModelKey(modelKey)
-                .orElseThrow(() -> new IllegalStateException("tc_model not found. modelKey=" + modelKey));
+        final TcModel model = modelStore.findByModelVersionKey(modelVersionKey)
+                .orElseThrow(() -> new IllegalStateException("tc_model not found. modelVersionKey=" + modelVersionKey));
 
-        final List<TcModelWorkflow> workflows = loadAllByPage(page -> workflowStore.findAllByModelKey(modelKey, page));
+        final List<TcModelWorkflow> workflows = loadAllByPage(page -> workflowStore.findAllByModelVersionKey(modelVersionKey, page));
         workflows.sort(Comparator.comparingLong(TcModelWorkflow::workflowKey));
 
         final List<WorkflowRuntimeEntry> entries = new ArrayList<>(workflows.size());
@@ -79,12 +79,12 @@ public class BusinessModelRuntimeAssembler {
             entries.add(WorkflowRuntimeEntry.from(workflows.get(i), i));
         }
 
-        final List<TcModelSecsMessage> secsMessages = loadAllByPage(page -> secsMessageStore.findAllByModelKey(modelKey, page));
-        final List<TcModelSocketMessage> socketMessages = loadAllByPage(page -> socketMessageStore.findAllByModelKey(modelKey, page));
-        final List<TcModelVariableId> variableIds = loadAllByPage(page -> variableIdStore.findAllByModelKey(modelKey, page));
+        final List<TcModelSecsMessage> secsMessages = loadAllByPage(page -> secsMessageStore.findAllByModelVersionKey(modelVersionKey, page));
+        final List<TcModelSocketMessage> socketMessages = loadAllByPage(page -> socketMessageStore.findAllByModelVersionKey(modelVersionKey, page));
+        final List<TcModelVariableId> variableIds = loadAllByPage(page -> variableIdStore.findAllByModelVersionKey(modelVersionKey, page));
 
-        log.debug("Assembled model runtime. modelKey={}, workflows={}, secsMessages={}, socketMessages={}, variables={}",
-                modelKey,
+        log.debug("Assembled model runtime. modelVersionKey={}, workflows={}, secsMessages={}, socketMessages={}, variables={}",
+                modelVersionKey,
                 entries.size(),
                 secsMessages.size(),
                 socketMessages.size(),

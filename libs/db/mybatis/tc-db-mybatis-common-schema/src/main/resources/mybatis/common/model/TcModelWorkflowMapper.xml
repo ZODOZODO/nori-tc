@@ -1,6 +1,6 @@
 <update id="update">
         UPDATE tc_model_workflow
-           SET model_key         = #{w.modelKey},
+           SET model_version_key         = #{w.modelVersionKey},
                workflow_name     = #{w.workflowName},
                message_name      = #{w.messageName},
                event_id          = #{w.eventId},
@@ -18,18 +18,18 @@
          WHERE workflow_key = #{workflowKey}
     </select>
 
-    <select id="findByModelKeyAndWorkflowNameAndMessageName" resultMap="TcModelWorkflowMap">
+    <select id="findByModelVersionKeyAndWorkflowNameAndMessageName" resultMap="TcModelWorkflowMap">
         SELECT <include refid="TcModelWorkflowColumns"/>
           FROM tc_model_workflow
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND workflow_name = #{workflowName}
            AND message_name = #{messageName}
     </select>
 
-    <select id="findAllByModelKey" resultMap="TcModelWorkflowMap">
+    <select id="findAllByModelVersionKey" resultMap="TcModelWorkflowMap">
         SELECT <include refid="TcModelWorkflowColumns"/>
           FROM tc_model_workflow
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY workflow_key DESC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

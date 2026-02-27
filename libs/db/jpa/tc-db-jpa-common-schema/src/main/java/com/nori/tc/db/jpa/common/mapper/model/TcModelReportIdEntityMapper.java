@@ -21,11 +21,11 @@ public interface TcModelReportIdEntityMapper {
      * Command -> Entity (Write/Update)
      * - reportKey는 DB 생성(IDENTITY)이므로 무시
      * - updatedAt은 JPA Auditing이 관리하므로 무시
-     * - modelKey/reportId는 Unique Key이므로 변경 금지 (ignore)
+     * - modelVersionKey/reportId는 Unique Key이므로 변경 금지 (ignore)
      */
     @Mapping(target = "reportKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "modelKey", ignore = true)
+    @Mapping(target = "modelVersionKey", ignore = true)
     @Mapping(target = "reportId", ignore = true)
     void updateEntity(UpsertTcModelReportId command, @MappingTarget TcModelReportIdEntity entity);
 }

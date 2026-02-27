@@ -14,6 +14,7 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
  * - created_by/updated_by: 시스템 계정 또는 호출자 계정
  */
 public record TcModel(
+        long modelVersionKey,
         long modelKey,
         String modelName,
         String modelVersion,

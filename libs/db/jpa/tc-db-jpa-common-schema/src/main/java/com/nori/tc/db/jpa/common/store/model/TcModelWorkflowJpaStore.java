@@ -109,17 +109,17 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param workflowName DB JPA 계층 처리에 사용하는 입력 값
      * @param messageName 처리할 원본 데이터
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelWorkflow> findByModelKeyAndWorkflowNameAndMessageName(
-            long modelKey, String workflowName, String messageName) {
+    public Optional<TcModelWorkflow> findByModelVersionKeyAndWorkflowNameAndMessageName(
+            long modelVersionKey, String workflowName, String messageName) {
         try {
-            return repository.findByModelKeyAndWorkflowNameAndMessageName(modelKey, workflowName, messageName)
+            return repository.findByModelVersionKeyAndWorkflowNameAndMessageName(modelVersionKey, workflowName, messageName)
                     .map(mapper::toDomain);
         } catch (RuntimeException e) {
             throw new DbAccessException("[tc_model_workflow] findByUniqueKey failed", e);
@@ -131,15 +131,15 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelWorkflow> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelWorkflow> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
@@ -148,8 +148,8 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
             CriteriaQuery<TcModelWorkflowEntity> cq = cb.createQuery(TcModelWorkflowEntity.class);
             Root<TcModelWorkflowEntity> root = cq.from(TcModelWorkflowEntity.class);
 
-            // modelKey로 필터링하고 최신 workflow_key가 먼저 오도록 정렬한다.
-            cq.select(root).where(cb.equal(root.get("modelKey"), modelKey));
+            // modelVersionKey로 필터링하고 최신 workflow_key가 먼저 오도록 정렬한다.
+            cq.select(root).where(cb.equal(root.get("modelVersionKey"), modelVersionKey));
             cq.orderBy(cb.desc(root.get("workflowKey")));
 
             TypedQuery<TcModelWorkflowEntity> query = em.createQuery(cq);
@@ -158,7 +158,7 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
 
             return query.getResultList().stream().map(mapper::toDomain).toList();
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_workflow] findAllByModelKey failed", e);
+            throw new DbAccessException("[tc_model_workflow] findAllByModelVersionKey failed", e);
         }
     }
 
@@ -194,7 +194,7 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
      */
     private void validateUpsert(UpsertTcModelWorkflow command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.workflowName() == null || command.workflowName().isBlank()) {
             throw new IllegalArgumentException("command.workflowName must not be null/blank");
         }
@@ -222,13 +222,13 @@ public class TcModelWorkflowJpaStore implements TcModelWorkflowStore {
                     ));
         }
 
-        return repository.findByModelKeyAndWorkflowNameAndMessageName(
-                        command.modelKey(),
+        return repository.findByModelVersionKeyAndWorkflowNameAndMessageName(
+                        command.modelVersionKey(),
                         command.workflowName(),
                         command.messageName()
                 )
                 .orElseGet(() -> TcModelWorkflowEntity.newEntity(
-                        command.modelKey(),
+                        command.modelVersionKey(),
                         command.workflowName(),
                         command.messageName()
                 ));

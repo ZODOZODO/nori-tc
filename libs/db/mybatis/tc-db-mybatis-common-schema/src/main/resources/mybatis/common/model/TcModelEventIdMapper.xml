@@ -9,7 +9,7 @@
     <resultMap id="TcModelEventIdMap" type="com.nori.tc.db.domain.model.TcModelEventId">
         <constructor>
             <idArg column="event_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
             <arg column="event_id" javaType="java.lang.String"/>
             <arg column="report_id" javaType="java.lang.String"/>
             <arg column="enabled" javaType="boolean"/>
@@ -20,14 +20,14 @@
     </resultMap>
 
     <sql id="TcModelEventIdColumns">
-        event_key, model_key, event_id, report_id, enabled, updated_at
+        event_key, model_version_key, event_id, report_id, enabled, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model_eventid
-            (model_key, event_id, report_id, enabled)
+            (model_version_key, event_id, report_id, enabled)
         VALUES
-            (#{e.modelKey},
+            (#{e.modelVersionKey},
              #{e.eventId},
              #{e.reportId},
              COALESCE(#{e.enabled}, false))
@@ -38,7 +38,7 @@
            SET report_id  = #{e.reportId},
                enabled    = #{e.enabled},
                updated_at = CURRENT_TIMESTAMP
-         WHERE model_key = #{e.modelKey}
+         WHERE model_version_key = #{e.modelVersionKey}
            AND event_id  = #{e.eventId}
     </update>
 
@@ -48,10 +48,10 @@
          WHERE event_key = #{eventKey}
     </select>
 
-    <select id="findByModelKeyAndEventId" resultMap="TcModelEventIdMap">
+    <select id="findByModelVersionKeyAndEventId" resultMap="TcModelEventIdMap">
         SELECT <include refid="TcModelEventIdColumns"/>
           FROM tc_model_eventid
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND event_id = #{eventId}
     </select>
 

@@ -48,12 +48,12 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
         UpsertTcModelEventId normalized = normalizeCommand(command);
         validateCommand(normalized);
 
-        final long modelKey = normalized.modelKey();
+        final long modelVersionKey = normalized.modelVersionKey();
         final String eventId = normalized.eventId();
 
         final TcModelEventId row = new TcModelEventId(
                 0L,
-                modelKey,
+                modelVersionKey,
                 eventId,
                 normalized.reportId(),
                 normalized.enabled(),
@@ -70,15 +70,15 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
                 }
             }
 
-            return mapper.findByModelKeyAndEventId(modelKey, eventId)
-                    .orElseThrow(() -> new DbAccessException("tc_model_eventid upsert succeeded but row not found. modelKey=" + modelKey + ", eventId=" + eventId));
+            return mapper.findByModelVersionKeyAndEventId(modelVersionKey, eventId)
+                    .orElseThrow(() -> new DbAccessException("tc_model_eventid upsert succeeded but row not found. modelVersionKey=" + modelVersionKey + ", eventId=" + eventId));
 
         } catch (DuplicateKeyException e) {
-            throw new DbDuplicateKeyException("tc_model_eventid upsert duplicate key. modelKey=" + modelKey + ", eventId=" + eventId, e);
+            throw new DbDuplicateKeyException("tc_model_eventid upsert duplicate key. modelVersionKey=" + modelVersionKey + ", eventId=" + eventId, e);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_eventid upsert failed. modelKey=" + modelKey + ", eventId=" + eventId, e);
+            throw new DbAccessException("tc_model_eventid upsert failed. modelVersionKey=" + modelVersionKey + ", eventId=" + eventId, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_eventid upsert failed (unexpected). modelKey=" + modelKey + ", eventId=" + eventId, e);
+            throw new DbAccessException("tc_model_eventid upsert failed (unexpected). modelVersionKey=" + modelVersionKey + ", eventId=" + eventId, e);
         }
     }
 
@@ -107,19 +107,19 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param eventId 처리할 이벤트 정보
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelEventId> findByModelKeyAndEventId(long modelKey, String eventId) {
+    public Optional<TcModelEventId> findByModelVersionKeyAndEventId(long modelVersionKey, String eventId) {
         try {
-            return mapper.findByModelKeyAndEventId(modelKey, eventId);
+            return mapper.findByModelVersionKeyAndEventId(modelVersionKey, eventId);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_eventid findByModelKeyAndEventId failed. modelKey=" + modelKey + ", eventId=" + eventId, e);
+            throw new DbAccessException("tc_model_eventid findByModelVersionKeyAndEventId failed. modelVersionKey=" + modelVersionKey + ", eventId=" + eventId, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_eventid findByModelKeyAndEventId failed (unexpected). modelKey=" + modelKey + ", eventId=" + eventId, e);
+            throw new DbAccessException("tc_model_eventid findByModelVersionKeyAndEventId failed (unexpected). modelVersionKey=" + modelVersionKey + ", eventId=" + eventId, e);
         }
     }
 
@@ -154,8 +154,8 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
         }
-        if (command.modelKey() == null || command.modelKey() <= 0) {
-            throw new IllegalArgumentException("command.modelKey must be positive");
+        if (command.modelVersionKey() == null || command.modelVersionKey() <= 0) {
+            throw new IllegalArgumentException("command.modelVersionKey must be positive");
         }
         if (command.eventId() == null || command.eventId().isBlank()) {
             throw new IllegalArgumentException("command.eventId must not be null/blank");
@@ -178,7 +178,7 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
             throw new IllegalArgumentException("command must not be null");
         }
         return new UpsertTcModelEventId(
-                command.modelKey(),
+                command.modelVersionKey(),
                 command.eventId(),
                 command.reportId(),
                 command.enabled() == null ? Boolean.FALSE : command.enabled()

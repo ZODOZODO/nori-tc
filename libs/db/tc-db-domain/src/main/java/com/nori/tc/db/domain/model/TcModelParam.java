@@ -9,14 +9,14 @@ import java.time.OffsetDateTime;
  * - model_param_key (IDENTITY)
  *
  * FK:
- * - model_key -> tc_model.model_key ON DELETE CASCADE
+ * - model_version_key -> tc_model_version.model_version_key ON DELETE CASCADE
  *
  * Unique:
- * - (model_key, param_name)
+ * - (model_version_key, param_name)
  */
 public record TcModelParam(
         long modelParamKey,
-        long modelKey,
+        long modelVersionKey,
         String paramName,
         String paramValue,
         OffsetDateTime updatedAt

@@ -161,6 +161,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
         final OffsetDateTime now = OffsetDateTime.now();
         final TcModel model = new TcModel(
                 900L,
+                900L,
                 "MODEL-900",
                 "v1",
                 ProtocolType.SOCKET,
@@ -180,7 +181,6 @@ class BusinessWorkflowActionRegistryBuilderTest {
         );
     }
 }
-
 
 
 

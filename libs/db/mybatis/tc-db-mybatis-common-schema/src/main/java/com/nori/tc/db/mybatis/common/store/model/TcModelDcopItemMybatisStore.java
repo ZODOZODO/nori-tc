@@ -53,7 +53,7 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
         // - 기존 구현은 존재하지 않는 dcopItemDesc/createdAt/updatedAt를 참조해 컴파일 오류가 발생했다.
         final TcModelDcopItem row = new TcModelDcopItem(
                 null,
-                command.modelKey(),
+                command.modelVersionKey(),
                 command.dcopItemName(),
                 command.workflowName(),
                 command.eventId(),
@@ -69,7 +69,7 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
             if (updated == 0) {
                 mapper.insert(row);
             }
-            return mapper.findByModelKeyAndName(command.modelKey(), command.dcopItemName())
+            return mapper.findByModelVersionKeyAndName(command.modelVersionKey(), command.dcopItemName())
                     .orElseThrow(() -> new DbAccessException("Upsert success but find failed"));
         } catch (DuplicateKeyException e) {
             throw new DbDuplicateKeyException("tc_model_dcop_item duplicate key", e);
@@ -83,25 +83,25 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param dcopItemName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelDcopItem> findByModelKeyAndName(long modelKey, String dcopItemName) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelDcopItem> findByModelVersionKeyAndName(long modelVersionKey, String dcopItemName) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (dcopItemName == null || dcopItemName.isBlank()) {
             throw new IllegalArgumentException("dcopItemName must not be null/blank");
         }
         try {
-            return mapper.findByModelKeyAndName(modelKey, dcopItemName);
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, dcopItemName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_dcop_item findByModelKeyAndName failed", e);
+            throw new DbAccessException("tc_model_dcop_item findByModelVersionKeyAndName failed", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_dcop_item findByModelKeyAndName failed (unexpected)", e);
+            throw new DbAccessException("tc_model_dcop_item findByModelVersionKeyAndName failed (unexpected)", e);
         }
     }
 
@@ -110,24 +110,24 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelDcopItem> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelDcopItem> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
+            return mapper.findAllByModelVersionKey(modelVersionKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_dcop_item findAllByModelKey failed", e);
+            throw new DbAccessException("tc_model_dcop_item findAllByModelVersionKey failed", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_dcop_item findAllByModelKey failed (unexpected)", e);
+            throw new DbAccessException("tc_model_dcop_item findAllByModelVersionKey failed (unexpected)", e);
         }
     }
 
@@ -136,25 +136,25 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param dcopItemName DB MyBatis 계층 처리에 사용하는 입력 값
      */
     @Override
     @Transactional
-    public void deleteByModelKeyAndName(long modelKey, String dcopItemName) {
+    public void deleteByModelVersionKeyAndName(long modelVersionKey, String dcopItemName) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (dcopItemName == null || dcopItemName.isBlank()) {
             throw new IllegalArgumentException("dcopItemName must not be null/blank");
         }
         try {
-            mapper.deleteByModelKeyAndName(modelKey, dcopItemName);
+            mapper.deleteByModelVersionKeyAndName(modelVersionKey, dcopItemName);
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_dcop_item deleteByModelKeyAndName failed", e);
+            throw new DbAccessException("tc_model_dcop_item deleteByModelVersionKeyAndName failed", e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_dcop_item deleteByModelKeyAndName failed (unexpected)", e);
+            throw new DbAccessException("tc_model_dcop_item deleteByModelVersionKeyAndName failed (unexpected)", e);
         }
     }
 
@@ -167,7 +167,7 @@ public class TcModelDcopItemMybatisStore implements TcModelDcopItemStore {
      */
     private void validateUpsert(UpsertTcModelDcopItem command) {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.dcopItemName() == null || command.dcopItemName().isBlank()) {
             throw new IllegalArgumentException("command.dcopItemName must not be null/blank");
         }

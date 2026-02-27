@@ -25,7 +25,7 @@ import jakarta.persistence.Table;
  * - route_partition: int NULL (Gateway 대상 토픽 고정 라우팅 partition)
  * - eqp_ip        : varchar(45) NOT NULL
  * - eqp_port      : int NOT NULL
- * - model_key     : bigint NOT NULL
+ * - model_version_key     : bigint NOT NULL
  * - enabled       : boolean NOT NULL default true
  * - created_at    : timestamptz NOT NULL
  * - updated_at    : timestamptz NOT NULL
@@ -68,8 +68,8 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
     @Column(name = "eqp_port", nullable = false)
     private Integer eqpPort;
 
-    @Column(name = "model_key", nullable = false)
-    private Long modelKey;
+    @Column(name = "model_version_key", nullable = false)
+    private Long modelVersionKey;
 
     @Column(name = "enabled", nullable = false)
     private Boolean enabled;
@@ -105,7 +105,7 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
             Integer routePartition,
             String eqpIp,
             Integer eqpPort,
-            Long modelKey,
+            Long modelVersionKey,
             Boolean enabled,
             String createdBy,
             String updatedBy
@@ -117,7 +117,7 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
         this.routePartition = routePartition;
         this.eqpIp = eqpIp;
         this.eqpPort = eqpPort;
-        this.modelKey = modelKey;
+        this.modelVersionKey = modelVersionKey;
         this.enabled = enabled;
         this.createdBy = createdBy;
         this.updatedBy = updatedBy;
@@ -331,8 +331,8 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
      * @return DB JPA 계층 처리 결과
      */
-    public Long getModelKey() {
-        return modelKey;
+    public Long getModelVersionKey() {
+        return modelVersionKey;
     }
 
     
@@ -340,10 +340,10 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      * DB JPA 계층 설정 값을 반영합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      */
-    public void setModelKey(Long modelKey) {
-        this.modelKey = modelKey;
+    public void setModelVersionKey(Long modelVersionKey) {
+        this.modelVersionKey = modelVersionKey;
     }
 
     

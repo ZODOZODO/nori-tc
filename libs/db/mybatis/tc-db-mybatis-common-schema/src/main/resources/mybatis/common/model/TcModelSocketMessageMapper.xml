@@ -10,7 +10,7 @@
     <resultMap id="Map" type="com.nori.tc.db.domain.model.TcModelSocketMessage">
         <constructor>
             <idArg column="socket_msg_key" javaType="long"/>
-            <arg column="model_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
             <arg column="socket_msg_name" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="data_index" javaType="java.lang.String"/>
@@ -21,14 +21,14 @@
     </resultMap>
 
     <sql id="Columns">
-        socket_msg_key, model_key, socket_msg_name, description, data_index, updated_at
+        socket_msg_key, model_version_key, socket_msg_name, description, data_index, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model_socket_message
-            (model_key, socket_msg_name, description, data_index)
+            (model_version_key, socket_msg_name, description, data_index)
         VALUES
-            (#{s.modelKey},
+            (#{s.modelVersionKey},
              #{s.socketMsgName},
              #{s.description},
              #{s.dataIndex})
@@ -39,28 +39,28 @@
            SET description = #{s.description},
                data_index  = #{s.dataIndex},
                updated_at  = CURRENT_TIMESTAMP
-         WHERE model_key = #{s.modelKey}
+         WHERE model_version_key = #{s.modelVersionKey}
            AND socket_msg_name = #{s.socketMsgName}
     </update>
 
-    <select id="findByModelKeySocketMsgName" resultMap="Map">
+    <select id="findByModelVersionKeySocketMsgName" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_model_socket_message
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND socket_msg_name = #{socketMsgName}
     </select>
 
-    <select id="findAllByModelKey" resultMap="Map">
+    <select id="findAllByModelVersionKey" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_model_socket_message
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY socket_msg_name ASC, socket_msg_key ASC
          LIMIT #{limit} OFFSET #{offset}
     </select>
 
-    <delete id="deleteByModelKeySocketMsgName">
+    <delete id="deleteByModelVersionKeySocketMsgName">
         DELETE FROM tc_model_socket_message
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND socket_msg_name = #{socketMsgName}
     </delete>
 

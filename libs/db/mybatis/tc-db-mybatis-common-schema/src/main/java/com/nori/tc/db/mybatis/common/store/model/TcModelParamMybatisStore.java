@@ -47,12 +47,12 @@ public class TcModelParamMybatisStore implements TcModelParamStore {
     @Transactional
     public TcModelParam upsert(UpsertTcModelParam command) {
         // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        final long modelKey = command.modelKey();
+        final long modelVersionKey = command.modelVersionKey();
         final String paramName = command.paramName();
 
         final TcModelParam row = new TcModelParam(
                 0L,
-                modelKey,
+                modelVersionKey,
                 paramName,
                 command.paramValue(),
                 null
@@ -68,24 +68,24 @@ public class TcModelParamMybatisStore implements TcModelParamStore {
                 }
             }
 
-            return mapper.findByModelKeyAndName(modelKey, paramName)
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, paramName)
                     .orElseThrow(() -> new DbAccessException(
-                            "tc_model_param upsert succeeded but row not found. modelKey=" + modelKey + ", param=" + paramName
+                            "tc_model_param upsert succeeded but row not found. modelVersionKey=" + modelVersionKey + ", param=" + paramName
                     ));
 
         } catch (DuplicateKeyException e) {
             throw new DbDuplicateKeyException(
-                    "tc_model_param upsert duplicate key. modelKey=" + modelKey + ", param=" + paramName,
+                    "tc_model_param upsert duplicate key. modelVersionKey=" + modelVersionKey + ", param=" + paramName,
                     e
             );
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_param upsert failed. modelKey=" + modelKey + ", param=" + paramName,
+                    "tc_model_param upsert failed. modelVersionKey=" + modelVersionKey + ", param=" + paramName,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_param upsert failed (unexpected). modelKey=" + modelKey + ", param=" + paramName,
+                    "tc_model_param upsert failed (unexpected). modelVersionKey=" + modelVersionKey + ", param=" + paramName,
                     e
             );
         }
@@ -96,23 +96,23 @@ public class TcModelParamMybatisStore implements TcModelParamStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param paramName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelParam> findByModelKeyAndName(long modelKey, String paramName) {
+    public Optional<TcModelParam> findByModelVersionKeyAndName(long modelVersionKey, String paramName) {
         try {
-            return mapper.findByModelKeyAndName(modelKey, paramName);
+            return mapper.findByModelVersionKeyAndName(modelVersionKey, paramName);
         } catch (DataAccessException e) {
             throw new DbAccessException(
-                    "tc_model_param findByModelKeyAndName failed. modelKey=" + modelKey + ", param=" + paramName,
+                    "tc_model_param findByModelVersionKeyAndName failed. modelVersionKey=" + modelVersionKey + ", param=" + paramName,
                     e
             );
         } catch (RuntimeException e) {
             throw new DbAccessException(
-                    "tc_model_param findByModelKeyAndName failed (unexpected). modelKey=" + modelKey + ", param=" + paramName,
+                    "tc_model_param findByModelVersionKeyAndName failed (unexpected). modelVersionKey=" + modelVersionKey + ", param=" + paramName,
                     e
             );
         }
@@ -123,21 +123,21 @@ public class TcModelParamMybatisStore implements TcModelParamStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelParam> findAllByModelKey(long modelKey, PageRequest page) {
+    public List<TcModelParam> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
 
         try {
-            return mapper.findAllByModelKey(modelKey, p.offset(), p.limit());
+            return mapper.findAllByModelVersionKey(modelVersionKey, p.offset(), p.limit());
         } catch (DataAccessException e) {
-            throw new DbAccessException("tc_model_param findAllByModelKey failed. modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_param findAllByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
         } catch (RuntimeException e) {
-            throw new DbAccessException("tc_model_param findAllByModelKey failed (unexpected). modelKey=" + modelKey, e);
+            throw new DbAccessException("tc_model_param findAllByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
         }
     }
 

@@ -13,7 +13,7 @@ import com.nori.tc.db.domain.model.TcModelMdf;
  * <p>
  * - 이 모듈은 "보수적인 CRUD"만 제공한다.
  * - mdf_key 생성(IDENTITY) 처리 때문에 insert 후 key를 직접 반환하지 않는다.
- *   → insert 후 findByModelKeyAndName으로 재조회하는 방식(벤더 중립)을 권장한다.
+ *   → insert 후 findByModelVersionKeyAndName으로 재조회하는 방식(벤더 중립)을 권장한다.
  * - 목록 조회는 반드시 LIMIT/OFFSET으로 DB 페이징을 수행한다.
  * </p>
  */
@@ -54,12 +54,12 @@ public interface TcModelMdfMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param mdfName DB MyBatis 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelMdf> findByModelKeyAndName(
-            @Param("modelKey") long modelKey,
+    Optional<TcModelMdf> findByModelVersionKeyAndName(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("mdfName") String mdfName
     );
 
@@ -68,13 +68,13 @@ public interface TcModelMdfMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param offset 페이징/조회 범위 조건
      * @param limit 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
-    List<TcModelMdf> findAllByModelKey(
-            @Param("modelKey") long modelKey,
+    List<TcModelMdf> findAllByModelVersionKey(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("offset") int offset,
             @Param("limit") int limit
     );

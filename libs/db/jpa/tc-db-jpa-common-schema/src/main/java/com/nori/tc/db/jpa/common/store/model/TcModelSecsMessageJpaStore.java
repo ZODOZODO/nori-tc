@@ -30,7 +30,7 @@ import com.nori.tc.db.jpa.common.repository.model.TcModelSecsMessageJpaRepositor
  * <b>주요 기능:</b>
  * <ul>
  * <li><b>Upsert:</b> SECS 메시지 키 또는 유니크 키로 존재 여부를 확인한 뒤 생성/갱신을 수행합니다.</li>
- * <li><b>모델별 메시지 조회:</b> model_key 기반 목록 조회 및 유니크 키 조회를 지원합니다.</li>
+ * <li><b>모델별 메시지 조회:</b> model_version_key 기반 목록 조회 및 유니크 키 조회를 지원합니다.</li>
  * </ul>
  * </p>
  */
@@ -116,23 +116,23 @@ public class TcModelSecsMessageJpaStore implements TcModelSecsMessageStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param secsMsgName DB JPA 계층 처리에 사용하는 입력 값
      * @return 조회 결과(Optional)
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelSecsMessage> findByModelKeyAndName(long modelKey, String secsMsgName) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public Optional<TcModelSecsMessage> findByModelVersionKeyAndName(long modelVersionKey, String secsMsgName) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         if (secsMsgName == null || secsMsgName.isBlank()) {
             throw new IllegalArgumentException("secsMsgName must not be null/blank");
         }
         try {
-            return repository.findByModelKeyAndSecsMsgName(modelKey, secsMsgName).map(mapper::toDomain);
+            return repository.findByModelVersionKeyAndSecsMsgName(modelVersionKey, secsMsgName).map(mapper::toDomain);
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_secs_message] findByModelKeyAndName failed", e);
+            throw new DbAccessException("[tc_model_secs_message] findByModelVersionKeyAndName failed", e);
         }
     }
 
@@ -141,29 +141,29 @@ public class TcModelSecsMessageJpaStore implements TcModelSecsMessageStore {
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param page 페이징/조회 범위 조건
      * @return 조회/처리 결과 목록
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TcModelSecsMessage> findAllByModelKey(long modelKey, PageRequest page) {
-        if (modelKey <= 0) {
-            throw new IllegalArgumentException("modelKey must be > 0");
+    public List<TcModelSecsMessage> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
         final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
         try {
             TypedQuery<TcModelSecsMessageEntity> query = em.createQuery(
-                    "SELECT e FROM TcModelSecsMessageEntity e WHERE e.modelKey = :modelKey ORDER BY e.secsMsgKey ASC",
+                    "SELECT e FROM TcModelSecsMessageEntity e WHERE e.modelVersionKey = :modelVersionKey ORDER BY e.secsMsgKey ASC",
                     TcModelSecsMessageEntity.class
             );
-            query.setParameter("modelKey", modelKey);
+            query.setParameter("modelVersionKey", modelVersionKey);
             query.setFirstResult(p.offset());
             query.setMaxResults(p.limit());
 
             return query.getResultList().stream().map(mapper::toDomain).toList();
         } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_secs_message] findAllByModelKey failed: modelKey=" + modelKey, e);
+            throw new DbAccessException("[tc_model_secs_message] findAllByModelVersionKey failed: modelVersionKey=" + modelVersionKey, e);
         }
     }
 
@@ -202,7 +202,7 @@ public class TcModelSecsMessageJpaStore implements TcModelSecsMessageStore {
         if (command.secsMsgKey() != null && command.secsMsgKey() <= 0) {
             throw new IllegalArgumentException("command.secsMsgKey must be > 0 when provided");
         }
-        if (command.modelKey() <= 0) throw new IllegalArgumentException("command.modelKey must be > 0");
+        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
         if (command.secsMsgName() == null || command.secsMsgName().isBlank()) {
             throw new IllegalArgumentException("command.secsMsgName must not be null/blank");
         }
@@ -222,7 +222,7 @@ public class TcModelSecsMessageJpaStore implements TcModelSecsMessageStore {
                     .orElseThrow(() -> new DbEntityNotFoundException("[tc_model_secs_message] not found: secsMsgKey=" + command.secsMsgKey()));
         }
 
-        return repository.findByModelKeyAndSecsMsgName(command.modelKey(), command.secsMsgName())
-                .orElseGet(() -> TcModelSecsMessageEntity.newEntity(command.modelKey(), command.secsMsgName()));
+        return repository.findByModelVersionKeyAndSecsMsgName(command.modelVersionKey(), command.secsMsgName())
+                .orElseGet(() -> TcModelSecsMessageEntity.newEntity(command.modelVersionKey(), command.secsMsgName()));
     }
 }

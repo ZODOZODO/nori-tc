@@ -6,12 +6,12 @@ import com.nori.tc.db.domain.common.model.VariableIdType;
  * tc_model_variableid upsert 입력(Command)
  *
  * <p>
- * Unique(model_key, variable_id_type, variable_id)를 기준으로
+ * Unique(model_version_key, variable_id_type, variable_id)를 기준으로
  * description을 갱신하거나 신규로 생성합니다.
  * </p>
  */
 public record UpsertTcModelVariableId(
-        long modelKey,
+        long modelVersionKey,
         VariableIdType variableIdType,
         String variableId,
         String description

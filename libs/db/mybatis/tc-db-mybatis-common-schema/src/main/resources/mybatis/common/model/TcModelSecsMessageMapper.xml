@@ -1,14 +1,14 @@
 <insert id="insert">
         INSERT INTO tc_model_secs_message (
-            model_key, secs_msg_name, description, data_index, created_at, updated_at
+            model_version_key, secs_msg_name, description, data_index, created_at, updated_at
         ) VALUES (
-            #{m.modelKey}, #{m.secsMsgName}, #{m.description}, #{m.dataIndex}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            #{m.modelVersionKey}, #{m.secsMsgName}, #{m.description}, #{m.dataIndex}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
     </insert>
 
     <update id="update">
         UPDATE tc_model_secs_message
-           SET model_key    = #{m.modelKey},
+           SET model_version_key    = #{m.modelVersionKey},
                secs_msg_name = #{m.secsMsgName},
                description   = #{m.description},
                data_index    = #{m.dataIndex},
@@ -22,17 +22,17 @@
          WHERE secs_msg_key = #{secsMsgKey}
     </select>
 
-    <select id="findByModelKeyAndName" resultMap="Map">
+    <select id="findByModelVersionKeyAndName" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_model_secs_message
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
            AND secs_msg_name = #{secsMsgName}
     </select>
 
-    <select id="findAllByModelKey" resultMap="Map">
+    <select id="findAllByModelVersionKey" resultMap="Map">
         SELECT <include refid="Columns"/>
           FROM tc_model_secs_message
-         WHERE model_key = #{modelKey}
+         WHERE model_version_key = #{modelVersionKey}
          ORDER BY secs_msg_key ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}

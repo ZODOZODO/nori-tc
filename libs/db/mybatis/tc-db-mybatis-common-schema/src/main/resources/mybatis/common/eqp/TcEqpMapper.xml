@@ -17,7 +17,7 @@
             <arg column="route_partition" javaType="java.lang.Integer"/>
             <arg column="eqp_ip" javaType="java.lang.String"/>
             <arg column="eqp_port" javaType="int"/>
-            <arg column="model_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
             <arg column="enabled" javaType="boolean"/>
             <arg column="created_at"
                  javaType="java.time.OffsetDateTime"
@@ -31,12 +31,12 @@
     </resultMap>
 
     <sql id="TcEqpColumns">
-        eqp_key, eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_key, enabled, created_at, updated_at, created_by, updated_by
+        eqp_key, eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_version_key, enabled, created_at, updated_at, created_by, updated_by
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp
-            (eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_key, enabled, created_by, updated_by)
+            (eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_version_key, enabled, created_by, updated_by)
         VALUES
             (#{e.eqpId},
              #{e.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
@@ -44,7 +44,7 @@
              #{e.routePartition, jdbcType=INTEGER},
              #{e.eqpIp},
              #{e.eqpPort},
-             #{e.modelKey},
+             #{e.modelVersionKey},
              #{e.enabled},
              COALESCE(#{e.createdBy}, 'SYSTEM'),
              COALESCE(#{e.updatedBy}, 'SYSTEM'))
@@ -57,7 +57,7 @@
                route_partition= #{e.routePartition, jdbcType=INTEGER},
                eqp_ip        = #{e.eqpIp},
                eqp_port      = #{e.eqpPort},
-               model_key     = #{e.modelKey},
+               model_version_key     = #{e.modelVersionKey},
                enabled       = #{e.enabled},
                updated_at    = CURRENT_TIMESTAMP,
                updated_by    = COALESCE(#{e.updatedBy}, 'SYSTEM')

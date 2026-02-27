@@ -9,7 +9,7 @@ import com.nori.tc.db.domain.model.TcModelEventId;
 /**
  * tc_model_eventid Mapper (FIX)
  *
- * - (model_key, event_id) 조합이 유니크 키
+ * - (model_version_key, event_id) 조합이 유니크 키
  */
 public interface TcModelEventIdMapper {
 
@@ -48,12 +48,12 @@ public interface TcModelEventIdMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * @param modelVersionKey 대상 키 값
      * @param eventId 처리할 이벤트 정보
      * @return 조회 결과(Optional)
      */
-    Optional<TcModelEventId> findByModelKeyAndEventId(
-            @Param("modelKey") long modelKey,
+    Optional<TcModelEventId> findByModelVersionKeyAndEventId(
+            @Param("modelVersionKey") long modelVersionKey,
             @Param("eventId") String eventId
     );
 
