@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-01 (Phase 0 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-01 (Phase 0, 1 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -52,13 +52,14 @@
 
 ---
 
-## Phase 1: tc-ui-domain
+## Phase 1: tc-ui-domain ✅
 
 도메인 POJO, 외부 의존성 없음.
 
-- [ ] `AuthToken` — token(String), userPk(Long), issuedAt, expiresAt
-- [ ] `UserPrincipal` — userPk, userId, permissionCodes(Set<String>)
-- [ ] `UiTaskResult` — traceId, source, status(PASS/FAIL enum), errorCode, errorMsg
+- [x] `AuthToken` — token(String), userPk(Long), issuedAt, expiresAt (`isExpired()`, `isValid()` 헬퍼 포함)
+- [x] `UserPrincipal` — userPk, userId, permissionCodes(Set<String>) (`hasPermission()`, `hasAnyPermission()`, `hasNoPermission()` 헬퍼 포함)
+- [x] `UiTaskStatus` — PASS / FAIL enum (별도 파일)
+- [x] `UiTaskResult` — traceId, source, status, errorCode, errorMsg (`pass()`, `fail()` 팩토리 + `isSuccess()`, `isFailed()` 헬퍼 포함)
 
 ---
 
