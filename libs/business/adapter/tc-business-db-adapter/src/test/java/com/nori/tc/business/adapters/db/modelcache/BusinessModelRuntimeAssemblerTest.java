@@ -5,6 +5,7 @@ import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.domain.model.TcModel;
+import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
@@ -12,6 +13,7 @@ import com.nori.tc.db.domain.model.TcModelWorkflow;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +58,15 @@ class BusinessModelRuntimeAssemblerTest {
                 new TcModelVariableId(1L, modelVersionKey, "SV_TEMP", VariableIdType.SVID, "Temperature", now)
         );
 
+        final TcModelMdf mdf = new TcModelMdf(
+                1L,
+                modelVersionKey,
+                "MDF_MAIN",
+                "<mdf><TOOL_CONDITION_REQUEST_EQP>CMD=REQ EQPID={eqpId}</TOOL_CONDITION_REQUEST_EQP></mdf>"
+                        .getBytes(StandardCharsets.UTF_8),
+                now
+        );
+
         final BusinessModelCacheProperties properties = createValidModelCachePropertiesForTest(2);
 
         final BusinessModelRuntimeAssembler assembler = new BusinessModelRuntimeAssembler(
@@ -64,6 +75,8 @@ class BusinessModelRuntimeAssemblerTest {
                 new ModelCacheTestFixtures.InMemorySecsMessageStore(Map.of(modelVersionKey, secsMessages)),
                 new ModelCacheTestFixtures.InMemorySocketMessageStore(Map.of(modelVersionKey, socketMessages)),
                 new ModelCacheTestFixtures.InMemoryVariableIdStore(Map.of(modelVersionKey, variableIds)),
+                new ModelCacheTestFixtures.InMemoryMdfStore(List.of(mdf)),
+                new BusinessMdfRuntimeParser(),
                 properties
         );
 
@@ -77,22 +90,18 @@ class BusinessModelRuntimeAssemblerTest {
         Assertions.assertEquals(1, runtime.secsMessagesByName().size());
         Assertions.assertEquals(1, runtime.socketMessagesByName().size());
         Assertions.assertTrue(runtime.findVariable(VariableIdType.SVID, "SV_TEMP").isPresent());
+        Assertions.assertFalse(runtime.mdfRuntimeDefinition().isEmpty());
     }
 
+    /**
+     * 테스트용 캐시 프로퍼티를 생성합니다.
+     */
     private static BusinessModelCacheProperties createValidModelCachePropertiesForTest(final int pageSize) {
         final BusinessModelCacheProperties properties = new BusinessModelCacheProperties();
-
-        // 단위 테스트에서는 @PostConstruct 초기화를 직접 수행하지 않으므로, 부트스트랩 플래그는 false로 고정합니다.
         properties.setLoadOnStartup(false);
         properties.setFailFastOnStartup(false);
-
-        // 페이지네이션 동작을 검증할 수 있도록 테스트가 지정한 pageSize를 그대로 사용합니다.
         properties.setPageSize(pageSize);
-
-        // 필수 설정 누락 여부를 테스트 시작 전에 명시적으로 검증합니다.
         properties.validate();
         return properties;
     }
 }
-
-

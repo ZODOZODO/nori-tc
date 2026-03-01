@@ -23,11 +23,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Business model runtime 메모리 캐시입니다.
+ * Business 모델 런타임 캐시입니다.
  *
- * <p>핵심 규칙:
- * - DB 스냅샷은 로컬 객체로 완성한 뒤 원자적으로 swap합니다.
- * - 부분 실패 시 기존 스냅샷을 유지합니다.</p>
+ * <p>
+ * 캐시 갱신은 항상 새 스냅샷을 만든 뒤 CAS로 교체하여,
+ * 읽기 경로가 부분 상태를 보지 않도록 보장합니다.
+ * </p>
  */
 @Component
 public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPort {
@@ -41,7 +42,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
             new AtomicReference<>(BusinessModelRuntimeSnapshot.empty());
 
     /**
-     * 필요한 DB store/assembler를 주입받습니다.
+     * 캐시 구성 요소를 주입받습니다.
      */
     public BusinessModelRuntimeCache(
             final TcEqpStore eqpStore,
@@ -54,7 +55,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * 기동 시 초기 스냅샷 로딩을 수행합니다.
+     * 애플리케이션 기동 시 초기 캐시 로드를 수행합니다.
      */
     @PostConstruct
     public void initialize() {
@@ -74,7 +75,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * 전체 eqp/model 스냅샷을 다시 로딩합니다.
+     * 전체 eqp/model 런타임 스냅샷을 다시 적재합니다.
      */
     public void reloadAll() {
         final Map<String, Long> eqpModelBindings = loadEqpModelBindings();
@@ -86,7 +87,12 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                 log.warn("Invalid modelVersionKey in binding map. modelVersionKey={}", modelVersionKey);
                 continue;
             }
-            modelRuntimes.put(modelVersionKey, runtimeAssembler.assemble(modelVersionKey));
+            try {
+                modelRuntimes.put(modelVersionKey, runtimeAssembler.assemble(modelVersionKey));
+            } catch (RuntimeException ex) {
+                log.error("Model runtime assemble failed during reloadAll. modelVersionKey={}", modelVersionKey, ex);
+                throw ex;
+            }
         }
 
         final BusinessModelRuntimeSnapshot nextSnapshot =
@@ -99,16 +105,21 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * 특정 modelVersionKey runtime만 재조립 후 스냅샷을 교체합니다.
-     *
-     * @param modelVersionKey model key
+     * 특정 modelVersionKey 런타임만 갱신합니다.
      */
     public void reloadModelRuntime(final long modelVersionKey) {
         if (modelVersionKey <= 0L) {
             throw new IllegalArgumentException("modelVersionKey must be > 0");
         }
 
-        final TcModelRuntime runtime = runtimeAssembler.assemble(modelVersionKey);
+        final TcModelRuntime runtime;
+        try {
+            runtime = runtimeAssembler.assemble(modelVersionKey);
+        } catch (RuntimeException ex) {
+            log.error("Model runtime assemble failed during reloadModelRuntime. modelVersionKey={}", modelVersionKey, ex);
+            throw ex;
+        }
+
         while (true) {
             final BusinessModelRuntimeSnapshot current = snapshotRef.get();
             final Map<Long, TcModelRuntime> nextRuntimes = new LinkedHashMap<>(current.modelRuntimes());
@@ -126,10 +137,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * eqpId -> modelVersionKey 바인딩을 원자적으로 갱신합니다.
-     *
-     * @param eqpId 장비 ID
-     * @param modelVersionKey model key
+     * eqpId -> modelVersionKey 바인딩을 갱신합니다.
      */
     public void updateEqpBinding(final String eqpId, final long modelVersionKey) {
         final String normalizedEqpId = normalizeEqpId(eqpId);
@@ -165,22 +173,16 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * currentSnapshot 기능을 수행합니다.
-     *
-     * @return 처리 결과
+     * 현재 스냅샷을 반환합니다.
      */
-
     @Override
     public BusinessModelRuntimeSnapshot currentSnapshot() {
         return snapshotRef.get();
     }
 
     /**
-     * loadEqpModelBindings 기능을 수행합니다.
-     *
-     * @return 처리 결과
+     * eqpId -> modelVersionKey 바인딩을 DB에서 적재합니다.
      */
-
     private Map<String, Long> loadEqpModelBindings() {
         final List<TcEqp> allEqps = loadAllEqps();
         final Map<String, Long> bindings = new LinkedHashMap<>();
@@ -194,10 +196,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                 continue;
             }
 
-            /*
-             * 부팅 시점 DB 스냅샷 적재에서도 설비 단위 로그를 분리하기 위해
-             * eqpId MDC 스코프를 명시적으로 열고 바인딩을 기록합니다.
-             */
+            // 장비 단위 MDC를 분리해서 부트 적재 로그 상관분석을 쉽게 합니다.
             try (BusinessLogContext ignored = BusinessLogContext.withEqpId(eqpId)) {
                 bindings.put(eqpId, eqp.modelVersionKey());
                 log.debug("Boot binding loaded. eqpId={}, modelVersionKey={}", eqpId, eqp.modelVersionKey());
@@ -209,12 +208,9 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     /**
      * eqpId -> modelVersionKey 바인딩을 제거합니다.
      *
-     * <p>핵심 정책:</p>
-     * <p>1) 바인딩 제거는 항상 원자적(CAS) 스냅샷 교체로 수행합니다.</p>
-     * <p>2) 제거한 modelVersionKey를 참조하는 eqp가 0개가 되면 model runtime 캐시도 같이 제거합니다.</p>
-     *
-     * @param eqpId 제거할 설비 ID
-     * @return 제거된 modelVersionKey(optional)
+     * <p>
+     * 제거된 modelVersionKey를 참조하는 장비가 더 없으면 해당 runtime도 같이 제거합니다.
+     * </p>
      */
     @Override
     public Optional<Long> removeEqpBinding(final String eqpId) {
@@ -237,7 +233,8 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
 
                 final Map<Long, TcModelRuntime> nextRuntimes = new LinkedHashMap<>(base.modelRuntimes());
                 final boolean modelRuntimeStillReferenced = nextBindings.containsValue(removedModelVersionKey);
-                final boolean modelRuntimeRemoved = !modelRuntimeStillReferenced && nextRuntimes.remove(removedModelVersionKey) != null;
+                final boolean modelRuntimeRemoved = !modelRuntimeStillReferenced
+                        && nextRuntimes.remove(removedModelVersionKey) != null;
 
                 final BusinessModelRuntimeSnapshot next = BusinessModelRuntimeSnapshot.of(nextBindings, nextRuntimes);
                 if (snapshotRef.compareAndSet(base, next)) {
@@ -249,11 +246,13 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                             next.bindingCount(),
                             next.runtimeCount()
                     );
-                    log.debug(
-                            "Model runtime preserved because other eqp still reference the modelVersionKey. eqpId={}, modelVersionKey={}",
-                            normalizedEqpId,
-                            removedModelVersionKey
-                    );
+                    if (!modelRuntimeRemoved && log.isDebugEnabled()) {
+                        log.debug(
+                                "Model runtime preserved because another eqp still references the modelVersionKey. eqpId={}, modelVersionKey={}",
+                                normalizedEqpId,
+                                removedModelVersionKey
+                        );
+                    }
                     return Optional.of(removedModelVersionKey);
                 }
             }
@@ -261,11 +260,8 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * loadAllEqps 기능을 수행합니다.
-     *
-     * @return 처리 결과
+     * eqp 전체 목록을 페이지 단위로 조회합니다.
      */
-
     private List<TcEqp> loadAllEqps() {
         final List<TcEqp> results = new ArrayList<>();
         final int pageSize = cacheProperties.getPageSize();
@@ -286,12 +282,8 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * normalizeEqpId 기능을 수행합니다.
-     *
-     * @param eqpId 입력 값
-     * @return 처리 결과
+     * eqpId를 trim하고 빈 문자열이면 null을 반환합니다.
      */
-
     private static String normalizeEqpId(final String eqpId) {
         if (eqpId == null) {
             return null;

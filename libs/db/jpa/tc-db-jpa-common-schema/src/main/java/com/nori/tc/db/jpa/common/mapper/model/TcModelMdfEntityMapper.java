@@ -10,25 +10,22 @@ import org.mapstruct.MappingConstants;
 import org.mapstruct.MappingTarget;
 
 /**
- * tc_model_mdf Entity <-> Domain 매핑 정의 (MapStruct)
- *
- * <p>
- * - create/update 공통 규칙: PK와 updated_at은 JPA가 관리하므로 매핑에서 제외합니다.
- * - create/update 시 필요한 필드만 command에서 entity로 반영합니다.
- * </p>
+ * {@link TcModelMdfEntity}와 {@link TcModelMdf} 간 변환 규칙입니다.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface TcModelMdfEntityMapper {
 
     /**
-     * Entity -> Domain (Read)
+     * Entity를 Domain으로 변환합니다.
      */
     TcModelMdf toDomain(TcModelMdfEntity entity);
 
     /**
-     * UpsertTcModelMdf(Upsert Command) -> Entity
-     * - mdfKey: PK 변경 불가 (ignore)
-     * - updatedAt: JPA 관리
+     * Upsert 명령을 기존 Entity에 반영합니다.
+     *
+     * <p>
+     * PK와 updatedAt은 JPA가 관리하므로 매핑 대상에서 제외합니다.
+     * </p>
      */
     @Mapping(target = "mdfKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)

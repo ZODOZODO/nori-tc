@@ -8,68 +8,63 @@ import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.domain.model.TcModelMdf;
 
 /**
- * tc_model_mdf CRUD 인터페이스 (기술 중립)
+ * {@code tc_model_mdf} 저장소 포트입니다.
  *
  * <p>
- * 구현 책임:
- * <ul>
- * <li>JPA 구현: tc-db-jpa-*-schema 모듈이 구현체 제공</li>
- * <li>MyBatis 구현: tc-db-mybatis-*-schema 모듈이 구현체 제공</li>
- * </ul>
+ * 현재 스키마 규칙은 {@code model_version_key} 기준 1:1 MDF이며,
+ * 구현체(JPA/MyBatis)는 동일 규칙을 보장해야 합니다.
  * </p>
- *
- * 예외 정책(권장):
- * - 중복(유니크 위반 등): DbDuplicateKeyException
- * - DB 접근 실패: DbAccessException
  */
 public interface TcModelMdfStore {
 
     /**
-     * MDF upsert.
+     * MDF를 upsert 합니다.
      *
      * <p>
-     * - mdf_key가 있으면 해당 PK 기반으로 갱신합니다.
-     * - mdf_key가 없으면 (model_version_key, mdf_name) 유니크 키 기준으로
-     * 존재 여부를 확인한 뒤 갱신/생성을 수행합니다.
+     * 동작 규칙은 다음과 같습니다.
+     * 1) {@code mdfKey}가 있으면 PK 기준으로 갱신합니다.
+     * 2) {@code mdfKey}가 없으면 {@code modelVersionKey} 기준 단건을 찾아 갱신하거나 생성합니다.
      * </p>
      *
-     * @return upsert 후 상태의 TcModelMdf
+     * @param command upsert 입력 명령
+     * @return upsert 이후 상태
      */
     TcModelMdf upsert(UpsertTcModelMdf command);
 
-    
     /**
-     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     * {@code mdf_key}로 MDF를 조회합니다.
      *
-     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
-     * @param mdfKey 대상 키 값
-     * @return 조회 결과(Optional)
+     * @param mdfKey MDF PK
+     * @return 조회 결과(없으면 {@link Optional#empty()})
      */
     Optional<TcModelMdf> findByMdfKey(long mdfKey);
 
-    
     /**
-     * DB Core 계층에서 필요한 데이터를 조회합니다.
+     * {@code model_version_key}로 MDF 단건을 조회합니다.
      *
-     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
-     * @param modelVersionKey 대상 키 값
-     * @param mdfName DB Core 계층 처리에 사용하는 입력 값
-     * @return 조회 결과(Optional)
+     * @param modelVersionKey 모델 버전 키
+     * @return 조회 결과(없으면 {@link Optional#empty()})
      */
-    Optional<TcModelMdf> findByModelVersionKeyAndName(long modelVersionKey, String mdfName);
+    Optional<TcModelMdf> findByModelVersionKey(long modelVersionKey);
 
     /**
-     * 특정 모델(model_version_key)에 연결된 MDF 목록 조회.
-     * - 페이징은 반드시 DB 레벨에서 처리해야 한다.
+     * {@code model_version_key} 기준 MDF 목록을 페이지로 조회합니다.
+     *
+     * <p>
+     * 스키마가 1:1이어도 공통 페이징 계약 호환을 위해 목록 API를 유지합니다.
+     * 실제 결과는 0건 또는 1건이어야 합니다.
+     * </p>
+     *
+     * @param modelVersionKey 모델 버전 키
+     * @param page 페이지 요청
+     * @return 조회 목록
      */
     List<TcModelMdf> findAllByModelVersionKey(long modelVersionKey, PageRequest page);
 
-    
     /**
-     * DB Core 계층 데이터 정리 또는 삭제를 처리합니다.
+     * {@code mdf_key}로 MDF를 삭제합니다.
      *
-     * <p>포트/유스케이스 규약과 저장소 추상화를 기준으로 처리합니다.</p>
-     * @param mdfKey 대상 키 값
+     * @param mdfKey MDF PK
      */
     void deleteByMdfKey(long mdfKey);
 }

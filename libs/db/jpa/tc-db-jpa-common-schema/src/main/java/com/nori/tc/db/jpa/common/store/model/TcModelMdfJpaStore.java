@@ -24,14 +24,11 @@ import com.nori.tc.db.jpa.common.mapper.model.TcModelMdfEntityMapper;
 import com.nori.tc.db.jpa.common.repository.model.TcModelMdfJpaRepository;
 
 /**
- * tc_model_mdf JPA Store 구현체.
+ * {@code tc_model_mdf} JPA 저장소 구현입니다.
  *
  * <p>
- * <b>주요 기능:</b>
- * <ul>
- * <li><b>Upsert:</b> MDF 키 또는 유니크 키로 존재 여부를 확인한 뒤 생성/갱신을 수행합니다.</li>
- * <li><b>목록 조회:</b> 특정 model_version_key 기준으로 최신 mdf_key DESC 정렬 + 페이징을 제공합니다.</li>
- * </ul>
+ * 스키마 제약(UNIQUE: model_version_key)에 맞춰 조회/업서트 기준을
+ * {@code modelVersionKey}로 통일합니다.
  * </p>
  */
 @Repository
@@ -43,110 +40,78 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
     @PersistenceContext
     private EntityManager em;
 
-    
     /**
-     * DB JPA 계층 구성 요소를 초기화합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param repository DB JPA 계층 처리에 사용하는 입력 값
-     * @param mapper DB JPA 계층 처리에 사용하는 입력 값
+     * 필수 의존성을 주입받습니다.
      */
     public TcModelMdfJpaStore(TcModelMdfJpaRepository repository, TcModelMdfEntityMapper mapper) {
         this.repository = repository;
         this.mapper = mapper;
     }
 
-    
     /**
-     * DB JPA 계층 데이터의 저장/갱신을 처리합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param command 처리할 요청/명령 정보
-     * @return DB JPA 계층 처리 결과
+     * MDF를 upsert 합니다.
      */
     @Override
     @Transactional
     public TcModelMdf upsert(UpsertTcModelMdf command) {
-        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
         validateUpsert(command);
 
         try {
-            // 1. PK 또는 유니크 키 기반으로 대상 엔티티 결정
             TcModelMdfEntity entity = resolveEntity(command);
-
-            // 2. Dirty Checking용 필드 업데이트
             mapper.updateFromUpsert(command, entity);
-
-            // 3. 저장 및 반환
             TcModelMdfEntity saved = repository.save(entity);
             return mapper.toDomain(saved);
-
-        } catch (DbEntityNotFoundException e) {
-            throw e;
-        } catch (DataIntegrityViolationException e) {
-            throw new DbDuplicateKeyException("[tc_model_mdf] upsert failed: integrity violation", e);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] upsert failed", e);
+        } catch (DbEntityNotFoundException ex) {
+            throw ex;
+        } catch (DataIntegrityViolationException ex) {
+            throw new DbDuplicateKeyException("[tc_model_mdf] upsert failed: modelVersionKey unique violation", ex);
+        } catch (RuntimeException ex) {
+            throw new DbAccessException("[tc_model_mdf] upsert failed", ex);
         }
     }
 
-    
     /**
-     * DB JPA 계층에서 필요한 데이터를 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param mdfKey 대상 키 값
-     * @return 조회 결과(Optional)
+     * {@code mdfKey} 기준으로 MDF를 조회합니다.
      */
     @Override
     @Transactional(readOnly = true)
     public Optional<TcModelMdf> findByMdfKey(long mdfKey) {
-        if (mdfKey <= 0) {
+        if (mdfKey <= 0L) {
             throw new IllegalArgumentException("mdfKey must be > 0");
         }
         try {
             return repository.findById(mdfKey).map(mapper::toDomain);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] findByMdfKey failed: mdfKey=" + mdfKey, e);
+        } catch (RuntimeException ex) {
+            throw new DbAccessException("[tc_model_mdf] findByMdfKey failed: mdfKey=" + mdfKey, ex);
         }
     }
 
-    
     /**
-     * DB JPA 계층에서 필요한 데이터를 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelVersionKey 대상 키 값
-     * @param mdfName DB JPA 계층 처리에 사용하는 입력 값
-     * @return 조회 결과(Optional)
+     * {@code modelVersionKey} 기준 단건 MDF를 조회합니다.
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<TcModelMdf> findByModelVersionKeyAndName(long modelVersionKey, String mdfName) {
-        if (modelVersionKey <= 0) throw new IllegalArgumentException("modelVersionKey must be > 0");
-        if (mdfName == null || mdfName.isBlank()) throw new IllegalArgumentException("mdfName must not be null/blank");
-
+    public Optional<TcModelMdf> findByModelVersionKey(long modelVersionKey) {
+        if (modelVersionKey <= 0L) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
+        }
         try {
-            return repository.findByModelVersionKeyAndMdfName(modelVersionKey, mdfName).map(mapper::toDomain);
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] findByModelVersionKeyAndName failed", e);
+            return repository.findByModelVersionKey(modelVersionKey).map(mapper::toDomain);
+        } catch (RuntimeException ex) {
+            throw new DbAccessException("[tc_model_mdf] findByModelVersionKey failed: modelVersionKey=" + modelVersionKey, ex);
         }
     }
 
-    
     /**
-     * DB JPA 계층에서 필요한 데이터를 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelVersionKey 대상 키 값
-     * @param page 페이징/조회 범위 조건
-     * @return 조회/처리 결과 목록
+     * {@code modelVersionKey} 기준 MDF 목록을 조회합니다.
      */
     @Override
     @Transactional(readOnly = true)
     public List<TcModelMdf> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
-        if (modelVersionKey <= 0) throw new IllegalArgumentException("modelVersionKey must be > 0");
-        final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
+        if (modelVersionKey <= 0L) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
+        }
+        final PageRequest normalizedPage = page == null ? PageRequest.defaultPage() : page;
 
         try {
             TypedQuery<TcModelMdfEntity> query = em.createQuery(
@@ -154,50 +119,45 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
                     TcModelMdfEntity.class
             );
             query.setParameter("modelVersionKey", modelVersionKey);
-            query.setFirstResult(p.offset());
-            query.setMaxResults(p.limit());
+            query.setFirstResult(normalizedPage.offset());
+            query.setMaxResults(normalizedPage.limit());
             return query.getResultList().stream().map(mapper::toDomain).toList();
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] findAllByModelVersionKey failed: modelVersionKey=" + modelVersionKey, e);
+        } catch (RuntimeException ex) {
+            throw new DbAccessException("[tc_model_mdf] findAllByModelVersionKey failed: modelVersionKey=" + modelVersionKey, ex);
         }
     }
 
-    
     /**
-     * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param mdfKey 대상 키 값
+     * {@code mdfKey} 기준으로 MDF를 삭제합니다.
      */
     @Override
     @Transactional
     public void deleteByMdfKey(long mdfKey) {
-        // 저장 단계: 변경 내용을 저장소에 반영하고 결과를 확인합니다.
-        if (mdfKey <= 0) {
+        if (mdfKey <= 0L) {
             throw new IllegalArgumentException("mdfKey must be > 0");
         }
         try {
             repository.deleteById(mdfKey);
-        } catch (EmptyResultDataAccessException ignore) {
-            // Idempotent delete
-        } catch (RuntimeException e) {
-            throw new DbAccessException("[tc_model_mdf] deleteByMdfKey failed: mdfKey=" + mdfKey, e);
+        } catch (EmptyResultDataAccessException ignored) {
+            // 멱등 삭제를 허용합니다.
+        } catch (RuntimeException ex) {
+            throw new DbAccessException("[tc_model_mdf] deleteByMdfKey failed: mdfKey=" + mdfKey, ex);
         }
     }
 
-    
     /**
-     * DB JPA 계층 입력/설정 유효성을 검증합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param command 처리할 요청/명령 정보
+     * upsert 입력값을 검증합니다.
      */
     private void validateUpsert(UpsertTcModelMdf command) {
-        if (command == null) throw new IllegalArgumentException("command must not be null");
-        if (command.mdfKey() != null && command.mdfKey() <= 0) {
+        if (command == null) {
+            throw new IllegalArgumentException("command must not be null");
+        }
+        if (command.mdfKey() != null && command.mdfKey() <= 0L) {
             throw new IllegalArgumentException("command.mdfKey must be > 0 when provided");
         }
-        if (command.modelVersionKey() <= 0) throw new IllegalArgumentException("command.modelVersionKey must be > 0");
+        if (command.modelVersionKey() <= 0L) {
+            throw new IllegalArgumentException("command.modelVersionKey must be > 0");
+        }
         if (command.mdfName() == null || command.mdfName().isBlank()) {
             throw new IllegalArgumentException("command.mdfName must not be null/blank");
         }
@@ -206,21 +166,28 @@ public class TcModelMdfJpaStore implements TcModelMdfStore {
         }
     }
 
-    
     /**
-     * DB JPA 계층 도메인 처리 로직을 수행합니다.
+     * upsert 대상 엔티티를 결정합니다.
      *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param command 처리할 요청/명령 정보
-     * @return DB JPA 계층 처리 결과
+     * <p>
+     * 1) {@code mdfKey}가 있으면 PK로 조회합니다.
+     * 2) 없으면 {@code modelVersionKey}로 조회합니다.
+     * 3) 둘 다 없으면 신규 엔티티를 생성합니다.
+     * </p>
      */
     private TcModelMdfEntity resolveEntity(UpsertTcModelMdf command) {
         if (command.mdfKey() != null) {
             return repository.findById(command.mdfKey())
-                    .orElseThrow(() -> new DbEntityNotFoundException("[tc_model_mdf] not found: mdfKey=" + command.mdfKey()));
+                    .orElseThrow(() -> new DbEntityNotFoundException(
+                            "[tc_model_mdf] not found by mdfKey: " + command.mdfKey()
+                    ));
         }
 
-        return repository.findByModelVersionKeyAndMdfName(command.modelVersionKey(), command.mdfName())
-                .orElseGet(() -> TcModelMdfEntity.newEntity(command.modelVersionKey(), command.mdfName(), command.mdfFile()));
+        return repository.findByModelVersionKey(command.modelVersionKey())
+                .orElseGet(() -> TcModelMdfEntity.newEntity(
+                        command.modelVersionKey(),
+                        command.mdfName(),
+                        command.mdfFile()
+                ));
     }
 }

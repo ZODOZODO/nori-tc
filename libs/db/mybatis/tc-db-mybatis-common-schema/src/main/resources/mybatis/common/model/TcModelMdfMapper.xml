@@ -33,11 +33,11 @@
 
     <update id="update">
         UPDATE tc_model_mdf
-           SET model_version_key  = #{m.modelVersionKey},
-               mdf_name   = #{m.mdfName},
-               mdf_file   = #{m.mdfFile, typeHandler=org.apache.ibatis.type.ByteArrayTypeHandler},
-               updated_at = CURRENT_TIMESTAMP
-         WHERE mdf_key    = #{m.mdfKey}
+           SET model_version_key = #{m.modelVersionKey},
+               mdf_name          = #{m.mdfName},
+               mdf_file          = #{m.mdfFile, typeHandler=org.apache.ibatis.type.ByteArrayTypeHandler},
+               updated_at        = CURRENT_TIMESTAMP
+         WHERE mdf_key           = #{m.mdfKey}
     </update>
 
     <select id="findByMdfKey" resultMap="TcModelMdfMap">
@@ -46,11 +46,10 @@
          WHERE mdf_key = #{mdfKey}
     </select>
 
-    <select id="findByModelVersionKeyAndName" resultMap="TcModelMdfMap">
+    <select id="findByModelVersionKey" resultMap="TcModelMdfMap">
         SELECT <include refid="TcModelMdfColumns"/>
           FROM tc_model_mdf
          WHERE model_version_key = #{modelVersionKey}
-           AND mdf_name = #{mdfName}
     </select>
 
     <select id="findAllByModelVersionKey" resultMap="TcModelMdfMap">
@@ -64,7 +63,7 @@
     </select>
 
     <delete id="deleteByMdfKey">
-        DELETE FROM tc_model_mdf WHERE mdf_key = #{mdfKey}
+        DELETE FROM tc_model_mdf
+         WHERE mdf_key = #{mdfKey}
     </delete>
-
 </mapper>

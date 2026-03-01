@@ -5,9 +5,11 @@ import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
 import com.nori.tc.db.core.model.store.TcModelSocketMessageStore;
+import com.nori.tc.db.core.model.store.TcModelMdfStore;
 import com.nori.tc.db.core.model.store.TcModelStore;
 import com.nori.tc.db.core.model.store.TcModelVariableIdStore;
 import com.nori.tc.db.core.model.store.TcModelWorkflowStore;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSocketMessage;
@@ -16,6 +18,7 @@ import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
 import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.model.TcModel;
+import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
@@ -546,6 +549,50 @@ final class ModelCacheTestFixtures {
 
         @Override
         public void deleteByVariableKey(final long variableKey) {
+            throw new UnsupportedOperationException("not used");
+        }
+    }
+
+    /**
+     * {@link TcModelMdfStore} in-memory 구현입니다.
+     */
+    static final class InMemoryMdfStore implements TcModelMdfStore {
+        private final Map<Long, TcModelMdf> byModelVersionKey;
+
+        InMemoryMdfStore(final List<TcModelMdf> mdfs) {
+            final Map<Long, TcModelMdf> copied = new LinkedHashMap<>();
+            for (TcModelMdf mdf : mdfs) {
+                copied.put(mdf.modelVersionKey(), mdf);
+            }
+            this.byModelVersionKey = Map.copyOf(copied);
+        }
+
+        @Override
+        public TcModelMdf upsert(final UpsertTcModelMdf command) {
+            throw new UnsupportedOperationException("not used");
+        }
+
+        @Override
+        public Optional<TcModelMdf> findByMdfKey(final long mdfKey) {
+            return byModelVersionKey.values().stream()
+                    .filter(mdf -> mdf.mdfKey() == mdfKey)
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<TcModelMdf> findByModelVersionKey(final long modelVersionKey) {
+            return Optional.ofNullable(byModelVersionKey.get(modelVersionKey));
+        }
+
+        @Override
+        public List<TcModelMdf> findAllByModelVersionKey(final long modelVersionKey, final PageRequest page) {
+            return byModelVersionKey.containsKey(modelVersionKey)
+                    ? List.of(byModelVersionKey.get(modelVersionKey))
+                    : List.of();
+        }
+
+        @Override
+        public void deleteByMdfKey(final long mdfKey) {
             throw new UnsupportedOperationException("not used");
         }
     }

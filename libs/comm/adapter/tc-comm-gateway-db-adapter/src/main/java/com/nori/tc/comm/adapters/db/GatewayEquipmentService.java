@@ -296,7 +296,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
                 hsmsDeviceId,
                 eqp.eqpIp(),
                 eqp.eqpPort(),
-                eqp.modelKey(),
+                eqp.modelVersionKey(),
                 connectionMode,
                 eqp.routePartition(),
                 eqp.enabled()
