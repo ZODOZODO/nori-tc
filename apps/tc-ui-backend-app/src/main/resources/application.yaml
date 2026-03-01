@@ -3,18 +3,26 @@
     name: tc-ui-backend-app
 
   main:
-    web-application-type: none
+    # REST API 서버이므로 Servlet(Tomcat) 모드로 기동합니다.
+    # - gateway/business는 web-application-type: none이지만 UI backend는 HTTP 서버 필요
+    web-application-type: servlet
 
   # 외부 설정 파일을 우선적으로 로딩합니다.
-  # - optional 경로는 파일이 없어도 기동을 중단하지 않습니다.
+  # - optional 접두사: 파일 없어도 기동을 중단하지 않음
+  # - file:config/... 경로는 실행 작업 디렉터리 기준
   config:
     import:
       - optional:file:config/tc-db.properties
       - optional:file:config/tc-messaging.properties
       - optional:file:config/tc-redis.properties
       - optional:file:config/tc-log.properties
+      - optional:file:config/tc-ui-backend.properties
 
 logging:
   level:
     root: INFO
+    # 프로젝트 패키지 로그 레벨 (DEBUG: 개발/운영 디버깅용)
     com.nori.tc: DEBUG
+    # Kafka 내부 로그는 WARN으로 억제 (INFO 시 부팅 노이즈 과다)
+    org.springframework.kafka: WARN
+    org.apache.kafka: WARN

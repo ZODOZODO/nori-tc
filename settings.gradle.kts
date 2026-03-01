@@ -228,3 +228,39 @@ project(":libs:business:adapter:tc-business-redis-adapter").projectDir = file("l
 
 include(":libs:business:starter:tc-business-core-starter")
 project(":libs:business:starter:tc-business-core-starter").projectDir = file("libs/business/starter/tc-business-core-starter")
+
+/* ===================================================
+ * 9. UI Backend Modules (App Composition Layer)
+ * - UI Backend 전용 헥사고날 아키텍처 모듈
+ * - Front ↔ UI-backend: REST API 전용 (WebSocket/SSE 없음)
+ * - 인증: DB 세션 토큰 + Business Redis 캐시
+ * - Gateway Redis(6379) + Business Redis(6380) 동시 접속
+ * =================================================== */
+
+// [Domain] UI 전용 순수 도메인 객체 (AuthToken, UserPrincipal, UiTaskResult)
+include(":libs:ui:tc-ui-domain")
+project(":libs:ui:tc-ui-domain").projectDir = file("libs/ui/tc-ui-domain")
+
+// [Core/Port] UseCase + Port 인터페이스 (기술 중립)
+include(":libs:ui:tc-ui-core")
+project(":libs:ui:tc-ui-core").projectDir = file("libs/ui/tc-ui-core")
+
+// [Adapter/JPA] DB 포트 구현체 (기존 common-schema Entity 재사용)
+include(":libs:ui:adapter:tc-ui-db-adapter")
+project(":libs:ui:adapter:tc-ui-db-adapter").projectDir = file("libs/ui/adapter/tc-ui-db-adapter")
+
+// [Adapter/Kafka] tc.ui.events.gateway/business 발행 + tc.ui.commands 수신
+include(":libs:ui:adapter:tc-ui-kafka-adapter")
+project(":libs:ui:adapter:tc-ui-kafka-adapter").projectDir = file("libs/ui/adapter/tc-ui-kafka-adapter")
+
+// [Adapter/Redis] Gateway/Business Redis 듀얼 접속 (DLQ, 토큰 캐시, async 결과)
+include(":libs:ui:adapter:tc-ui-redis-adapter")
+project(":libs:ui:adapter:tc-ui-redis-adapter").projectDir = file("libs/ui/adapter/tc-ui-redis-adapter")
+
+// [Adapter/Web] Spring Security + REST 컨트롤러 (AuthController, EqpController 등)
+include(":libs:ui:adapter:tc-ui-web-adapter")
+project(":libs:ui:adapter:tc-ui-web-adapter").projectDir = file("libs/ui/adapter/tc-ui-web-adapter")
+
+// [Starter] 어댑터 4종 + AutoConfiguration 조립 (apps/tc-ui-backend-app에서 단일 참조)
+include(":libs:ui:starter:tc-ui-backend-starter")
+project(":libs:ui:starter:tc-ui-backend-starter").projectDir = file("libs/ui/starter/tc-ui-backend-starter")

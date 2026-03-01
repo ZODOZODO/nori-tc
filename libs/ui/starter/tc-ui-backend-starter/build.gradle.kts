@@ -1,0 +1,66 @@
+/*
+ * tc-ui-backend-starter
+ *
+ * 역할
+ * - tc-ui-domain/core + 어댑터 4종을 apps/tc-ui-backend-app에 한 번에 조립합니다.
+ * - AutoConfiguration을 통해 Spring 컨텍스트에 UI Backend 빈을 자동 등록합니다.
+ *
+ * 주요 구성 (Phase 7에서 구현)
+ *   - TcUiBackendAutoConfiguration
+ *     @AutoConfiguration
+ *     @ComponentScan("com.nori.tc.ui")
+ *     @Import({ UiWebConfiguration, UiKafkaConfiguration, UiRedisConfiguration })
+ *   - resources/META-INF/spring/
+ *       org.springframework.boot.autoconfigure.AutoConfiguration.imports 등록
+ *
+ * 의존성 구조
+ *   apps/tc-ui-backend-app
+ *     └── tc-ui-backend-starter (이 모듈)
+ *           ├── tc-ui-web-adapter   (Spring Security + REST Controller)
+ *           ├── tc-ui-kafka-adapter (Publisher + Subscriber)
+ *           ├── tc-ui-db-adapter    (JPA Repository Port 구현)
+ *           └── tc-ui-redis-adapter (Dual Redis Service)
+ */
+
+plugins {
+    `java-library`
+    alias(libs.plugins.spring.dependency.management)
+}
+
+group = "com.nori.tc"
+version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
+dependencies {
+    /*
+     * Starter는 어댑터 4종을 api로 노출하여 앱이 컨텍스트 없이 어댑터 타입을 사용할 수 있게 합니다.
+     */
+    api(project(":libs:ui:adapter:tc-ui-web-adapter"))
+    api(project(":libs:ui:adapter:tc-ui-kafka-adapter"))
+    api(project(":libs:ui:adapter:tc-ui-db-adapter"))
+    api(project(":libs:ui:adapter:tc-ui-redis-adapter"))
+
+    /*
+     * Kafka AutoConfiguration: KafkaTemplate, ConsumerFactory 빈 구성에 필요합니다.
+     */
+    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
+
+    /*
+     * AutoConfiguration 클래스 컴파일 의존성
+     */
+    compileOnly(libs.spring.boot)
+    compileOnly(libs.spring.boot.autoconfigure)
+    compileOnly(libs.spring.context)
+
+    testImplementation(libs.spring.boot.starter.test)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
