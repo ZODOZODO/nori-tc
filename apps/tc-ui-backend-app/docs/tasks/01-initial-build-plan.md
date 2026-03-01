@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-01 (Phase 0, 1 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-01 (Phase 0, 1, 2 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -63,39 +63,56 @@
 
 ---
 
-## Phase 2: tc-ui-core
+## Phase 2: tc-ui-core ✅
 
 Port 인터페이스, UseCase, DualResponseRegistry.
 
 ### Port (DB)
-- [ ] `UserPort` — findByUserIdNorm(String), existsByUserPk(Long)
-- [ ] `SessionPort` — save, findValidByToken(String), revoke(String), updateLastSeenAt(Long)
-- [ ] `PermissionPort` — findPermissionsByUserPk(Long): List<TcUiPermissionEntity>
+- [x] `UserPort` — findByUserIdNorm(String), findByUserPk(long)
+- [x] `SessionPort` — save, findValidByToken(String), revoke(String), updateLastSeenAt(String, OffsetDateTime)
+- [x] `PermissionPort` — findPermissionCodesByUserPk(long): Set<String>
+- [x] `PasswordVerifierPort` — matches(rawPassword, encodedPassword): boolean (BCrypt 추상화)
 
 ### Port (route_partition, U13)
-- [ ] `UiGatewayEqpRoutePartitionLookupPort` — findRoutePartition(eqpId): Optional<Integer>
+- [x] `UiGatewayEqpRoutePartitionLookupPort` — findRoutePartition(eqpId): Optional<Integer>
 
 ### Port (Kafka 발행)
-- [ ] `UiGatewayEventPublishPort` — publish(eventType, eqpId, equipmentProfile, traceId)
-- [ ] `UiBusinessEventPublishPort` — publish(eventType, eqpId, equipmentProfile, traceId)
+- [x] `UiGatewayEventPublishPort` — publish(KafkaUiTaskMessage)
+- [x] `UiBusinessEventPublishPort` — publish(KafkaUiTaskMessage)
 
 ### Port (Kafka 수신)
-- [ ] `UiCommandIngressPort` — handle(replyMessage)
+- [x] `UiCommandIngressPort` — handle(KafkaUiTaskReplyMessage)
 
 ### Port (Redis)
-- [ ] `TokenCachePort` — get(token): Optional<UserPrincipal>, put(token, principal, ttl), evict(token)
-- [ ] `AsyncResultStorePort` — save(traceId, result, ttl), get(traceId): Optional<UiTaskResult>
+- [x] `TokenCachePort` — get(token): Optional<UserPrincipal>, put(token, principal), evict(token)
+- [x] `AsyncResultStorePort` — save(traceId, reply), get(traceId): Optional<KafkaUiTaskReplyMessage>
 
 ### UseCase
-- [ ] `LoginUseCase` — execute(userId, rawPassword): AuthToken
-- [ ] `LogoutUseCase` — execute(token)
-- [ ] `ValidateTokenUseCase` — execute(token): UserPrincipal
+- [x] `LoginUseCase` — execute(userId, rawPassword): AuthToken
+- [x] `LogoutUseCase` — execute(token)
+- [x] `ValidateTokenUseCase` — execute(token): UserPrincipal
 
 ### DualResponseRegistry
-- [ ] `DualResponseTracker` — gatewayResult, businessResult, DeferredResult<> 보유
-- [ ] `DualResponseRegistry` — register(traceId, deferredResult, timeout), record(traceId, source, result), remove(traceId)
-  - 양쪽 모두 채워지면 자동으로 DeferredResult.setResult() 호출
-  - 한쪽이 FAIL이면 최종 FAIL (부분 성공 여부 로깅)
+- [x] `UiDualTaskFinalResult` — traceId, success, gatewayResult, businessResult record (hasPartialFailure, firstFailedResult 헬퍼 포함)
+- [x] `DualResponseRegistry` — register(traceId, timeoutMs): CompletableFuture<>, record(traceId, source, result)
+  - 내부 DualResponseTracker (synchronized record + volatile 필드)
+  - 양쪽 모두 수신 시 CompletableFuture 자동 완료
+  - 한쪽 FAIL → 최종 FAIL + 부분 실패 WARN 로그
+
+### Service
+- [x] `UiCommandIngressService` — UiCommandIngressPort 구현 (eventType 기반 라우팅)
+  - EQP_CREATE/UPDATE/DELETE → DualResponseRegistry
+  - EQP_START/END → AsyncResultStorePort
+
+### Properties
+- [x] `UiAuthProperties` — @ConfigurationProperties(prefix="tc.ui.backend.auth")
+  - sessionTtlHours (기본 8), tokenCacheTtlSeconds (기본 300)
+
+### 예외
+- [x] `UiAuthenticationException` — 인증 실패 시 발생 (HTTP 401 변환용)
+
+### 빌드 확인
+- [x] `./gradlew :libs:ui:tc-ui-core:compileJava` → BUILD SUCCESSFUL
 
 ---
 

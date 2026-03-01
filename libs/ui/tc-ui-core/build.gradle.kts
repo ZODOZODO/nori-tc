@@ -45,6 +45,18 @@ dependencies {
     api(project(":libs:ui:tc-ui-domain"))
 
     /*
+     * DB 도메인 레코드(TcUserInfo, TcUiAuthSession)를 Port 시그니처에서 사용합니다.
+     * api로 선언하여 tc-ui-db-adapter가 동일 타입을 별도 의존성 없이 사용할 수 있도록 노출합니다.
+     */
+    api(project(":libs:db:tc-db-domain"))
+
+    /*
+     * Kafka 메시지 계약(KafkaUiTaskMessage, KafkaUiTaskReplyMessage)을 Port 시그니처에서 사용합니다.
+     * api로 선언하여 tc-ui-kafka-adapter가 동일 타입을 사용할 수 있도록 노출합니다.
+     */
+    api(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
+
+    /*
      * Spring 생명주기/설정 바인딩 컴파일 의존성
      * - @Component, @Service 등 어노테이션은 컴파일 시에만 필요합니다.
      */
