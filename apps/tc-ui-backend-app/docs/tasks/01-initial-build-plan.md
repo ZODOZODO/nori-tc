@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 6 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 7 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -280,16 +280,24 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ---
 
-## Phase 7: tc-ui-backend-starter
+## Phase 7: tc-ui-backend-starter ✅
 
-- [ ] `TcUiBackendAutoConfiguration`
+- [x] `TcUiBackendAutoConfiguration`
   ```java
   @AutoConfiguration
   @ComponentScan("com.nori.tc.ui")
-  @Import({ UiWebConfiguration.class, UiKafkaConfiguration.class, UiRedisConfiguration.class })
+  @Import({ UiSecurityConfig.class, UiKafkaConfiguration.class, UiRedisConfiguration.class })
   ```
-- [ ] `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+  - 생성자: `UI_BOOT_STARTING` 로그
+  - `ApplicationReadyEvent` 리스너: `UI_BOOT_COMPONENT_READY` (WebSecurity/KafkaTopics/DualRedis) + `UI_BOOT_READY` 요약 INFO 로그
+  - `sanitizeTopic()`: null/공백 → "N/A" 정규화
+  - `buildRedisAddress()`: host:port 형식 주소 문자열 생성
+- [x] `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
   - `com.nori.tc.ui.starter.TcUiBackendAutoConfiguration` 등록
+
+### 빌드 확인
+- [x] `./gradlew :libs:ui:starter:tc-ui-backend-starter:compileJava` → BUILD SUCCESSFUL
+- [x] `./gradlew :apps:tc-ui-backend-app:build` → BUILD SUCCESSFUL
 
 ---
 
@@ -351,7 +359,7 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 | Phase 4 | ✅ 완료 | DLQ/Quarantine 조회, 토큰 캐시, 비동기 결과 저장 |
 | Phase 5 | ✅ 완료 | UiKafkaTopicProperties, UiKafkaConfiguration, Publisher 2종, Subscriber 1종 |
 | Phase 6 | ✅ 완료 | Spring Security 필터/설정, REST 컨트롤러 4종, ApiResponse 제네릭 수정 |
-| Phase 7 | ⬜ 대기 | |
+| Phase 7 | ✅ 완료 | TcUiBackendAutoConfiguration, AutoConfiguration.imports |
 | Phase 8 | ⬜ 대기 | |
 | Phase 9 | ⬜ 대기 | Phase 5 UiCommandKafkaSubscriber 구현 전 선행 확인 권장 |
 | Phase 10 | ⬜ 대기 | |
