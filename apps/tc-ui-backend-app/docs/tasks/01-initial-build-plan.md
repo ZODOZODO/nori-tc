@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 4 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 5 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -199,35 +199,37 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ---
 
-## Phase 5: tc-ui-kafka-adapter
+## Phase 5: tc-ui-kafka-adapter ✅
 
 ### 설정
-- [ ] `UiKafkaTopicProperties` — @ConfigurationProperties: gateway-events-topic, business-events-topic, commands-topic
+- [x] `UiKafkaTopicProperties` — @ConfigurationProperties(prefix="tc.ui.backend.kafka"): gateway-events-topic, business-events-topic, commands-topic
+- [x] `UiKafkaConfiguration` — @Configuration: uiCommandListenerContainerFactory(MANUAL_IMMEDIATE) + @EnableConfigurationProperties
 
 ### Publisher
-- [ ] `UiGatewayEventKafkaPublisher` → `tc.ui.events.gateway`
+- [x] `UiGatewayEventKafkaPublisher` → `tc.ui.events.gateway`
   - **[U13] route_partition 명시 발행 필수**:
     1. `UiGatewayEqpRoutePartitionLookupPort.findRoutePartition(eqpId)` 조회
-    2. empty(null)/음수 → 발행 차단 + ERROR 로그 (eqpId, topic, 사유 포함)
+    2. empty(null)/음수 → 발행 차단 + ERROR 로그 (eqpId, topic, reason 포함) + IllegalStateException
     3. `ProducerRecord<>(topic, routePartition, key=eqpId, payload)` 생성
     4. tracing 헤더 추가 (x-trace-id, x-event-type, x-source)
-    5. `KafkaTemplate.send(record)` 비동기 콜백 (성공/실패 DEBUG/ERROR 로그)
+    5. `KafkaTemplate.send(record)` 비동기 콜백 (성공 DEBUG / 실패 ERROR 로그)
   - `KafkaTemplate.send(topic, key, value)` 직접 호출 금지
   - UiGatewayEventPublishPort 구현
-- [ ] `UiBusinessEventKafkaPublisher` → `tc.ui.events.business`
+- [x] `UiBusinessEventKafkaPublisher` → `tc.ui.events.business`
   - route_partition 불필요 (business 구독자 GROUP 모드, key hash 라우팅)
-  - KafkaTemplate.send(topic, key=eqpId, payload) 일반 발행
+  - ProducerRecord(topic, key=eqpId, payload) + tracing 헤더 추가
+  - 비동기 콜백 (성공 DEBUG / 실패 ERROR 로그)
   - UiBusinessEventPublishPort 구현
 
 ### Subscriber
-- [ ] `UiCommandKafkaSubscriber` ← `tc.ui.commands`
+- [x] `UiCommandKafkaSubscriber` ← `tc.ui.commands`
   - Consumer Group: `tc-ui-backend-group`
-  - auto-commit: disabled (MANUAL_IMMEDIATE)
-  - eventType 분기:
-    - EQP_CREATE / EQP_UPDATE / EQP_DELETE → DualResponseRegistry.record(traceId, source, result)
-    - EQP_START_REP / EQP_END_REP (또는 EQP_START / EQP_END - Phase 9에서 확인) → AsyncResultStorePort.save(traceId, result)
-  - metadata.source로 출처 구분 (TC-COMM-GATEWAY / TC-BUSINESS-CORE)
-  - UiCommandIngressPort 구현
+  - auto-commit: disabled (MANUAL_IMMEDIATE, uiCommandListenerContainerFactory 사용)
+  - JSON 파싱: StringDeserializer → ObjectMapper → KafkaUiTaskReplyMessage
+  - eventType 분기: UiCommandIngressPort.handle(reply) 위임
+    - EQP_CREATE / EQP_UPDATE / EQP_DELETE → DualResponseRegistry (UiCommandIngressService 처리)
+    - EQP_START / EQP_END → AsyncResultStorePort (UiCommandIngressService 처리)
+  - ACK 정책: 파싱실패(WARN+ack), 처리성공(ack), 처리예외(ERROR+ack)
 
 ---
 
@@ -336,7 +338,7 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 | Phase 2 | ✅ 완료 | |
 | Phase 3 | ✅ 완료 | Store 추상화 구조 교정 완료 |
 | Phase 4 | ✅ 완료 | DLQ/Quarantine 조회, 토큰 캐시, 비동기 결과 저장 |
-| Phase 5 | ⬜ 대기 | |
+| Phase 5 | ✅ 완료 | UiKafkaTopicProperties, UiKafkaConfiguration, Publisher 2종, Subscriber 1종 |
 | Phase 6 | ⬜ 대기 | |
 | Phase 7 | ⬜ 대기 | |
 | Phase 8 | ⬜ 대기 | |
