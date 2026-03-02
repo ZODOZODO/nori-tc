@@ -11,10 +11,12 @@ import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
  *
  * <p>처리 분기:</p>
  * <ul>
- *   <li>EQP_CREATE / EQP_UPDATE / EQP_DELETE → {@link com.nori.tc.ui.core.registry.DualResponseRegistry}
- *       에서 traceId + source로 양방향 응답을 수집</li>
- *   <li>EQP_START_REP / EQP_END_REP (또는 EQP_START / EQP_END - 구현 전 확인 필요) →
- *       {@link com.nori.tc.ui.core.port.redis.AsyncResultStorePort}에 Redis 임시 저장</li>
+ *   <li>EQP_CREATE_REP / EQP_UPDATE_REP / EQP_DELETE_REP →
+ *       {@link com.nori.tc.ui.core.registry.DualResponseRegistry}에서
+ *       traceId + source로 양방향 응답을 수집</li>
+ *   <li>EQP_START_REP / EQP_END_REP →
+ *       {@link com.nori.tc.ui.core.port.redis.AsyncResultStorePort}에 Redis 임시 저장
+ *       (Gateway lifecycle 상태머신 완료 후 지연 발행)</li>
  * </ul>
  *
  * <p>구현체:</p>

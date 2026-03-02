@@ -1,5 +1,6 @@
 package com.nori.tc.ui.core.service;
 
+import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyEventType;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyStatus;
 import com.nori.tc.ui.core.port.messaging.UiCommandIngressPort;
@@ -21,34 +22,33 @@ import org.springframework.stereotype.Component;
  *
  * <p>라우팅 규칙:</p>
  * <ul>
- *   <li>EQP_CREATE / EQP_UPDATE / EQP_DELETE → {@link DualResponseRegistry}:
- *       Gateway와 Business Core 양쪽 응답을 수집하여 DeferredResult 완료 처리</li>
- *   <li>EQP_START / EQP_END → {@link AsyncResultStorePort}:
- *       Gateway 단일 응답을 Redis에 저장, front가 polling으로 확인</li>
+ *   <li>EQP_CREATE_REP / EQP_UPDATE_REP / EQP_DELETE_REP →
+ *       {@link DualResponseRegistry}: Gateway와 Business Core 양쪽 응답을 수집하여
+ *       DeferredResult 완료 처리</li>
+ *   <li>EQP_START_REP / EQP_END_REP →
+ *       {@link AsyncResultStorePort}: Gateway 단일 응답을 Redis에 저장,
+ *       front가 polling으로 확인</li>
  * </ul>
  *
- * <p>TODO (Phase 9에서 확인 필요):</p>
- * <p>기존 {@code GatewayUiDeferredLifecycleReplyService}가 EQP_START 응답을
- * tc.ui.commands에 발행할 때 eventType이 {@code EQP_START}인지 {@code EQP_START_REP}인지
- * 확인 후 분기 로직을 조정하십시오. 새 eventType이면 KafkaUiTaskEventType에 상수 추가도 필요합니다.</p>
+ * <p>eventType 계약:</p>
+ * <p>Gateway와 Business Core는 처리 완료 후 원본 요청 eventType에 {@code _REP} 접미사를
+ * 붙여 tc.ui.commands에 발행합니다. 예) EQP_CREATE 요청 → EQP_CREATE_REP 응답.
+ * 자세한 내용은 {@link KafkaUiTaskReplyEventType}을 참조합니다.</p>
  */
 @Component
 public class UiCommandIngressService implements UiCommandIngressPort {
 
     private static final Logger log = LoggerFactory.getLogger(UiCommandIngressService.class);
 
-    // eqp_create/update/delete reply: Gateway + Business 양쪽에서 응답
-    private static final String EVENT_EQP_CREATE = "EQP_CREATE";
-    private static final String EVENT_EQP_UPDATE = "EQP_UPDATE";
-    private static final String EVENT_EQP_DELETE = "EQP_DELETE";
-
-    // eqp_start/end reply: Gateway 단일 응답 (TODO: Phase 9에서 EQP_START_REP 여부 확인)
-    private static final String EVENT_EQP_START = "EQP_START";
-    private static final String EVENT_EQP_END   = "EQP_END";
-
     private final DualResponseRegistry dualResponseRegistry;
     private final AsyncResultStorePort asyncResultStorePort;
 
+    /**
+     * 필수 의존성을 주입받습니다.
+     *
+     * @param dualResponseRegistry eqp_create/update/delete DeferredResult 관리 레지스트리
+     * @param asyncResultStorePort eqp_start/end 비동기 결과 Redis 저장 포트
+     */
     public UiCommandIngressService(
             final DualResponseRegistry dualResponseRegistry,
             final AsyncResultStorePort asyncResultStorePort
@@ -60,6 +60,10 @@ public class UiCommandIngressService implements UiCommandIngressPort {
     /**
      * 수신된 tc.ui.commands 메시지를 eventType에 따라 라우팅합니다.
      *
+     * <p>알 수 없는 eventType은 WARN 로그 후 무시합니다.
+     * 수신 INFO 로그는 UiCommandKafkaSubscriber에서 이미 출력하므로
+     * 이 서비스 계층에서는 라우팅 실패 경우에만 WARN을 기록합니다.</p>
+     *
      * @param reply 수신된 Kafka reply 메시지
      */
     @Override
@@ -68,17 +72,28 @@ public class UiCommandIngressService implements UiCommandIngressPort {
         final String traceId   = reply.metadata().traceId();
         final String source    = reply.metadata().source();
 
-        // 수신 로그는 UiCommandKafkaSubscriber(INFO 레벨)에서 이미 출력됩니다.
-        // 서비스 계층에서는 라우팅 실패(default 분기) 시에만 WARN을 기록합니다.
+        // ─────────────────────────────────────────────────────────
+        // eventType 문자열 → KafkaUiTaskReplyEventType enum 변환
+        // 알 수 없는 eventType(미지원 이벤트, 오탈자)은 WARN 후 무시합니다.
+        // 재처리해도 동일한 결과이므로 예외를 상위로 전파하지 않습니다.
+        // ─────────────────────────────────────────────────────────
+        final KafkaUiTaskReplyEventType replyEventType;
+        try {
+            replyEventType = KafkaUiTaskReplyEventType.fromText(eventType);
+        } catch (IllegalArgumentException e) {
+            log.warn("처리되지 않은 eventType - 무시. eventType={}, traceId={}, source={}",
+                    eventType, traceId, source);
+            return;
+        }
 
-        switch (eventType) {
-            case EVENT_EQP_CREATE, EVENT_EQP_UPDATE, EVENT_EQP_DELETE ->
+        switch (replyEventType) {
+            // eqp_create/update/delete: Gateway + Business Core 양방향 응답 수집
+            case EQP_CREATE_REP, EQP_UPDATE_REP, EQP_DELETE_REP ->
                 handleDualResponse(traceId, source, reply);
 
-            case EVENT_EQP_START, EVENT_EQP_END ->
+            // eqp_start/end: Gateway 단일 응답을 Redis에 임시 저장, front polling 방식
+            case EQP_START_REP, EQP_END_REP ->
                 handleAsyncResult(traceId, reply);
-
-            default -> log.warn("처리되지 않은 eventType. eventType={}, traceId={}", eventType, traceId);
         }
     }
 

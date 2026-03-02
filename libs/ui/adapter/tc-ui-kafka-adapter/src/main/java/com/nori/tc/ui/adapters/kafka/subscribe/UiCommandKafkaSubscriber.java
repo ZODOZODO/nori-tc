@@ -22,8 +22,10 @@ import java.util.Objects;
  *
  * <p>처리 분기(UiCommandIngressService가 담당):</p>
  * <ul>
- *   <li>EQP_CREATE / EQP_UPDATE / EQP_DELETE → DualResponseRegistry (traceId + source 기반 양방향 수집)</li>
- *   <li>EQP_START / EQP_END → AsyncResultStorePort (Redis 임시 저장, front polling)</li>
+ *   <li>EQP_CREATE_REP / EQP_UPDATE_REP / EQP_DELETE_REP →
+ *       DualResponseRegistry (traceId + source 기반 양방향 수집)</li>
+ *   <li>EQP_START_REP / EQP_END_REP →
+ *       AsyncResultStorePort (Redis 임시 저장, front polling)</li>
  * </ul>
  *
  * <p>Consumer 설정:</p>
@@ -118,8 +120,8 @@ public class UiCommandKafkaSubscriber {
 
         // ─────────────────────────────────────────────────────────
         // Step 2: eventType 기반 분기 처리 (UiCommandIngressService 위임)
-        // EQP_CREATE/UPDATE/DELETE → DualResponseRegistry
-        // EQP_START/END           → AsyncResultStorePort (Redis)
+        // EQP_CREATE_REP / EQP_UPDATE_REP / EQP_DELETE_REP → DualResponseRegistry
+        // EQP_START_REP  / EQP_END_REP                    → AsyncResultStorePort (Redis)
         // ─────────────────────────────────────────────────────────
         try {
             ingressPort.handle(reply);

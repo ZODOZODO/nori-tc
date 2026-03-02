@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 8 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 9 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -329,15 +329,21 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ---
 
-## Phase 9: Messaging contract 확인 및 보완
+## Phase 9: Messaging contract 확인 및 보완 ✅
 
-> **구현 전 확인 필수**: `GatewayUiDeferredLifecycleReplyService`가 EQP_START reply를
-> tc.ui.commands에 발행할 때 사용하는 eventType 확인.
-> 기존 EQP_START 그대로이면 신규 상수 불필요, 새 값이면 추가 필요.
+> **확인 결과**: `GatewayUiTaskProcessorRegistry`가 EQP_START/EQP_END reply를
+> tc.ui.commands에 발행할 때 eventType으로 `EQP_START_REP` / `EQP_END_REP`를 사용.
+> CREATE/UPDATE/DELETE도 동일하게 `EQP_CREATE_REP` / `EQP_UPDATE_REP` / `EQP_DELETE_REP` 사용.
+> 기존 `UiCommandIngressService`의 상수 5개 전부 수정 필요 → 완료.
 
-- [ ] `libs/comm/...GatewayUiDeferredLifecycleReplyService.java` reply eventType 코드 확인
-- [ ] 필요 시 `KafkaUiTaskReplyEventType`에 EQP_START_REP, EQP_END_REP 상수 추가
-- [ ] `UiCommandKafkaSubscriber` 분기 로직 확인 및 최종 조정
+- [x] `libs/comm/...GatewayUiDeferredLifecycleReplyService.java` reply eventType 코드 확인
+  - `registerStartPending(replyEventType="EQP_START_REP")`, `registerEndPending(replyEventType="EQP_END_REP")` 확인
+  - `GatewayUiTaskProcessorRegistry`에서 EQP_CREATE→"EQP_CREATE_REP", UPDATE→"EQP_UPDATE_REP", DELETE→"EQP_DELETE_REP" 확인
+- [x] `KafkaUiTaskReplyEventType` 신규 생성 (EQP_CREATE_REP, EQP_UPDATE_REP, EQP_DELETE_REP, EQP_START_REP, EQP_END_REP + fromText())
+  - 경로: `libs/messaging/kafka/tc-messaging-kafka-contract/.../KafkaUiTaskReplyEventType.java`
+- [x] `UiCommandIngressService` 수정: String 상수 5개 → `KafkaUiTaskReplyEventType` enum switch로 전환, TODO 주석 제거
+- [x] `UiCommandIngressPort` Javadoc 수정: EQP_*_REP 표기로 정정
+- [x] `UiCommandKafkaSubscriber` 클래스 Javadoc 및 인라인 주석 수정: EQP_*_REP 표기로 정정
 
 ---
 
@@ -375,5 +381,5 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 | Phase 6 | ✅ 완료 | Spring Security 필터/설정, REST 컨트롤러 4종, ApiResponse 제네릭 수정 |
 | Phase 7 | ✅ 완료 | TcUiBackendAutoConfiguration, AutoConfiguration.imports |
 | Phase 8 | ✅ 완료 | config 완성, bootRun/build 성공, Jackson/Redis AutoConfig 수정 |
-| Phase 9 | ⬜ 대기 | Phase 5 UiCommandKafkaSubscriber 구현 전 선행 확인 권장 |
+| Phase 9 | ✅ 완료 | KafkaUiTaskReplyEventType 신규 생성, UiCommandIngressService EQP_*_REP 적용 |
 | Phase 10 | ⬜ 대기 | |
