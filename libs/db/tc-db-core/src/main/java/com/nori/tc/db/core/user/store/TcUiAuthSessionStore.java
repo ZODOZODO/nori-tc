@@ -1,5 +1,6 @@
 package com.nori.tc.db.core.user.store;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -65,4 +66,33 @@ public interface TcUiAuthSessionStore {
      * @param token DB Core 계층 처리에 사용하는 입력 값
      */
     void deleteByToken(String token);
+
+    /**
+     * 유효한 세션을 토큰으로 조회합니다.
+     *
+     * <p>유효 조건: token 일치 + revoked=false + expiresAt > 현재 시각</p>
+     *
+     * @param token 세션 토큰
+     * @return 유효한 세션, 없으면 빈 Optional
+     */
+    Optional<TcUiAuthSession> findValidByToken(String token);
+
+    /**
+     * 세션을 폐기합니다 (revoked = true).
+     *
+     * <p>SELECT 없이 UPDATE 단일 쿼리로 처리합니다.</p>
+     *
+     * @param token 폐기할 세션 토큰
+     */
+    void revokeByToken(String token);
+
+    /**
+     * 마지막 접근 시각을 업데이트합니다.
+     *
+     * <p>SELECT 없이 UPDATE 단일 쿼리로 처리합니다.</p>
+     *
+     * @param token      갱신할 세션 토큰
+     * @param lastSeenAt 기록할 최근 접근 시각
+     */
+    void updateLastSeenAt(String token, OffsetDateTime lastSeenAt);
 }

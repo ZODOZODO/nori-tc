@@ -1,5 +1,6 @@
 package com.nori.tc.db.jpa.common.store.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -153,6 +154,24 @@ public class TcUserGroupPermissionJpaStore implements TcUserGroupPermissionStore
     }
 
     
+    /**
+     * group_id 목록 기준 전체 조회 (IN 절, 페이징 없음).
+     *
+     * <p>여러 그룹의 권한을 한 번에 조회할 때 사용한다.</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcUserGroupPermission> findAllByGroupIdIn(Collection<Long> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            return repository.findByGroupIdIn(groupIds).stream().map(mapper::toDomain).toList();
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_user_group_permission] findAllByGroupIdIn failed", e);
+        }
+    }
+
     /**
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *

@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-01 (Phase 0, 1, 2 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 4 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -116,49 +116,86 @@ Port 인터페이스, UseCase, DualResponseRegistry.
 
 ---
 
-## Phase 3: tc-ui-db-adapter
+## Phase 3: tc-ui-db-adapter ✅
 
-기존 Entity 활용 (신규 Entity 없음).
+**설계 원칙**: JPA 기술에 직접 의존하지 않고 `tc-db-core` Store 추상화를 통해 DB에 접근합니다.
+gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
-### Repository
-- [ ] `TcUserInfoRepository` — findByUserIdNorm(String)
-- [ ] `TcUiAuthSessionRepository` — findValidByToken(token, now, revoked=false)
-- [ ] `TcUserGroupMemberRepository` — findGroupIdsByUserPk(Long): List<Long>
-- [ ] `TcUserGroupPermissionRepository` — findPermIdsByGroupIdIn(List<Long>): List<Long>
-- [ ] `TcUiPermissionRepository` — findByPermIdInAndIsActive(List<Long>, true)
-- [ ] `TcEqpRepository` — findRoutePartitionByEqpId(String): Optional<Integer> (U13)
+> **Phase 3 구조 교정 이력 (2026-03-01)**
+> 초기 구현 시 JPA Repository / Entity / Mapper를 어댑터 내부에서 직접 참조하는
+> 잘못된 구조로 작성되었습니다. `tc-db-core` Store 추상화 계층을 거치도록 교정하였습니다.
+>
+> - `repository/` 폴더 전체 삭제 (UiAuth/UserGroupMember/UserGroupPermission/UiPermission Repository)
+> - JPA 직접 의존성 제거: `implementation(tc-db-jpa-common-schema)`, `compileOnly(spring-boot-starter-data-jpa)`
+> - 필요한 Store 메서드를 `tc-db-core` 인터페이스에 추가하고 `tc-db-jpa-common-schema`에 구현 추가
+
+### tc-db-core Store 인터페이스 메서드 추가
+- [x] `TcUiAuthSessionStore` — findValidByToken(token), revokeByToken(token), updateLastSeenAt(token, lastSeenAt)
+- [x] `TcUserGroupMemberStore` — findAllByUserPk(userPk) (페이징 없음 overload)
+- [x] `TcUserGroupPermissionStore` — findAllByGroupIdIn(Collection<Long> groupIds)
+- [x] `TcUiPermissionStore` — findAllActiveByPermIdIn(Collection<Long> permIds)
+
+### tc-db-jpa-common-schema JPA 구현 추가
+- [x] `TcUiAuthSessionJpaRepository` — findByTokenAndRevokedFalseAndExpiresAtAfter, revokeByToken(@Modifying), updateLastSeenAt(@Modifying)
+- [x] `TcUserGroupPermissionJpaRepository` — findByGroupIdIn(Collection<Long>)
+- [x] `TcUiAuthSessionJpaStore` — findValidByToken, revokeByToken, updateLastSeenAt 구현
+- [x] `TcUserGroupMemberJpaStore` — findAllByUserPk (no-page) 구현 (Criteria API)
+- [x] `TcUserGroupPermissionJpaStore` — findAllByGroupIdIn 구현
+- [x] `TcUiPermissionJpaStore` — findAllActiveByPermIdIn 구현 (Criteria API, IN + isActive=true)
 
 ### Port 구현체
-- [ ] `JpaUserPort` — UserPort 구현
-- [ ] `JpaSessionPort` — SessionPort 구현 (lastSeenAt @Async 업데이트 포함)
-- [ ] `JpaPermissionPort` — PermissionPort 구현
-- [ ] `UiEqpRoutePartitionDbAdapter` — UiGatewayEqpRoutePartitionLookupPort 구현 (U13)
-  - BusinessEqpRoutePartitionDbAdapter와 동일 패턴 적용
-  - 조회 실패/route_partition null/음수 → Optional.empty()
+- [x] `JpaUserPort` — UserPort 구현 (TcUserInfoStore 사용)
+- [x] `JpaSessionPort` — SessionPort 구현 (TcUiAuthSessionStore 사용)
+- [x] `JpaPermissionPort` — PermissionPort 구현 (TcUserGroupMemberStore → TcUserGroupPermissionStore → TcUiPermissionStore 3단계)
+- [x] `UiEqpRoutePartitionDbAdapter` — UiGatewayEqpRoutePartitionLookupPort 구현 (U13)
+  - BusinessEqpRoutePartitionDbAdapter와 동일 패턴 적용 (TcEqpStore 활용)
+  - 조회 실패/route_partition null → Optional.empty()
+
+### build.gradle.kts
+- [x] `implementation(project(":libs:db:tc-db-core"))` — Store/Domain 인터페이스 계약
+- [x] JPA 직접 의존성 없음 (`tc-db-jpa-common-schema`, `spring-boot-starter-data-jpa` 미포함)
+
+### 빌드 확인
+- [x] `./gradlew :libs:ui:adapter:tc-ui-db-adapter:build` → BUILD SUCCESSFUL
+- [x] `./gradlew :apps:tc-ui-backend-app:build` → BUILD SUCCESSFUL
 
 ---
 
-## Phase 4: tc-ui-redis-adapter
+## Phase 4: tc-ui-redis-adapter ✅
 
 2개 Redis 인스턴스 동시 접속.
 
 ### 설정
-- [ ] `UiRedisProperties` — @ConfigurationProperties: gateway(host/port/password) + business(host/port/password)
-- [ ] `UiRedisConfiguration` — @Bean("gatewayRedisTemplate"), @Bean("businessRedisTemplate")
+- [x] `UiRedisProperties` — @ConfigurationProperties: gateway(host/port/password) + business(host/port/password)
+- [x] `UiRedisConfiguration` — @Bean("gatewayRedisTemplate"), @Bean("businessRedisTemplate")
   - 각각 직접 LettuceConnectionFactory 생성 (spring.data.redis.* 미사용)
+  - @Bean("gatewayLettuceConnectionFactory"), @Bean("businessLettuceConnectionFactory") — destroyMethod="destroy" 수명 주기 관리
 
 ### Service
-- [ ] `GatewayDlqRedisService` (gatewayRedisTemplate)
-  - `tc:comm:gateway:dlq:*` → RedisDlqEntry 읽기/삭제
+- [x] `GatewayDlqRedisService` (gatewayRedisTemplate)
+  - `tc:comm:gateway:dlq:*` → RedisDlqEntry 읽기/삭제 (SCAN 커서 방식)
   - `tc:comm:gateway:quarantine:*` → RedisQuarantineEntry 읽기
-- [ ] `BusinessDlqRedisService` (businessRedisTemplate)
-  - `tc:business:core:dlq:*` → RedisBusinessDlqEntry 읽기/삭제
-- [ ] `UiSessionCacheService` (businessRedisTemplate)
+- [x] `BusinessDlqRedisService` (businessRedisTemplate)
+  - `tc:business:core:dlq:*` → RedisBusinessDlqEntry 읽기/삭제 (SCAN 커서 방식)
+- [x] `UiSessionCacheService` (businessRedisTemplate)
   - Key: `tc:ui:backend:session:{token}`, TTL: 설정값(기본 300초)
   - TokenCachePort 구현
-- [ ] `AsyncResultStoreService` (businessRedisTemplate)
+  - RedisUiSessionEntry (Serializable 래퍼) 통해 UserPrincipal 저장
+- [x] `AsyncResultStoreService` (businessRedisTemplate)
   - Key: `tc:ui:backend:async:{traceId}`, TTL: 설정값(기본 600초)
   - AsyncResultStorePort 구현
+  - RedisUiAsyncResultEntry (Serializable 래퍼) 통해 KafkaUiTaskReplyMessage 저장
+  - UiAsyncProperties(@ConfigurationProperties "tc.ui.backend.async") 통해 TTL 바인딩
+
+### 설계 참고 사항
+- DLQ 역직렬화를 위해 `tc-comm-gateway-redis-adapter`, `tc-business-redis-adapter` 의존성 추가
+  (JDK 직렬화 특성상 원본 클래스가 런타임 classpath에 필요)
+- UserPrincipal, KafkaUiTaskReplyMessage는 record 타입(비직렬화)이므로
+  RedisUiSessionEntry, RedisUiAsyncResultEntry Serializable 래퍼 클래스로 변환 저장
+
+### 빌드 확인
+- [x] `./gradlew :libs:ui:adapter:tc-ui-redis-adapter:compileJava` → BUILD SUCCESSFUL
+- [x] `./gradlew :apps:tc-ui-backend-app:build` → BUILD SUCCESSFUL
 
 ---
 
@@ -294,11 +331,11 @@ Port 인터페이스, UseCase, DualResponseRegistry.
 
 | Phase | 상태 | 비고 |
 |-------|------|------|
-| Phase 0 | ⬜ 대기 | |
-| Phase 1 | ⬜ 대기 | |
-| Phase 2 | ⬜ 대기 | |
-| Phase 3 | ⬜ 대기 | |
-| Phase 4 | ⬜ 대기 | |
+| Phase 0 | ✅ 완료 | |
+| Phase 1 | ✅ 완료 | |
+| Phase 2 | ✅ 완료 | |
+| Phase 3 | ✅ 완료 | Store 추상화 구조 교정 완료 |
+| Phase 4 | ✅ 완료 | DLQ/Quarantine 조회, 토큰 캐시, 비동기 결과 저장 |
 | Phase 5 | ⬜ 대기 | |
 | Phase 6 | ⬜ 대기 | |
 | Phase 7 | ⬜ 대기 | |

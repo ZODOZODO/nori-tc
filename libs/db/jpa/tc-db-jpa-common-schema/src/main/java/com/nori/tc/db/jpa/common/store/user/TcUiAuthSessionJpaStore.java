@@ -177,6 +177,58 @@ public class TcUiAuthSessionJpaStore implements TcUiAuthSessionStore {
         }
     }
 
+    /**
+     * 유효한 세션을 토큰으로 조회합니다 (revoked=false + expiresAt > 현재 시각).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TcUiAuthSession> findValidByToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be null/blank");
+        }
+        try {
+            return repository.findByTokenAndRevokedFalseAndExpiresAtAfter(token, OffsetDateTime.now())
+                    .map(mapper::toDomain);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_ui_auth_session] findValidByToken failed: token=" + token, e);
+        }
+    }
+
+    /**
+     * 세션을 폐기합니다 (revoked = true). SELECT 없이 UPDATE 단일 쿼리를 실행합니다.
+     */
+    @Override
+    @Transactional
+    public void revokeByToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be null/blank");
+        }
+        try {
+            repository.revokeByToken(token);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_ui_auth_session] revokeByToken failed: token=" + token, e);
+        }
+    }
+
+    /**
+     * 마지막 접근 시각을 업데이트합니다. SELECT 없이 UPDATE 단일 쿼리를 실행합니다.
+     */
+    @Override
+    @Transactional
+    public void updateLastSeenAt(String token, OffsetDateTime lastSeenAt) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be null/blank");
+        }
+        if (lastSeenAt == null) {
+            throw new IllegalArgumentException("lastSeenAt must not be null");
+        }
+        try {
+            repository.updateLastSeenAt(token, lastSeenAt);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_ui_auth_session] updateLastSeenAt failed: token=" + token, e);
+        }
+    }
+
     
     /**
      * DB JPA 계층 입력/설정 유효성을 검증합니다.

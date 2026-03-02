@@ -1,5 +1,6 @@
 package com.nori.tc.db.core.user.store;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,6 +52,18 @@ public interface TcUiPermissionStore {
      * 목록 조회 + 페이징.
      */
     List<TcUiPermission> findAll(PageRequest page);
+
+    /**
+     * perm_id 목록 기준 활성 권한 전체 조회 (IN 절 + isActive=true, 페이징 없음).
+     *
+     * <p>
+     * 권한 조회 시 permId 목록으로 활성 권한 코드를 한 번에 조회할 때 사용한다.
+     * </p>
+     *
+     * @param permIds 조회할 perm_id 컬렉션
+     * @return isActive=true인 권한 목록
+     */
+    List<TcUiPermission> findAllActiveByPermIdIn(Collection<Long> permIds);
 
     /**
      * 삭제.

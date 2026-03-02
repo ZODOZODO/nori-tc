@@ -1,5 +1,6 @@
 package com.nori.tc.db.core.user.store;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +36,18 @@ public interface TcUserGroupPermissionStore {
      * group_id 기준 목록 조회 (offset/limit 페이징 적용)
      */
     List<TcUserGroupPermission> findAllByGroupId(long groupId, PageRequest page);
+
+    /**
+     * group_id 목록 기준 전체 조회 (IN 절, 페이징 없음).
+     *
+     * <p>
+     * 권한 조회처럼 여러 그룹의 권한을 한 번에 조회할 때 사용한다.
+     * </p>
+     *
+     * @param groupIds 조회할 group_id 컬렉션
+     * @return 해당 그룹들의 권한 목록
+     */
+    List<TcUserGroupPermission> findAllByGroupIdIn(Collection<Long> groupIds);
 
     /**
      * (group_id, perm_id) 단건 삭제

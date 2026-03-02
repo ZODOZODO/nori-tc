@@ -1,5 +1,6 @@
 package com.nori.tc.db.jpa.common.store.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -7,6 +8,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -165,6 +167,33 @@ public class TcUiPermissionJpaStore implements TcUiPermissionStore {
     }
 
     
+    /**
+     * perm_id 목록 기준 활성 권한 전체 조회 (IN 절 + isActive=true, 페이징 없음).
+     *
+     * <p>권한 조회 시 permId 목록으로 활성 권한 코드를 한 번에 조회할 때 사용한다.</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcUiPermission> findAllActiveByPermIdIn(Collection<Long> permIds) {
+        if (permIds == null || permIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<TcUiPermissionEntity> cq = cb.createQuery(TcUiPermissionEntity.class);
+            Root<TcUiPermissionEntity> root = cq.from(TcUiPermissionEntity.class);
+
+            Predicate inPermIds = root.get("permId").in(permIds);
+            Predicate isActive = cb.isTrue(root.get("isActive"));
+            cq.select(root).where(cb.and(inPermIds, isActive));
+            cq.orderBy(cb.asc(root.get("permId")));
+
+            return em.createQuery(cq).getResultList().stream().map(mapper::toDomain).toList();
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_ui_permission] findAllActiveByPermIdIn failed", e);
+        }
+    }
+
     /**
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *

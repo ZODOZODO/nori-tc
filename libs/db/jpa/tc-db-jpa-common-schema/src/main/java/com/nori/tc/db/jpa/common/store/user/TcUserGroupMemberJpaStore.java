@@ -208,6 +208,30 @@ public class TcUserGroupMemberJpaStore implements TcUserGroupMemberStore {
 
     
     /**
+     * user_pk 기준 전체 목록 조회 (페이징 없음).
+     *
+     * <p>권한 조회처럼 결과 크기가 작고 전체를 한 번에 필요로 하는 경우에 사용한다.</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcUserGroupMember> findAllByUserPk(long userPk) {
+        validateUserPk(userPk);
+
+        try {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<TcUserGroupMemberEntity> cq = cb.createQuery(TcUserGroupMemberEntity.class);
+            Root<TcUserGroupMemberEntity> root = cq.from(TcUserGroupMemberEntity.class);
+
+            cq.select(root).where(cb.equal(root.get("userPk"), userPk));
+            cq.orderBy(cb.asc(root.get("groupId")), cb.asc(root.get("ugmKey")));
+
+            return em.createQuery(cq).getResultList().stream().map(mapper::toDomain).toList();
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_user_group_member] findAllByUserPk (no-page) failed", e);
+        }
+    }
+
+    /**
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>

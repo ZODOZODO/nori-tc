@@ -1,5 +1,6 @@
 package com.nori.tc.db.jpa.common.repository.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,4 +38,12 @@ public interface TcUserGroupPermissionJpaRepository extends JpaRepository<TcUser
      * @return 조회/처리 결과 목록
      */
     List<TcUserGroupPermissionEntity> findByGroupId(Long groupId);
+
+    /**
+     * group_id 목록 기준 전체 조회 (IN 절).
+     *
+     * @param groupIds 조회할 group_id 컬렉션
+     * @return 해당 그룹들의 권한 엔티티 목록
+     */
+    List<TcUserGroupPermissionEntity> findByGroupIdIn(Collection<Long> groupIds);
 }

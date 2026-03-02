@@ -34,12 +34,31 @@ java {
 dependencies {
     /*
      * Redis 어댑터는 코어 Port를 구현합니다.
+     * - TokenCachePort, AsyncResultStorePort 구현체가 위치합니다.
+     * - UiAuthProperties(tokenCacheTtlSeconds) 도 이 모듈을 통해 사용합니다.
      */
     api(project(":libs:ui:tc-ui-core"))
 
     /*
+     * Gateway Redis DLQ 엔트리 역직렬화 의존성.
+     * - GatewayDlqRedisService가 tc:comm:gateway:dlq:* 키에 저장된
+     *   RedisDlqEntry, RedisQuarantineEntry 를 JDK 역직렬화로 읽어야 합니다.
+     * - JDK Serialization 특성상 직렬화 시 사용한 원본 클래스가 런타임 classpath에
+     *   있어야 ClassNotFoundException 없이 역직렬화됩니다.
+     */
+    implementation(project(":libs:comm:adapter:tc-comm-gateway-redis-adapter"))
+
+    /*
+     * Business Redis DLQ 엔트리 역직렬화 의존성.
+     * - BusinessDlqRedisService가 tc:business:core:dlq:* 키에 저장된
+     *   RedisBusinessDlqEntry 를 JDK 역직렬화로 읽어야 합니다.
+     */
+    implementation(project(":libs:business:adapter:tc-business-redis-adapter"))
+
+    /*
      * Spring Data Redis: RedisTemplate, LettuceConnectionFactory, RedisSerializer 등
      * - spring.data.redis.* 자동설정은 비활성화하고, 직접 빈을 구성합니다.
+     * - gatewayRedisTemplate, businessRedisTemplate 두 개를 독립 생성합니다.
      */
     implementation(libs.spring.boot.starter.data.redis)
     implementation(libs.jackson.databind)

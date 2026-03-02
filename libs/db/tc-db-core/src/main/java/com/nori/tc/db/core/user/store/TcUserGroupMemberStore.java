@@ -51,6 +51,15 @@ public interface TcUserGroupMemberStore {
     List<TcUserGroupMember> findAllByUserPk(long userPk, PageRequest page);
 
     /**
+     * user_pk 기준 전체 목록 조회 (페이징 없음).
+     *
+     * <p>
+     * 권한 조회처럼 결과 크기가 작고 전체를 한 번에 필요로 하는 경우에 사용한다.
+     * </p>
+     */
+    List<TcUserGroupMember> findAllByUserPk(long userPk);
+
+    /**
      * group_id 기준 목록 조회.
      *
      * <p>
