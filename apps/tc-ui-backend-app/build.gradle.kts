@@ -65,12 +65,6 @@ dependencies {
     testImplementation(libs.spring.boot.starter.security.test)
 
     /*
-     * Web MVC 테스트 의존성입니다.
-     * - MockMvc 기반 컨트롤러 테스트 환경을 제공합니다.
-     */
-    testImplementation(libs.spring.boot.starter.webmvc.test)
-
-    /*
      * Spring Boot 통합 테스트 의존성입니다.
      * - JUnit 5, Mockito 등 기본 테스트 환경을 제공합니다.
      */

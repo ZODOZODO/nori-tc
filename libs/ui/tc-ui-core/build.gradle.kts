@@ -57,6 +57,12 @@ dependencies {
     api(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
 
     /*
+     * Kafka source 상수(TcKafkaSources.UI_BACKEND 등)를 web-adapter에서 사용합니다.
+     * api로 선언하여 web-adapter가 별도 의존성 없이 메시지 도메인 상수를 참조할 수 있도록 노출합니다.
+     */
+    api(project(":libs:messaging:tc-messaging-domain"))
+
+    /*
      * Spring 생명주기/설정 바인딩 컴파일 의존성
      * - @Component, @Service 등 어노테이션은 컴파일 시에만 필요합니다.
      */

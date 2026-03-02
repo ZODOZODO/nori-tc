@@ -2,6 +2,7 @@ package com.nori.tc.ui.adapters.redis.dlq;
 
 import com.nori.tc.comm.adapters.redis.dlq.RedisDlqEntry;
 import com.nori.tc.comm.adapters.redis.quarantine.RedisQuarantineEntry;
+import com.nori.tc.ui.core.port.redis.GatewayDlqPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,7 +36,7 @@ import java.util.Objects;
  * 런타임 classpath에 있어야 합니다.</p>
  */
 @Service
-public class GatewayDlqRedisService {
+public class GatewayDlqRedisService implements GatewayDlqPort {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayDlqRedisService.class);
 

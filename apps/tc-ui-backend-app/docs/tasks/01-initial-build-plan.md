@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 5 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 6 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -233,39 +233,50 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ---
 
-## Phase 6: tc-ui-web-adapter
+## Phase 6: tc-ui-web-adapter ✅
 
 ### Spring Security
-- [ ] `UiTokenAuthenticationFilter` (OncePerRequestFilter)
+- [x] `UiTokenAuthenticationFilter` (OncePerRequestFilter)
   - Authorization: Bearer {token} 추출
   - TokenCachePort (Redis) → hit: 캐시 UserPrincipal 사용
   - miss: SessionPort (DB) → 유효 세션 확인 → PermissionPort → UserPrincipal 구성 → 캐시 저장
   - lastSeenAt @Async 업데이트
   - SecurityContextHolder 등록
-- [ ] `UiSecurityConfig` (SecurityFilterChain)
+- [x] `UiSecurityConfig` (SecurityFilterChain)
   - 공개 경로: POST /auth/login, GET /actuator/health
   - CSRF 비활성화, session stateless
   - UiTokenAuthenticationFilter 등록
   - URL 인가: TcUiPermissionEntity.matchType=PREFIX, httpMethod null이면 전체 허용
+- [x] `UiApiPermissionCache` — DB 기반 API 권한 캐시 (UiPermissionPort → permCode+URI 매핑)
 
 ### REST 컨트롤러
-- [ ] `AuthController`
+- [x] `AuthController`
   - POST /auth/login — LoginUseCase 호출, AuthToken 반환
   - POST /auth/logout — LogoutUseCase 호출
   - GET /auth/me — 현재 UserPrincipal 반환
-- [ ] `EqpController`
+- [x] `EqpController`
   - POST /api/eqp — eqp_create, DualResponse DeferredResult
   - PUT /api/eqp/{id} — eqp_update, DualResponse DeferredResult
   - DELETE /api/eqp/{id} — eqp_delete, DualResponse DeferredResult
   - POST /api/eqp/{id}/start — eqp_start, 202 즉시 반환 + traceId
   - POST /api/eqp/{id}/end — eqp_end, 202 즉시 반환 + traceId
-- [ ] `AsyncResultController`
+- [x] `AsyncResultController`
   - GET /api/async/{traceId} — AsyncResultStorePort.get() → 결과 있으면 200, 없으면 404
-- [ ] `DlqController`
+- [x] `DlqController`
   - GET /api/dlq/gateway — GatewayDlqRedisService 목록
   - DELETE /api/dlq/gateway/{dlqId} — GatewayDlqRedisService 삭제
   - GET /api/dlq/business — BusinessDlqRedisService 목록
   - DELETE /api/dlq/business/{dlqId} — BusinessDlqRedisService 삭제
+
+### 빌드 수정 이력 (2026-03-02)
+- `gradle/libs.versions.toml`에서 `spring-boot-starter-webmvc-test` 항목 제거 (존재하지 않는 artifact + Kotlin DSL naming conflict)
+- `tc-ui-web-adapter/build.gradle.kts` 재작성: 멀티라인 주석 제거, `java {}` 블록 제거, `jackson.databind` 추가
+- `tc-ui-core/build.gradle.kts`에 `api(project(":libs:messaging:tc-messaging-domain"))` 추가 (TcKafkaSources 전이 노출)
+- `ApiResponse.error()` 반환 타입 `ApiResponse<Void>` → `ApiResponse<T>` 제네릭으로 수정
+
+### 빌드 확인
+- [x] `./gradlew :libs:ui:adapter:tc-ui-web-adapter:compileJava` → BUILD SUCCESSFUL
+- [x] `./gradlew :apps:tc-ui-backend-app:build` → BUILD SUCCESSFUL
 
 ---
 
@@ -339,7 +350,7 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 | Phase 3 | ✅ 완료 | Store 추상화 구조 교정 완료 |
 | Phase 4 | ✅ 완료 | DLQ/Quarantine 조회, 토큰 캐시, 비동기 결과 저장 |
 | Phase 5 | ✅ 완료 | UiKafkaTopicProperties, UiKafkaConfiguration, Publisher 2종, Subscriber 1종 |
-| Phase 6 | ⬜ 대기 | |
+| Phase 6 | ✅ 완료 | Spring Security 필터/설정, REST 컨트롤러 4종, ApiResponse 제네릭 수정 |
 | Phase 7 | ⬜ 대기 | |
 | Phase 8 | ⬜ 대기 | |
 | Phase 9 | ⬜ 대기 | Phase 5 UiCommandKafkaSubscriber 구현 전 선행 확인 권장 |
