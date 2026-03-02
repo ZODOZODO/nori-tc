@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.DeferredResult;
 
@@ -71,6 +72,7 @@ import java.util.concurrent.TimeoutException;
  */
 @RestController
 @RequestMapping("/api/eqp")
+@EnableConfigurationProperties(UiDualRequestProperties.class)
 public class EqpController {
 
     private static final Logger log = LoggerFactory.getLogger(EqpController.class);

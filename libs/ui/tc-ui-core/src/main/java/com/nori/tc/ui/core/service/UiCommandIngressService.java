@@ -68,7 +68,8 @@ public class UiCommandIngressService implements UiCommandIngressPort {
         final String traceId   = reply.metadata().traceId();
         final String source    = reply.metadata().source();
 
-        log.debug("tc.ui.commands 수신. eventType={}, traceId={}, source={}", eventType, traceId, source);
+        // 수신 로그는 UiCommandKafkaSubscriber(INFO 레벨)에서 이미 출력됩니다.
+        // 서비스 계층에서는 라우팅 실패(default 분기) 시에만 WARN을 기록합니다.
 
         switch (eventType) {
             case EVENT_EQP_CREATE, EVENT_EQP_UPDATE, EVENT_EQP_DELETE ->

@@ -6,6 +6,7 @@ import com.nori.tc.ui.domain.auth.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ import java.util.Optional;
  * {@link RedisUiSessionEntry} 래퍼 클래스를 통해 JDK 직렬화로 저장합니다.</p>
  */
 @Service
+@EnableConfigurationProperties(UiAuthProperties.class)
 public class UiSessionCacheService implements TokenCachePort {
 
     private static final Logger log = LoggerFactory.getLogger(UiSessionCacheService.class);

@@ -7,6 +7,22 @@
     # - gateway/business는 web-application-type: none이지만 UI backend는 HTTP 서버 필요
     web-application-type: servlet
 
+  autoconfigure:
+    exclude:
+      # UI Backend는 UiRedisConfiguration이 생성하는 gatewayLettuceConnectionFactory /
+      # businessLettuceConnectionFactory 2개의 전용 연결을 사용합니다.
+      # 아래 AutoConfiguration들은 단일 RedisConnectionFactory를 전제하므로
+      # 2개의 factory가 있으면 NoUniqueBeanDefinitionException이 발생합니다.
+      - com.nori.tc.db.starter.redis.TcDbRedisAutoConfiguration
+      # Spring Boot의 Reactive Redis AutoConfiguration 제외 (UI Backend는 Servlet 전용)
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
+      # Spring Boot의 기본 Redis AutoConfiguration 제외
+      # (redisTemplate, redisConnectionFactory는 UiRedisConfiguration이 전담 생성)
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      # Spring Data Redis Repositories AutoConfiguration 제외
+      # (redisReferenceResolver 빈이 redisTemplate을 요구하므로 비활성)
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+
   # 외부 설정 파일을 우선적으로 로딩합니다.
   # - optional 접두사: 파일 없어도 기동을 중단하지 않음
   # - file:config/... 경로는 실행 작업 디렉터리 기준

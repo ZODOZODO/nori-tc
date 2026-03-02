@@ -53,6 +53,15 @@ dependencies {
     implementation(project(":libs:log:starter:tc-log-starter"))
 
     /*
+     * UI Backend 핵심 스타터입니다.
+     * - tc-ui-domain/core + 어댑터 4종(web/kafka/db/redis)을 한 번에 조립합니다.
+     * - TcUiBackendAutoConfiguration이 @ComponentScan("com.nori.tc.ui")로
+     *   UI Backend 전체 빈을 Spring 컨텍스트에 자동 등록합니다.
+     * - Kafka Boot auto-configuration(KafkaTemplate 등)은 starter 내부에서 포함합니다.
+     */
+    implementation(project(":libs:ui:starter:tc-ui-backend-starter"))
+
+    /*
      * DB 스타터 의존성입니다.
      * - 초기 정책( DB only )에 따라 PostgreSQL + JPA 조합을 기본값으로 사용합니다.
      */

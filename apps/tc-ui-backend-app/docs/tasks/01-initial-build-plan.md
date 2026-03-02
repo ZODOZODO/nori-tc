@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 7 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 8 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -301,17 +301,31 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ---
 
-## Phase 8: 통합 확인 및 config 완성
+## Phase 8: 통합 확인 및 config 완성 ✅
 
 ### config 실제 값 작성
-- [ ] `config/tc-ui-backend.properties` — Kafka 토픽, timeout, TTL, prefix 실제 값 설정
-- [ ] `config/tc-messaging.properties` — Kafka broker 주소 설정
-- [ ] `config/tc-redis.properties` — gateway(6379), business(6380) 실제 host/password 설정
-- [ ] `config/tc-db.properties` — DB 접속 정보 설정
+- [x] `config/tc-ui-backend.properties` — Kafka 토픽, timeout, TTL, prefix 실제 값 설정
+- [x] `config/tc-messaging.properties` — Kafka broker 주소 설정
+- [x] `config/tc-redis.properties` — gateway(6379), business(6380) 실제 host/password 설정
+- [x] `config/tc-db.properties` — DB 접속 정보 설정 (신규 생성, ddl-auto=none)
 
 ### 빌드 및 기동 확인
-- [ ] `./gradlew :apps:tc-ui-backend-app:bootRun` 기동 성공 (HTTP 포트 정상 오픈)
-- [ ] `./gradlew build` 전체 빌드 오류 없음
+- [x] `./gradlew :apps:tc-ui-backend-app:bootRun` 기동 성공 (HTTP 포트 정상 오픈)
+- [x] `./gradlew build` 전체 빌드 오류 없음
+
+### Phase 8 수정 이력 (2026-03-02)
+- `config/tc-db.properties` 신규 생성 (PostgreSQL, ddl-auto=validate → ddl-auto=none으로 교정)
+- `apps/tc-ui-backend-app/build.gradle.kts`에 `tc-ui-backend-starter` 의존성 추가 (누락으로 AutoConfiguration 미활성)
+- `UiSessionCacheService`에 `@EnableConfigurationProperties(UiAuthProperties.class)` 추가 (빈 미등록 수정)
+- `TcUiBackendAutoConfiguration`에 `uiObjectMapper()` @Bean 추가 (Spring Boot 4.x Jackson 3.x 기본 사용으로 Jackson 2.x ObjectMapper 빈 미생성 문제 해결)
+- `tc-ui-backend-starter/build.gradle.kts`에 `compileOnly(libs.jackson.databind)` 추가 (uiObjectMapper 컴파일 의존성)
+- `tc-ui-web-adapter`에 `BcryptPasswordVerifier` 신규 생성 (`PasswordVerifierPort` 구현체 누락)
+- `EqpController`에 `@EnableConfigurationProperties(UiDualRequestProperties.class)` 추가
+- `application.yaml`에 불필요한 Redis AutoConfiguration 3종 제외:
+  - `TcDbRedisAutoConfiguration` (단일 ConnectionFactory 전제)
+  - `DataRedisReactiveAutoConfiguration` (Servlet 전용 앱)
+  - `DataRedisAutoConfiguration` (이중 ConnectionFactory 충돌)
+  - `DataRedisRepositoriesAutoConfiguration` (redisTemplate 의존 제거)
 
 ---
 
@@ -360,6 +374,6 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 | Phase 5 | ✅ 완료 | UiKafkaTopicProperties, UiKafkaConfiguration, Publisher 2종, Subscriber 1종 |
 | Phase 6 | ✅ 완료 | Spring Security 필터/설정, REST 컨트롤러 4종, ApiResponse 제네릭 수정 |
 | Phase 7 | ✅ 완료 | TcUiBackendAutoConfiguration, AutoConfiguration.imports |
-| Phase 8 | ⬜ 대기 | |
+| Phase 8 | ✅ 완료 | config 완성, bootRun/build 성공, Jackson/Redis AutoConfig 수정 |
 | Phase 9 | ⬜ 대기 | Phase 5 UiCommandKafkaSubscriber 구현 전 선행 확인 권장 |
 | Phase 10 | ⬜ 대기 | |
