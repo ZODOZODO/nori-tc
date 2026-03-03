@@ -1,5 +1,6 @@
 package com.nori.tc.business.adapters.redis.dlq;
 
+import com.nori.tc.db.domain.redis.dlq.RedisBusinessDlqEntry;
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
 import com.nori.tc.business.domain.dlq.BusinessDlqMessage;
 import com.nori.tc.db.starter.redis.TcRedisCrudRepository;
@@ -11,12 +12,17 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * Redis 기반 Business DLQ 발행기입니다.
+ * Business Redis(6380) 기반 DLQ 발행기입니다.
+ *
+ * <p>직렬화 포맷({@link RedisBusinessDlqEntry})은 {@code tc-db-domain}에 위치하여
+ * {@code tc-ui-redis-adapter}가 동일 클래스를 사용해 역직렬화할 수 있습니다.</p>
  *
  * <p>저장 규칙:</p>
- * <p>- Redis Key: {@code tc:business:core:dlq:{dlqId}}</p>
- * <p>- Value: {@link RedisBusinessDlqEntry}</p>
- * <p>- TTL: {@code tc.business.core.redis.dlq-ttl-seconds}</p>
+ * <ul>
+ *   <li>Redis Key: {@code tc:business:core:dlq:{dlqId}}</li>
+ *   <li>Value: {@link RedisBusinessDlqEntry} (JDK 직렬화)</li>
+ *   <li>TTL: {@code tc.business.core.redis.dlq-ttl-seconds}</li>
+ * </ul>
  */
 @Component
 public class RedisBusinessDlqPublisher implements BusinessDlqPublisherPort {

@@ -1,5 +1,6 @@
 package com.nori.tc.comm.adapters.redis.quarantine;
 
+import com.nori.tc.db.domain.redis.quarantine.RedisQuarantineEntry;
 import com.nori.tc.comm.gateway.config.props.GatewayRedisProperties;
 import com.nori.tc.comm.core.eqp.EquipmentId;
 import com.nori.tc.comm.core.port.QuarantinePort;
@@ -13,10 +14,15 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Redis-based quarantine store.
+ * Redis 기반 설비 격리(Quarantine) 저장소입니다.
  *
- * Keeps quarantine state in Redis to protect downstream systems
- * from repeated failing equipment traffic.
+ * <p>반복적으로 장애가 발생하는 설비의 트래픽으로부터 다운스트림 시스템을 보호하기 위해
+ * 설비를 격리 상태로 관리합니다.</p>
+ *
+ * <p>직렬화 포맷({@link RedisQuarantineEntry})은 {@code tc-db-domain}에 위치하여
+ * {@code tc-ui-redis-adapter}가 동일 클래스를 사용해 역직렬화할 수 있습니다.</p>
+ *
+ * <p>저장 키 패턴: {@code tc:comm:gateway:quarantine:{equipmentId}}</p>
  */
 @Component
 public class RedisQuarantineStore implements QuarantinePort {

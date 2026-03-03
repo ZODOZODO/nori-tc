@@ -1,7 +1,7 @@
 package com.nori.tc.ui.adapters.redis.dlq;
 
-import com.nori.tc.comm.adapters.redis.dlq.RedisDlqEntry;
-import com.nori.tc.comm.adapters.redis.quarantine.RedisQuarantineEntry;
+import com.nori.tc.db.domain.redis.dlq.RedisDlqEntry;
+import com.nori.tc.db.domain.redis.quarantine.RedisQuarantineEntry;
 import com.nori.tc.ui.core.port.redis.GatewayDlqPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,9 +31,9 @@ import java.util.Objects;
  * </ul>
  *
  * <p>역직렬화:</p>
- * <p>기존 항목은 {@link java.io.Serializable} 기반 JDK 직렬화로 저장되어 있습니다.
- * 역직렬화 시 원본 클래스({@link RedisDlqEntry}, {@link RedisQuarantineEntry})가
- * 런타임 classpath에 있어야 합니다.</p>
+ * <p>항목은 {@link java.io.Serializable} 기반 JDK 직렬화로 저장되어 있습니다.
+ * {@link RedisDlqEntry}, {@link RedisQuarantineEntry}는 {@code tc-db-domain}에 위치하여
+ * Gateway 어댑터(쓰기)와 UI 어댑터(읽기)가 동일 클래스를 공유합니다.</p>
  */
 @Service
 public class GatewayDlqRedisService implements GatewayDlqPort {

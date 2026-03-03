@@ -1,5 +1,6 @@
 package com.nori.tc.comm.adapters.redis.dlq;
 
+import com.nori.tc.db.domain.redis.dlq.RedisDlqEntry;
 import com.nori.tc.comm.gateway.config.props.GatewayRedisProperties;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
@@ -14,11 +15,16 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * Redis 기반 DLQ 발행기.
+ * Gateway Redis(6379) 기반 DLQ 발행기입니다.
  *
- * 설계 의도
- * - DLQ 키 규칙과 보관 기간(TTL)을 게이트웨이 앱 정책으로 제어합니다.
- * - 공통 Redis 스타터를 그대로 쓰되, DLQ 저장 포맷은 앱 계층에서 명시적으로 관리합니다.
+ * <p>설계 의도:</p>
+ * <ul>
+ *   <li>DLQ 키 규칙과 보관 기간(TTL)을 게이트웨이 앱 정책으로 제어합니다.</li>
+ *   <li>직렬화 포맷({@link RedisDlqEntry})은 {@code tc-db-domain}에 위치하여
+ *       {@code tc-ui-redis-adapter}가 동일 클래스를 사용해 역직렬화할 수 있습니다.</li>
+ * </ul>
+ *
+ * <p>저장 키 패턴: {@code tc:comm:gateway:dlq:{dlqId}}</p>
  */
 @Component
 public class RedisDlqPublisher implements DlqPublisherPort {

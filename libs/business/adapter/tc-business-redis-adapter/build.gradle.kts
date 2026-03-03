@@ -24,6 +24,13 @@ dependencies {
     implementation(project(":libs:common:tc-common-task-execution"))
 
     /*
+     * Business DLQ 엔트리 직렬화 계약입니다.
+     * - RedisBusinessDlqEntry 클래스가 tc-db-domain에 위치합니다.
+     * - tc-ui-redis-adapter가 동일 클래스를 역직렬화할 수 있도록 공유 도메인에서 참조합니다.
+     */
+    implementation(project(":libs:db:tc-db-domain"))
+
+    /*
      * Redis 공통 CRUD 레이어를 제공합니다.
      */
     implementation(project(":libs:db:starter:tc-db-redis-starter"))

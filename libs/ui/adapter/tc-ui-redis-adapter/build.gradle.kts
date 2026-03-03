@@ -40,20 +40,15 @@ dependencies {
     api(project(":libs:ui:tc-ui-core"))
 
     /*
-     * Gateway Redis DLQ 엔트리 역직렬화 의존성.
-     * - GatewayDlqRedisService가 tc:comm:gateway:dlq:* 키에 저장된
-     *   RedisDlqEntry, RedisQuarantineEntry 를 JDK 역직렬화로 읽어야 합니다.
-     * - JDK Serialization 특성상 직렬화 시 사용한 원본 클래스가 런타임 classpath에
-     *   있어야 ClassNotFoundException 없이 역직렬화됩니다.
+     * Redis DLQ/Quarantine 엔트리 역직렬화 계약입니다.
+     * - RedisDlqEntry, RedisQuarantineEntry, RedisBusinessDlqEntry 클래스가
+     *   tc-db-domain의 redis 하위 패키지에 위치합니다.
+     * - JDK 직렬화 특성상 쓰기(Gateway/Business 어댑터)와 읽기(UI 어댑터) 측 모두
+     *   동일 패키지·클래스명을 참조해야 ClassNotFoundException 없이 역직렬화됩니다.
+     * - 이 단일 의존성으로 tc-comm-gateway-redis-adapter, tc-business-redis-adapter 에 대한
+     *   크로스 도메인 어댑터 결합이 완전히 제거됩니다.
      */
-    implementation(project(":libs:comm:adapter:tc-comm-gateway-redis-adapter"))
-
-    /*
-     * Business Redis DLQ 엔트리 역직렬화 의존성.
-     * - BusinessDlqRedisService가 tc:business:core:dlq:* 키에 저장된
-     *   RedisBusinessDlqEntry 를 JDK 역직렬화로 읽어야 합니다.
-     */
-    implementation(project(":libs:business:adapter:tc-business-redis-adapter"))
+    implementation(project(":libs:db:tc-db-domain"))
 
     /*
      * Spring Data Redis: RedisTemplate, LettuceConnectionFactory, RedisSerializer 등
