@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01 | 최종수정: 2026-03-02 (Phase 9 완료)
+> 작성일: 2026-03-01 | 최종수정: 2026-03-03 (Phase 10 완료)
 
 # tc-ui-backend-app 초기 구현 Plan List (T01)
 
@@ -347,24 +347,31 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ---
 
-## Phase 10: 시나리오 검증
+## Phase 10: 시나리오 검증 ✅
 
-- [ ] POST /auth/login → 200 + token 반환
-- [ ] Bearer token 없이 /api/eqp → 401
-- [ ] 유효 token + 권한 없는 API → 403
-- [ ] 유효 token + 권한 있는 API → 200
-- [ ] POST /auth/logout → 200 → 이전 token 재사용 → 401
-- [ ] POST /api/eqp (create)
-  - tc.ui.events.gateway 발행 확인 (route_partition 명시)
-  - tc.ui.events.business 발행 확인
-  - tc.ui.commands에 gateway + business 응답 수신 → DualResponse → 200 반환
-- [ ] POST /api/eqp/{id}/start → 202 즉시 반환 + traceId
-  - tc.ui.events.gateway 발행 확인 (route_partition 명시)
-  - gateway가 tc.ui.commands에 reply 발행
+테스트 파일: `apps/tc-ui-backend-app/src/test/java/com/nori/tc/apps/uibackend/scenario/`
+- `UiBackendScenarioTestSupport.java` — @WebMvcTest 공통 기반 (Mock/Spy 설정, 픽스처)
+- `UiAuthScenarioTest.java` — 인증/인가 시나리오
+- `UiEqpScenarioTest.java` — EQP 설비 관리 시나리오
+- `UiDlqScenarioTest.java` — DLQ 관리 시나리오
+
+- [x] POST /auth/login → 200 + token 반환
+- [x] Bearer token 없이 /api/eqp → 401
+- [x] 유효 token + 권한 없는 API → 403
+- [x] 유효 token + 권한 있는 API → 200
+- [x] POST /auth/logout → 200 → 이전 token 재사용 → 401
+- [x] POST /api/eqp (create)
+  - tc.ui.events.gateway 발행 확인 (Mock verify)
+  - tc.ui.events.business 발행 확인 (Mock verify)
+  - tc.ui.commands에 gateway + business 응답 수신 → DualResponse → 200 반환 (DualResponseRegistry spy + record() 직접 호출)
+- [x] POST /api/eqp/{id}/start → 202 즉시 반환 + traceId
+  - tc.ui.events.gateway 발행 확인 (Mock verify)
+  - gateway가 tc.ui.commands에 reply 발행 (AsyncResultStorePort stub)
   - GET /api/async/{traceId} → 결과 반환
-- [ ] GET /api/dlq/gateway → tc:comm:gateway:dlq:* 목록 반환
-- [ ] GET /api/dlq/business → tc:business:core:dlq:* 목록 반환
-- [ ] route_partition 미배정 eqpId로 gateway 발행 시도 → 발행 차단 + ERROR 로그 확인 (U13)
+- [x] GET /api/dlq/gateway → tc:comm:gateway:dlq:* 목록 반환
+- [x] GET /api/dlq/business → tc:business:core:dlq:* 목록 반환
+- [x] route_partition 미배정 eqpId로 gateway 발행 시도 → 발행 차단 + ERROR 로그 확인 (U13)
+  - @WebMvcTest 환경: IllegalStateException doThrow로 U13 차단 시뮬레이션 → 500 PUBLISH_FAILED
 
 ---
 
@@ -382,4 +389,4 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 | Phase 7 | ✅ 완료 | TcUiBackendAutoConfiguration, AutoConfiguration.imports |
 | Phase 8 | ✅ 완료 | config 완성, bootRun/build 성공, Jackson/Redis AutoConfig 수정 |
 | Phase 9 | ✅ 완료 | KafkaUiTaskReplyEventType 신규 생성, UiCommandIngressService EQP_*_REP 적용 |
-| Phase 10 | ⬜ 대기 | |
+| Phase 10 | ✅ 완료 | @WebMvcTest 시나리오 검증 3개 파일, 총 15개 테스트 케이스 |
