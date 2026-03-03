@@ -77,6 +77,26 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
+     * DeferredResult 비동기 디스패치에서도 토큰 인증 필터를 실행합니다.
+     *
+     * <p>Spring MVC의 {@code DeferredResult} 완료 시, 서블릿 컨테이너는
+     * 응답 전송을 위해 요청을 재디스패치(ASYNC dispatch)합니다.
+     * {@link org.springframework.web.filter.OncePerRequestFilter}의 기본 동작은
+     * ASYNC 디스패치에서 필터를 건너뛰므로({@code shouldNotFilterAsyncDispatch() = true}),
+     * SecurityContext가 비어 있어 Spring Security가 401을 반환하게 됩니다.</p>
+     *
+     * <p>{@code false}를 반환하여 ASYNC 디스패치 시에도 이 필터가 실행되도록 합니다.
+     * 재실행 시 Authorization 헤더에서 토큰을 재검증하고 SecurityContext를 복원합니다.
+     * 토큰 검증은 Redis 캐시 히트로 처리되므로 성능 영향이 최소화됩니다.</p>
+     *
+     * @return false — ASYNC 디스패치에서도 이 필터를 실행함
+     */
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
+    /**
      * 요청당 1회 실행되는 인증 처리 메서드입니다.
      *
      * @param request     HTTP 요청

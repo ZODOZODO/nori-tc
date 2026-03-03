@@ -110,6 +110,17 @@
         </if>
     </select>
 
+    <select id="findAllActiveByPermIdIn" resultMap="TcUiPermissionMap">
+        SELECT <include refid="TcUiPermissionColumns"/>
+          FROM tc_ui_permission
+         WHERE is_active = true
+           AND perm_id IN
+               <foreach collection="permIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+         ORDER BY perm_id ASC
+    </select>
+
     <delete id="deleteByPermId">
         DELETE FROM tc_ui_permission WHERE perm_id = #{permId}
     </delete>

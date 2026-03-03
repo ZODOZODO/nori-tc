@@ -55,6 +55,16 @@
          LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <select id="findAllByGroupIdIn" resultMap="TcUserGroupPermissionMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_user_group_permission
+         WHERE group_id IN
+               <foreach collection="groupIds" item="id" open="(" separator="," close=")">
+                   #{id}
+               </foreach>
+         ORDER BY group_id ASC, perm_id ASC
+    </select>
+
     <delete id="deleteByGroupIdPermId">
         DELETE FROM tc_user_group_permission
          WHERE group_id = #{groupId}

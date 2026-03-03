@@ -69,4 +69,24 @@
          WHERE token = #{token}
     </delete>
 
+    <select id="findValidByToken" resultMap="TcUiAuthSessionMap">
+        SELECT <include refid="Columns"/>
+          FROM tc_ui_auth_session
+         WHERE token = #{token}
+           AND revoked = false
+           AND expires_at > CURRENT_TIMESTAMP
+    </select>
+
+    <update id="revokeByToken">
+        UPDATE tc_ui_auth_session
+           SET revoked = true
+         WHERE token = #{token}
+    </update>
+
+    <update id="updateLastSeenAt">
+        UPDATE tc_ui_auth_session
+           SET last_seen_at = #{lastSeenAt, typeHandler=com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler}
+         WHERE token = #{token}
+    </update>
+
 </mapper>

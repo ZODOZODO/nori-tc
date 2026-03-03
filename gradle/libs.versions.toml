@@ -117,6 +117,11 @@ spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-
 # - @WithMockUser 등 Security 테스트 유틸리티 제공
 spring-boot-starter-security-test = { module = "org.springframework.boot:spring-boot-starter-security-test" }
 
+# ✅ Web MVC Test
+# - Spring Boot 4.x에서 @WebMvcTest가 spring-boot-webmvc-test 모듈로 분리됨
+# - 기존 spring-boot-test-autoconfigure의 web.servlet 패키지가 이 모듈로 이동
+spring-boot-starter-webmvc-test = { module = "org.springframework.boot:spring-boot-starter-webmvc-test" }
+
 
 ################################################################################
 # Kafka (New)

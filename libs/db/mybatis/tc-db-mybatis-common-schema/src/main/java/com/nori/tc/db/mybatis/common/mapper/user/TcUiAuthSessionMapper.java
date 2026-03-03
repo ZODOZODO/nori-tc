@@ -1,5 +1,6 @@
 package com.nori.tc.db.mybatis.common.mapper.user;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -73,4 +74,27 @@ public interface TcUiAuthSessionMapper {
      * @return DB MyBatis 계층 처리 결과
      */
     int deleteByToken(@Param("token") String token);
+
+    /**
+     * 유효한 세션을 토큰으로 조회합니다 (revoked=false AND expires_at > NOW()).
+     *
+     * @param token 세션 토큰
+     * @return 유효한 세션, 없으면 빈 Optional
+     */
+    Optional<TcUiAuthSession> findValidByToken(@Param("token") String token);
+
+    /**
+     * 세션을 폐기합니다 (revoked = true).
+     *
+     * @param token 폐기할 세션 토큰
+     */
+    void revokeByToken(@Param("token") String token);
+
+    /**
+     * 마지막 접근 시각을 업데이트합니다.
+     *
+     * @param token      갱신할 세션 토큰
+     * @param lastSeenAt 기록할 최근 접근 시각
+     */
+    void updateLastSeenAt(@Param("token") String token, @Param("lastSeenAt") OffsetDateTime lastSeenAt);
 }

@@ -1,5 +1,6 @@
 package com.nori.tc.db.mybatis.common.mapper.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -73,6 +74,14 @@ public interface TcUiPermissionMapper {
     );
 
     
+    /**
+     * perm_id 목록 기준 활성 권한 전체 조회 (IN 절 + is_active=true, 페이징 없음).
+     *
+     * @param permIds 조회할 perm_id 컬렉션
+     * @return is_active=true인 권한 목록
+     */
+    List<TcUiPermission> findAllActiveByPermIdIn(@Param("permIds") Collection<Long> permIds);
+
     /**
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *

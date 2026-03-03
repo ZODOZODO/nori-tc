@@ -1,5 +1,6 @@
 package com.nori.tc.db.mybatis.common.mapper.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,6 +60,14 @@ public interface TcUserGroupPermissionMapper {
     List<TcUserGroupPermission> findAllByGroupId(@Param("groupId") long groupId, @Param("offset") int offset, @Param("limit") int limit);
 
     
+    /**
+     * group_id 목록 기준 전체 조회 (IN 절, 페이징 없음).
+     *
+     * @param groupIds 조회할 group_id 컬렉션
+     * @return 해당 그룹들의 권한 목록
+     */
+    List<TcUserGroupPermission> findAllByGroupIdIn(@Param("groupIds") Collection<Long> groupIds);
+
     /**
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *

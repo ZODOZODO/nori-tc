@@ -165,6 +165,73 @@ public class TcUiAuthSessionMybatisStore implements TcUiAuthSessionStore {
 
     
     /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>유효 조건: revoked=false AND expires_at > 현재 시각</p>
+     * @param token 세션 토큰
+     * @return 유효한 세션, 없으면 빈 Optional
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TcUiAuthSession> findValidByToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be null/blank");
+        }
+        try {
+            return mapper.findValidByToken(token);
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_ui_auth_session findValidByToken failed. token=" + token, e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_ui_auth_session findValidByToken failed (unexpected). token=" + token, e);
+        }
+    }
+
+    /**
+     * 세션을 폐기합니다 (revoked = true).
+     *
+     * @param token 폐기할 세션 토큰
+     */
+    @Override
+    @Transactional
+    public void revokeByToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be null/blank");
+        }
+        try {
+            mapper.revokeByToken(token);
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_ui_auth_session revokeByToken failed. token=" + token, e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_ui_auth_session revokeByToken failed (unexpected). token=" + token, e);
+        }
+    }
+
+    /**
+     * 마지막 접근 시각을 업데이트합니다.
+     *
+     * @param token      갱신할 세션 토큰
+     * @param lastSeenAt 기록할 최근 접근 시각
+     */
+    @Override
+    @Transactional
+    public void updateLastSeenAt(String token, OffsetDateTime lastSeenAt) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be null/blank");
+        }
+        if (lastSeenAt == null) {
+            throw new IllegalArgumentException("lastSeenAt must not be null");
+        }
+        try {
+            mapper.updateLastSeenAt(token, lastSeenAt);
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_ui_auth_session updateLastSeenAt failed. token=" + token, e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_ui_auth_session updateLastSeenAt failed (unexpected). token=" + token, e);
+        }
+    }
+
+
+    /**
      * DB MyBatis 계층 입력/설정 유효성을 검증합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>

@@ -168,6 +168,30 @@ public class TcUserGroupMemberMybatisStore implements TcUserGroupMemberStore {
 
     
     /**
+     * user_pk 기준 전체 목록 조회 (페이징 없음).
+     *
+     * <p>mapper.findAllByUserPk에 limit=0을 전달하면 XML의 {@code <if test="limit > 0">}
+     * 조건에 의해 LIMIT 절이 생략되어 전체 결과를 반환합니다.</p>
+     *
+     * @param userPk 조회할 사용자 PK
+     * @return 해당 사용자의 그룹 멤버 전체 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcUserGroupMember> findAllByUserPk(long userPk) {
+        validateUserPk(userPk);
+        try {
+            // limit=0: XML <if test="limit > 0"> 미충족 → LIMIT 절 없이 전체 조회
+            return mapper.findAllByUserPk(userPk, 0, 0);
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_user_group_member findAllByUserPk(all) failed. userPk=" + userPk, e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_user_group_member findAllByUserPk(all) failed (unexpected). userPk=" + userPk, e);
+        }
+    }
+
+
+    /**
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>

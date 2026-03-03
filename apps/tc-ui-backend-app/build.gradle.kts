@@ -74,6 +74,23 @@ dependencies {
     testImplementation(libs.spring.boot.starter.security.test)
 
     /*
+     * Spring Boot 4.x Web MVC 테스트 의존성입니다.
+     * - Spring Boot 4.x에서 @WebMvcTest가 spring-boot-webmvc-test 모듈로 분리되었습니다.
+     * - 기존 org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest가
+     *   org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest로 이동되었습니다.
+     */
+    testImplementation(libs.spring.boot.starter.webmvc.test)
+
+    /*
+     * Jackson 2.x 테스트 컴파일 의존성입니다.
+     * - UiTokenAuthenticationFilter가 com.fasterxml.jackson.databind.ObjectMapper를
+     *   생성자 주입으로 요구하므로, 테스트 컨텍스트에서 해당 빈을 제공하기 위해 필요합니다.
+     * - 런타임에는 tc-ui-web-adapter의 implementation 의존성으로 자동 제공되지만,
+     *   테스트 컴파일 시에는 명시적으로 선언해야 합니다.
+     */
+    testImplementation(libs.jackson.databind)
+
+    /*
      * Spring Boot 통합 테스트 의존성입니다.
      * - JUnit 5, Mockito 등 기본 테스트 환경을 제공합니다.
      */

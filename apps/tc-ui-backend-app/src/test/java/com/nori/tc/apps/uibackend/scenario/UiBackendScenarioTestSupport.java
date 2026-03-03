@@ -32,11 +32,14 @@ import com.nori.tc.ui.core.service.UiCommandIngressService;
 import com.nori.tc.ui.core.usecase.LoginUseCase;
 import com.nori.tc.ui.core.usecase.LogoutUseCase;
 import com.nori.tc.ui.core.usecase.ValidateTokenUseCase;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -77,6 +80,13 @@ import static org.mockito.Mockito.lenient;
         AsyncResultController.class
 })
 @Import({
+        // Controllers: @WebMvcTest는 @SpringBootApplication 기준 패키지(com.nori.tc.apps.uibackend)만
+        // 스캔하므로, com.nori.tc.ui.adapters.web.controller 패키지의 컨트롤러들은
+        // @Import로 명시해야 Spring MVC 컨텍스트에 등록됩니다.
+        AuthController.class,
+        EqpController.class,
+        DlqController.class,
+        AsyncResultController.class,
         UiSecurityConfig.class,
         UiTokenAuthenticationFilter.class,
         UiApiPermissionCache.class,
@@ -84,7 +94,8 @@ import static org.mockito.Mockito.lenient;
         ValidateTokenUseCase.class,
         LogoutUseCase.class,
         DualResponseRegistry.class,
-        UiCommandIngressService.class
+        UiCommandIngressService.class,
+        UiBackendScenarioTestSupport.TestJacksonConfig.class
 })
 @EnableConfigurationProperties({
         UiAuthProperties.class,
@@ -99,6 +110,26 @@ import static org.mockito.Mockito.lenient;
         "tc.ui.backend.async.dual-request-timeout-ms=5000"
 })
 abstract class UiBackendScenarioTestSupport {
+
+    // ─────────────────────────────────────────────────────────
+    // 테스트 전용 Jackson 2.x ObjectMapper 빈 제공 설정
+    // ─────────────────────────────────────────────────────────
+
+    /**
+     * 테스트 컨텍스트에 Jackson 2.x ObjectMapper 빈을 명시적으로 제공합니다.
+     *
+     * <p>Spring Boot 4.x는 Jackson 3.x({@code tools.jackson.databind.ObjectMapper})를 기본으로
+     * 사용하므로 {@code com.fasterxml.jackson.databind.ObjectMapper} 빈이 자동 등록되지 않습니다.
+     * {@link UiTokenAuthenticationFilter}가 Jackson 2.x ObjectMapper를 생성자 주입으로 요구하므로
+     * 테스트 컨텍스트에 명시적으로 제공합니다.</p>
+     */
+    @Configuration
+    static class TestJacksonConfig {
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+    }
 
     // ─────────────────────────────────────────────────────────
     // 테스트 픽스처 상수

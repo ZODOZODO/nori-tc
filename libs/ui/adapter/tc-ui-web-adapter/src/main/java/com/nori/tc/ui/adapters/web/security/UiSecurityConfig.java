@@ -1,6 +1,7 @@
 package com.nori.tc.ui.adapters.web.security;
 
 import com.nori.tc.ui.domain.auth.UserPrincipal;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,7 +35,7 @@ import java.util.Objects;
  *
  * <p>URL 인가 로직 ({@link UiApiPermissionCache#isAuthorized}):</p>
  * <ul>
- *   <li>인증되지 않은 요청 → 403 (Spring Security 기본 동작, 실질적 401 발생)</li>
+ *   <li>인증되지 않은 요청 → 401 (AuthenticationEntryPoint: HttpServletResponse.SC_UNAUTHORIZED)</li>
  *   <li>인증된 요청 + URI에 매칭 API 권한 없음 → 허용 (open by default for authenticated)</li>
  *   <li>인증된 요청 + URI에 매칭 API 권한 있음 → 사용자가 해당 permCode 보유 시 허용</li>
  * </ul>
@@ -82,7 +83,16 @@ public class UiSecurityConfig {
                 )
 
                 // UiTokenAuthenticationFilter를 UsernamePasswordAuthenticationFilter 앞에 등록
-                .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // 미인증(Anonymous) 요청 거부 시 401 반환
+                // 기본 AuthenticationEntryPoint(Http403ForbiddenEntryPoint)는 403을 반환하므로
+                // REST API 표준에 맞게 401로 명시적으로 설정합니다.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")
+                        )
+                );
 
         log.info("UiSecurityConfig 초기화 완료. CSRF=비활성, 세션=STATELESS");
         return http.build();

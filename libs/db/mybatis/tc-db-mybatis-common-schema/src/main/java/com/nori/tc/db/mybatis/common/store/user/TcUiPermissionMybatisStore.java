@@ -1,5 +1,6 @@
 package com.nori.tc.db.mybatis.common.store.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -140,6 +141,27 @@ public class TcUiPermissionMybatisStore implements TcUiPermissionStore {
     }
 
     
+    /**
+     * perm_id 목록 기준 활성 권한 전체 조회 (IN 절 + is_active=true, 페이징 없음).
+     *
+     * @param permIds 조회할 perm_id 컬렉션
+     * @return is_active=true인 권한 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcUiPermission> findAllActiveByPermIdIn(Collection<Long> permIds) {
+        if (permIds == null || permIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            return mapper.findAllActiveByPermIdIn(permIds);
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_ui_permission findAllActiveByPermIdIn failed.", e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_ui_permission findAllActiveByPermIdIn failed (unexpected).", e);
+        }
+    }
+
     /**
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *
