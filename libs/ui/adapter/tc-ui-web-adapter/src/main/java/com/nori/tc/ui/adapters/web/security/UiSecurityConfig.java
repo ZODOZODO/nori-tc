@@ -1,7 +1,6 @@
 package com.nori.tc.ui.adapters.web.security;
 
 import com.nori.tc.ui.domain.auth.UserPrincipal;
-import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -53,6 +52,7 @@ public class UiSecurityConfig {
      * @param http              HttpSecurity 빌더
      * @param tokenFilter       Bearer 토큰 인증 필터
      * @param permissionCache   DB 기반 API 권한 캐시
+     * @param authenticationEntryPoint 인증 실패(401) 응답 포맷 통일 엔트리포인트
      * @return 설정된 SecurityFilterChain
      * @throws Exception 설정 오류 시
      */
@@ -60,10 +60,12 @@ public class UiSecurityConfig {
     public SecurityFilterChain securityFilterChain(
             final HttpSecurity http,
             final UiTokenAuthenticationFilter tokenFilter,
-            final UiApiPermissionCache permissionCache
+            final UiApiPermissionCache permissionCache,
+            final UiAuthenticationEntryPoint authenticationEntryPoint
     ) throws Exception {
         Objects.requireNonNull(tokenFilter, "tokenFilter is null");
         Objects.requireNonNull(permissionCache, "permissionCache is null");
+        Objects.requireNonNull(authenticationEntryPoint, "authenticationEntryPoint is null");
 
         http
                 // CSRF 비활성화: REST API + stateless 세션 구조에서는 CSRF 불필요
@@ -89,9 +91,7 @@ public class UiSecurityConfig {
                 // 기본 AuthenticationEntryPoint(Http403ForbiddenEntryPoint)는 403을 반환하므로
                 // REST API 표준에 맞게 401로 명시적으로 설정합니다.
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) ->
-                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")
-                        )
+                        .authenticationEntryPoint(authenticationEntryPoint)
                 );
 
         log.info("UiSecurityConfig 초기화 완료. CSRF=비활성, 세션=STATELESS");

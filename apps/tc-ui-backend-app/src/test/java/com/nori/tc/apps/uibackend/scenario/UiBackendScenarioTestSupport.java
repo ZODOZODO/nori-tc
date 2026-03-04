@@ -12,6 +12,7 @@ import com.nori.tc.ui.adapters.web.controller.AuthController;
 import com.nori.tc.ui.adapters.web.controller.DlqController;
 import com.nori.tc.ui.adapters.web.controller.EqpController;
 import com.nori.tc.ui.adapters.web.security.UiApiPermissionCache;
+import com.nori.tc.ui.adapters.web.security.UiAuthenticationEntryPoint;
 import com.nori.tc.ui.adapters.web.security.UiSecurityConfig;
 import com.nori.tc.ui.adapters.web.security.UiTokenAuthenticationFilter;
 import com.nori.tc.ui.core.port.db.PasswordVerifierPort;
@@ -89,6 +90,7 @@ import static org.mockito.Mockito.lenient;
         DlqController.class,
         AsyncResultController.class,
         UiSecurityConfig.class,
+        UiAuthenticationEntryPoint.class,
         UiTokenAuthenticationFilter.class,
         UiApiPermissionCache.class,
         LoginUseCase.class,

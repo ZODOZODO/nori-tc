@@ -8,8 +8,13 @@
  * 주요 구성 (Phase 7에서 구현)
  *   - TcUiBackendAutoConfiguration
  *     @AutoConfiguration
- *     @ComponentScan("com.nori.tc.ui")
- *     @Import({ UiWebConfiguration, UiKafkaConfiguration, UiRedisConfiguration })
+ *     @ComponentScan("com.nori.tc.ui.core")
+ *     @Import({
+ *         UiWebAdapterAutoConfiguration,
+ *         UiKafkaAdapterAutoConfiguration,
+ *         UiRedisAdapterAutoConfiguration,
+ *         UiDbAdapterAutoConfiguration
+ *     })
  *   - resources/META-INF/spring/
  *       org.springframework.boot.autoconfigure.AutoConfiguration.imports 등록
  *

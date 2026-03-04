@@ -262,10 +262,10 @@ public class GatewayUiCommandKafkaPublisher implements KafkaTaskReplyPublisher<K
         sb.append('{');
         appendJsonStringField(sb, "eqpId", data == null ? null : data.eqpId(), false);
         appendJsonStringField(sb, "interfaceType", data == null ? null : data.interfaceType(), true);
-        appendJsonStringField(sb, "status", data == null ? null : data.STATUS(), true);
-        appendJsonStringField(sb, "errorCode", data == null ? null : data.ERRORCODE(), true);
+        appendJsonStringField(sb, "status", data == null ? null : data.status(), true);
+        appendJsonStringField(sb, "errorCode", data == null ? null : data.errorCode(), true);
         appendJsonStringField(sb, "errorMessagePreview",
-                previewForLog(data == null ? null : data.ERRORMSG(), 160), true);
+                previewForLog(data == null ? null : data.errorMsg(), 160), true);
         sb.append('}');
         return sb.toString();
     }

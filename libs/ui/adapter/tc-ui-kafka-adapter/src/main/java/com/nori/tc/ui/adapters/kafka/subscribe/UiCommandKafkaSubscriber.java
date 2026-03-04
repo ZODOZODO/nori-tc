@@ -2,6 +2,8 @@ package com.nori.tc.ui.adapters.kafka.subscribe;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 import com.nori.tc.ui.adapters.kafka.config.UiKafkaPublishProperties;
 import com.nori.tc.ui.adapters.kafka.config.UiKafkaTopicProperties;
@@ -14,10 +16,13 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+import org.springframework.lang.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -39,12 +44,15 @@ public class UiCommandKafkaSubscriber {
     private static final Logger log = LoggerFactory.getLogger(UiCommandKafkaSubscriber.class);
     private static final String DLT_ERROR_HEADER = "x-dlt-error";
     private static final String DLT_CLASS_HEADER = "x-dlt-error-class";
+    private static final String TRACE_ID_MDC_KEY = "traceId";
 
     private final UiCommandIngressPort ingressPort;
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final UiKafkaTopicProperties topicProperties;
     private final UiKafkaPublishProperties publishProperties;
+    private final MeterRegistry meterRegistry;
+    private final Counter parseErrorCounter;
 
     /**
      * 필수 의존성을 주입받습니다.
@@ -62,11 +70,40 @@ public class UiCommandKafkaSubscriber {
             final UiKafkaTopicProperties topicProperties,
             final UiKafkaPublishProperties publishProperties
     ) {
+        this(ingressPort, objectMapper, kafkaTemplate, topicProperties, publishProperties, null);
+    }
+
+    /**
+     * Micrometer 메트릭까지 포함한 생성자입니다.
+     *
+     * <p>운영 애플리케이션에서는 Spring이 {@link MeterRegistry}를 주입하고,
+     * 순수 단위 테스트에서는 null로 전달해 메트릭 로직만 비활성화할 수 있습니다.</p>
+     *
+     * @param ingressPort tc.ui.commands 수신 처리 포트
+     * @param objectMapper JSON 역직렬화용 ObjectMapper
+     * @param kafkaTemplate DLT 전송용 KafkaTemplate
+     * @param topicProperties Kafka 토픽 설정
+     * @param publishProperties 발행 타임아웃 설정
+     * @param meterRegistry Micrometer 레지스트리 (없으면 null)
+     */
+    @Autowired
+    public UiCommandKafkaSubscriber(
+            final UiCommandIngressPort ingressPort,
+            final ObjectMapper objectMapper,
+            final KafkaTemplate<String, Object> kafkaTemplate,
+            final UiKafkaTopicProperties topicProperties,
+            final UiKafkaPublishProperties publishProperties,
+            @Nullable final MeterRegistry meterRegistry
+    ) {
         this.ingressPort = Objects.requireNonNull(ingressPort, "ingressPort is null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");
         this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate is null");
         this.topicProperties = Objects.requireNonNull(topicProperties, "topicProperties is null");
         this.publishProperties = Objects.requireNonNull(publishProperties, "publishProperties is null");
+        this.meterRegistry = meterRegistry;
+        this.parseErrorCounter = meterRegistry == null
+                ? null
+                : meterRegistry.counter("kafka.command.parse_error");
     }
 
     /**
@@ -95,6 +132,7 @@ public class UiCommandKafkaSubscriber {
                     objectMapper.readValue(record.value(), KafkaUiTaskReplyMessage.class);
             commandReply = toCommandReply(rawReply);
         } catch (JsonProcessingException ex) {
+            incrementParseErrorCounter();
             log.warn(
                     "tc.ui.commands 메시지 JSON 파싱 실패 - DLT 전송 후 skip. topic={}, partition={}, offset={}, key={}, error={}",
                     topic, partition, offset, key, ex.getOriginalMessage()
@@ -110,39 +148,43 @@ public class UiCommandKafkaSubscriber {
             throw ex;
         }
 
-        log.info(
-                "tc.ui.commands 수신. topic={}, partition={}, offset={}, eqpId={}, traceId={}, eventType={}, source={}",
-                topic, partition, offset, key, commandReply.traceId(), commandReply.eventType(), commandReply.source()
-        );
+        try (MdcTraceScope ignored = openTraceMdcScope(commandReply.traceId())) {
+            incrementReceivedCounter(commandReply.eventType());
 
-        try {
-            ingressPort.handle(commandReply);
-        } catch (Exception ex) {
-            if (isInfrastructureException(ex)) {
+            log.info(
+                    "tc.ui.commands 수신. topic={}, partition={}, offset={}, eqpId={}, traceId={}, eventType={}, source={}",
+                    topic, partition, offset, key, commandReply.traceId(), commandReply.eventType(), commandReply.source()
+            );
+
+            try {
+                ingressPort.handle(commandReply);
+            } catch (Exception ex) {
+                if (isInfrastructureException(ex)) {
+                    log.error(
+                            "tc.ui.commands 처리 중 인프라 오류 - 재시도 위임. topic={}, partition={}, offset={}, traceId={}, eventType={}",
+                            topic, partition, offset, commandReply.traceId(), commandReply.eventType(), ex
+                    );
+                    if (ex instanceof RuntimeException runtimeEx) {
+                        throw runtimeEx;
+                    }
+                    throw new IllegalStateException("tc.ui.commands 인프라 처리 오류", ex);
+                }
+
                 log.error(
-                        "tc.ui.commands 처리 중 인프라 오류 - 재시도 위임. topic={}, partition={}, offset={}, traceId={}, eventType={}",
+                        "tc.ui.commands 비즈니스 처리 실패 - ACK 후 skip. topic={}, partition={}, offset={}, traceId={}, eventType={}",
                         topic, partition, offset, commandReply.traceId(), commandReply.eventType(), ex
                 );
-                if (ex instanceof RuntimeException runtimeEx) {
-                    throw runtimeEx;
-                }
-                throw new IllegalStateException("tc.ui.commands 인프라 처리 오류", ex);
+                ack.acknowledge();
+                return;
             }
 
-            log.error(
-                    "tc.ui.commands 비즈니스 처리 실패 - ACK 후 skip. topic={}, partition={}, offset={}, traceId={}, eventType={}",
-                    topic, partition, offset, commandReply.traceId(), commandReply.eventType(), ex
-            );
             ack.acknowledge();
-            return;
-        }
-
-        ack.acknowledge();
-        if (log.isDebugEnabled()) {
-            log.debug(
-                    "tc.ui.commands 처리 완료 - offset 커밋. topic={}, partition={}, offset={}, traceId={}, eventType={}",
-                    topic, partition, offset, commandReply.traceId(), commandReply.eventType()
-            );
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "tc.ui.commands 처리 완료 - offset 커밋. topic={}, partition={}, offset={}, traceId={}, eventType={}",
+                        topic, partition, offset, commandReply.traceId(), commandReply.eventType()
+                );
+            }
         }
     }
 
@@ -156,7 +198,7 @@ public class UiCommandKafkaSubscriber {
         final UiTaskStatus status = parseStatusOrFail(
                 reply.metadata().traceId(),
                 reply.metadata().eventType(),
-                reply.data().STATUS()
+                reply.data().status()
         );
         return new UiCommandReply(
                 reply.metadata().traceId(),
@@ -165,8 +207,8 @@ public class UiCommandKafkaSubscriber {
                 reply.data().eqpId(),
                 reply.data().interfaceType(),
                 status,
-                reply.data().ERRORCODE(),
-                reply.data().ERRORMSG()
+                reply.data().errorCode(),
+                reply.data().errorMsg()
         );
     }
 
@@ -278,5 +320,72 @@ public class UiCommandKafkaSubscriber {
      */
     private static String safeText(final String value) {
         return (value == null || value.isBlank()) ? "N/A" : value.trim();
+    }
+
+    /**
+     * `kafka.command.received` 메트릭을 eventType 태그와 함께 증가시킵니다.
+     *
+     * @param eventType 수신 이벤트 타입
+     */
+    private void incrementReceivedCounter(final String eventType) {
+        if (meterRegistry == null) {
+            return;
+        }
+        meterRegistry.counter("kafka.command.received", "eventType", safeTag(eventType)).increment();
+    }
+
+    /**
+     * `kafka.command.parse_error` 메트릭을 증가시킵니다.
+     */
+    private void incrementParseErrorCounter() {
+        if (parseErrorCounter == null) {
+            return;
+        }
+        parseErrorCounter.increment();
+    }
+
+    /**
+     * Micrometer 태그 값으로 안전하게 사용할 문자열을 정규화합니다.
+     *
+     * @param raw 원본 문자열
+     * @return 공백/NULL을 치환한 태그 문자열
+     */
+    private static String safeTag(final String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "unknown";
+        }
+        return raw.trim();
+    }
+
+    /**
+     * Kafka 소비 처리 중 traceId MDC를 주입/복구하는 스코프입니다.
+     *
+     * @param traceId Kafka 메시지 traceId
+     * @return try-with-resources용 스코프
+     */
+    private static MdcTraceScope openTraceMdcScope(final String traceId) {
+        final String previousTraceId = MDC.get(TRACE_ID_MDC_KEY);
+        if (traceId == null || traceId.isBlank()) {
+            MDC.remove(TRACE_ID_MDC_KEY);
+        } else {
+            MDC.put(TRACE_ID_MDC_KEY, traceId);
+        }
+        return new MdcTraceScope(previousTraceId);
+    }
+
+    /**
+     * MDC traceId 복구를 담당하는 AutoCloseable 스코프입니다.
+     *
+     * @param previousTraceId 스코프 진입 전 traceId
+     */
+    private record MdcTraceScope(String previousTraceId) implements AutoCloseable {
+        @Override
+        public void close() {
+            if (previousTraceId == null || previousTraceId.isBlank()) {
+                MDC.remove(TRACE_ID_MDC_KEY);
+                return;
+            }
+            MDC.put(TRACE_ID_MDC_KEY, previousTraceId);
+        }
     }
 }

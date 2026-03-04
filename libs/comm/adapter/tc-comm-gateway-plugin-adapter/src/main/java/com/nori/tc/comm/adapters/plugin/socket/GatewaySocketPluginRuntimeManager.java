@@ -98,20 +98,23 @@ public class GatewaySocketPluginRuntimeManager
     private static final List<SecurityTodoBacklogItem> SECURITY_TODO_BACKLOG = List.of(
             new SecurityTodoBacklogItem(
                     1,
-                    "PLUGIN_SIGNATURE_VERIFY",
-                    "플러그인 서명 검증",
-                    "운영 반영 전 JAR 무결성/발행자 신뢰를 강제합니다."
+                    "JAR_HASH_ALLOWLIST_VERIFY",
+                    "JAR SHA-256 allowlist 검증",
+                    "DONE",
+                    "로드 전 SHA-256 해시를 allowlist와 대조해 미허용 JAR 로딩을 차단합니다."
             ),
             new SecurityTodoBacklogItem(
                     2,
-                    "TRUSTED_PUBLISHER_ALLOWLIST",
-                    "신뢰 발행자 allowlist",
-                    "허용된 발행자/인증서 체인만 배포 가능하도록 제한합니다."
+                    "PLUGIN_SIGNATURE_VERIFY",
+                    "플러그인 서명 검증",
+                    "TODO",
+                    "운영 반영 전 JAR 발행자 신뢰(서명/인증서 체인) 검증을 강제합니다."
             ),
             new SecurityTodoBacklogItem(
                     3,
                     "OUT_OF_PROCESS_SANDBOX",
                     "외부 프로세스 격리 로딩",
+                    "TODO",
                     "인프로세스 로딩을 분리해 플러그인 장애/침해 전파를 최소화합니다."
             )
     );
@@ -397,6 +400,11 @@ public class GatewaySocketPluginRuntimeManager
 
         final String normalizedJarFileName = normalizeJarFileName(jarFileName);
         final String jarSha256 = computeSha256Hex(jarBytes);
+
+        // 4.8 SEC-05:
+        // 클래스 로딩/리플렉션 이전 단계에서 SHA-256 allowlist 검증을 수행하여
+        // 미허용 JAR가 JVM 프로세스에 로드되기 전에 차단합니다.
+        verifyJarHashAllowlistOrThrow(eqpId, normalizedJarFileName, jarSha256);
 
         log.info(
                 "Gateway plugin runtime build started. eqpId={}, jarFileName={}, jarSizeBytes={}, jarSha256={}",
@@ -830,6 +838,48 @@ public class GatewaySocketPluginRuntimeManager
     }
 
     /**
+     * SHA-256 allowlist 정책을 검증하고 미허용 JAR를 차단합니다.
+     *
+     * <p>검증 규칙:</p>
+     * <ul>
+     *   <li>{@code enforceSha256Allowlist=false} 이면 검증을 건너뛰고 WARN 로그를 남깁니다.</li>
+     *   <li>{@code enforceSha256Allowlist=true} 이면 allowlist 포함 여부를 반드시 확인합니다.</li>
+     *   <li>미포함 또는 allowlist 비어 있음이면 {@link PluginSecurityException}을 발생시킵니다.</li>
+     * </ul>
+     *
+     * @param eqpId 설비 ID
+     * @param jarFileName JAR 파일명(로그용)
+     * @param jarSha256 계산된 SHA-256 해시
+     */
+    private void verifyJarHashAllowlistOrThrow(
+            final String eqpId,
+            final String jarFileName,
+            final String jarSha256
+    ) {
+        if (!properties.isEnforceSha256Allowlist()) {
+            log.warn("Gateway plugin SHA-256 allowlist enforcement disabled. eqpId={}, jarFileName={}, jarSha256={}",
+                    eqpId, jarFileName, jarSha256);
+            return;
+        }
+
+        final Set<String> allowedHashes = properties.normalizedAllowedSha256Set();
+        final String normalizedHash = jarSha256 == null ? "" : jarSha256.toLowerCase(Locale.ROOT);
+        if (allowedHashes.contains(normalizedHash)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Gateway plugin SHA-256 allowlist verified. eqpId={}, jarFileName={}, jarSha256={}",
+                        eqpId, jarFileName, jarSha256);
+            }
+            return;
+        }
+
+        log.error("Gateway plugin SHA-256 allowlist mismatch. eqpId={}, jarFileName={}, jarSha256={}, allowedHashCount={}",
+                eqpId, jarFileName, jarSha256, allowedHashes.size());
+        throw new PluginSecurityException(
+                "허용되지 않은 플러그인 JAR 해시입니다. eqpId=" + eqpId + ", jarFileName=" + jarFileName
+        );
+    }
+
+    /**
      * 파일명/토큰을 안전한 문자 집합으로 정규화합니다.
      *
      * <p>허용 문자: 영문 대소문자, 숫자, '.', '_', '-'</p>
@@ -890,17 +940,18 @@ public class GatewaySocketPluginRuntimeManager
      * startup 시점에 고정 포맷으로 기록합니다.</p>
      */
     private void logSecurityTodoPriorities() {
-        log.info("PLUGIN_SECURITY_TODO_PRIORITIES. total={}, currentApplied=minimal(fileNameSanitize,sizeLimit,sha256)",
+        log.info("PLUGIN_SECURITY_TODO_PRIORITIES. total={}, currentApplied=minimal(fileNameSanitize,sizeLimit,sha256Allowlist)",
                 SECURITY_TODO_BACKLOG.size());
         if (!log.isDebugEnabled()) {
             return;
         }
 
         for (SecurityTodoBacklogItem item : SECURITY_TODO_BACKLOG) {
-            log.debug("PLUGIN_SECURITY_TODO_ITEM. priority={}, code={}, title={}, detail={}",
+            log.debug("PLUGIN_SECURITY_TODO_ITEM. priority={}, code={}, title={}, status={}, detail={}",
                     item.priority(),
                     item.code(),
                     item.title(),
+                    item.status(),
                     item.detail());
         }
     }
@@ -911,12 +962,14 @@ public class GatewaySocketPluginRuntimeManager
      * @param priority 우선순위(숫자가 작을수록 높음)
      * @param code 식별 코드
      * @param title 항목 제목
+     * @param status 항목 상태(DONE/TODO)
      * @param detail 상세 설명
      */
     private record SecurityTodoBacklogItem(
             int priority,
             String code,
             String title,
+            String status,
             String detail
     ) {
     }

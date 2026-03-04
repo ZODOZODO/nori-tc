@@ -1,14 +1,18 @@
 package com.nori.tc.ui.adapters.redis.session;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.nori.tc.ui.core.port.redis.TokenCachePort;
 import com.nori.tc.ui.core.properties.UiAuthProperties;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -43,11 +47,15 @@ public class UiSessionCacheService implements TokenCachePort {
     private final RedisTemplate<String, Object> businessRedisTemplate;
     private final UiAuthProperties authProperties;
     private final ObjectMapper redisObjectMapper;
+    private final Counter hitCounter;
+    private final Counter missCounter;
 
+    @Autowired
     public UiSessionCacheService(
             @Qualifier("businessRedisTemplate") final RedisTemplate<String, Object> businessRedisTemplate,
             final UiAuthProperties authProperties,
-            @Qualifier("uiRedisObjectMapper") final ObjectMapper redisObjectMapper
+            @Qualifier("uiRedisObjectMapper") final ObjectMapper redisObjectMapper,
+            @Nullable final MeterRegistry meterRegistry
     ) {
         this.businessRedisTemplate = Objects.requireNonNull(businessRedisTemplate,
                 "businessRedisTemplate 은 null 이 될 수 없습니다.");
@@ -55,6 +63,8 @@ public class UiSessionCacheService implements TokenCachePort {
                 "authProperties 는 null 이 될 수 없습니다.");
         this.redisObjectMapper = Objects.requireNonNull(redisObjectMapper,
                 "redisObjectMapper 는 null 이 될 수 없습니다.");
+        this.hitCounter = meterRegistry == null ? null : meterRegistry.counter("session_cache.hit");
+        this.missCounter = meterRegistry == null ? null : meterRegistry.counter("session_cache.miss");
     }
 
     /**
@@ -75,6 +85,7 @@ public class UiSessionCacheService implements TokenCachePort {
         try {
             final Object raw = businessRedisTemplate.opsForValue().get(key);
             if (raw == null) {
+                incrementMissCounter();
                 if (log.isTraceEnabled()) {
                     log.trace("토큰 캐시 MISS. key={}", key);
                 }
@@ -82,6 +93,7 @@ public class UiSessionCacheService implements TokenCachePort {
             }
 
             if (raw instanceof RedisUiSessionEntry entry) {
+                incrementHitCounter();
                 if (log.isDebugEnabled()) {
                     log.debug("토큰 캐시 HIT. key={}, userPk={}", key, entry.getUserPk());
                 }
@@ -90,6 +102,7 @@ public class UiSessionCacheService implements TokenCachePort {
             if (raw instanceof java.util.Map<?, ?> map) {
                 // 직렬화 포맷 전환 과정에서 LinkedHashMap으로 역직렬화되는 경우를 방어합니다.
                 final RedisUiSessionEntry entry = redisObjectMapper.convertValue(map, RedisUiSessionEntry.class);
+                incrementHitCounter();
                 if (log.isDebugEnabled()) {
                     log.debug("토큰 캐시 HIT(Map 변환). key={}, userPk={}", key, entry.getUserPk());
                 }
@@ -97,6 +110,7 @@ public class UiSessionCacheService implements TokenCachePort {
             }
 
             // 저장된 타입이 예상과 다를 경우 — 직렬화 형식 변경 등으로 발생 가능
+            incrementMissCounter();
             log.warn("토큰 캐시 타입 불일치, 해당 항목 제거. key={}, actualType={}",
                     key, raw.getClass().getName());
             businessRedisTemplate.delete(key);
@@ -105,6 +119,7 @@ public class UiSessionCacheService implements TokenCachePort {
         } catch (Exception e) {
             // Redis 장애나 역직렬화 오류가 발생해도 인증 흐름이 멈추지 않도록 빈 Optional을 반환합니다.
             // 이후 ValidateTokenUseCase가 DB를 통해 재검증합니다.
+            incrementMissCounter();
             log.warn("토큰 캐시 조회 실패. key={}", key, e);
             return Optional.empty();
         }
@@ -180,5 +195,25 @@ public class UiSessionCacheService implements TokenCachePort {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
         }
+    }
+
+    /**
+     * 세션 캐시 HIT 메트릭을 증가시킵니다.
+     */
+    private void incrementHitCounter() {
+        if (hitCounter == null) {
+            return;
+        }
+        hitCounter.increment();
+    }
+
+    /**
+     * 세션 캐시 MISS 메트릭을 증가시킵니다.
+     */
+    private void incrementMissCounter() {
+        if (missCounter == null) {
+            return;
+        }
+        missCounter.increment();
     }
 }

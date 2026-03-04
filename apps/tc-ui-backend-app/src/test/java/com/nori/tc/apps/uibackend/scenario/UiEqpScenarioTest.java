@@ -31,6 +31,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -200,6 +201,79 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
         verify(tokenCachePort, times(1)).get(TEST_TOKEN);
         log.info("[시나리오 6-a] 토큰 재검증 1회 유지 확인 완료");
+    }
+
+    /**
+     * 시나리오 6-b: DELETE /api/eqp/{eqpId}는 본문 없이 쿼리 파라미터만으로 정상 처리되어야 합니다.
+     *
+     * <p>검증 목적:</p>
+     * <ul>
+     *   <li>DELETE 요청 본문 의존 제거(API-01) 이후에도 정상 DualResponse 완료</li>
+     *   <li>필수 입력(interfaceType)을 query param으로 전달하면 200 응답</li>
+     * </ul>
+     */
+    @Test
+    @DisplayName("시나리오 6-b: DELETE /api/eqp/{eqpId}?interfaceType=... (본문 없음) → 200")
+    void EQP_DELETE_쿼리기반_본문없음_200() throws Exception {
+        log.info("[시나리오 6-b] DELETE 쿼리 기반 호출(본문 없음) 200 검증 시작");
+
+        final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .queryParam("interfaceType", "HSMS")
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        verify(gatewayEventPublishPort).publish(any());
+        verify(businessEventPublishPort).publish(any());
+
+        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
+        verify(dualResponseRegistry).register(traceIdCaptor.capture(), anyLong());
+        final String capturedTraceId = traceIdCaptor.getValue();
+
+        final UiTaskResult gatewayResult =
+                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY);
+        final UiTaskResult businessResult =
+                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS);
+        when(dualResponseRedisPort.getResult(capturedTraceId))
+                .thenReturn(Optional.of(new UiDualTaskFinalResult(
+                        capturedTraceId,
+                        true,
+                        gatewayResult,
+                        businessResult
+                )));
+        dualResponseRegistry.completeFromRedis(capturedTraceId);
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        log.info("[시나리오 6-b] DELETE 쿼리 기반 200 확인 완료");
+    }
+
+    /**
+     * 시나리오 6-c: DELETE 필수 쿼리 파라미터(interfaceType) 누락 시 400을 반환해야 합니다.
+     */
+    @Test
+    @DisplayName("시나리오 6-c: DELETE /api/eqp/{eqpId} interfaceType 누락 → 400")
+    void EQP_DELETE_interfaceType_누락_400() throws Exception {
+        log.info("[시나리오 6-c] DELETE interfaceType 누락 400 검증 시작");
+
+        final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+
+        verify(gatewayEventPublishPort, never()).publish(any());
+        verify(businessEventPublishPort, never()).publish(any());
+
+        log.info("[시나리오 6-c] 400 응답 확인 완료");
     }
 
     // ─────────────────────────────────────────────────────────

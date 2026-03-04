@@ -1,5 +1,7 @@
 package com.nori.tc.messaging.kafka.contract;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Gateway -> UI 작업 응답 메시지 계약입니다.
  *
@@ -25,14 +27,15 @@ public record KafkaUiTaskReplyMessage(
     /**
      * 응답 본문 데이터 블록입니다.
      *
-     * <p>{@code STATUS}는 PASS/FAIL 중 하나이며, 실패 시 에러 코드/메시지를 함께 채울 수 있습니다.</p>
+     * <p>Java 코드에서는 camelCase 필드명을 사용하되, 외부 JSON 계약 키는
+     * {@code STATUS/ERRORMSG/ERRORCODE} 대문자를 유지합니다.</p>
      */
     public record KafkaUiTaskReplyData(
             String eqpId,
             String interfaceType,
-            String STATUS,
-            String ERRORMSG,
-            String ERRORCODE
+            @JsonProperty("STATUS") String status,
+            @JsonProperty("ERRORMSG") String errorMsg,
+            @JsonProperty("ERRORCODE") String errorCode
     ) {
 
         /**
@@ -41,7 +44,7 @@ public record KafkaUiTaskReplyMessage(
         public KafkaUiTaskReplyData {
             requireText("eqpId", eqpId);
             requireText("interfaceType", interfaceType);
-            requireText("STATUS", STATUS);
+            requireText("status", status);
         }
     }
 

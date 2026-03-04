@@ -941,10 +941,10 @@
 
 #### 작업 목록
 
-- [ ] **4.1.1** `UiTokenAuthenticationFilter.java` 수정
+- [x] **4.1.1** `UiTokenAuthenticationFilter.java` 수정
   - `response.getWriter().write(...)` 대신 `ApiResponse.error()` JSON 직렬화 후 write
 
-- [ ] **4.1.2** `AuthenticationEntryPoint` 커스텀 구현
+- [x] **4.1.2** `AuthenticationEntryPoint` 커스텀 구현
   - `UiAuthenticationEntryPoint.java` 생성: 항상 `ApiResponse.error()` 포맷 반환
 
 ---
@@ -956,7 +956,7 @@
 
 #### 작업 목록
 
-- [ ] **4.2.1** `KafkaUiTaskReplyData.java` 수정
+- [x] **4.2.1** `KafkaUiTaskReplyData.java` 수정
   ```java
   // 변경 전
   String STATUS, ERRORMSG, ERRORCODE
@@ -967,9 +967,9 @@
   @JsonProperty("ERRORCODE") String errorCode
   ```
 
-- [ ] **4.2.2** 사용처 전체 수정 (`.STATUS()` → `.status()` 등)
+- [x] **4.2.2** 사용처 전체 수정 (`.STATUS()` → `.status()` 등)
 
-- [ ] **4.2.3** Gateway/Business Core와 JSON 키 대소문자 계약 재확인
+- [x] **4.2.3** Gateway/Business Core와 JSON 키 대소문자 계약 재확인
 
 ---
 
@@ -980,9 +980,9 @@
 
 #### 작업 목록
 
-- [ ] **4.3.1** 각 어댑터 모듈에 `@AutoConfiguration` 클래스 추가
-- [ ] **4.3.2** `TcUiBackendAutoConfiguration.java` 에서 `@ComponentScan` 범위를 core 패키지로 한정
-- [ ] **4.3.3** 각 어댑터 AutoConfiguration을 `@Import` 로 명시 등록
+- [x] **4.3.1** 각 어댑터 모듈에 `@AutoConfiguration` 클래스 추가
+- [x] **4.3.2** `TcUiBackendAutoConfiguration.java` 에서 `@ComponentScan` 범위를 core 패키지로 한정
+- [x] **4.3.3** 각 어댑터 AutoConfiguration을 `@Import` 로 명시 등록
 
 ---
 
@@ -993,22 +993,22 @@
 
 #### 작업 목록
 
-- [ ] **4.4.1** `tc-ui-backend-app/build.gradle.kts` 에 Micrometer 의존성 추가
+- [x] **4.4.1** `tc-ui-backend-app/build.gradle.kts` 에 Micrometer 의존성 추가
   ```kotlin
   implementation(libs.spring.boot.starter.actuator)
   runtimeOnly(libs.micrometer.registry.prometheus)  // 또는 사용 중인 메트릭 시스템
   ```
 
-- [ ] **4.4.2** `DualResponseRegistry.java` 에 메트릭 추가
+- [x] **4.4.2** `DualResponseRegistry.java` 에 메트릭 추가
   - `dual_response.registered` counter
   - `dual_response.completed` counter (tag: status=success|timeout|cancelled)
   - `dual_response.duration` timer
 
-- [ ] **4.4.3** `UiSessionCacheService.java` 에 메트릭 추가
+- [x] **4.4.3** `UiSessionCacheService.java` 에 메트릭 추가
   - `session_cache.hit` counter
   - `session_cache.miss` counter
 
-- [ ] **4.4.4** `UiCommandKafkaSubscriber.java` 에 메트릭 추가
+- [x] **4.4.4** `UiCommandKafkaSubscriber.java` 에 메트릭 추가
   - `kafka.command.received` counter (tag: eventType)
   - `kafka.command.parse_error` counter
 
@@ -1021,16 +1021,16 @@
 
 #### 작업 목록
 
-- [ ] **4.5.1** `UiTokenAuthenticationFilter.java` 에 MDC 설정 추가
+- [x] **4.5.1** `UiTokenAuthenticationFilter.java` 에 MDC 설정 추가
   - 인증 완료 후 `MDC.put("traceId", requestId)` 또는 X-Request-Id 헤더 활용
 
-- [ ] **4.5.2** `UiCommandKafkaSubscriber.java` 에 MDC 설정 추가
+- [x] **4.5.2** `UiCommandKafkaSubscriber.java` 에 MDC 설정 추가
   - Kafka 메시지의 `traceId` 를 MDC에 설정 후 처리, 완료 후 제거
 
-- [ ] **4.5.3** `EqpController.java` 에 MDC 설정 추가
+- [x] **4.5.3** `EqpController.java` 에 MDC 설정 추가
   - DualResponse traceId를 MDC에 설정
 
-- [ ] **4.5.4** logback 설정 파일에 `%X{traceId}` 패턴 추가
+- [x] **4.5.4** logback 설정 파일에 `%X{traceId}` 패턴 추가
 
 ---
 
@@ -1041,7 +1041,7 @@
 
 #### 작업 목록
 
-- [ ] **4.6.1** `DualResponseRegistryTest.java` 작성
+- [x] **4.6.1** `DualResponseRegistryTest.java` 작성
   - 정상: Gateway + Business 순서대로 응답 → PASS 결과
   - 정상: Business + Gateway 역순으로 응답 → PASS 결과
   - 하나라도 FAIL → 최종 FAIL 결과
@@ -1058,21 +1058,21 @@
 
 #### 작업 목록
 
-- [ ] **4.7.1** `LoginUseCaseTest.java`
+- [x] **4.7.1** `LoginUseCaseTest.java`
   - 정상 로그인 → AuthToken 반환
   - 미존재 사용자 → 동일 예외 (사용자 열거 방지)
   - 비밀번호 불일치 → 동일 예외 (사용자 열거 방지)
   - 비활성 계정 → 예외
   - 토큰 생성 후 세션 저장 확인
 
-- [ ] **4.7.2** `ValidateTokenUseCaseTest.java`
+- [x] **4.7.2** `ValidateTokenUseCaseTest.java`
   - 캐시 히트 → DB 미조회 확인
   - 캐시 미스 → DB 조회 후 캐시 저장
   - 만료 세션 → 예외
   - revoked 세션 → 예외
   - lastSeenAt 실패 → 인증 성공 확인
 
-- [ ] **4.7.3** `LogoutUseCaseTest.java`
+- [x] **4.7.3** `LogoutUseCaseTest.java`
   - 정상 로그아웃 → DB revoke + 캐시 제거
   - Redis evict 실패 → 예외 미전파, 정상 완료
 
@@ -1086,16 +1086,16 @@
 
 #### 작업 목록
 
-- [ ] **4.8.1** `GatewaySocketPluginRuntimeManager.java` 분석
+- [x] **4.8.1** `GatewaySocketPluginRuntimeManager.java` 분석
   - 현재 플러그인 로드 흐름 파악 (URLClassLoader, JAR 파일 처리 방식)
   - `SECURITY_TODO_BACKLOG` 에 명시된 항목 전체 검토
 
-- [ ] **4.8.2** 플러그인 허용 해시 목록 관리 방식 결정
+- [x] **4.8.2** 플러그인 허용 해시 목록 관리 방식 결정
   - 방법 A: DB 테이블에 `plugin_allowlist(jar_name, sha256, enabled)` 저장
   - 방법 B: 설정 파일에 allowlist 관리 (`tc-plugin.properties`)
   - 방법 C: 배포 파이프라인에서 서명된 JAR만 배포 디렉터리에 위치
 
-- [ ] **4.8.3** JAR 파일 로드 전 SHA-256 해시 검증 구현
+- [x] **4.8.3** JAR 파일 로드 전 SHA-256 해시 검증 구현
   - 로드 시점에 파일 해시를 계산하고 allowlist와 비교
   - 불일치 시 `PluginSecurityException` throw + ERROR 로그
 
@@ -1103,7 +1103,7 @@
   - Java `JarFile` API의 서명 검증 기능 활용
   - 신뢰 인증서 목록 관리 방식 결정
 
-- [ ] **4.8.5** `SECURITY_TODO_BACKLOG` 에서 완료된 항목 제거 또는 상태 업데이트
+- [x] **4.8.5** `SECURITY_TODO_BACKLOG` 에서 완료된 항목 제거 또는 상태 업데이트
 
 #### 완료 기준
 - 플러그인 JAR 로드 전 해시 검증이 실행됨
@@ -1118,14 +1118,14 @@
 
 #### 작업 목록
 
-- [ ] **4.9.1** `EqpController.create()` 실패 경로 단순화
+- [x] **4.9.1** `EqpController.create()` 실패 경로 단순화
   - `future.cancel(true)` + `whenComplete(CancellationException)` 의 간접 흐름 제거
   - 발행 실패 시 `registry.cancel(traceId)` 후 `deferredResult.setErrorResult(...)` 를 즉시 호출하고 반환
 
-- [ ] **4.9.2** 실패 원인 로그 일원화
+- [x] **4.9.2** 실패 원인 로그 일원화
   - 발행 실패, 보상 실패, 응답 반환 코드(500/504)를 구조화 로그로 분리 기록
 
-- [ ] **4.9.3** 변경 후 테스트
+- [x] **4.9.3** 변경 후 테스트
   - Gateway/Business 발행 실패 시 즉시 500 반환 확인
   - 타임아웃(504)과 발행 실패(500) 경계가 명확히 유지되는지 확인
 
@@ -1142,14 +1142,14 @@
 
 #### 작업 목록
 
-- [ ] **4.10.1** `DELETE /api/eqp/{eqpId}` 계약 정리
+- [x] **4.10.1** `DELETE /api/eqp/{eqpId}` 계약 정리
   - 삭제에 필요한 값은 경로 변수/쿼리 파라미터로만 전달
   - Request Body 의존 제거
 
-- [ ] **4.10.2** 하위 호환 전환 전략 적용
+- [x] **4.10.2** 하위 호환 전환 전략 적용
   - 기존 클라이언트가 body를 보내는 경우 임시 경고 로그 후 무시 또는 명시적 400 반환 정책 결정
 
-- [ ] **4.10.3** 변경 후 테스트
+- [x] **4.10.3** 변경 후 테스트
   - body 없이 삭제 요청 정상 처리 확인
   - 프록시/게이트웨이 구간에서 body 유실 환경에서도 동일 동작 확인
 
@@ -1191,13 +1191,13 @@
 - [x] Task 3.10 - DualResponseRegistry 완료/정리 경합 방지 [STAB-02]
 
 ### Phase 4 (낮음 - 운영성/코드품질)
-- [ ] Task 4.1 - 401 응답 포맷 통일 [QUALITY-02]
-- [ ] Task 4.2 - KafkaUiTaskReplyData 필드명 수정 [OOP-03]
-- [ ] Task 4.3 - ComponentScan 범위 명시화 [ARCH-03]
-- [ ] Task 4.4 - Metrics 도입 (Micrometer) [OPS-01]
-- [ ] Task 4.5 - Distributed Tracing MDC 연계 [OPS-02]
-- [ ] Task 4.6 - DualResponseRegistry 동시성 테스트 [TEST-01]
-- [ ] Task 4.7 - UseCase 단위 테스트 추가 [TEST-02]
-- [ ] Task 4.8 - ⭐ 플러그인 서명 검증 구현 [SEC-05]
-- [ ] Task 4.9 - EqpController 발행 실패 흐름 단순화 [QUALITY-03]
-- [ ] Task 4.10 - DELETE 요청 Body 의존 제거 [API-01]
+- [x] Task 4.1 - 401 응답 포맷 통일 [QUALITY-02]
+- [x] Task 4.2 - KafkaUiTaskReplyData 필드명 수정 [OOP-03]
+- [x] Task 4.3 - ComponentScan 범위 명시화 [ARCH-03]
+- [x] Task 4.4 - Metrics 도입 (Micrometer) [OPS-01]
+- [x] Task 4.5 - Distributed Tracing MDC 연계 [OPS-02]
+- [x] Task 4.6 - DualResponseRegistry 동시성 테스트 [TEST-01]
+- [x] Task 4.7 - UseCase 단위 테스트 추가 [TEST-02]
+- [x] Task 4.8 - ⭐ 플러그인 서명 검증 구현 [SEC-05]
+- [x] Task 4.9 - EqpController 발행 실패 흐름 단순화 [QUALITY-03]
+- [x] Task 4.10 - DELETE 요청 Body 의존 제거 [API-01]

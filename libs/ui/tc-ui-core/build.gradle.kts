@@ -63,6 +63,13 @@ dependencies {
     api(project(":libs:messaging:tc-messaging-domain"))
 
     /*
+     * Phase 4 OPS-01:
+     * - DualResponseRegistry 메트릭(카운터/타이머) 기록을 위해 Micrometer API를 사용합니다.
+     * - 실제 registry 구현체는 앱 계층(Actuator/Prometheus)에서 주입합니다.
+     */
+    implementation(libs.micrometer.core)
+
+    /*
      * Spring 생명주기/설정 바인딩 컴파일 의존성
      * - @Component, @Service 등 어노테이션은 컴파일 시에만 필요합니다.
      */

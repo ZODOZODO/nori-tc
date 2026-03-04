@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.spring.kafka)
     implementation(libs.kafka.clients)
     implementation(libs.jackson.databind)
+    implementation(libs.micrometer.core)
 
     /*
      * Spring 컴포넌트/설정 바인딩 컴파일 의존성

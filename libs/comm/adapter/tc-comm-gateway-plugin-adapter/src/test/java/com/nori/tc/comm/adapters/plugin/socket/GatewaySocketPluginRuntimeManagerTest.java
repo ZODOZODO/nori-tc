@@ -11,9 +11,12 @@ import com.nori.tc.db.domain.jar.TcJarGateway;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +103,47 @@ class GatewaySocketPluginRuntimeManagerTest {
     }
 
     /**
+     * SHA-256 allowlist 미일치 시 플러그인 로딩은 보안 예외로 차단되어야 합니다.
+     */
+    @Test
+    void shouldBlockPluginLoadWhenSha256IsNotAllowlisted() {
+        final TcEqp eqp = createSocketEqp(1L, "EQP-SEC-01", 101L);
+        final TcJarGateway jar = createInvalidJar(1L);
+
+        final FakeEqpStore eqpStore = new FakeEqpStore(List.of(eqp));
+        final FakeJarGatewayStore jarStore = new FakeJarGatewayStore(Map.of(1L, jar));
+        final GatewaySocketPluginRuntimeProperties properties = createProperties(true, true, 100);
+        properties.setAllowedSha256(List.of("deadbeef"));
+        properties.validate();
+
+        final GatewaySocketPluginRuntimeManager manager =
+                new GatewaySocketPluginRuntimeManager(eqpStore, jarStore, properties);
+
+        Assertions.assertThrows(PluginSecurityException.class, () -> manager.reloadByEqpId("EQP-SEC-01"));
+    }
+
+    /**
+     * SHA-256 allowlist 일치 시 보안 차단은 통과하고, 이후 일반 로딩 검증(클래스 탐색) 단계로 진행되어야 합니다.
+     */
+    @Test
+    void shouldPassHashCheckWhenSha256Allowlisted() {
+        final TcEqp eqp = createSocketEqp(1L, "EQP-SEC-02", 101L);
+        final TcJarGateway jar = createInvalidJar(1L);
+
+        final FakeEqpStore eqpStore = new FakeEqpStore(List.of(eqp));
+        final FakeJarGatewayStore jarStore = new FakeJarGatewayStore(Map.of(1L, jar));
+        final GatewaySocketPluginRuntimeProperties properties = createProperties(true, true, 100);
+        properties.setAllowedSha256(List.of(computeSha256Hex(jar.jarFile())));
+        properties.validate();
+
+        final GatewaySocketPluginRuntimeManager manager =
+                new GatewaySocketPluginRuntimeManager(eqpStore, jarStore, properties);
+
+        // 해시 검증은 통과하지만 JAR 자체가 invalid이므로 일반 로딩 예외가 발생해야 합니다.
+        Assertions.assertThrows(IllegalStateException.class, () -> manager.reloadByEqpId("EQP-SEC-02"));
+    }
+
+    /**
      * 테스트용 플러그인 런타임 프로퍼티를 생성합니다.
      */
     private static GatewaySocketPluginRuntimeProperties createProperties(
@@ -112,8 +156,24 @@ class GatewaySocketPluginRuntimeManagerTest {
         properties.setFailFastOnStartup(failFastOnStartup);
         properties.setPageSize(pageSize);
         properties.setMaxJarBytes(TEST_MAX_JAR_BYTES);
+        properties.setEnforceSha256Allowlist(true);
         properties.validate();
         return properties;
+    }
+
+    /**
+     * 테스트용 SHA-256 해시를 계산합니다.
+     *
+     * @param bytes 입력 바이트 배열
+     * @return 16진수 SHA-256 문자열
+     */
+    private static String computeSha256Hex(final byte[] bytes) {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(bytes));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm unavailable", ex);
+        }
     }
 
     /**

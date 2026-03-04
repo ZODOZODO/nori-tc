@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Bearer 토큰 기반 인증 처리 필터입니다.
@@ -59,10 +61,28 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     /**
+     * 분산 추적 상관관계 키(MDC)입니다.
+     *
+     * <p>gateway/business 공통 로그 포맷에서 사용하는 key와 동일하게 맞춥니다.</p>
+     */
+    private static final String TRACE_ID_MDC_KEY = "traceId";
+
+    /**
+     * 클라이언트가 전달한 요청 상관관계 헤더 키입니다.
+     */
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
+
+    /**
      * DeferredResult 재디스패치 시 재사용할 인증 객체 request attribute 키입니다.
      */
     private static final String ASYNC_AUTH_ATTRIBUTE =
             UiTokenAuthenticationFilter.class.getName() + ".ASYNC_AUTH";
+
+    /**
+     * 요청 단위 traceId를 재디스패치에서도 재사용하기 위한 request attribute 키입니다.
+     */
+    private static final String REQUEST_TRACE_ID_ATTRIBUTE =
+            UiTokenAuthenticationFilter.class.getName() + ".REQUEST_TRACE_ID";
 
     private final ValidateTokenUseCase validateTokenUseCase;
     private final ObjectMapper objectMapper;
@@ -114,76 +134,88 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
             final HttpServletResponse response,
             final FilterChain filterChain
     ) throws ServletException, IOException {
+        // 4.5 OPS-02:
+        // 요청 단위 traceId를 MDC에 주입해 Web 계층 로그를 요청 단위로 상관분석할 수 있게 만듭니다.
+        // - 1순위: X-Request-Id 헤더
+        // - 2순위: 동일 요청 재디스패치 시 request attribute 재사용
+        // - 3순위: UUID 신규 생성
+        final String previousTraceId = MDC.get(TRACE_ID_MDC_KEY);
+        final String requestTraceId = resolveRequestTraceId(request);
+        MDC.put(TRACE_ID_MDC_KEY, requestTraceId);
 
-        // DeferredResult 재디스패치(ASYNC)이고 이미 인증 컨텍스트가 있으면 토큰 재검증을 생략합니다.
-        // - 최초 REQUEST 디스패치에서 이미 인증을 마친 상태를 그대로 사용합니다.
-        // - Redis/DB 중복 조회를 줄여 비동기 응답 경로의 불필요한 오버헤드를 제거합니다.
-        if (isAsyncDispatch(request)) {
-            final var currentAuthentication = SecurityContextHolder.getContext().getAuthentication();
-            if (currentAuthentication != null) {
-                if (log.isTraceEnabled()) {
-                    log.trace("비동기 재디스패치 인증 재검증 생략(SecurityContext 재사용). uri={}, method={}",
-                            request.getRequestURI(), request.getMethod());
-                }
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            // 일부 컨테이너/설정에서는 ASYNC 디스패치 시 SecurityContext가 비어 있을 수 있으므로
-            // 최초 REQUEST 디스패치에서 request attribute로 저장한 인증 객체를 복원합니다.
-            final Object asyncAuthentication = request.getAttribute(ASYNC_AUTH_ATTRIBUTE);
-            if (asyncAuthentication instanceof UsernamePasswordAuthenticationToken auth) {
-                SecurityContextHolder.getContext().setAuthentication(auth);
-                if (log.isTraceEnabled()) {
-                    log.trace("비동기 재디스패치 인증 복원 후 재검증 생략. uri={}, method={}",
-                            request.getRequestURI(), request.getMethod());
-                }
-                filterChain.doFilter(request, response);
-                return;
-            }
-        }
-
-        // 1단계: Authorization 헤더에서 Bearer 토큰 추출
-        final String token = extractBearerToken(request);
-        if (token == null) {
-            // 토큰 없음 → SecurityContext 미설정 후 다음 필터로 통과
-            // 공개 경로(POST /auth/login 등)는 이 경로로 처리됨
-            log.trace("Bearer 토큰 없음. uri={}, method={}", request.getRequestURI(), request.getMethod());
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // 2단계: 토큰 검증 (Business Redis 캐시 → DB 폴백)
-        final UserPrincipal principal;
         try {
-            principal = validateTokenUseCase.execute(token);
-        } catch (UiAuthenticationException e) {
-            // 토큰 유효하지 않음 (만료/폐기/미존재/계정 비활성)
-            log.warn("토큰 인증 실패. uri={}, method={}, reason={}",
-                    request.getRequestURI(), request.getMethod(), e.getMessage());
-            sendUnauthorized(response, "유효하지 않은 인증 토큰입니다.");
-            return;
-        } catch (Exception e) {
-            // 예상치 못한 예외 (Redis/DB 장애 등)
-            log.error("토큰 검증 중 예상치 못한 오류. uri={}, method={}",
-                    request.getRequestURI(), request.getMethod(), e);
-            sendUnauthorized(response, "인증 처리 중 오류가 발생했습니다.");
-            return;
+            // DeferredResult 재디스패치(ASYNC)이고 이미 인증 컨텍스트가 있으면 토큰 재검증을 생략합니다.
+            // - 최초 REQUEST 디스패치에서 이미 인증을 마친 상태를 그대로 사용합니다.
+            // - Redis/DB 중복 조회를 줄여 비동기 응답 경로의 불필요한 오버헤드를 제거합니다.
+            if (isAsyncDispatch(request)) {
+                final var currentAuthentication = SecurityContextHolder.getContext().getAuthentication();
+                if (currentAuthentication != null) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("비동기 재디스패치 인증 재검증 생략(SecurityContext 재사용). uri={}, method={}",
+                                request.getRequestURI(), request.getMethod());
+                    }
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                // 일부 컨테이너/설정에서는 ASYNC 디스패치 시 SecurityContext가 비어 있을 수 있으므로
+                // 최초 REQUEST 디스패치에서 request attribute로 저장한 인증 객체를 복원합니다.
+                final Object asyncAuthentication = request.getAttribute(ASYNC_AUTH_ATTRIBUTE);
+                if (asyncAuthentication instanceof UsernamePasswordAuthenticationToken auth) {
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    if (log.isTraceEnabled()) {
+                        log.trace("비동기 재디스패치 인증 복원 후 재검증 생략. uri={}, method={}",
+                                request.getRequestURI(), request.getMethod());
+                    }
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            }
+
+            // 1단계: Authorization 헤더에서 Bearer 토큰 추출
+            final String token = extractBearerToken(request);
+            if (token == null) {
+                // 토큰 없음 → SecurityContext 미설정 후 다음 필터로 통과
+                // 공개 경로(POST /auth/login 등)는 이 경로로 처리됨
+                log.trace("Bearer 토큰 없음. uri={}, method={}", request.getRequestURI(), request.getMethod());
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // 2단계: 토큰 검증 (Business Redis 캐시 → DB 폴백)
+            final UserPrincipal principal;
+            try {
+                principal = validateTokenUseCase.execute(token);
+            } catch (UiAuthenticationException e) {
+                // 토큰 유효하지 않음 (만료/폐기/미존재/계정 비활성)
+                log.warn("토큰 인증 실패. uri={}, method={}, reason={}",
+                        request.getRequestURI(), request.getMethod(), e.getMessage());
+                sendUnauthorized(response, "유효하지 않은 인증 토큰입니다.");
+                return;
+            } catch (Exception e) {
+                // 예상치 못한 예외 (Redis/DB 장애 등)
+                log.error("토큰 검증 중 예상치 못한 오류. uri={}, method={}",
+                        request.getRequestURI(), request.getMethod(), e);
+                sendUnauthorized(response, "인증 처리 중 오류가 발생했습니다.");
+                return;
+            }
+
+            // 3단계: SecurityContext에 인증 정보 등록
+            // credentials에 원본 토큰을 보관 → LogoutUseCase에서 토큰 폐기 시 사용
+            final UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(principal, token, List.of());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            request.setAttribute(ASYNC_AUTH_ATTRIBUTE, authentication);
+
+            log.debug("인증 처리 완료. userPk={}, userId={}, uri={}, method={}",
+                    principal.userPk(), principal.userId(),
+                    request.getRequestURI(), request.getMethod());
+
+            // 4단계: 다음 필터로 요청 전달
+            filterChain.doFilter(request, response);
+        } finally {
+            restoreTraceIdMdc(previousTraceId);
         }
-
-        // 3단계: SecurityContext에 인증 정보 등록
-        // credentials에 원본 토큰을 보관 → LogoutUseCase에서 토큰 폐기 시 사용
-        final UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(principal, token, List.of());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        request.setAttribute(ASYNC_AUTH_ATTRIBUTE, authentication);
-
-        log.debug("인증 처리 완료. userPk={}, userId={}, uri={}, method={}",
-                principal.userPk(), principal.userId(),
-                request.getRequestURI(), request.getMethod());
-
-        // 4단계: 다음 필터로 요청 전달
-        filterChain.doFilter(request, response);
     }
 
     // -------------------------------------------------------------------------
@@ -203,6 +235,46 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
         }
         final String token = header.substring(BEARER_PREFIX.length()).strip();
         return token.isEmpty() ? null : token;
+    }
+
+    /**
+     * 요청 단위 traceId를 계산하여 request attribute에 저장/재사용합니다.
+     *
+     * <p>DeferredResult 재디스패치에서도 동일 traceId를 유지해야 로그 상관관계가 유지되므로,
+     * 최초 계산 값을 request attribute에 저장한 뒤 이후 디스패치에서 재사용합니다.</p>
+     *
+     * @param request 현재 HTTP 요청
+     * @return MDC에 주입할 traceId
+     */
+    private static String resolveRequestTraceId(final HttpServletRequest request) {
+        final Object existingAttribute = request.getAttribute(REQUEST_TRACE_ID_ATTRIBUTE);
+        if (existingAttribute instanceof String traceId && !traceId.isBlank()) {
+            return traceId;
+        }
+
+        final String headerTraceId = request.getHeader(REQUEST_ID_HEADER);
+        final String resolvedTraceId = (headerTraceId == null || headerTraceId.isBlank())
+                ? UUID.randomUUID().toString()
+                : headerTraceId.trim();
+
+        request.setAttribute(REQUEST_TRACE_ID_ATTRIBUTE, resolvedTraceId);
+        return resolvedTraceId;
+    }
+
+    /**
+     * 필터 종료 시 MDC traceId를 이전 상태로 복구합니다.
+     *
+     * <p>현재 요청에서 주입한 MDC 값이 다음 요청 로그에 누수되지 않도록
+     * 반드시 finally 블록에서 호출해야 합니다.</p>
+     *
+     * @param previousTraceId 필터 진입 전 MDC traceId 값
+     */
+    private static void restoreTraceIdMdc(final String previousTraceId) {
+        if (previousTraceId == null || previousTraceId.isBlank()) {
+            MDC.remove(TRACE_ID_MDC_KEY);
+            return;
+        }
+        MDC.put(TRACE_ID_MDC_KEY, previousTraceId);
     }
 
     /**

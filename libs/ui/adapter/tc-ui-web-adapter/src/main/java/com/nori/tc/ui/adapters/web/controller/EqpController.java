@@ -4,7 +4,6 @@ import com.nori.tc.comm.gateway.domain.profile.GatewayEquipmentProfileSnapshot;
 import com.nori.tc.messaging.domain.kafka.TcKafkaSources;
 import com.nori.tc.ui.adapters.web.config.UiDualRequestProperties;
 import com.nori.tc.ui.adapters.web.dto.request.EqpCreateRequest;
-import com.nori.tc.ui.adapters.web.dto.request.EqpDeleteRequest;
 import com.nori.tc.ui.adapters.web.dto.request.EqpLifecycleRequest;
 import com.nori.tc.ui.adapters.web.dto.request.EqpUpdateRequest;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
@@ -18,8 +17,10 @@ import com.nori.tc.ui.core.registry.DualResponseRegistry;
 import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
 import com.nori.tc.ui.domain.task.UiTaskResult;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.DeferredResult;
@@ -77,6 +79,7 @@ public class EqpController {
 
     private static final Logger log = LoggerFactory.getLogger(EqpController.class);
     private static final String ROLLBACK_UI_MESSAGE_PREFIX = "ROLLBACK";
+    private static final String TRACE_ID_MDC_KEY = "traceId";
 
     private final DualResponseRegistry dualResponseRegistry;
     private final UiGatewayEventPublishPort gatewayEventPublishPort;
@@ -127,15 +130,17 @@ public class EqpController {
         final String traceId = generateTraceId();
         final String eqpId = request.eqpId();
 
-        log.info("EQP_CREATE 요청. eqpId={}, interfaceType={}, traceId={}",
-                eqpId, request.interfaceType(), traceId);
+        try (MdcTraceScope ignored = openTraceMdcScope(traceId)) {
+            log.info("EQP_CREATE 요청. eqpId={}, interfaceType={}, traceId={}",
+                    eqpId, request.interfaceType(), traceId);
 
-        final UiCommandMessage message = buildMessage(
-                UiCommandEventType.EQP_CREATE, traceId, eqpId,
-                request.interfaceType(), request.uiMessage(), request.equipmentProfile()
-        );
+            final UiCommandMessage message = buildMessage(
+                    UiCommandEventType.EQP_CREATE, traceId, eqpId,
+                    request.interfaceType(), request.uiMessage(), request.equipmentProfile()
+            );
 
-        return submitDualRequest(UiCommandEventType.EQP_CREATE, traceId, eqpId, message);
+            return submitDualRequest(UiCommandEventType.EQP_CREATE, traceId, eqpId, message);
+        }
     }
 
     /**
@@ -155,42 +160,71 @@ public class EqpController {
     ) {
         final String traceId = generateTraceId();
 
-        log.info("EQP_UPDATE 요청. eqpId={}, interfaceType={}, traceId={}",
-                eqpId, request.interfaceType(), traceId);
+        try (MdcTraceScope ignored = openTraceMdcScope(traceId)) {
+            log.info("EQP_UPDATE 요청. eqpId={}, interfaceType={}, traceId={}",
+                    eqpId, request.interfaceType(), traceId);
 
-        final UiCommandMessage message = buildMessage(
-                UiCommandEventType.EQP_UPDATE, traceId, eqpId,
-                request.interfaceType(), request.uiMessage(), request.equipmentProfile()
-        );
+            final UiCommandMessage message = buildMessage(
+                    UiCommandEventType.EQP_UPDATE, traceId, eqpId,
+                    request.interfaceType(), request.uiMessage(), request.equipmentProfile()
+            );
 
-        return submitDualRequest(UiCommandEventType.EQP_UPDATE, traceId, eqpId, message);
+            return submitDualRequest(UiCommandEventType.EQP_UPDATE, traceId, eqpId, message);
+        }
     }
 
     /**
      * 설비를 Gateway와 Business Core에서 삭제합니다.
      *
-     * <p>eqpId는 경로 변수로 전달됩니다. 삭제 요청은 equipmentProfile이 불필요합니다.</p>
+     * <p>4.10 API-01 정책에 따라 DELETE 요청 본문 의존을 제거하고,
+     * 삭제에 필요한 입력값은 경로/쿼리 파라미터로만 받습니다.</p>
      *
-     * @param eqpId   삭제 대상 설비 ID (경로 변수)
-     * @param request 설비 삭제 요청 (interfaceType 필수)
+     * <p>호환 정책:</p>
+     * <ul>
+     *   <li>요청 본문이 오더라도 무시하고 WARN 로그만 남깁니다.</li>
+     *   <li>{@code interfaceType} 쿼리 파라미터가 누락되면 400을 명시적으로 반환합니다.</li>
+     * </ul>
+     *
+     * @param eqpId          삭제 대상 설비 ID (경로 변수)
+     * @param interfaceType  통신 인터페이스 타입 (쿼리 파라미터, 필수)
+     * @param uiMessage      부가 메시지 (쿼리 파라미터, 선택)
+     * @param request        원본 HTTP 요청 (호환성 진단 로그용)
      * @return 200 OK (양쪽 모두 성공) | 500 오류 | 504 타임아웃
      */
     @DeleteMapping("/{eqpId}")
     public DeferredResult<ResponseEntity<ApiResponse<Void>>> delete(
             @PathVariable final String eqpId,
-            @Valid @RequestBody final EqpDeleteRequest request
+            @RequestParam(name = "interfaceType", required = false) final String interfaceType,
+            @RequestParam(name = "uiMessage", required = false) final String uiMessage,
+            final HttpServletRequest request
     ) {
         final String traceId = generateTraceId();
 
-        log.info("EQP_DELETE 요청. eqpId={}, interfaceType={}, traceId={}",
-                eqpId, request.interfaceType(), traceId);
+        try (MdcTraceScope ignored = openTraceMdcScope(traceId)) {
+            if (request != null && request.getContentLengthLong() > 0L) {
+                log.warn("EQP_DELETE 요청 본문 감지 - 본문은 무시되고 쿼리 파라미터만 사용됩니다. eqpId={}, traceId={}",
+                        eqpId, traceId);
+            }
 
-        final UiCommandMessage message = buildMessage(
-                UiCommandEventType.EQP_DELETE, traceId, eqpId,
-                request.interfaceType(), request.uiMessage(), null
-        );
+            if (interfaceType == null || interfaceType.isBlank()) {
+                log.warn("EQP_DELETE 요청 거부 - interfaceType 쿼리 파라미터 누락. eqpId={}, traceId={}",
+                        eqpId, traceId);
+                final DeferredResult<ResponseEntity<ApiResponse<Void>>> badRequest = new DeferredResult<>();
+                badRequest.setResult(ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "interfaceType 쿼리 파라미터는 필수입니다.")));
+                return badRequest;
+            }
 
-        return submitDualRequest(UiCommandEventType.EQP_DELETE, traceId, eqpId, message);
+            log.info("EQP_DELETE 요청. eqpId={}, interfaceType={}, traceId={}",
+                    eqpId, interfaceType, traceId);
+
+            final UiCommandMessage message = buildMessage(
+                    UiCommandEventType.EQP_DELETE, traceId, eqpId,
+                    interfaceType, uiMessage, null
+            );
+
+            return submitDualRequest(UiCommandEventType.EQP_DELETE, traceId, eqpId, message);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -215,15 +249,17 @@ public class EqpController {
     ) {
         final String traceId = generateTraceId();
 
-        log.info("EQP_START 요청. eqpId={}, interfaceType={}, traceId={}",
-                eqpId, request.interfaceType(), traceId);
+        try (MdcTraceScope ignored = openTraceMdcScope(traceId)) {
+            log.info("EQP_START 요청. eqpId={}, interfaceType={}, traceId={}",
+                    eqpId, request.interfaceType(), traceId);
 
-        final UiCommandMessage message = buildMessage(
-                UiCommandEventType.EQP_START, traceId, eqpId,
-                request.interfaceType(), request.uiMessage(), null
-        );
+            final UiCommandMessage message = buildMessage(
+                    UiCommandEventType.EQP_START, traceId, eqpId,
+                    request.interfaceType(), request.uiMessage(), null
+            );
 
-        return publishLifecycleAndAccept(UiCommandEventType.EQP_START, traceId, eqpId, message);
+            return publishLifecycleAndAccept(UiCommandEventType.EQP_START, traceId, eqpId, message);
+        }
     }
 
     /**
@@ -244,15 +280,17 @@ public class EqpController {
     ) {
         final String traceId = generateTraceId();
 
-        log.info("EQP_END 요청. eqpId={}, interfaceType={}, traceId={}",
-                eqpId, request.interfaceType(), traceId);
+        try (MdcTraceScope ignored = openTraceMdcScope(traceId)) {
+            log.info("EQP_END 요청. eqpId={}, interfaceType={}, traceId={}",
+                    eqpId, request.interfaceType(), traceId);
 
-        final UiCommandMessage message = buildMessage(
-                UiCommandEventType.EQP_END, traceId, eqpId,
-                request.interfaceType(), request.uiMessage(), null
-        );
+            final UiCommandMessage message = buildMessage(
+                    UiCommandEventType.EQP_END, traceId, eqpId,
+                    request.interfaceType(), request.uiMessage(), null
+            );
 
-        return publishLifecycleAndAccept(UiCommandEventType.EQP_END, traceId, eqpId, message);
+            return publishLifecycleAndAccept(UiCommandEventType.EQP_END, traceId, eqpId, message);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -267,7 +305,8 @@ public class EqpController {
      *   <li>{@link DualResponseRegistry#register}를 Kafka 발행 이전에 호출하여 응답 유실 방지</li>
      *   <li>CompletableFuture 완료 시 DeferredResult에 결과 설정</li>
      *   <li>Gateway + Business 토픽에 동시 발행</li>
-     *   <li>발행 실패 시 {@link DualResponseRegistry#cancel(String)} 호출 → whenComplete에서 PUBLISH_FAILED 처리</li>
+     *   <li>발행 실패 시 {@link DualResponseRegistry#cancel(String)}로 정리 후
+     *       즉시 {@code PUBLISH_FAILED} 응답 반환</li>
      * </ol>
      *
      * @param eventType  이벤트 타입 (로그용)
@@ -289,9 +328,11 @@ public class EqpController {
                 dualResponseRegistry.register(traceId, dualRequestProperties.getDualRequestTimeoutMs());
 
         // 2단계: Future 완료 시 DeferredResult에 결과 설정 (별도 스레드에서 실행될 수 있음)
-        future.whenComplete((result, throwable) ->
-                resolveDeferredResult(deferredResult, eventType, traceId, eqpId, result, throwable)
-        );
+        future.whenComplete((result, throwable) -> {
+            try (MdcTraceScope ignored = openTraceMdcScope(traceId)) {
+                resolveDeferredResult(deferredResult, eventType, traceId, eqpId, result, throwable);
+            }
+        });
 
         // 3단계: Gateway + Business 토픽에 동시 발행
         boolean gatewayPublished = false;
@@ -308,6 +349,7 @@ public class EqpController {
                 publishRollbackIfNeeded(eventType, traceId, eqpId, message);
             }
             dualResponseRegistry.cancel(traceId);
+            setPublishFailedResultIfPossible(deferredResult, eventType, traceId, eqpId);
         }
 
         return deferredResult;
@@ -378,7 +420,7 @@ public class EqpController {
      *
      * <p>판정 규칙:</p>
      * <ul>
-     *   <li>CancellationException → Kafka 발행 실패 → 500 PUBLISH_FAILED</li>
+     *   <li>CancellationException → 취소 경로(예: 발행 실패 후 정리) → 500 PUBLISH_FAILED</li>
      *   <li>TimeoutException → 타임아웃 초과 → 504 TIMEOUT</li>
      *   <li>기타 예외 → 내부 오류 → 500 INTERNAL_ERROR</li>
      *   <li>result.success() → 양쪽 PASS → 200 OK</li>
@@ -400,6 +442,17 @@ public class EqpController {
             final UiDualTaskFinalResult result,
             final Throwable throwable
     ) {
+        // 4.9 QUALITY-03:
+        // 발행 실패 경로에서 이미 즉시 응답을 내려준 경우(또는 타 스레드에서 먼저 완료된 경우)
+        // 콜백이 추가로 setResult를 호출하지 않도록 선행 가드합니다.
+        if (deferredResult.isSetOrExpired()) {
+            if (log.isTraceEnabled()) {
+                log.trace("DeferredResult 이미 완료됨 - 후속 완료 콜백 무시. eventType={}, traceId={}, eqpId={}",
+                        eventType, traceId, eqpId);
+            }
+            return;
+        }
+
         if (throwable instanceof CancellationException) {
             // Kafka 발행 실패로 future.cancel(true) 호출 시 발생
             log.warn("DualResponse 강제 취소 (발행 실패). eventType={}, traceId={}, eqpId={}",
@@ -440,6 +493,34 @@ public class EqpController {
             deferredResult.setResult(ResponseEntity.internalServerError()
                     .body(ApiResponse.error(errorCode, errorMsg)));
         }
+    }
+
+    /**
+     * 발행 실패 시 즉시 500(PUBLISH_FAILED) 응답을 반환합니다.
+     *
+     * <p>기존에는 registry.cancel() → Future CancellationException 콜백을 경유해
+     * 에러 응답을 설정했지만, 본 메서드로 즉시 응답을 내려 실패 경로를 단순화합니다.</p>
+     *
+     * @param deferredResult 응답 설정 대상
+     * @param eventType      실패한 이벤트 타입
+     * @param traceId        요청 traceId
+     * @param eqpId          요청 eqpId
+     */
+    private void setPublishFailedResultIfPossible(
+            final DeferredResult<ResponseEntity<ApiResponse<Void>>> deferredResult,
+            final UiCommandEventType eventType,
+            final String traceId,
+            final String eqpId
+    ) {
+        if (deferredResult.isSetOrExpired()) {
+            if (log.isDebugEnabled()) {
+                log.debug("발행 실패 즉시 응답 생략 - 이미 DeferredResult 완료됨. eventType={}, traceId={}, eqpId={}",
+                        eventType, traceId, eqpId);
+            }
+            return;
+        }
+        deferredResult.setResult(ResponseEntity.internalServerError()
+                .body(ApiResponse.error("PUBLISH_FAILED", "Kafka 발행 중 오류가 발생했습니다.")));
     }
 
     // -------------------------------------------------------------------------
@@ -531,5 +612,39 @@ public class EqpController {
      */
     private static String generateTraceId() {
         return UUID.randomUUID().toString();
+    }
+
+    /**
+     * 현재 스레드 MDC에 traceId를 주입하고 스코프 종료 시 이전 값으로 복구합니다.
+     *
+     * <p>컨트롤러/콜백 경계에서 traceId 상관관계를 유지하기 위한 최소 스코프 헬퍼입니다.</p>
+     *
+     * @param traceId 주입할 traceId
+     * @return try-with-resources로 사용할 MDC 스코프
+     */
+    private static MdcTraceScope openTraceMdcScope(final String traceId) {
+        final String previousTraceId = MDC.get(TRACE_ID_MDC_KEY);
+        if (traceId == null || traceId.isBlank()) {
+            MDC.remove(TRACE_ID_MDC_KEY);
+        } else {
+            MDC.put(TRACE_ID_MDC_KEY, traceId);
+        }
+        return new MdcTraceScope(previousTraceId);
+    }
+
+    /**
+     * traceId MDC 복구를 담당하는 AutoCloseable 스코프입니다.
+     *
+     * @param previousTraceId 스코프 진입 전 traceId
+     */
+    private record MdcTraceScope(String previousTraceId) implements AutoCloseable {
+        @Override
+        public void close() {
+            if (previousTraceId == null || previousTraceId.isBlank()) {
+                MDC.remove(TRACE_ID_MDC_KEY);
+                return;
+            }
+            MDC.put(TRACE_ID_MDC_KEY, previousTraceId);
+        }
     }
 }

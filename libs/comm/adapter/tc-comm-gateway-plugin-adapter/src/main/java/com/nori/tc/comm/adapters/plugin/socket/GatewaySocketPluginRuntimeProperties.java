@@ -5,6 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
 /**
  * Gateway SOCKET 플러그인 런타임 정책 속성입니다.
  *
@@ -48,6 +53,25 @@ public class GatewaySocketPluginRuntimeProperties {
     private Long maxJarBytes;
 
     /**
+     * SHA-256 allowlist 강제 여부입니다.
+     *
+     * <p>true면 플러그인 로드 전에 JAR 해시가 allowlist에 포함되어야 하며,
+     * 미포함 시 즉시 보안 예외를 발생시킵니다.</p>
+     */
+    private boolean enforceSha256Allowlist = true;
+
+    /**
+     * 허용된 플러그인 JAR SHA-256 해시 목록입니다.
+     *
+     * <p>예시:</p>
+     * <pre>
+     * tc.comm.gateway.plugin-runtime.allowed-sha256[0]=...
+     * tc.comm.gateway.plugin-runtime.allowed-sha256[1]=...
+     * </pre>
+     */
+    private List<String> allowedSha256 = List.of();
+
+    /**
      * 속성값 유효성을 검증합니다.
      */
     @PostConstruct
@@ -64,13 +88,21 @@ public class GatewaySocketPluginRuntimeProperties {
         if (maxJarBytes == null || maxJarBytes <= 0L) {
             throw new IllegalStateException("tc.comm.gateway.plugin-runtime.max-jar-bytes must be > 0");
         }
+
+        if (enforceSha256Allowlist && normalizedAllowedSha256Set().isEmpty()) {
+            log.warn("Gateway plugin SHA-256 allowlist enforcement is enabled but allowlist is empty. "
+                    + "all plugin loads will be blocked until hashes are configured.");
+        }
         log.info(
-                "GatewaySocketPluginRuntimeProperties validated. loadOnStartup={}, failFastOnStartup={}, pageSize={}, tempRootDir={}, maxJarBytes={}",
+                "GatewaySocketPluginRuntimeProperties validated. loadOnStartup={}, failFastOnStartup={}, pageSize={}, "
+                        + "tempRootDir={}, maxJarBytes={}, enforceSha256Allowlist={}, allowedSha256Count={}",
                 loadOnStartup,
                 failFastOnStartup,
                 pageSize,
                 tempRootDir,
-                maxJarBytes
+                maxJarBytes,
+                enforceSha256Allowlist,
+                normalizedAllowedSha256Set().size()
         );
     }
 
@@ -172,5 +204,59 @@ public class GatewaySocketPluginRuntimeProperties {
 
     public void setMaxJarBytes(final long maxJarBytes) {
         this.maxJarBytes = maxJarBytes;
+    }
+
+    /**
+     * isEnforceSha256Allowlist 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+    public boolean isEnforceSha256Allowlist() {
+        return enforceSha256Allowlist;
+    }
+
+    /**
+     * setEnforceSha256Allowlist 기능을 수행합니다.
+     *
+     * @param enforceSha256Allowlist 입력 값
+     */
+    public void setEnforceSha256Allowlist(final boolean enforceSha256Allowlist) {
+        this.enforceSha256Allowlist = enforceSha256Allowlist;
+    }
+
+    /**
+     * getAllowedSha256 기능을 수행합니다.
+     *
+     * @return 처리 결과
+     */
+    public List<String> getAllowedSha256() {
+        return allowedSha256;
+    }
+
+    /**
+     * setAllowedSha256 기능을 수행합니다.
+     *
+     * @param allowedSha256 입력 값
+     */
+    public void setAllowedSha256(final List<String> allowedSha256) {
+        this.allowedSha256 = allowedSha256 == null ? List.of() : List.copyOf(allowedSha256);
+    }
+
+    /**
+     * 허용 SHA-256 목록을 비교용 정규화(Set, 소문자)하여 반환합니다.
+     *
+     * <p>공백/빈 항목은 제거하고, 중복은 Set으로 정리합니다.</p>
+     *
+     * @return 정규화된 SHA-256 allowlist 집합
+     */
+    public Set<String> normalizedAllowedSha256Set() {
+        final Set<String> normalized = new LinkedHashSet<>();
+        for (String value : allowedSha256) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            normalized.add(value.trim().toLowerCase(Locale.ROOT));
+        }
+        return Set.copyOf(normalized);
     }
 }

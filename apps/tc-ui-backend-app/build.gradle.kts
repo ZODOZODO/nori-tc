@@ -34,6 +34,13 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
 
     /*
+     * Prometheus 메트릭 레지스트리입니다.
+     * - Phase 4 OPS-01에서 추가한 Micrometer 커스텀 메트릭을
+     *   /actuator/prometheus 엔드포인트로 노출하기 위해 런타임에 연결합니다.
+     */
+    runtimeOnly(libs.micrometer.registry.prometheus)
+
+    /*
      * Validation 스타터입니다.
      * - @Valid, @NotNull 등 Bean Validation(Jakarta Validation) 기능을 제공합니다.
      */
@@ -55,8 +62,8 @@ dependencies {
     /*
      * UI Backend 핵심 스타터입니다.
      * - tc-ui-domain/core + 어댑터 4종(web/kafka/db/redis)을 한 번에 조립합니다.
-     * - TcUiBackendAutoConfiguration이 @ComponentScan("com.nori.tc.ui")로
-     *   UI Backend 전체 빈을 Spring 컨텍스트에 자동 등록합니다.
+     * - TcUiBackendAutoConfiguration이 core 패키지 스캔 + 어댑터 AutoConfiguration import로
+     *   필요한 빈만 명시적으로 조립합니다.
      * - Kafka Boot auto-configuration(KafkaTemplate 등)은 starter 내부에서 포함합니다.
      */
     implementation(project(":libs:ui:starter:tc-ui-backend-starter"))

@@ -167,7 +167,9 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
                                 {"eqpId":"E001","interfaceType":"HSMS"}
                                 """))
                 .andDo(print())
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
         log.info("[시나리오 2] 401 응답 확인 완료");
     }
@@ -194,7 +196,9 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
                                 {"eqpId":"E001","interfaceType":"HSMS"}
                                 """))
                 .andDo(print())
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
         log.info("[시나리오 2-a] 401 응답 확인 완료");
     }
@@ -509,7 +513,9 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
 
         mockMvc.perform(post("/auth/logout"))
                 .andDo(print())
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
         log.info("[시나리오 5-d] 401 응답 확인 완료");
     }
@@ -524,7 +530,9 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
 
         mockMvc.perform(get("/auth/me"))
                 .andDo(print())
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
         log.info("[시나리오 5-e] 401 응답 확인 완료");
     }

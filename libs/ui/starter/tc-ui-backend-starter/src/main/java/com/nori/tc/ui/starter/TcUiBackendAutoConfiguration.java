@@ -1,10 +1,11 @@
 package com.nori.tc.ui.starter;
 
-import com.nori.tc.ui.adapters.kafka.config.UiKafkaConfiguration;
+import com.nori.tc.ui.adapter.db.config.UiDbAdapterAutoConfiguration;
+import com.nori.tc.ui.adapters.kafka.config.UiKafkaAdapterAutoConfiguration;
 import com.nori.tc.ui.adapters.kafka.config.UiKafkaTopicProperties;
-import com.nori.tc.ui.adapters.redis.config.UiRedisConfiguration;
+import com.nori.tc.ui.adapters.redis.config.UiRedisAdapterAutoConfiguration;
 import com.nori.tc.ui.adapters.redis.config.UiRedisProperties;
-import com.nori.tc.ui.adapters.web.security.UiSecurityConfig;
+import com.nori.tc.ui.adapters.web.config.UiWebAdapterAutoConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,14 +22,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * tc-ui-backend-starter 자동 구성 진입점입니다.
  *
  * <p>이 클래스는 UI Backend 모듈 전반을 Spring 컨텍스트에 조립합니다.
- * {@link ComponentScan}으로 {@code com.nori.tc.ui} 하위의 모든 컴포넌트를 자동 등록하고,
- * {@link Import}로 어댑터별 핵심 Configuration 클래스를 명시적으로 활성화합니다.</p>
+ * {@link ComponentScan}으로 {@code com.nori.tc.ui.core}만 스캔하고,
+ * {@link Import}로 어댑터별 AutoConfiguration을 명시 등록합니다.</p>
  *
  * <p>조립 대상 어댑터:</p>
  * <ul>
- *   <li>{@link UiSecurityConfig}  — Spring Security 필터 체인, 토큰 인증 필터, URL 권한 캐시</li>
- *   <li>{@link UiKafkaConfiguration} — UI Commands Kafka Consumer Factory (MANUAL_IMMEDIATE ACK)</li>
- *   <li>{@link UiRedisConfiguration} — Gateway Redis(6379) + Business Redis(6380) 이중 연결</li>
+ *   <li>{@link UiWebAdapterAutoConfiguration}  — Spring Security + REST Controller</li>
+ *   <li>{@link UiKafkaAdapterAutoConfiguration} — Kafka Publisher/Subscriber + 토픽 설정</li>
+ *   <li>{@link UiRedisAdapterAutoConfiguration} — Gateway/Business Redis 이중 연결</li>
+ *   <li>{@link UiDbAdapterAutoConfiguration} — DB Port 구현 어댑터</li>
  * </ul>
  *
  * <p>Spring Boot AutoConfiguration 등록 파일:</p>
@@ -39,11 +41,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @AutoConfiguration
 @EnableScheduling
-@ComponentScan(basePackages = "com.nori.tc.ui")
+@ComponentScan(basePackages = "com.nori.tc.ui.core")
 @Import({
-        UiSecurityConfig.class,      // Spring Security: 토큰 인증 필터, URL 권한 체인
-        UiKafkaConfiguration.class,  // Kafka: uiCommandListenerContainerFactory (MANUAL_IMMEDIATE)
-        UiRedisConfiguration.class   // Redis: gatewayRedisTemplate + businessRedisTemplate
+        UiWebAdapterAutoConfiguration.class,   // Web: Controller + Security
+        UiKafkaAdapterAutoConfiguration.class, // Kafka: Publisher/Subscriber + Listener config
+        UiRedisAdapterAutoConfiguration.class, // Redis: gateway/business template + Pub/Sub
+        UiDbAdapterAutoConfiguration.class     // DB: JPA Store Port adapter
 })
 public class TcUiBackendAutoConfiguration {
 
@@ -56,7 +59,8 @@ public class TcUiBackendAutoConfiguration {
      * 기동 실패 시 어느 단계에서 문제가 발생했는지 빠르게 파악할 수 있게 합니다.</p>
      */
     public TcUiBackendAutoConfiguration() {
-        log.info("UI_BOOT_STARTING. imports=[UiSecurityConfig, UiKafkaConfiguration, UiRedisConfiguration]");
+        log.info("UI_BOOT_STARTING. imports=[UiWebAdapterAutoConfiguration, UiKafkaAdapterAutoConfiguration, "
+                + "UiRedisAdapterAutoConfiguration, UiDbAdapterAutoConfiguration]");
     }
 
     /**

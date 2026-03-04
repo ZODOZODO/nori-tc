@@ -1,9 +1,14 @@
 package com.nori.tc.ui.core.registry;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import com.nori.tc.ui.core.port.redis.DualResponseRedisPort;
 import com.nori.tc.ui.domain.task.UiTaskResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -46,6 +51,8 @@ public class DualResponseRegistry {
             new ConcurrentHashMap<>();
 
     private final DualResponseRedisPort dualResponseRedisPort;
+    private final MeterRegistry meterRegistry;
+    private final Counter registeredCounter;
 
     /**
      * 필수 의존성을 초기화합니다.
@@ -53,8 +60,29 @@ public class DualResponseRegistry {
      * @param dualResponseRedisPort DualResponse Redis 상태 저장 포트
      */
     public DualResponseRegistry(final DualResponseRedisPort dualResponseRedisPort) {
+        this(dualResponseRedisPort, null);
+    }
+
+    /**
+     * Micrometer 레지스트리를 포함한 생성자입니다.
+     *
+     * <p>운영 환경에서는 meterRegistry가 주입되어 메트릭을 기록하고,
+     * 단위 테스트에서는 null을 허용하여 메트릭 의존 없이 로직만 검증할 수 있습니다.</p>
+     *
+     * @param dualResponseRedisPort DualResponse Redis 상태 저장 포트
+     * @param meterRegistry Micrometer 메트릭 레지스트리 (없으면 null)
+     */
+    @Autowired
+    public DualResponseRegistry(
+            final DualResponseRedisPort dualResponseRedisPort,
+            @Nullable final MeterRegistry meterRegistry
+    ) {
         this.dualResponseRedisPort = Objects.requireNonNull(dualResponseRedisPort,
                 "dualResponseRedisPort is null");
+        this.meterRegistry = meterRegistry;
+        this.registeredCounter = meterRegistry == null
+                ? null
+                : meterRegistry.counter("dual_response.registered");
     }
 
     /**
@@ -78,6 +106,7 @@ public class DualResponseRegistry {
 
         final PendingFutureTracker tracker = new PendingFutureTracker();
         pendingFutures.put(traceId, tracker);
+        incrementRegisteredCounter();
 
         log.debug("DualResponse 등록 완료. traceId={}, timeoutMs={}, pendingCount={}",
                 traceId, timeoutMs, pendingFutures.size());
@@ -128,6 +157,7 @@ public class DualResponseRegistry {
 
         final PendingFutureTracker tracker = pendingFutures.remove(traceId);
         if (tracker != null && tracker.tryCancel()) {
+            recordCompletionMetrics("cancelled", tracker);
             log.debug("DualResponse 로컬 Future 취소 완료. traceId={}", traceId);
         }
     }
@@ -201,26 +231,80 @@ public class DualResponseRegistry {
             if (tracker.markTerminalIfFirst()) {
                 // 타임아웃이 발생하면 Redis 상태도 정리하여 고아 키 누적을 방지합니다.
                 dualResponseRedisPort.cancel(traceId);
+                recordCompletionMetrics("timeout", tracker);
                 log.warn("DualResponse 타임아웃. traceId={}, timeoutMs={}", traceId, timeoutMs);
             }
             return;
         }
 
         if (throwable instanceof CancellationException) {
-            tracker.markTerminalIfFirst();
-            log.warn("DualResponse 취소됨. traceId={}", traceId);
+            if (tracker.markTerminalIfFirst()) {
+                recordCompletionMetrics("cancelled", tracker);
+                log.warn("DualResponse 취소됨. traceId={}", traceId);
+            }
             return;
         }
 
         if (throwable != null) {
-            tracker.markTerminalIfFirst();
-            log.error("DualResponse 비정상 종료. traceId={}, error={}",
-                    traceId, throwable.getMessage(), throwable);
+            if (tracker.markTerminalIfFirst()) {
+                recordCompletionMetrics("cancelled", tracker);
+                log.error("DualResponse 비정상 종료. traceId={}, error={}",
+                        traceId, throwable.getMessage(), throwable);
+            }
             return;
         }
 
-        tracker.markTerminalIfFirst();
-        log.debug("DualResponse 완료. traceId={}, success={}", traceId, result.success());
+        if (tracker.markTerminalIfFirst()) {
+            recordCompletionMetrics("success", tracker);
+            log.debug("DualResponse 완료. traceId={}, success={}", traceId, result.success());
+        }
+    }
+
+    /**
+     * 등록 카운터 메트릭을 증가시킵니다.
+     */
+    private void incrementRegisteredCounter() {
+        if (registeredCounter == null) {
+            return;
+        }
+        registeredCounter.increment();
+    }
+
+    /**
+     * 완료 상태별 메트릭(카운터/타이머)을 기록합니다.
+     *
+     * <p>요구 메트릭:</p>
+     * <ul>
+     *   <li>{@code dual_response.completed} counter (tag: status)</li>
+     *   <li>{@code dual_response.duration} timer</li>
+     * </ul>
+     *
+     * @param status 완료 상태 태그 값
+     * @param tracker 완료 트래커(등록 시각 포함)
+     */
+    private void recordCompletionMetrics(final String status, final PendingFutureTracker tracker) {
+        if (meterRegistry == null) {
+            return;
+        }
+
+        meterRegistry.counter("dual_response.completed", "status", safeStatusTag(status)).increment();
+        Timer.builder("dual_response.duration")
+                .tag("status", safeStatusTag(status))
+                .register(meterRegistry)
+                .record(Math.max(0L, System.nanoTime() - tracker.registeredAtNanos()), TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * status 태그를 null-safe 문자열로 정규화합니다.
+     *
+     * @param rawStatus 원본 상태 값
+     * @return 메트릭 태그용 상태 문자열
+     */
+    private static String safeStatusTag(final String rawStatus) {
+        if (rawStatus == null || rawStatus.isBlank()) {
+            return "unknown";
+        }
+        return rawStatus.trim();
     }
 
     /**
@@ -230,9 +314,19 @@ public class DualResponseRegistry {
 
         private final CompletableFuture<UiDualTaskFinalResult> future = new CompletableFuture<>();
         private final AtomicBoolean terminal = new AtomicBoolean(false);
+        private final long registeredAtNanos = System.nanoTime();
 
         private CompletableFuture<UiDualTaskFinalResult> future() {
             return future;
+        }
+
+        /**
+         * 등록 시각(nanoTime)을 반환합니다.
+         *
+         * @return Future 등록 시각
+         */
+        private long registeredAtNanos() {
+            return registeredAtNanos;
         }
 
         /**

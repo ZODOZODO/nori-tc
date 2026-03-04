@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.jackson.databind)
     compileOnly(libs.spring.boot)
+    compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.spring.context)
     compileOnly(libs.jakarta.annotation.api)
     annotationProcessor(libs.spring.boot.configuration.processor)

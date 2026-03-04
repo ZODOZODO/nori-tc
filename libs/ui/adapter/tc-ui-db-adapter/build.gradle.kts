@@ -44,6 +44,7 @@ dependencies {
      * Spring 컴포넌트/설정 바인딩 컴파일 의존성
      */
     compileOnly(libs.spring.boot)
+    compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.spring.context)
     compileOnly(libs.jakarta.annotation.api)
     annotationProcessor(libs.spring.boot.configuration.processor)

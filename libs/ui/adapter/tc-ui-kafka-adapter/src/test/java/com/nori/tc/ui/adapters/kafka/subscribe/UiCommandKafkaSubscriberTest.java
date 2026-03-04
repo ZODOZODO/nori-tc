@@ -130,6 +130,10 @@ class UiCommandKafkaSubscriberTest {
                 "EQP-001",
                 objectMapper.writeValueAsString(replyMessage)
         );
+        final String serialized = record.value();
+        assertTrue(serialized.contains("\"STATUS\""));
+        assertTrue(serialized.contains("\"ERRORMSG\""));
+        assertTrue(serialized.contains("\"ERRORCODE\""));
 
         subscriber.onMessage(record, acknowledgment);
 

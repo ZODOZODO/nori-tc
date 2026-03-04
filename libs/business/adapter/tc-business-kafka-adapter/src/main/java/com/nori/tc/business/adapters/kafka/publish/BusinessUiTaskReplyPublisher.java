@@ -203,9 +203,9 @@ public class BusinessUiTaskReplyPublisher implements KafkaTaskReplyPublisher<Kaf
         sb.append('{');
         appendJsonField(sb, "eqpId", data == null ? null : data.eqpId(), false);
         appendJsonField(sb, "interfaceType", data == null ? null : data.interfaceType(), true);
-        appendJsonField(sb, "status", data == null ? null : data.STATUS(), true);
-        appendJsonField(sb, "errorCode", data == null ? null : data.ERRORCODE(), true);
-        appendJsonField(sb, "errorMessage", data == null ? null : data.ERRORMSG(), true);
+        appendJsonField(sb, "status", data == null ? null : data.status(), true);
+        appendJsonField(sb, "errorCode", data == null ? null : data.errorCode(), true);
+        appendJsonField(sb, "errorMessage", data == null ? null : data.errorMsg(), true);
         sb.append('}');
         return sb.toString();
     }

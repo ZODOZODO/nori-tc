@@ -12,6 +12,7 @@
  */
 plugins {
     `java-library`
+    alias(libs.plugins.spring.dependency.management)
 }
 
 group = "com.nori.tc"
@@ -47,6 +48,12 @@ dependencies {
      * 따라서 하위 모듈이 별도 선언 없이 계약 타입을 사용할 수 있도록 api로 노출합니다.
      */
     api(libs.kafka.clients)
+
+    /*
+     * KafkaUiTaskReplyData에서 @JsonProperty를 사용해
+     * Java 필드명(camelCase)과 외부 JSON 계약 키(대문자)를 분리합니다.
+     */
+    api(libs.jackson.databind)
 }
 
 tasks.test {
