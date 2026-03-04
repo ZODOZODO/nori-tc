@@ -10,7 +10,7 @@
 #    - spring-boot-starter-* / spring-context / spring-tx 등은 version을 여기서 지정하지 않는다.
 #    - RabbitMQ (spring-boot-starter-amqp) 포함.
 # 2) Spring Boot BOM이 "관리하지 않는" 라이브러리는 여기서 버전을 지정한다.
-#    - MyBatis, MapStruct, JDBC Drivers, Tibco RV 등.
+#    - MyBatis, MapStruct, JDBC Drivers 등.
 # 3) 특정 버전을 강제해야 하는 경우 (예: Kafka 최신 4.1 클라이언트 사용)
 #    - BOM 버전을 오버라이드하거나 별도 version으로 관리한다.
 ################################################################################
@@ -41,11 +41,10 @@ mapstruct = "1.6.3"
 # 1. Kafka: 디폴트로 4.1.0 사용 (요청 사항 반영)
 #    - Spring Boot BOM이 관리하는 버전보다 최신을 쓰려면 명시 필요.
 # 2. RabbitMQ: Spring Boot BOM 버전을 따름 (버전 명시 X)
-# 3. Tibco RV: Maven Central에 없음. 보통 8.4.x or 8.5.x 많이 사용.
-#    - 여기서는 8.5.0으로 지정 (로컬 jar 관리용)
+# 3. Tibco RV는 상용 JAR(local file) 기반으로 모듈 build.gradle.kts에서 직접 관리합니다.
+#    - 공개 저장소 좌표를 version catalog에 두면 IDE/Gradle sync 시 혼동을 유발할 수 있으므로 제외합니다.
 ################################################################################
 kafkaClients = "4.1.0"
-tibrv = "8.5.0"
 netty = "4.1.100.Final"
 slf4j = "2.0.16"
 
@@ -131,14 +130,6 @@ spring-kafka = { module = "org.springframework.kafka:spring-kafka" }
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafkaClients" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind" }
 netty-all = { module = "io.netty:netty-all", version.ref = "netty" }
-
-################################################################################
-# Tibco RV (New)
-# - 서드파티/상용 라이브러리. Maven Central에 없을 확률 높음.
-# - 보통 로컬 레포지토리나 사내 Nexus에 등록 후 사용.
-# - 모듈명: com.tibco:tibrvj (예시)
-################################################################################
-tibrv = { module = "com.tibco:tibrvj", version.ref = "tibrv" }
 
 ################################################################################
 # MyBatis

@@ -29,6 +29,16 @@ java {
     }
 }
 
+/**
+ * Tibco RV 상용 JAR의 로컬 경로입니다.
+ *
+ * - Maven Central에는 com.tibco:tibrvj 좌표가 존재하지 않으므로,
+ *   개발 환경에서는 로컬 파일 기반 의존성으로 처리합니다.
+ * - IDE Gradle sync 단계에서 미해결 좌표 오류를 제거하기 위해
+ *   파일 존재 여부를 확인한 뒤 조건부로 의존성을 추가합니다.
+ */
+val localTibrvJar = rootProject.layout.projectDirectory.file("libs/vendor/tibrvj.jar").asFile
+
 dependencies {
     /*
      * 기술 중립 포트 인터페이스(MessagePublisherPort, MessagePublishRequest)를 노출합니다.
@@ -38,9 +48,18 @@ dependencies {
 
     /*
      * Tibco RV 클라이언트 라이브러리입니다.
-     * - compileOnly 로 선언하여 런타임 클래스패스는 스타터(tc-messaging-rendezvous-starter)에서 제공합니다.
+     *
+     * - 상용 라이브러리 특성상 Maven 좌표 해석 대신 로컬 파일을 직접 사용합니다.
+     * - adapter 모듈은 컴파일 시점에만 RV API 타입이 필요하므로 compileOnly로 선언합니다.
      */
-    compileOnly(libs.tibrv)
+    if (localTibrvJar.exists()) {
+        compileOnly(files(localTibrvJar))
+    } else {
+        logger.lifecycle(
+            "[tc-messaging-rendezvous] libs/vendor/tibrvj.jar 파일이 없어 Tibco RV 의존성을 건너뜁니다. " +
+                "Rendezvous 구현 코드를 추가할 경우 해당 파일을 배치해야 컴파일할 수 있습니다."
+        )
+    }
 
     /*
      * @ConfigurationProperties, @Component 등 Spring 어노테이션 컴파일 의존성입니다.

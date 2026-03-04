@@ -1,7 +1,6 @@
 package com.nori.tc.db.starter.redis;
 
 import java.util.Optional;
-
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -9,17 +8,19 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * Redis Starter ?먮룞 援ъ꽦?낅땲??
+ * Redis Starter 자동 구성 클래스입니다.
  *
- * <p>??븷</p>
- * <p>1) Redis 愿??湲곕낯 Bean(RedisConnectionFactory, RedisTemplate)? Spring Boot 湲곕낯 ?먮룞 援ъ꽦???꾩엫?⑸땲??</p>
- * <p>2) 蹂?starter媛 怨듯넻?쇰줈 ?ъ슜??{@code tcRedisTemplate}, {@code TcRedisCrudRepository}瑜?異붽?濡?援ъ꽦?⑸땲??</p>
- * <p>3) 愿怨꾪삎 DB starter? ?④퍡 ?ъ슜?????덈룄濡?Redis ?꾩슜 諛고? ??Bean???깅줉?⑸땲??</p>
+ * <p>이 클래스는 Redis를 사용하는 공통 인프라 빈을 제공합니다.</p>
+ * <p>주요 역할은 아래와 같습니다.</p>
+ * <p>1) Spring Boot 기본 자동 구성에서 제공하는 {@link RedisConnectionFactory}를 기반으로
+ * 공통 {@code tcRedisTemplate} 빈을 생성합니다.</p>
+ * <p>2) {@link TcRedisCrudRepository} 구현체를 기본 등록하여 모듈 간 재사용 포인트를 제공합니다.</p>
+ * <p>3) 관계형 DB starter와 함께 사용할 때도 Bean 이름 충돌 없이 동작하도록
+ * Redis 전용 식별 Bean을 별도로 제공합니다.</p>
  */
 @AutoConfiguration(afterName = {
         "org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration",
@@ -28,10 +29,10 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class TcDbRedisAutoConfiguration {
 
     /**
-     * Redis starter ?꾩슜 諛고? ??Bean?낅땲??
+     * Redis starter 전용 식별 Bean입니다.
      *
-     * <p>愿怨꾪삎 DB starter?먯꽌 ?ъ슜?섎뒗 ??Bean ?대쫫({@code tcDbStarterExclusiveLock})怨?遺꾨━?댁꽌,
-     * Redis starter? 愿怨꾪삎 DB starter瑜??④퍡 ?ъ슜????Bean ?대쫫 異⑸룎??諛⑹??⑸땲??</p>
+     * <p>관계형 DB starter가 사용하는 식별 Bean 이름({@code tcDbStarterExclusiveLock})과 분리하여,
+     * DB starter + Redis starter를 함께 사용할 때 이름 충돌을 방지합니다.</p>
      */
     @Bean(name = "tcDbRedisStarterExclusiveLock")
     public Object tcDbRedisStarterExclusiveLock() {
@@ -39,14 +40,15 @@ public class TcDbRedisAutoConfiguration {
     }
 
     /**
-     * 怨듯넻 RedisTemplate({@code tcRedisTemplate})???깅줉?⑸땲??
+     * 공통 RedisTemplate({@code tcRedisTemplate}) 빈을 등록합니다.
      *
-     * <p>議곌굔</p>
-     * <p>- RedisConnectionFactory媛 議댁옱???뚮쭔 ?앹꽦?⑸땲??</p>
-     * <p>- ?숈씪 ?대쫫??Bean???대? ?덉쑝硫?以묐났 ?앹꽦?섏? ?딆뒿?덈떎.</p>
+     * <p>동작 조건은 아래와 같습니다.</p>
+     * <p>- {@link RedisConnectionFactory}가 존재할 때만 생성됩니다.</p>
+     * <p>- 동일 이름 Bean이 이미 있으면 중복 생성하지 않습니다.</p>
      *
-     * @param connectionFactory Redis ?곌껐 ?⑺넗由?     * @param valueSerializerProvider 媛?吏곷젹?붽린 ?쒓났??誘몄?????JDK 吏곷젹?붽린 ?ъ슜)
-     * @return 怨듯넻 RedisTemplate
+     * @param connectionFactory Redis 연결 팩토리
+     * @param valueSerializerProvider 외부에서 주입 가능한 값 직렬화기 제공자
+     * @return 공통 RedisTemplate
      */
     @Bean(name = "tcRedisTemplate")
     @ConditionalOnBean(RedisConnectionFactory.class)
@@ -60,7 +62,7 @@ public class TcDbRedisAutoConfiguration {
 
         final RedisSerializer<String> keySerializer = new StringRedisSerializer();
         final RedisSerializer<Object> valueSerializer = Optional.ofNullable(valueSerializerProvider.getIfAvailable())
-                .orElseGet(GenericJackson2JsonRedisSerializer::new);
+                .orElseGet(TcDbRedisAutoConfiguration::createDefaultJsonSerializer);
 
         template.setKeySerializer(keySerializer);
         template.setHashKeySerializer(keySerializer);
@@ -71,18 +73,31 @@ public class TcDbRedisAutoConfiguration {
     }
 
     /**
-     * TcRedisCrudRepository 援ы쁽泥대? ?깅줉?⑸땲??
+     * {@link TcRedisCrudRepository} 기본 구현체를 등록합니다.
      *
-     * <p>議곌굔</p>
-     * <p>- {@code tcRedisTemplate} Bean??議댁옱???뚮쭔 ?앹꽦?⑸땲??</p>
-     * <p>- ?대? 援ы쁽泥닿? ?깅줉?섏뼱 ?덉쑝硫?以묐났 ?앹꽦?섏? ?딆뒿?덈떎.</p>
+     * <p>동작 조건은 아래와 같습니다.</p>
+     * <p>- {@code tcRedisTemplate} Bean이 존재할 때만 생성됩니다.</p>
+     * <p>- 이미 다른 구현체가 있으면 중복 생성하지 않습니다.</p>
      *
-     * @param tcRedisTemplate 怨듯넻 RedisTemplate
-     * @return Redis CRUD ??μ냼 援ы쁽泥?     */
+     * @param tcRedisTemplate 공통 RedisTemplate
+     * @return Redis CRUD 저장소 구현체
+     */
     @Bean
     @ConditionalOnBean(name = "tcRedisTemplate")
     @ConditionalOnMissingBean
     public TcRedisCrudRepository tcRedisCrudRepository(final RedisTemplate<String, Object> tcRedisTemplate) {
         return new TcRedisTemplateCrudRepository(tcRedisTemplate);
+    }
+
+    /**
+     * 기본 JSON 직렬화기를 생성합니다.
+     *
+     * <p>Spring Data Redis 4.x의 권장 팩토리 메서드 {@link RedisSerializer#json()}을 사용해
+     * 제거 예정 API 직접 참조를 피하고 컴파일 경고를 줄입니다.</p>
+     *
+     * @return Object 타입 대상 JSON 직렬화기
+     */
+    private static RedisSerializer<Object> createDefaultJsonSerializer() {
+        return RedisSerializer.json();
     }
 }

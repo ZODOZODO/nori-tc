@@ -16,7 +16,7 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
@@ -32,7 +32,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  * <p>직렬화 전략:</p>
  * <ul>
  *   <li>Key/HashKey: {@link StringRedisSerializer}</li>
- *   <li>Value/HashValue: {@link GenericJackson2JsonRedisSerializer}</li>
+ *   <li>Value/HashValue: {@link RedisSerializer#json()}</li>
  * </ul>
  */
 @Configuration
@@ -70,10 +70,17 @@ public class UiRedisConfiguration {
      * @return JSON 기반 Redis 직렬화기
      */
     @Bean(name = "uiRedisValueSerializer")
-    public GenericJackson2JsonRedisSerializer uiRedisValueSerializer(
+    public RedisSerializer<Object> uiRedisValueSerializer(
             @Qualifier("uiRedisObjectMapper") final ObjectMapper uiRedisObjectMapper
     ) {
-        return new GenericJackson2JsonRedisSerializer(uiRedisObjectMapper);
+        /*
+         * 참고:
+         * - Spring Data Redis 4.x에서 Jackson2/GenericJackson2 계열은 제거 예정으로 표시됩니다.
+         * - 따라서 경고 최소화를 위해 RedisSerializer.json() 팩토리를 사용합니다.
+         * - uiRedisObjectMapper 빈은 Redis Map -> DTO 변환 등 다른 컴포넌트에서 계속 사용하므로
+         *   시그니처 호환성을 위해 파라미터를 유지합니다.
+         */
+        return RedisSerializer.json();
     }
 
     // -------------------------------------------------------------------------
@@ -104,10 +111,10 @@ public class UiRedisConfiguration {
     @Bean(name = "gatewayRedisTemplate")
     public RedisTemplate<String, Object> gatewayRedisTemplate(
             @Qualifier("gatewayLettuceConnectionFactory") final LettuceConnectionFactory factory,
-            @Qualifier("uiRedisValueSerializer") final GenericJackson2JsonRedisSerializer valueSerializer
+            @Qualifier("uiRedisValueSerializer") final RedisSerializer<Object> valueSerializer
     ) {
         final RedisTemplate<String, Object> template = buildTemplate(factory, valueSerializer);
-        log.info("gatewayRedisTemplate 초기화 완료. serializer=GenericJackson2JsonRedisSerializer");
+        log.info("gatewayRedisTemplate 초기화 완료. serializer=RedisSerializer.json()");
         return template;
     }
 
@@ -141,10 +148,10 @@ public class UiRedisConfiguration {
     @Bean(name = "businessRedisTemplate")
     public RedisTemplate<String, Object> businessRedisTemplate(
             @Qualifier("businessLettuceConnectionFactory") final LettuceConnectionFactory factory,
-            @Qualifier("uiRedisValueSerializer") final GenericJackson2JsonRedisSerializer valueSerializer
+            @Qualifier("uiRedisValueSerializer") final RedisSerializer<Object> valueSerializer
     ) {
         final RedisTemplate<String, Object> template = buildTemplate(factory, valueSerializer);
-        log.info("businessRedisTemplate 초기화 완료. serializer=GenericJackson2JsonRedisSerializer");
+        log.info("businessRedisTemplate 초기화 완료. serializer=RedisSerializer.json()");
         return template;
     }
 
@@ -208,7 +215,7 @@ public class UiRedisConfiguration {
      */
     private RedisTemplate<String, Object> buildTemplate(
             final LettuceConnectionFactory factory,
-            final GenericJackson2JsonRedisSerializer valueSerializer
+            final RedisSerializer<Object> valueSerializer
     ) {
         final RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);

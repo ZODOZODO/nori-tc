@@ -33,6 +33,16 @@ java {
     }
 }
 
+/**
+ * Tibco RV 상용 JAR의 로컬 경로입니다.
+ *
+ * - com.tibco:tibrvj는 공개 저장소에서 해석되지 않으므로
+ *   스타터 런타임 의존성도 로컬 파일 기반으로만 연결합니다.
+ * - 파일이 없는 환경에서도 전체 빌드/Gradle sync가 깨지지 않도록
+ *   조건부 의존성 추가 방식으로 처리합니다.
+ */
+val localTibrvJar = rootProject.layout.projectDirectory.file("libs/vendor/tibrvj.jar").asFile
+
 dependencies {
     /*
      * Tibco RV 메시징 어댑터입니다.
@@ -48,10 +58,18 @@ dependencies {
 
     /*
      * Tibco Rendezvous(RV) 클라이언트 라이브러리입니다.
-     * - Maven Central 미제공 상용 라이브러리이므로 로컬 또는 사내 저장소에서 해결합니다.
-     * - tc.messaging.rendezvous.* 프로퍼티로 데몬/서비스/네트워크 정보를 설정합니다.
+     *
+     * - 공개 저장소 미제공 상용 라이브러리이므로 로컬 파일 의존성으로만 주입합니다.
+     * - 파일이 없는 경우에는 의존성을 건너뛰고 경고 로그를 남깁니다.
      */
-    implementation(libs.tibrv)
+    if (localTibrvJar.exists()) {
+        implementation(files(localTibrvJar))
+    } else {
+        logger.lifecycle(
+            "[tc-messaging-rendezvous-starter] libs/vendor/tibrvj.jar 파일이 없어 Tibco RV 런타임 의존성을 건너뜁니다. " +
+                "Rendezvous 스타터를 실제 실행에 사용할 경우 파일 배치가 필요합니다."
+        )
+    }
 
     testImplementation(libs.spring.boot.starter.test)
 }
