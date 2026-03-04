@@ -94,10 +94,10 @@ HELP.md
 # 6) 민감 설정 파일 (로컬/운영 비밀값)
 # -----------------------------------------------------------------------------
 # 실제 비밀번호/토큰이 포함될 수 있는 설정 파일은 추적하지 않습니다.
-config/tc-db.properties
-config/tc-db.mybatis.properties
-config/tc-redis.properties
-apps/tc-ui-backend-app/config/tc-db.properties
-apps/tc-ui-backend-app/config/tc-redis.properties
-apps/tc-business-core-app/config/tc-redis.properties
-apps/tc-comm-gateway-app/config/tc-redis.properties
+# config/tc-db.properties
+# config/tc-db.mybatis.properties
+# config/tc-redis.properties
+# apps/tc-ui-backend-app/config/tc-db.properties
+# apps/tc-ui-backend-app/config/tc-redis.properties
+# apps/tc-business-core-app/config/tc-redis.properties
+# apps/tc-comm-gateway-app/config/tc-redis.properties

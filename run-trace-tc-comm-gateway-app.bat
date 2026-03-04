@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 
 REM ============================================================================
 REM Force UTF-8 console code page for this CMD session so Java/Spring logs with
@@ -49,6 +49,12 @@ if not exist "%SCRIPT_DIR%gradlew.bat" goto :ERR_NO_GRADLEW
 where java >nul 2>&1
 if errorlevel 1 goto :ERR_NO_JAVA
 
+REM ============================================================================
+REM Secret handling policy (initial development mode):
+REM - DB/Redis passwords are currently hardcoded in imported properties files.
+REM - Therefore this script does not prompt for secret environment variables.
+REM ============================================================================
+
 if not exist "%TRACE_HEAP%" mkdir "%TRACE_HEAP%" >nul 2>&1
 if not exist "%TRACE_GC%"   mkdir "%TRACE_GC%"   >nul 2>&1
 if not exist "%TRACE_JFR%"  mkdir "%TRACE_JFR%"  >nul 2>&1
@@ -63,21 +69,13 @@ if errorlevel 1 goto :ERR_BUILD
 
 REM Find bootJar and skip plain jar if Gradle generated both.
 REM
-REM Why not use findstr regex here:
-REM   - Windows CMD + findstr has edge cases with regex escaping and option
-REM     parsing that can make suffix matching fragile in batch loops.
-REM   - A simple suffix comparison is more predictable and easier to maintain.
+REM Why this implementation:
+REM   - The script now keeps delayed expansion disabled globally so secret values
+REM     containing '!' are preserved when read from environment/prompt input.
+REM   - Use findstr suffix matching to filter out "-plain.jar" artifacts.
 for /f "delims=" %%F in ('dir /b /a:-d /o:-d "%APP_DIR%\build\libs\*.jar" 2^>nul') do (
-    set "CANDIDATE_NAME=%%~nxF"
-    REM Match the last 10 characters ("-plain.jar") case-insensitively.
-    REM When the suffix matches, this is Gradle's plain jar (no Spring Boot
-    REM loader / Main-Class manifest), so it must not be used with java -jar.
-    if /I "!CANDIDATE_NAME:~-10!"=="-plain.jar" (
-        REM Skip plain jar and continue scanning newer/older jar files.
-    ) else (
-        REM Pick the first non-plain jar (newest first due to /o:-d sorting).
-        if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
-    )
+    echo %%~nxF | findstr /I /R /C:"-plain\.jar$" >nul
+    if errorlevel 1 if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
 )
 
 if not defined APP_JAR goto :ERR_NO_JAR

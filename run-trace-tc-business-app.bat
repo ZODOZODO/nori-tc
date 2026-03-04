@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 
 REM ============================================================================
 REM Force UTF-8 console code page for this CMD session so Java/Spring logs with
@@ -42,6 +42,12 @@ if not exist "%SCRIPT_DIR%gradlew.bat" goto :ERR_NO_GRADLEW
 where java >nul 2>&1
 if errorlevel 1 goto :ERR_NO_JAVA
 
+REM ============================================================================
+REM Secret handling policy (initial development mode):
+REM - DB/Redis passwords are currently hardcoded in imported properties files.
+REM - Therefore this script does not prompt for secret environment variables.
+REM ============================================================================
+
 if not exist "%TRACE_HEAP%" mkdir "%TRACE_HEAP%" >nul 2>&1
 if not exist "%TRACE_GC%"   mkdir "%TRACE_GC%"   >nul 2>&1
 if not exist "%TRACE_JFR%"  mkdir "%TRACE_JFR%"  >nul 2>&1
@@ -55,8 +61,7 @@ call "%SCRIPT_DIR%gradlew.bat" %APP_TASK% --no-daemon
 if errorlevel 1 goto :ERR_BUILD
 
 for /f "delims=" %%F in ('dir /b /a:-d /o:-d "%APP_DIR%\build\libs\*.jar" 2^>nul') do (
-    set "CANDIDATE_NAME=%%~nxF"
-    echo !CANDIDATE_NAME! | findstr /I /R "-plain\.jar$" >nul
+    echo %%~nxF | findstr /I /R /C:"-plain\.jar$" >nul
     if errorlevel 1 if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
 )
 

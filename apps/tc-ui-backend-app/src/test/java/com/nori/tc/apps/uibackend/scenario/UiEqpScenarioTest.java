@@ -1,7 +1,6 @@
 package com.nori.tc.apps.uibackend.scenario;
 
 import com.nori.tc.ui.core.model.AsyncResultEntry;
-import com.nori.tc.ui.core.model.AsyncStatus;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
