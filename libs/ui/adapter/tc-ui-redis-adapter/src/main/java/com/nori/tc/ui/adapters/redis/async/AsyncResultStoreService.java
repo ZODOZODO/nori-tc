@@ -1,6 +1,8 @@
 package com.nori.tc.ui.adapters.redis.async;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nori.tc.ui.core.model.AsyncResultEntry;
+import com.nori.tc.ui.core.model.AsyncStatus;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import org.slf4j.Logger;
@@ -8,11 +10,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Business Redis(6380)를 이용한 비동기 작업 결과 저장 서비스입니다.
@@ -24,7 +29,7 @@ import java.util.Optional;
  * <ol>
  *   <li>Front → POST /api/eqp/{id}/start — UI Backend가 202 즉시 반환</li>
  *   <li>Gateway가 tc.ui.commands에 EQP_START_REP 메시지 발행</li>
- *   <li>{@code UiCommandIngressService}가 이 서비스의 {@code save()}를 호출하여 결과 저장</li>
+ *   <li>{@code UiCommandIngressService}가 이 서비스의 {@code markCompleted()}를 호출하여 결과 저장</li>
  *   <li>Front → GET /api/async/{traceId} — polling으로 결과 조회</li>
  * </ol>
  *
@@ -43,9 +48,25 @@ public class AsyncResultStoreService implements AsyncResultStorePort {
     /** Redis 비동기 결과 키 접두사 */
     private static final String KEY_PREFIX = "tc:ui:backend:async:";
 
+    /**
+     * PENDING 상태 타임아웃 전환 시 버퍼(ms)입니다.
+     *
+     * <p>Gateway 응답이 타임아웃 경계 직전에 도착하는 경우를 완충하기 위해
+     * timeoutMs에 버퍼를 더해 TIMEOUT 전환 시점을 계산합니다.</p>
+     */
+    private static final long TIMEOUT_BUFFER_MS = 5_000L;
+
     private final RedisTemplate<String, Object> businessRedisTemplate;
     private final UiAsyncProperties asyncProperties;
     private final ObjectMapper redisObjectMapper;
+
+    /**
+     * 현재 인스턴스에서 등록한 PENDING traceId의 타임아웃 예정 시각(epoch ms) 캐시입니다.
+     *
+     * <p>분산 상태의 정답은 Redis이며, 이 맵은 스케줄러 반복 조회 비용을 줄이기 위한
+     * 로컬 힌트 용도로만 사용합니다.</p>
+     */
+    private final Map<String, Long> pendingTimeoutEpochByTraceId = new ConcurrentHashMap<>();
 
     public AsyncResultStoreService(
             @Qualifier("businessRedisTemplate") final RedisTemplate<String, Object> businessRedisTemplate,
@@ -61,91 +82,212 @@ public class AsyncResultStoreService implements AsyncResultStorePort {
     }
 
     /**
-     * 비동기 작업 결과를 Redis에 저장합니다.
+     * 비동기 작업 대기(PENDING) 상태를 등록합니다.
      *
-     * <p>{@code UiCommandIngressService}가 tc.ui.commands에서
-     * EQP_START_REP / EQP_END_REP 메시지를 수신했을 때 호출합니다.</p>
+     * <p>EqpController가 EQP_START / EQP_END 발행 직전에 호출하며,
+     * 응답이 도착하기 전 polling 요청에서 "존재하지 않는 traceId(404)"로 오인하지 않도록
+     * 먼저 상태 키를 생성합니다.</p>
      *
      * @param traceId 작업 추적 ID (ULID, 캐시 키 생성에 사용)
-     * @param reply   저장할 명령 응답 DTO
+     * @param timeoutMs 비동기 처리 타임아웃(ms)
      */
     @Override
-    public void save(final String traceId, final UiCommandReply reply) {
+    public void registerPending(final String traceId, final long timeoutMs) {
         Objects.requireNonNull(traceId, "traceId 는 null 이 될 수 없습니다.");
-        Objects.requireNonNull(reply, "reply 는 null 이 될 수 없습니다.");
+        if (timeoutMs <= 0L) {
+            throw new IllegalArgumentException("timeoutMs 는 0보다 커야 합니다.");
+        }
 
         final String key = KEY_PREFIX + traceId;
         final long ttlSeconds = asyncProperties.getResultTtlSeconds();
-        final RedisUiAsyncResultEntry entry = RedisUiAsyncResultEntry.from(reply);
+        final long timeoutAtEpochMs = System.currentTimeMillis() + timeoutMs + TIMEOUT_BUFFER_MS;
+        final RedisUiAsyncResultEntry entry = RedisUiAsyncResultEntry.pending(traceId, timeoutAtEpochMs);
 
         try {
-            if (ttlSeconds > 0L) {
-                businessRedisTemplate.opsForValue().set(key, entry, Duration.ofSeconds(ttlSeconds));
-            } else {
-                // TTL=0 은 만료 없이 보관 (설정에 따라 허용)
-                businessRedisTemplate.opsForValue().set(key, entry);
-            }
-            log.info("비동기 결과 저장 완료. traceId={}, eqpId={}, status={}, ttlSeconds={}",
-                    traceId,
-                    reply.eqpId(),
-                    reply.status(),
-                    ttlSeconds > 0L ? ttlSeconds : "무제한");
+            writeWithConfiguredTtl(key, entry, ttlSeconds);
+            pendingTimeoutEpochByTraceId.put(traceId, timeoutAtEpochMs);
+            log.debug("비동기 결과 PENDING 등록. traceId={}, timeoutMs={}, timeoutAtEpochMs={}",
+                    traceId, timeoutMs, timeoutAtEpochMs);
         } catch (Exception e) {
-            // 저장 실패 시 오류 로그만 남기고 상위 예외는 전파합니다.
-            // polling 시 결과가 없으면 front에서 재시도 또는 타임아웃 처리를 합니다.
-            log.error("비동기 결과 저장 실패. traceId={}, eqpId={}",
-                    traceId, reply.eqpId(), e);
+            log.error("비동기 결과 PENDING 등록 실패. traceId={}, timeoutMs={}", traceId, timeoutMs, e);
             throw e;
         }
     }
 
     /**
-     * 비동기 작업 결과를 조회합니다.
+     * 비동기 작업 완료(COMPLETED) 상태를 저장합니다.
      *
-     * <p>{@code AsyncResultController}가 front의 polling 요청을 처리할 때 호출합니다.
-     * 결과가 없으면 아직 처리 중이거나 TTL이 만료된 것으로 간주합니다.</p>
+     * <p>Gateway 응답 도착 시 UiCommandIngressService가 호출합니다.</p>
      *
-     * @param traceId 조회할 작업 추적 ID
-     * @return 저장된 결과가 있으면 {@link UiCommandReply}, 없으면 빈 Optional
+     * @param traceId 작업 추적 ID
+     * @param reply 완료 응답 payload
      */
     @Override
-    public Optional<UiCommandReply> get(final String traceId) {
+    public void markCompleted(final String traceId, final UiCommandReply reply) {
+        Objects.requireNonNull(traceId, "traceId 는 null 이 될 수 없습니다.");
+        Objects.requireNonNull(reply, "reply 는 null 이 될 수 없습니다.");
+
+        final String key = KEY_PREFIX + traceId;
+        final RedisUiAsyncResultEntry entry = RedisUiAsyncResultEntry.completed(reply);
+        final long ttlSeconds = asyncProperties.getResultTtlSeconds();
+
+        try {
+            writeWithConfiguredTtl(key, entry, ttlSeconds);
+            pendingTimeoutEpochByTraceId.remove(traceId);
+            log.info("비동기 결과 COMPLETED 저장. traceId={}, eqpId={}, status={}",
+                    traceId, reply.eqpId(), reply.status());
+        } catch (Exception e) {
+            log.error("비동기 결과 COMPLETED 저장 실패. traceId={}, eqpId={}", traceId, reply.eqpId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 비동기 작업을 TIMEOUT 상태로 전환합니다.
+     *
+     * <p>이미 COMPLETED 상태인 경우에는 덮어쓰지 않고 종료합니다.</p>
+     *
+     * @param traceId 작업 추적 ID
+     */
+    @Override
+    public void markTimeout(final String traceId) {
+        Objects.requireNonNull(traceId, "traceId 는 null 이 될 수 없습니다.");
+
+        final String key = KEY_PREFIX + traceId;
+        final Optional<RedisUiAsyncResultEntry> existingOpt = readRedisEntry(key);
+        if (existingOpt.isEmpty()) {
+            pendingTimeoutEpochByTraceId.remove(traceId);
+            if (log.isDebugEnabled()) {
+                log.debug("TIMEOUT 전환 생략 - traceId 상태가 이미 없음. traceId={}", traceId);
+            }
+            return;
+        }
+
+        final RedisUiAsyncResultEntry existing = existingOpt.get();
+        if (AsyncStatus.COMPLETED.name().equals(existing.getAsyncStatus())) {
+            pendingTimeoutEpochByTraceId.remove(traceId);
+            if (log.isDebugEnabled()) {
+                log.debug("TIMEOUT 전환 생략 - 이미 COMPLETED. traceId={}", traceId);
+            }
+            return;
+        }
+
+        final long ttlSeconds = asyncProperties.getResultTtlSeconds();
+        final RedisUiAsyncResultEntry timeoutEntry = RedisUiAsyncResultEntry.timeout(traceId);
+        writeWithConfiguredTtl(key, timeoutEntry, ttlSeconds);
+        pendingTimeoutEpochByTraceId.remove(traceId);
+        log.warn("비동기 결과 TIMEOUT 전환. traceId={}", traceId);
+    }
+
+    /**
+     * 비동기 작업 상태를 조회합니다.
+     *
+     * <p>PENDING 상태가 로컬 계산상 만료 시각을 넘긴 경우 즉시 TIMEOUT으로 승격하여 반환합니다.</p>
+     *
+     * @param traceId 조회 대상 traceId
+     * @return 상태 엔트리
+     */
+    @Override
+    public Optional<AsyncResultEntry> getWithStatus(final String traceId) {
         Objects.requireNonNull(traceId, "traceId 는 null 이 될 수 없습니다.");
 
         final String key = KEY_PREFIX + traceId;
         try {
-            final Object raw = businessRedisTemplate.opsForValue().get(key);
-            if (raw == null) {
+            final Optional<RedisUiAsyncResultEntry> entryOpt = readRedisEntry(key);
+            if (entryOpt.isEmpty()) {
                 if (log.isDebugEnabled()) {
-                    log.debug("비동기 결과 없음 (처리 중이거나 TTL 만료). traceId={}, key={}", traceId, key);
+                    log.debug("비동기 상태 조회 결과 없음. traceId={}, key={}", traceId, key);
                 }
                 return Optional.empty();
             }
 
-            if (raw instanceof RedisUiAsyncResultEntry entry) {
-                if (log.isDebugEnabled()) {
-                    log.debug("비동기 결과 조회 성공. traceId={}, status={}", traceId, entry.getStatus());
-                }
-                return Optional.of(entry.toReplyMessage());
-            }
-            if (raw instanceof java.util.Map<?, ?> map) {
-                // 직렬화 포맷 전환 과정에서 LinkedHashMap으로 역직렬화되는 경우를 방어합니다.
-                final RedisUiAsyncResultEntry entry = redisObjectMapper.convertValue(map, RedisUiAsyncResultEntry.class);
-                if (log.isDebugEnabled()) {
-                    log.debug("비동기 결과 조회 성공(Map 변환). traceId={}, status={}", traceId, entry.getStatus());
-                }
-                return Optional.of(entry.toReplyMessage());
+            final RedisUiAsyncResultEntry entry = entryOpt.get();
+
+            // PENDING + 기한 초과면 조회 시점에 즉시 TIMEOUT 승격(스케줄러 누락 대비)
+            if (entry.isPending() && entry.getTimeoutAtEpochMs() > 0L
+                    && System.currentTimeMillis() >= entry.getTimeoutAtEpochMs()) {
+                markTimeout(traceId);
+                return Optional.of(AsyncResultEntry.timeout(traceId));
             }
 
-            // 타입 불일치 — 직렬화 형식 변경 등으로 발생 가능
-            log.warn("비동기 결과 타입 불일치, 해당 항목 제거. key={}, actualType={}",
-                    key, raw.getClass().getName());
-            businessRedisTemplate.delete(key);
-            return Optional.empty();
+            final AsyncResultEntry result = entry.toAsyncResultEntry();
+            if (log.isDebugEnabled()) {
+                log.debug("비동기 상태 조회 성공. traceId={}, asyncStatus={}", traceId, result.status());
+            }
+            return Optional.of(result);
 
         } catch (Exception e) {
-            log.warn("비동기 결과 조회 실패. traceId={}, key={}", traceId, key, e);
+            log.warn("비동기 상태 조회 실패. traceId={}, key={}", traceId, key, e);
             return Optional.empty();
         }
+    }
+
+    /**
+     * 로컬 pending 맵을 기준으로 만료된 traceId를 주기적으로 TIMEOUT 전환합니다.
+     *
+     * <p>스케줄러 누락/재시작 등으로 전환이 지연되어도 {@link #getWithStatus(String)}의
+     * 조회 시 승격 로직이 보조 안전장치로 동작합니다.</p>
+     */
+    @Scheduled(fixedDelayString = "${tc.ui.backend.async.timeout-scan-interval-ms:1000}")
+    public void promoteExpiredPendingToTimeout() {
+        final long now = System.currentTimeMillis();
+        for (Map.Entry<String, Long> pending : pendingTimeoutEpochByTraceId.entrySet()) {
+            final String traceId = pending.getKey();
+            final Long timeoutAt = pending.getValue();
+            if (timeoutAt != null && now >= timeoutAt) {
+                try {
+                    markTimeout(traceId);
+                } catch (Exception e) {
+                    log.error("비동기 TIMEOUT 스케줄 전환 실패. traceId={}", traceId, e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Redis 키에 엔트리를 설정합니다.
+     *
+     * @param key Redis 키
+     * @param entry 저장 엔트리
+     * @param ttlSeconds TTL(초). 0이면 무기한
+     */
+    private void writeWithConfiguredTtl(
+            final String key,
+            final RedisUiAsyncResultEntry entry,
+            final long ttlSeconds
+    ) {
+        if (ttlSeconds > 0L) {
+            businessRedisTemplate.opsForValue().set(key, entry, Duration.ofSeconds(ttlSeconds));
+            return;
+        }
+        businessRedisTemplate.opsForValue().set(key, entry);
+    }
+
+    /**
+     * Redis 값을 {@link RedisUiAsyncResultEntry}로 읽습니다.
+     *
+     * @param key Redis 키
+     * @return 파싱 성공 시 Optional 엔트리
+     */
+    private Optional<RedisUiAsyncResultEntry> readRedisEntry(final String key) {
+        final Object raw = businessRedisTemplate.opsForValue().get(key);
+        if (raw == null) {
+            return Optional.empty();
+        }
+
+        if (raw instanceof RedisUiAsyncResultEntry entry) {
+            return Optional.of(entry);
+        }
+
+        if (raw instanceof Map<?, ?> map) {
+            // 직렬화 포맷 전환 과정에서 LinkedHashMap으로 역직렬화되는 경우를 방어합니다.
+            final RedisUiAsyncResultEntry converted = redisObjectMapper.convertValue(map, RedisUiAsyncResultEntry.class);
+            return Optional.of(converted);
+        }
+
+        log.warn("비동기 결과 타입 불일치, 해당 항목 제거. key={}, actualType={}",
+                key, raw.getClass().getName());
+        businessRedisTemplate.delete(key);
+        return Optional.empty();
     }
 }

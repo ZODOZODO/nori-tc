@@ -1,5 +1,7 @@
 package com.nori.tc.apps.uibackend.scenario;
 
+import com.nori.tc.ui.core.model.AsyncResultEntry;
+import com.nori.tc.ui.core.model.AsyncStatus;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
@@ -151,6 +153,55 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[시나리오 6] EQP_CREATE DualResponse 200 확인 완료. traceId={}", capturedTraceId);
     }
 
+    /**
+     * 시나리오 6-a: DeferredResult 비동기 재디스패치에서 토큰 재검증이 중복 호출되지 않아야 합니다.
+     *
+     * <p>검증 포인트:</p>
+     * <ul>
+     *   <li>초기 요청 시 토큰 검증 1회 수행</li>
+     *   <li>asyncDispatch 재디스패치에서는 기존 SecurityContext를 재사용하여 토큰 재검증 생략</li>
+     *   <li>{@code tokenCachePort.get(TEST_TOKEN)} 호출 횟수 = 1회</li>
+     * </ul>
+     */
+    @Test
+    @DisplayName("시나리오 6-a: DeferredResult 재디스패치에서 토큰 재검증 1회 유지")
+    void DeferredResult_재디스패치_토큰_이중검증_방지() throws Exception {
+        log.info("[시나리오 6-a] DeferredResult 재디스패치 토큰 이중검증 방지 검증 시작");
+
+        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
+                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"eqpId":"EQP-CREATE-ASYNC-001","interfaceType":"HSMS"}
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
+        verify(dualResponseRegistry).register(traceIdCaptor.capture(), anyLong());
+        final String capturedTraceId = traceIdCaptor.getValue();
+
+        final UiTaskResult gatewayResult =
+                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY);
+        final UiTaskResult businessResult =
+                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS);
+        when(dualResponseRedisPort.getResult(capturedTraceId))
+                .thenReturn(Optional.of(new UiDualTaskFinalResult(
+                        capturedTraceId,
+                        true,
+                        gatewayResult,
+                        businessResult
+                )));
+        dualResponseRegistry.completeFromRedis(capturedTraceId);
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isOk());
+
+        verify(tokenCachePort, times(1)).get(TEST_TOKEN);
+        log.info("[시나리오 6-a] 토큰 재검증 1회 유지 확인 완료");
+    }
+
     // ─────────────────────────────────────────────────────────
     // 시나리오 7: EQP_START → 202 즉시 반환 + traceId
     // ─────────────────────────────────────────────────────────
@@ -208,7 +259,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
      * <p>EQP_START 흐름 중 polling 단계 검증입니다:</p>
      * <ol>
      *   <li>Gateway가 tc.ui.commands 토픽에 EQP_START_REP 발행</li>
-     *   <li>UiCommandIngressService 수신 → AsyncResultStorePort.save(traceId, reply) 저장</li>
+     *   <li>UiCommandIngressService 수신 → AsyncResultStorePort.markCompleted(traceId, reply) 저장</li>
      *   <li>클라이언트가 GET /api/async/{traceId} 호출 → 200 + PASS 결과 반환</li>
      * </ol>
      *
@@ -238,7 +289,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 null,
                 null
         );
-        when(asyncResultStorePort.get(traceId)).thenReturn(Optional.of(reply));
+        when(asyncResultStorePort.getWithStatus(traceId))
+                .thenReturn(Optional.of(AsyncResultEntry.completed(traceId, reply)));
 
         // when + then: polling → 200 + PASS 결과
         mockMvc.perform(get("/api/async/{traceId}", traceId)
@@ -254,26 +306,70 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
     }
 
     /**
-     * 시나리오 7-a (대기 중): GET /api/async/{traceId} — Gateway reply가 아직 없을 때 404를 반환합니다.
+     * 시나리오 7-a (대기 중): GET /api/async/{traceId} — Gateway reply가 아직 없을 때 202를 반환합니다.
      *
-     * <p>Gateway 처리가 완료되기 전이거나 TTL이 만료된 경우 404 Not Found를 반환합니다.
-     * 클라이언트는 일정 간격으로 재시도하여 결과를 확인합니다.</p>
+     * <p>상태 모델 도입 후 PENDING은 202 Accepted로 구분되며,
+     * 클라이언트는 동일 traceId로 polling을 지속합니다.</p>
      */
     @Test
-    @DisplayName("시나리오 7-a (대기): GET /api/async/{traceId} → 결과 미존재 → 404")
-    void ASYNC_POLLING_결과없음_404() throws Exception {
-        log.info("[시나리오 7-a 대기] GET /api/async/{{traceId}} → 결과 미존재 → 404 검증 시작");
+    @DisplayName("시나리오 7-a (대기): GET /api/async/{traceId} → PENDING → 202")
+    void ASYNC_POLLING_대기상태_202() throws Exception {
+        log.info("[시나리오 7-a 대기] GET /api/async/{{traceId}} → PENDING 202 검증 시작");
 
-        // given: 아직 처리 중 (Gateway reply가 Redis에 저장되지 않은 상태)
-        when(asyncResultStorePort.get(anyString())).thenReturn(Optional.empty());
+        // given: 아직 처리 중인 traceId 상태(PENDING)
+        final String traceId = "pending-trace-id";
+        when(asyncResultStorePort.getWithStatus(traceId))
+                .thenReturn(Optional.of(AsyncResultEntry.pending(traceId, System.currentTimeMillis() + 30_000L)));
 
-        // when + then: 결과 없음 → 404 (처리 중 또는 만료)
-        mockMvc.perform(get("/api/async/{traceId}", "pending-trace-id")
+        // when + then: 처리 중 상태 → 202
+        mockMvc.perform(get("/api/async/{traceId}", traceId)
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andDo(print())
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("PENDING"));
+
+        log.info("[시나리오 7-a 대기] 202 확인 완료");
+    }
+
+    /**
+     * 시나리오 7-a (타임아웃): GET /api/async/{traceId} — TIMEOUT 상태는 408을 반환합니다.
+     */
+    @Test
+    @DisplayName("시나리오 7-a (타임아웃): GET /api/async/{traceId} → TIMEOUT → 408")
+    void ASYNC_POLLING_타임아웃_408() throws Exception {
+        log.info("[시나리오 7-a 타임아웃] GET /api/async/{{traceId}} → TIMEOUT 408 검증 시작");
+
+        final String traceId = "timeout-trace-id";
+        when(asyncResultStorePort.getWithStatus(traceId))
+                .thenReturn(Optional.of(AsyncResultEntry.timeout(traceId)));
+
+        mockMvc.perform(get("/api/async/{traceId}", traceId)
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andDo(print())
+                .andExpect(status().isRequestTimeout())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("TIMEOUT"));
+
+        log.info("[시나리오 7-a 타임아웃] 408 확인 완료");
+    }
+
+    /**
+     * 시나리오 7-a (없는 traceId): GET /api/async/{traceId} — 존재하지 않는 traceId는 404를 반환합니다.
+     */
+    @Test
+    @DisplayName("시나리오 7-a (없는 traceId): GET /api/async/{traceId} → 404")
+    void ASYNC_POLLING_없는_traceId_404() throws Exception {
+        log.info("[시나리오 7-a 없음] GET /api/async/{{traceId}} → 404 검증 시작");
+
+        when(asyncResultStorePort.getWithStatus(anyString())).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/async/{traceId}", "not-found-trace-id")
                         .header("Authorization", "Bearer " + TEST_TOKEN))
                 .andDo(print())
                 .andExpect(status().isNotFound());
 
-        log.info("[시나리오 7-a 대기] 404 확인 완료");
+        log.info("[시나리오 7-a 없음] 404 확인 완료");
     }
 
     // ─────────────────────────────────────────────────────────

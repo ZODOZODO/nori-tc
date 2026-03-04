@@ -114,12 +114,32 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout() {
         final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // UiTokenAuthenticationFilter에서 credentials에 원본 토큰 보관 (LogoutUseCase용)
-        final String token = (String) authentication.getCredentials();
-        final String tokenPrefix = token.substring(0, Math.min(8, token.length()));
+        if (authentication == null) {
+            log.warn("로그아웃 요청 거부 - SecurityContext 인증 정보 없음");
+            return unauthorizedVoid("인증 정보가 유효하지 않습니다.");
+        }
 
+        // UiTokenAuthenticationFilter에서 credentials에 원본 토큰(String)을 보관합니다.
+        // 캐스팅 예외(ClassCastException) 방지를 위해 instanceof 패턴 매칭을 사용합니다.
+        if (!(authentication.getCredentials() instanceof String token) || token.isBlank()) {
+            log.warn("로그아웃 요청 거부 - credentials 타입 불일치. actualType={}",
+                    authentication.getCredentials() == null
+                            ? "null"
+                            : authentication.getCredentials().getClass().getName());
+            return unauthorizedVoid("인증 정보가 유효하지 않습니다.");
+        }
+
+        if (!(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            log.warn("로그아웃 요청 거부 - principal 타입 불일치. actualType={}",
+                    authentication.getPrincipal() == null
+                            ? "null"
+                            : authentication.getPrincipal().getClass().getName());
+            return unauthorizedVoid("인증 정보가 유효하지 않습니다.");
+        }
+
+        final String tokenPrefix = token.substring(0, Math.min(8, token.length()));
         log.info("로그아웃 요청. token={}..., userPk={}",
-                tokenPrefix, ((UserPrincipal) authentication.getPrincipal()).userPk());
+                tokenPrefix, principal.userPk());
 
         logoutUseCase.execute(token);
 
@@ -142,9 +162,21 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<MeResponse>> me() {
         final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            log.warn("현재 사용자 정보 조회 거부 - SecurityContext 인증 정보 없음");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("UNAUTHORIZED", "인증 정보가 유효하지 않습니다."));
+        }
 
-        // UiTokenAuthenticationFilter에서 principal을 UserPrincipal로 설정
-        final UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        // 강제 캐스팅 대신 instanceof 패턴 매칭으로 타입 안정성을 보장합니다.
+        if (!(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            log.warn("현재 사용자 정보 조회 거부 - principal 타입 불일치. actualType={}",
+                    authentication.getPrincipal() == null
+                            ? "null"
+                            : authentication.getPrincipal().getClass().getName());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("UNAUTHORIZED", "인증 정보가 유효하지 않습니다."));
+        }
 
         log.debug("현재 사용자 정보 조회. userPk={}, userId={}",
                 principal.userPk(), principal.userId());
@@ -156,5 +188,16 @@ public class AuthController {
         );
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * void body 응답용 401 생성 헬퍼입니다.
+     *
+     * @param message 오류 메시지
+     * @return 401 Unauthorized 응답
+     */
+    private static ResponseEntity<ApiResponse<Void>> unauthorizedVoid(final String message) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("UNAUTHORIZED", message));
     }
 }

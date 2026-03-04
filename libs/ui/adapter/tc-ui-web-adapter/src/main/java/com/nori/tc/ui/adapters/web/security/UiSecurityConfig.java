@@ -36,7 +36,7 @@ import java.util.Objects;
  * <p>URL 인가 로직 ({@link UiApiPermissionCache#isAuthorized}):</p>
  * <ul>
  *   <li>인증되지 않은 요청 → 401 (AuthenticationEntryPoint: HttpServletResponse.SC_UNAUTHORIZED)</li>
- *   <li>인증된 요청 + URI에 매칭 API 권한 없음 → 허용 (open by default for authenticated)</li>
+ *   <li>인증된 요청 + URI에 매칭 API 권한 없음 → 차단 (closed by default)</li>
  *   <li>인증된 요청 + URI에 매칭 API 권한 있음 → 사용자가 해당 permCode 보유 시 허용</li>
  * </ul>
  */

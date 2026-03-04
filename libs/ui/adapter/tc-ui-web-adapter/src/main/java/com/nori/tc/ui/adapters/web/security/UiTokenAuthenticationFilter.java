@@ -36,7 +36,7 @@ import java.util.Objects;
  *       <ul>
  *         <li>Business Redis 캐시 히트 → 캐시된 UserPrincipal 사용 (DB 미조회)</li>
  *         <li>캐시 미스 → DB 조회 (session + user + permissions) → 캐시 저장</li>
- *         <li>lastSeenAt 업데이트 (캐시 미스 시, 동기 처리)</li>
+ *         <li>lastSeenAt 업데이트 (캐시 미스 시, 비동기 처리)</li>
  *       </ul>
  *   </li>
  *   <li>토큰 검증 성공 → {@code UsernamePasswordAuthenticationToken}을 SecurityContext에 등록
@@ -48,8 +48,7 @@ import java.util.Objects;
  *   <li>{@link UiAuthenticationException} → 401 Unauthorized JSON 응답 즉시 반환</li>
  * </ol>
  *
- * <p>NOTE: lastSeenAt 비동기 업데이트는 향후 성능 개선 시 적용 가능합니다.
- * ValidateTokenUseCase의 주석 참고 ("어댑터에서 @Async 적용 가능").</p>
+ * <p>NOTE: lastSeenAt 업데이트 실패는 인증 실패로 전파하지 않고 WARN 로그로만 관측합니다.</p>
  */
 @Component
 public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
@@ -58,6 +57,12 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
 
     /** Bearer 토큰 접두사 */
     private static final String BEARER_PREFIX = "Bearer ";
+
+    /**
+     * DeferredResult 재디스패치 시 재사용할 인증 객체 request attribute 키입니다.
+     */
+    private static final String ASYNC_AUTH_ATTRIBUTE =
+            UiTokenAuthenticationFilter.class.getName() + ".ASYNC_AUTH";
 
     private final ValidateTokenUseCase validateTokenUseCase;
     private final ObjectMapper objectMapper;
@@ -110,6 +115,34 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
             final FilterChain filterChain
     ) throws ServletException, IOException {
 
+        // DeferredResult 재디스패치(ASYNC)이고 이미 인증 컨텍스트가 있으면 토큰 재검증을 생략합니다.
+        // - 최초 REQUEST 디스패치에서 이미 인증을 마친 상태를 그대로 사용합니다.
+        // - Redis/DB 중복 조회를 줄여 비동기 응답 경로의 불필요한 오버헤드를 제거합니다.
+        if (isAsyncDispatch(request)) {
+            final var currentAuthentication = SecurityContextHolder.getContext().getAuthentication();
+            if (currentAuthentication != null) {
+                if (log.isTraceEnabled()) {
+                    log.trace("비동기 재디스패치 인증 재검증 생략(SecurityContext 재사용). uri={}, method={}",
+                            request.getRequestURI(), request.getMethod());
+                }
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // 일부 컨테이너/설정에서는 ASYNC 디스패치 시 SecurityContext가 비어 있을 수 있으므로
+            // 최초 REQUEST 디스패치에서 request attribute로 저장한 인증 객체를 복원합니다.
+            final Object asyncAuthentication = request.getAttribute(ASYNC_AUTH_ATTRIBUTE);
+            if (asyncAuthentication instanceof UsernamePasswordAuthenticationToken auth) {
+                SecurityContextHolder.getContext().setAuthentication(auth);
+                if (log.isTraceEnabled()) {
+                    log.trace("비동기 재디스패치 인증 복원 후 재검증 생략. uri={}, method={}",
+                            request.getRequestURI(), request.getMethod());
+                }
+                filterChain.doFilter(request, response);
+                return;
+            }
+        }
+
         // 1단계: Authorization 헤더에서 Bearer 토큰 추출
         final String token = extractBearerToken(request);
         if (token == null) {
@@ -143,6 +176,7 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
         final UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(principal, token, List.of());
         SecurityContextHolder.getContext().setAuthentication(authentication);
+        request.setAttribute(ASYNC_AUTH_ATTRIBUTE, authentication);
 
         log.debug("인증 처리 완료. userPk={}, userId={}, uri={}, method={}",
                 principal.userPk(), principal.userId(),

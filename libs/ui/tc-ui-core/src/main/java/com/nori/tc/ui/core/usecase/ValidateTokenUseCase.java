@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -120,8 +121,10 @@ public class ValidateTokenUseCase {
         nextRevokeCheckEpochMsByToken.put(token, System.currentTimeMillis() + CACHE_HIT_REVOKE_RECHECK_INTERVAL_MS);
         log.debug("토큰 캐시 저장 완료. userPk={}", userPk);
 
-        // 7단계: 최근 활동 시각 업데이트 (성능을 위해 동기 처리 - 어댑터에서 @Async 적용 가능)
-        sessionPort.updateLastSeenAt(token, OffsetDateTime.now());
+        // 7단계: 최근 활동 시각 비동기 업데이트
+        // - 인증 성공 경로의 응답 지연을 최소화하기 위해 별도 스레드에서 수행합니다.
+        // - 업데이트 실패는 인증 실패로 전파하지 않고 WARN 로그로만 관측합니다.
+        updateLastSeenAtAsync(token, userPk);
 
         log.debug("토큰 검증 성공. userPk={}, userId={}", userPk, userInfo.userId());
         return principal;
@@ -157,5 +160,31 @@ public class ValidateTokenUseCase {
             log.debug("캐시 히트 세션 DB 유효성 검증 완료. userPk={}, nextCheckInMs={}",
                     userPk, CACHE_HIT_REVOKE_RECHECK_INTERVAL_MS);
         }
+    }
+
+    /**
+     * lastSeenAt 업데이트를 비동기로 수행합니다.
+     *
+     * <p>Redis 캐시 미스 경로에서 DB 조회가 이미 수행되므로, 최근 접속 시각 업데이트까지
+     * 동기 처리하면 인증 응답 지연이 누적될 수 있습니다. 본 메서드는 업데이트를 백그라운드로
+     * 분리하여 인증 성공 응답과 분리합니다.</p>
+     *
+     * <p>중요: lastSeenAt 업데이트 실패는 관측(로그) 대상이며 인증 실패 사유가 아닙니다.
+     * 따라서 예외를 상위로 전파하지 않습니다.</p>
+     *
+     * @param token 세션 토큰
+     * @param userPk 로그 보강용 사용자 PK
+     */
+    private void updateLastSeenAtAsync(final String token, final long userPk) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                sessionPort.updateLastSeenAt(token, OffsetDateTime.now());
+                if (log.isTraceEnabled()) {
+                    log.trace("lastSeenAt 비동기 업데이트 완료. userPk={}", userPk);
+                }
+            } catch (Exception e) {
+                log.warn("lastSeenAt 비동기 업데이트 실패 - 인증은 유지됩니다. userPk={}", userPk, e);
+            }
+        });
     }
 }

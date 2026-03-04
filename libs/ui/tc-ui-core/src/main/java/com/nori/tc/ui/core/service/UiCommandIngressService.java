@@ -115,8 +115,8 @@ public class UiCommandIngressService implements UiCommandIngressPort {
      * @param reply   수신된 reply 메시지
      */
     private void handleAsyncResult(final String traceId, final UiCommandReply reply) {
-        log.info("비동기 결과 Redis 저장. traceId={}, status={}", traceId, reply.status());
-        asyncResultStorePort.save(traceId, reply);
+        log.info("비동기 결과 COMPLETED 저장. traceId={}, status={}", traceId, reply.status());
+        asyncResultStorePort.markCompleted(traceId, reply);
     }
 
     /**

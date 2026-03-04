@@ -1,5 +1,6 @@
 package com.nori.tc.ui.core.port.redis;
 
+import com.nori.tc.ui.core.model.AsyncResultEntry;
 import com.nori.tc.ui.core.model.UiCommandReply;
 
 import java.util.Optional;
@@ -24,26 +25,47 @@ import java.util.Optional;
 public interface AsyncResultStorePort {
 
     /**
-     * 비동기 작업 결과를 Redis에 저장합니다.
+     * 비동기 작업 대기(PENDING) 상태를 등록합니다.
      *
-     * <p>UiCommandIngressService가 tc.ui.commands에서 EQP_START_REP / EQP_END_REP
-     * 메시지를 수신했을 때 호출합니다. TTL은 구현체가 설정에서 읽어 적용합니다.</p>
+     * <p>EqpController가 EQP_START / EQP_END 명령 발행 직전에 호출합니다.
+     * traceId를 먼저 등록하여, 응답이 빠르게 도착하는 경우에도 polling 경로에서
+     * "존재하지 않는 traceId(404)"로 오인하지 않도록 보장합니다.</p>
      *
      * @param traceId 작업 추적 ID (ULID, 캐시 키 생성에 사용)
-     * @param reply   저장할 명령 응답 DTO (status, errorCode, errorMsg 포함)
+     * @param timeoutMs 비동기 처리 타임아웃(ms). 구현체는 timeoutMs + buffer를 사용해 TIMEOUT 전환 시점을 계산합니다.
      */
-    void save(String traceId, UiCommandReply reply);
+    void registerPending(String traceId, long timeoutMs);
 
     /**
-     * 비동기 작업 결과를 조회합니다.
+     * 비동기 작업 완료(COMPLETED) 상태를 저장합니다.
      *
-     * <p>AsyncResultController가 front의 polling 요청을 처리할 때 호출합니다.
-     * 결과가 없으면 아직 처리 중이거나 TTL이 만료된 것으로 간주합니다.</p>
+     * <p>UiCommandIngressService가 tc.ui.commands에서 EQP_START_REP / EQP_END_REP
+     * 메시지를 수신했을 때 호출합니다.</p>
+     *
+     * @param traceId 작업 추적 ID
+     * @param reply 최종 응답 DTO
+     */
+    void markCompleted(String traceId, UiCommandReply reply);
+
+    /**
+     * 비동기 작업을 타임아웃(TIMEOUT) 상태로 전환합니다.
+     *
+     * <p>스케줄러 또는 지연 확인 로직에서 호출합니다.
+     * 이미 COMPLETED 상태인 경우에는 상태를 덮어쓰지 않아야 합니다.</p>
+     *
+     * @param traceId 작업 추적 ID
+     */
+    void markTimeout(String traceId);
+
+    /**
+     * 비동기 작업 상태를 조회합니다.
+     *
+     * <p>AsyncResultController가 polling 요청을 처리할 때 호출합니다.</p>
      *
      * @param traceId 조회할 작업 추적 ID
-     * @return 저장된 결과가 있으면 UiCommandReply, 없으면 빈 Optional
+     * @return 상태 엔트리가 있으면 {@link AsyncResultEntry}, 없으면 빈 Optional
      */
-    Optional<UiCommandReply> get(String traceId);
+    Optional<AsyncResultEntry> getWithStatus(String traceId);
 
     /**
      * 테스트 또는 초기 구성에 사용할 noop(아무 동작 없음) 구현체를 반환합니다.
@@ -53,12 +75,22 @@ public interface AsyncResultStorePort {
     static AsyncResultStorePort noop() {
         return new AsyncResultStorePort() {
             @Override
-            public void save(final String traceId, final UiCommandReply reply) {
+            public void registerPending(final String traceId, final long timeoutMs) {
                 // noop: 아무 동작 없음
             }
 
             @Override
-            public Optional<UiCommandReply> get(final String traceId) {
+            public void markCompleted(final String traceId, final UiCommandReply reply) {
+                // noop: 아무 동작 없음
+            }
+
+            @Override
+            public void markTimeout(final String traceId) {
+                // noop: 아무 동작 없음
+            }
+
+            @Override
+            public Optional<AsyncResultEntry> getWithStatus(final String traceId) {
                 return Optional.empty();
             }
         };

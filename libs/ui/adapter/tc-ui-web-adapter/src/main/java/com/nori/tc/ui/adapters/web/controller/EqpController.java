@@ -13,6 +13,7 @@ import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
 import com.nori.tc.ui.core.port.messaging.UiBusinessEventPublishPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
+import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
 import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
 import com.nori.tc.ui.domain.task.UiTaskResult;
@@ -80,6 +81,7 @@ public class EqpController {
     private final DualResponseRegistry dualResponseRegistry;
     private final UiGatewayEventPublishPort gatewayEventPublishPort;
     private final UiBusinessEventPublishPort businessEventPublishPort;
+    private final AsyncResultStorePort asyncResultStorePort;
     private final UiDualRequestProperties dualRequestProperties;
 
     /**
@@ -88,17 +90,20 @@ public class EqpController {
      * @param dualResponseRegistry      양방향 응답 수집 레지스트리
      * @param gatewayEventPublishPort   Gateway Kafka 이벤트 발행 포트
      * @param businessEventPublishPort  Business Kafka 이벤트 발행 포트
+     * @param asyncResultStorePort      START/END polling 상태 저장 포트
      * @param dualRequestProperties     DualResponse 타임아웃 설정
      */
     public EqpController(
             final DualResponseRegistry dualResponseRegistry,
             final UiGatewayEventPublishPort gatewayEventPublishPort,
             final UiBusinessEventPublishPort businessEventPublishPort,
+            final AsyncResultStorePort asyncResultStorePort,
             final UiDualRequestProperties dualRequestProperties
     ) {
         this.dualResponseRegistry = Objects.requireNonNull(dualResponseRegistry, "dualResponseRegistry is null");
         this.gatewayEventPublishPort = Objects.requireNonNull(gatewayEventPublishPort, "gatewayEventPublishPort is null");
         this.businessEventPublishPort = Objects.requireNonNull(businessEventPublishPort, "businessEventPublishPort is null");
+        this.asyncResultStorePort = Objects.requireNonNull(asyncResultStorePort, "asyncResultStorePort is null");
         this.dualRequestProperties = Objects.requireNonNull(dualRequestProperties, "dualRequestProperties is null");
     }
 
@@ -459,11 +464,18 @@ public class EqpController {
             final String eqpId,
             final UiCommandMessage message
     ) {
+        // START/END는 polling 기반이므로 발행 전에 먼저 PENDING 상태를 등록합니다.
+        // 발행 이전 등록으로 인해 빠른 응답 도착 레이스에서도 404 오인 응답을 방지합니다.
+        final long lifecycleTimeoutMs = dualRequestProperties.getDualRequestTimeoutMs();
+        asyncResultStorePort.registerPending(traceId, lifecycleTimeoutMs);
+
         try {
             gatewayEventPublishPort.publish(message);
             log.info("{} Kafka 발행 완료. eqpId={}, traceId={}", eventType, eqpId, traceId);
         } catch (Exception e) {
             log.error("{} Kafka 발행 실패. eqpId={}, traceId={}", eventType, eqpId, traceId, e);
+            // 발행 자체가 실패한 traceId는 더 이상 완료될 수 없으므로 즉시 TIMEOUT 상태로 전환합니다.
+            asyncResultStorePort.markTimeout(traceId);
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error("PUBLISH_FAILED", "Kafka 발행 중 오류가 발생했습니다."));
         }

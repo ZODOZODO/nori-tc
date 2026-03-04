@@ -15,6 +15,7 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * tc-ui-backend-starter 자동 구성 진입점입니다.
@@ -37,6 +38,7 @@ import org.springframework.context.annotation.Import;
  * </pre>
  */
 @AutoConfiguration
+@EnableScheduling
 @ComponentScan(basePackages = "com.nori.tc.ui")
 @Import({
         UiSecurityConfig.class,      // Spring Security: 토큰 인증 필터, URL 권한 체인

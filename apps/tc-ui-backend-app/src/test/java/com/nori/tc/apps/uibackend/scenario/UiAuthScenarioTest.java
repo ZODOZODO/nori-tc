@@ -6,7 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
+import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,6 +18,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -419,5 +423,109 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         verify(sessionPort).revoke(TEST_TOKEN);
         verify(tokenCachePort).evict(TEST_TOKEN);
         log.info("[시나리오 5-a] Redis evict 실패 시에도 로그아웃 200 유지 확인 완료");
+    }
+
+    /**
+     * 시나리오 5-b: lastSeenAt 업데이트가 실패해도 인증 자체는 성공해야 합니다.
+     *
+     * <p>ValidateTokenUseCase는 lastSeenAt 업데이트 예외를 비동기로 격리하고 WARN으로만
+     * 기록해야 하며, 인증 요청의 HTTP 응답을 실패시키면 안 됩니다.</p>
+     */
+    @Test
+    @DisplayName("시나리오 5-b: lastSeenAt 업데이트 실패 시에도 /auth/me 200 유지")
+    void lastSeenAt_업데이트_실패해도_인증_성공_200() throws Exception {
+        log.info("[시나리오 5-b] lastSeenAt 업데이트 실패 격리 검증 시작");
+
+        reloadPermissions(List.of(
+                apiPermission("AUTH_ME_PERM", "/auth/me", "GET")
+        ));
+
+        // 캐시 미스 경로 강제
+        when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.empty());
+        when(sessionPort.findValidByToken(TEST_TOKEN)).thenReturn(Optional.of(
+                new com.nori.tc.db.domain.user.TcUiAuthSession(
+                        TEST_TOKEN,
+                        TEST_USER_PK,
+                        OffsetDateTime.now(),
+                        OffsetDateTime.now().plusHours(8),
+                        null,
+                        false
+                )
+        ));
+        when(userPort.findByUserPk(TEST_USER_PK)).thenReturn(Optional.of(activeUserInfo("fake-hash")));
+        when(permissionPort.findPermissionCodesByUserPk(TEST_USER_PK)).thenReturn(Set.of("AUTH_ME_PERM"));
+        doThrow(new RuntimeException("DB timeout on updateLastSeenAt"))
+                .when(sessionPort).updateLastSeenAt(org.mockito.ArgumentMatchers.eq(TEST_TOKEN), org.mockito.ArgumentMatchers.any());
+
+        mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userPk").value(TEST_USER_PK));
+
+        log.info("[시나리오 5-b] lastSeenAt 실패 분리 처리 확인 완료");
+    }
+
+    /**
+     * 시나리오 5-c: credentials 타입이 String이 아니면 로그아웃은 401로 종료되어야 합니다.
+     *
+     * <p>AuthController.logout()의 안전 캐스팅 패턴 검증입니다.</p>
+     */
+    @Test
+    @DisplayName("시나리오 5-c: /auth/logout credentials 타입 불일치 → 401")
+    void 로그아웃_credentials_타입불일치_401() throws Exception {
+        log.info("[시나리오 5-c] /auth/logout credentials 타입 불일치 401 검증 시작");
+
+        reloadPermissions(List.of(
+                apiPermission("AUTH_LOGOUT_PERM", "/auth/logout", "POST")
+        ));
+
+        final UserPrincipal principal = new UserPrincipal(
+                TEST_USER_PK,
+                TEST_USER_ID,
+                Set.of("AUTH_LOGOUT_PERM")
+        );
+        final UsernamePasswordAuthenticationToken malformedAuthentication =
+                new UsernamePasswordAuthenticationToken(principal, 12345, Collections.emptyList());
+
+        mockMvc.perform(post("/auth/logout")
+                        .with(authentication(malformedAuthentication)))
+                .andDo(print())
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        log.info("[시나리오 5-c] 401 응답 확인 완료");
+    }
+
+    /**
+     * 시나리오 5-d: 비인증(Anonymous) 요청의 /auth/logout 은 500이 아닌 401이어야 합니다.
+     */
+    @Test
+    @DisplayName("시나리오 5-d: Anonymous /auth/logout → 401")
+    void Anonymous_로그아웃_401() throws Exception {
+        log.info("[시나리오 5-d] Anonymous /auth/logout 401 검증 시작");
+
+        mockMvc.perform(post("/auth/logout"))
+                .andDo(print())
+                .andExpect(status().isUnauthorized());
+
+        log.info("[시나리오 5-d] 401 응답 확인 완료");
+    }
+
+    /**
+     * 시나리오 5-e: 비인증(Anonymous) 요청의 /auth/me 는 500이 아닌 401이어야 합니다.
+     */
+    @Test
+    @DisplayName("시나리오 5-e: Anonymous /auth/me → 401")
+    void Anonymous_내정보조회_401() throws Exception {
+        log.info("[시나리오 5-e] Anonymous /auth/me 401 검증 시작");
+
+        mockMvc.perform(get("/auth/me"))
+                .andDo(print())
+                .andExpect(status().isUnauthorized());
+
+        log.info("[시나리오 5-e] 401 응답 확인 완료");
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,7 +42,7 @@ public class DualResponseRegistry {
      * <p>분산 상태는 Redis에 저장하므로, 이 맵은 "현재 인스턴스가 처리 중인 HTTP 요청"의
      * 응답 대기 핸들만 보관합니다.</p>
      */
-    private final ConcurrentHashMap<String, CompletableFuture<UiDualTaskFinalResult>> pendingFutures =
+    private final ConcurrentHashMap<String, PendingFutureTracker> pendingFutures =
             new ConcurrentHashMap<>();
 
     private final DualResponseRedisPort dualResponseRedisPort;
@@ -75,37 +76,22 @@ public class DualResponseRegistry {
 
         dualResponseRedisPort.register(traceId, timeoutMs);
 
-        final CompletableFuture<UiDualTaskFinalResult> rawFuture = new CompletableFuture<>();
-        pendingFutures.put(traceId, rawFuture);
+        final PendingFutureTracker tracker = new PendingFutureTracker();
+        pendingFutures.put(traceId, tracker);
 
         log.debug("DualResponse 등록 완료. traceId={}, timeoutMs={}, pendingCount={}",
                 traceId, timeoutMs, pendingFutures.size());
 
         final CompletableFuture<UiDualTaskFinalResult> timedFuture =
-                rawFuture.orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
+                tracker.future().orTimeout(timeoutMs, TimeUnit.MILLISECONDS);
 
         timedFuture.whenComplete((result, throwable) -> {
-            pendingFutures.remove(traceId, rawFuture);
-
-            if (throwable instanceof TimeoutException) {
-                // 타임아웃이 발생하면 Redis 상태도 정리하여 고아 키 누적을 방지합니다.
-                dualResponseRedisPort.cancel(traceId);
-                log.warn("DualResponse 타임아웃. traceId={}, timeoutMs={}", traceId, timeoutMs);
-                return;
+            try {
+                handleCompletion(traceId, timeoutMs, tracker, result, throwable);
+            } finally {
+                // 완료/타임아웃/취소/예외 모든 경로에서 반드시 정리합니다.
+                pendingFutures.remove(traceId, tracker);
             }
-
-            if (throwable instanceof CancellationException) {
-                log.warn("DualResponse 취소됨. traceId={}", traceId);
-                return;
-            }
-
-            if (throwable != null) {
-                log.error("DualResponse 비정상 종료. traceId={}, error={}",
-                        traceId, throwable.getMessage(), throwable);
-                return;
-            }
-
-            log.debug("DualResponse 완료. traceId={}, success={}", traceId, result.success());
         });
 
         return timedFuture;
@@ -140,9 +126,8 @@ public class DualResponseRegistry {
 
         dualResponseRedisPort.cancel(traceId);
 
-        final CompletableFuture<UiDualTaskFinalResult> localFuture = pendingFutures.remove(traceId);
-        if (localFuture != null && !localFuture.isDone()) {
-            localFuture.cancel(true);
+        final PendingFutureTracker tracker = pendingFutures.remove(traceId);
+        if (tracker != null && tracker.tryCancel()) {
             log.debug("DualResponse 로컬 Future 취소 완료. traceId={}", traceId);
         }
     }
@@ -158,8 +143,8 @@ public class DualResponseRegistry {
     public void completeFromRedis(final String traceId) {
         Objects.requireNonNull(traceId, "traceId is null");
 
-        final CompletableFuture<UiDualTaskFinalResult> localFuture = pendingFutures.get(traceId);
-        if (localFuture == null) {
+        final PendingFutureTracker tracker = pendingFutures.get(traceId);
+        if (tracker == null) {
             if (log.isDebugEnabled()) {
                 log.debug("완료 신호 수신했지만 로컬 대기 Future 없음. traceId={}", traceId);
             }
@@ -172,9 +157,10 @@ public class DualResponseRegistry {
             return;
         }
 
-        final boolean completed = localFuture.complete(resultOpt.get());
-        if (completed) {
+        if (tracker.tryComplete(resultOpt.get())) {
             log.debug("Redis 완료 신호로 Future 완료. traceId={}", traceId);
+        } else if (log.isDebugEnabled()) {
+            log.debug("Redis 완료 신호 무시 - 이미 완료된 traceId. traceId={}", traceId);
         }
     }
 
@@ -185,5 +171,102 @@ public class DualResponseRegistry {
      */
     public int pendingCount() {
         return pendingFutures.size();
+    }
+
+    /**
+     * 특정 traceId가 현재 인스턴스에서 대기 중인지 반환합니다.
+     *
+     * @param traceId 조회할 traceId
+     * @return 대기 중이면 true
+     */
+    public boolean isPending(final String traceId) {
+        Objects.requireNonNull(traceId, "traceId is null");
+        return pendingFutures.containsKey(traceId);
+    }
+
+    /**
+     * Future 완료 콜백 공통 처리 로직입니다.
+     *
+     * <p>중복 완료 경쟁을 방지하기 위해 tracker의 완료 플래그를 기준으로
+     * 부수효과(타임아웃 정리 로그 등)를 1회만 수행합니다.</p>
+     */
+    private void handleCompletion(
+            final String traceId,
+            final long timeoutMs,
+            final PendingFutureTracker tracker,
+            final UiDualTaskFinalResult result,
+            final Throwable throwable
+    ) {
+        if (throwable instanceof TimeoutException) {
+            if (tracker.markTerminalIfFirst()) {
+                // 타임아웃이 발생하면 Redis 상태도 정리하여 고아 키 누적을 방지합니다.
+                dualResponseRedisPort.cancel(traceId);
+                log.warn("DualResponse 타임아웃. traceId={}, timeoutMs={}", traceId, timeoutMs);
+            }
+            return;
+        }
+
+        if (throwable instanceof CancellationException) {
+            tracker.markTerminalIfFirst();
+            log.warn("DualResponse 취소됨. traceId={}", traceId);
+            return;
+        }
+
+        if (throwable != null) {
+            tracker.markTerminalIfFirst();
+            log.error("DualResponse 비정상 종료. traceId={}, error={}",
+                    traceId, throwable.getMessage(), throwable);
+            return;
+        }
+
+        tracker.markTerminalIfFirst();
+        log.debug("DualResponse 완료. traceId={}, success={}", traceId, result.success());
+    }
+
+    /**
+     * traceId 단위 완료 경쟁을 제어하는 로컬 트래커입니다.
+     */
+    private static final class PendingFutureTracker {
+
+        private final CompletableFuture<UiDualTaskFinalResult> future = new CompletableFuture<>();
+        private final AtomicBoolean terminal = new AtomicBoolean(false);
+
+        private CompletableFuture<UiDualTaskFinalResult> future() {
+            return future;
+        }
+
+        /**
+         * 성공 결과 완료를 시도합니다.
+         *
+         * @param result 최종 결과
+         * @return 이번 호출로 최초 완료되었으면 true
+         */
+        private boolean tryComplete(final UiDualTaskFinalResult result) {
+            if (!terminal.compareAndSet(false, true)) {
+                return false;
+            }
+            return future.complete(result);
+        }
+
+        /**
+         * 취소 완료를 시도합니다.
+         *
+         * @return 이번 호출로 최초 취소되었으면 true
+         */
+        private boolean tryCancel() {
+            if (!terminal.compareAndSet(false, true)) {
+                return false;
+            }
+            return future.cancel(true);
+        }
+
+        /**
+         * 타임아웃/예외 콜백에서 종료 마크를 1회만 기록합니다.
+         *
+         * @return 이번 호출이 최초 종료 기록이면 true
+         */
+        private boolean markTerminalIfFirst() {
+            return terminal.compareAndSet(false, true);
+        }
     }
 }

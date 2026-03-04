@@ -16,6 +16,8 @@ import com.nori.tc.comm.core.port.TraceIdGeneratorPort;
 import com.nori.tc.comm.gateway.domain.dlq.DlqMessage;
 import com.nori.tc.comm.gateway.domain.dlq.DlqReasonCode;
 import com.nori.tc.comm.gateway.domain.type.CommInterfaceType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +47,8 @@ import java.util.Objects;
  *   - reassembly buffer clear(안전 우선)
  */
 public final class EqpSequentialProcessor {
+
+    private static final Logger log = LoggerFactory.getLogger(EqpSequentialProcessor.class);
 
     /**
      * mailbox cycle 완료 로그에서 다건 처리 미리보기 개수를 제한하기 위한 상수입니다.
@@ -313,12 +317,16 @@ public final class EqpSequentialProcessor {
         } catch (Exception dlqEx) {
             // DLQ 발행 실패는 반드시 운영 관측 대상입니다.
             // core 엔진은 여기서 예외를 재던지지 않습니다(전체 흔들림 방지).
+            log.error("DLQ 발행 실패 - 메시지 영구 유실 위험. eqpId={}, reasonCode={}",
+                    profile.equipmentId(), reasonCode, dlqEx);
         }
 
         try {
             quarantinePort.quarantine(profile.equipmentId(), reasonCode.name(), safeMessage(ex));
         } catch (Exception qEx) {
             // 격리 실패 역시 운영 관측 대상입니다.
+            log.error("설비 격리 실패 - 수동 격리 조치 필요. eqpId={}, reasonCode={}",
+                    profile.equipmentId(), reasonCode, qEx);
         }
 
         // 안전 우선: 잘못된 데이터로 계속 실패하지 않도록 버퍼를 비웁니다.

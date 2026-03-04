@@ -7,6 +7,7 @@ import com.nori.tc.ui.domain.auth.UserPrincipal;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -71,15 +72,45 @@ public class UiApiPermissionCache {
      */
     @PostConstruct
     public void loadPermissions() {
+        // 초기 로딩은 실패 시 failsafe 모드로 전환해야 하므로 예외를 삼키지 않습니다.
+        reloadPermissions(true);
+    }
+
+    /**
+     * 권한 캐시를 주기적으로 갱신합니다.
+     *
+     * <p>운영 중 권한 정책(tc_ui_permission)이 변경되더라도 서버 재기동 없이
+     * 반영되도록 fixedDelay 스케줄로 재로딩합니다.</p>
+     */
+    @Scheduled(fixedDelayString = "${tc.ui.backend.permission.refresh-interval-ms:300000}")
+    public void refreshPermissions() {
+        reloadPermissions(false);
+    }
+
+    /**
+     * 권한 목록을 재로딩합니다.
+     *
+     * @param startup true면 초기 로딩 경로, false면 주기 갱신 경로
+     */
+    private void reloadPermissions(final boolean startup) {
         try {
             final List<TcUiPermission> loaded = apiPermissionPort.findAllActiveApiPermissions();
             this.cachedPermissions = loaded;
             this.initializationFailed = false;
-            log.info("API 권한 캐시 로드 완료. 총 {}개 API 권한 활성.", loaded.size());
+            if (startup) {
+                log.info("API 권한 캐시 로드 완료. 총 {}개 API 권한 활성.", loaded.size());
+            } else {
+                log.info("API 권한 캐시 갱신 완료. 총 {}개 API 권한 활성.", loaded.size());
+            }
         } catch (Exception e) {
-            this.cachedPermissions = List.of();
-            this.initializationFailed = true;
-            log.error("API 권한 캐시 로드 실패 - failsafe 모드 활성화(모든 보호 API 차단).", e);
+            if (startup) {
+                this.cachedPermissions = List.of();
+                this.initializationFailed = true;
+                log.error("API 권한 캐시 로드 실패 - failsafe 모드 활성화(모든 보호 API 차단).", e);
+            } else {
+                // 주기 갱신 실패 시에는 기존 캐시를 유지하여 불필요한 권한 전체 차단 전환을 방지합니다.
+                log.warn("API 권한 캐시 갱신 실패 - 기존 캐시 유지.", e);
+            }
         }
     }
 

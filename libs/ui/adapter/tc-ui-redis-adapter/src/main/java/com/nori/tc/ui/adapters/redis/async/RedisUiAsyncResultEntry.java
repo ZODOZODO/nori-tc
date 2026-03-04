@@ -1,5 +1,7 @@
 package com.nori.tc.ui.adapters.redis.async;
 
+import com.nori.tc.ui.core.model.AsyncResultEntry;
+import com.nori.tc.ui.core.model.AsyncStatus;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.domain.task.UiTaskStatus;
 
@@ -18,6 +20,14 @@ import com.nori.tc.ui.domain.task.UiTaskStatus;
  * 배포 시 캐시 정리 정책을 함께 적용해야 합니다.</p>
  */
 public class RedisUiAsyncResultEntry {
+
+    // --- async 상태 관리 필드 ---
+
+    /** polling 상태(PENDING / COMPLETED / TIMEOUT) */
+    private String asyncStatus;
+
+    /** PENDING 상태의 타임아웃 예정 시각(epoch ms) */
+    private Long timeoutAtEpochMs;
 
     // --- metadata 필드 (KafkaUiTaskMessage.KafkaUiTaskMetadata에서 복사) ---
 
@@ -38,7 +48,7 @@ public class RedisUiAsyncResultEntry {
     /** 인터페이스 타입 */
     private String interfaceType;
 
-    /** 처리 결과 (PASS / FAIL) */
+    /** 처리 결과 (PASS / FAIL) - COMPLETED 상태에서만 의미가 있습니다. */
     private String status;
 
     /** 오류 메시지 (실패 시 설정) */
@@ -54,13 +64,32 @@ public class RedisUiAsyncResultEntry {
     }
 
     /**
-     * {@link UiCommandReply}를 Redis 저장용 엔트리로 변환합니다.
+     * PENDING 상태 엔트리를 생성합니다.
      *
-     * @param reply 변환할 Kafka reply 메시지
+     * @param traceId 작업 추적 ID
+     * @param timeoutAtEpochMs 타임아웃 예정 시각(epoch ms)
      * @return Redis 저장용 엔트리
      */
-    public static RedisUiAsyncResultEntry from(final UiCommandReply reply) {
+    public static RedisUiAsyncResultEntry pending(
+            final String traceId,
+            final long timeoutAtEpochMs
+    ) {
         final RedisUiAsyncResultEntry entry = new RedisUiAsyncResultEntry();
+        entry.traceId = traceId;
+        entry.asyncStatus = AsyncStatus.PENDING.name();
+        entry.timeoutAtEpochMs = timeoutAtEpochMs;
+        return entry;
+    }
+
+    /**
+     * COMPLETED 상태 엔트리를 생성합니다.
+     *
+     * @param reply 완료 응답
+     * @return Redis 저장용 엔트리
+     */
+    public static RedisUiAsyncResultEntry completed(final UiCommandReply reply) {
+        final RedisUiAsyncResultEntry entry = new RedisUiAsyncResultEntry();
+        entry.asyncStatus = AsyncStatus.COMPLETED.name();
         entry.traceId = reply.traceId();
         entry.eventType = reply.eventType();
         entry.source = reply.source();
@@ -73,28 +102,88 @@ public class RedisUiAsyncResultEntry {
     }
 
     /**
-     * Redis에서 읽은 엔트리를 도메인 계약 객체 {@link UiCommandReply}로 복원합니다.
+     * TIMEOUT 상태 엔트리를 생성합니다.
      *
-     * @return 복원된 UiCommandReply
+     * @param traceId 작업 추적 ID
+     * @return Redis 저장용 엔트리
      */
-    public UiCommandReply toReplyMessage() {
+    public static RedisUiAsyncResultEntry timeout(final String traceId) {
+        final RedisUiAsyncResultEntry entry = new RedisUiAsyncResultEntry();
+        entry.traceId = traceId;
+        entry.asyncStatus = AsyncStatus.TIMEOUT.name();
+        return entry;
+    }
+
+    /**
+     * Redis 엔트리를 core 상태 모델로 복원합니다.
+     *
+     * @return 복원된 AsyncResultEntry
+     */
+    public AsyncResultEntry toAsyncResultEntry() {
+        final AsyncStatus parsedAsyncStatus;
+        try {
+            parsedAsyncStatus = AsyncStatus.valueOf(asyncStatus);
+        } catch (Exception ex) {
+            throw new IllegalStateException("유효하지 않은 asyncStatus 입니다. value=" + asyncStatus, ex);
+        }
+
+        if (parsedAsyncStatus == AsyncStatus.PENDING) {
+            final long timeoutAt = timeoutAtEpochMs == null ? 0L : timeoutAtEpochMs;
+            if (timeoutAt <= 0L) {
+                // 과거 포맷/비정상 데이터 방어: 타임아웃 정보가 없으면 보수적으로 TIMEOUT으로 간주합니다.
+                return AsyncResultEntry.timeout(traceId);
+            }
+            return AsyncResultEntry.pending(traceId, timeoutAt);
+        }
+
+        if (parsedAsyncStatus == AsyncStatus.TIMEOUT) {
+            return AsyncResultEntry.timeout(traceId);
+        }
+
         final UiTaskStatus parsedStatus;
         try {
             parsedStatus = UiTaskStatus.valueOf(status);
         } catch (Exception ex) {
-            // 비정상 status 값은 FAIL로 보정하여 응답 파이프라인이 중단되지 않게 합니다.
-            return new UiCommandReply(
-                    traceId,
-                    source,
-                    eventType,
-                    eqpId,
-                    interfaceType,
-                    UiTaskStatus.FAIL,
-                    "INVALID_STATUS",
-                    "Redis async entry에 저장된 status 값이 유효하지 않습니다: " + status
-            );
+            throw new IllegalStateException("유효하지 않은 reply status 입니다. value=" + status, ex);
         }
-        return new UiCommandReply(traceId, source, eventType, eqpId, interfaceType, parsedStatus, errorCode, errorMsg);
+        final UiCommandReply reply = new UiCommandReply(
+                traceId,
+                source,
+                eventType,
+                eqpId,
+                interfaceType,
+                parsedStatus,
+                errorCode,
+                errorMsg
+        );
+        return AsyncResultEntry.completed(traceId, reply);
+    }
+
+    /**
+     * PENDING 상태인지 여부를 반환합니다.
+     *
+     * @return PENDING 상태면 true
+     */
+    public boolean isPending() {
+        return AsyncStatus.PENDING.name().equals(asyncStatus);
+    }
+
+    /**
+     * 타임아웃 예정 시각(epoch ms)을 반환합니다.
+     *
+     * @return 타임아웃 예정 시각 (없으면 0)
+     */
+    public long getTimeoutAtEpochMs() {
+        return timeoutAtEpochMs == null ? 0L : timeoutAtEpochMs;
+    }
+
+    /**
+     * 상태 값을 문자열로 반환합니다.
+     *
+     * @return 상태 문자열
+     */
+    public String getAsyncStatus() {
+        return asyncStatus;
     }
 
     public String getTraceId() {

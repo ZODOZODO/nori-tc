@@ -654,7 +654,7 @@
 
 #### 작업 목록
 
-- [ ] **3.1.1** `ValidateTokenUseCase.java` 에서 `lastSeenAt` 업데이트를 try-catch 로 감쌈
+- [x] **3.1.1** `ValidateTokenUseCase.java` 에서 `lastSeenAt` 업데이트 실패 예외를 격리 (인증 성공 유지)
 
   ```java
   try {
@@ -664,7 +664,7 @@
   }
   ```
 
-- [ ] **3.1.2** 변경 후 테스트
+- [x] **3.1.2** 변경 후 테스트
   - updateLastSeenAt 예외 발생 시 인증 성공 응답 확인
 
 ---
@@ -676,11 +676,11 @@
 
 #### 작업 목록
 
-- [ ] **3.2.1** Spring `@Async` 설정 확인 또는 추가
+- [x] **3.2.1** 비동기 실행 방식 적용 확인 (CompletableFuture 기반 비동기 업데이트 적용)
   - `TcUiBackendAutoConfiguration` 또는 별도 AsyncConfig에 `@EnableAsync` 추가
   - 전용 ThreadPool 설정 (core: 2, max: 4, queue: 100)
 
-- [ ] **3.2.2** `ValidateTokenUseCase.java` 수정
+- [x] **3.2.2** `ValidateTokenUseCase.java` 수정
   - `sessionPort.updateLastSeenAt()` 호출을 @Async 메서드로 분리
 
   ```java
@@ -701,7 +701,7 @@
   }
   ```
 
-- [ ] **3.2.3** 변경 후 테스트
+- [x] **3.2.3** 변경 후 테스트
   - 인증 응답 시간이 개선됐는지 확인 (DB write 시간 제외)
   - 비동기 업데이트가 실제로 실행되는지 로그 확인
 
@@ -714,12 +714,12 @@
 
 #### 작업 목록
 
-- [ ] **3.3.1** `AsyncStatus` enum 추가 (tc-ui-domain 또는 tc-ui-core)
+- [x] **3.3.1** `AsyncStatus` enum 추가 (tc-ui-domain 또는 tc-ui-core)
   ```java
   public enum AsyncStatus { PENDING, COMPLETED, TIMEOUT }
   ```
 
-- [ ] **3.3.2** `AsyncResultStorePort.java` 에 상태 관리 메서드 추가
+- [x] **3.3.2** `AsyncResultStorePort.java` 에 상태 관리 메서드 추가
   ```java
   void registerPending(String traceId, long timeoutMs);
   void markCompleted(String traceId, UiCommandReply reply);
@@ -727,17 +727,17 @@
   Optional<AsyncResultEntry> getWithStatus(String traceId);
   ```
 
-- [ ] **3.3.3** `EqpController.java` 수정
+- [x] **3.3.3** `EqpController.java` 수정
   - EQP_START/END 발행 직전 `registerPending(traceId, timeoutMs)` 호출
 
-- [ ] **3.3.4** `UiCommandIngressService.java` 수정
+- [x] **3.3.4** `UiCommandIngressService.java` 수정
   - EQP_START_REP/EQP_END_REP 수신 시 `markCompleted()` 호출
 
-- [ ] **3.3.5** 타임아웃 스케줄러 추가
+- [x] **3.3.5** 타임아웃 스케줄러 추가
   - 일정 시간(예: timeoutMs + 5초) 경과 후 PENDING 상태를 TIMEOUT으로 변경
   - Redis TTL 활용 또는 별도 @Scheduled 처리
 
-- [ ] **3.3.6** `AsyncResultController.java` 응답 코드 변경
+- [x] **3.3.6** `AsyncResultController.java` 응답 코드 변경
   - PENDING → 202 Accepted (처리 중)
   - COMPLETED → 200 OK (결과 포함)
   - TIMEOUT → 408 Request Timeout
@@ -761,7 +761,7 @@
 
 #### 작업 목록
 
-- [ ] **3.5.1** `UiTokenAuthenticationFilter.java` 수정
+- [x] **3.5.1** `UiTokenAuthenticationFilter.java` 수정
   ```java
   @Override
   protected void doFilterInternal(HttpServletRequest request,
@@ -782,7 +782,7 @@
   }
   ```
 
-- [ ] **3.5.2** 변경 후 테스트
+- [x] **3.5.2** 변경 후 테스트
   - DeferredResult 응답 시 SecurityContext 인증 상태 유지 확인
   - Redis 조회 횟수가 1회인지 확인 (로그 또는 Spy 활용)
 
@@ -795,7 +795,7 @@
 
 #### 작업 목록
 
-- [ ] **3.6.1** `DualResponseRegistry.java` 의 `whenComplete` 수정
+- [x] **3.6.1** `DualResponseRegistry.java` 의 `whenComplete` 수정
   ```java
   .whenComplete((result, ex) -> {
       try {
@@ -806,9 +806,9 @@
   });
   ```
 
-- [ ] **3.6.2** `registry.size()` 또는 상태 확인 메서드 추가 (테스트 및 모니터링용)
+- [x] **3.6.2** `registry.size()` 또는 상태 확인 메서드 추가 (테스트 및 모니터링용)
 
-- [ ] **3.6.3** 변경 후 테스트
+- [x] **3.6.3** 변경 후 테스트
   - 정상 완료 후 trackers.size() == 0 확인
   - 타임아웃 후 trackers.size() == 0 확인
   - cancel 후 trackers.size() == 0 확인
@@ -822,7 +822,7 @@
 
 #### 작업 목록
 
-- [ ] **3.7.1** `UiApiPermissionCache.java` 에 `@Scheduled` 메서드 추가
+- [x] **3.7.1** `UiApiPermissionCache.java` 에 `@Scheduled` 메서드 추가
   ```java
   @Scheduled(fixedDelayString = "${tc.ui.backend.permission.refresh-interval-ms:300000}")
   public void refresh() {
@@ -836,7 +836,7 @@
   }
   ```
 
-- [ ] **3.7.2** `@EnableScheduling` 설정 확인 또는 추가
+- [x] **3.7.2** `@EnableScheduling` 설정 확인 또는 추가
 
 ---
 
@@ -848,15 +848,15 @@
 
 #### 작업 목록
 
-- [ ] **3.8.1** `AuthController.java` 수정 - `logout()` 메서드
+- [x] **3.8.1** `AuthController.java` 수정 - `logout()` 메서드
   - `(String) authentication.getCredentials()` → `instanceof String token` 패턴 매칭으로 변경
   - 타입 불일치 시 401 응답 반환 (500 방지)
 
-- [ ] **3.8.2** `AuthController.java` 수정 - `me()` 메서드
+- [x] **3.8.2** `AuthController.java` 수정 - `me()` 메서드
   - `(UserPrincipal) authentication.getPrincipal()` → `instanceof UserPrincipal principal` 패턴 매칭으로 변경
   - 타입 불일치 시 401 응답 반환
 
-- [ ] **3.8.3** 변경 후 테스트
+- [x] **3.8.3** 변경 후 테스트
   - MockMvc에서 Anonymous Authentication으로 `/auth/logout` 요청 시 500이 아닌 401 확인
   - MockMvc에서 Anonymous Authentication으로 `/auth/me` 요청 시 500이 아닌 401 확인
 
@@ -874,7 +874,7 @@
 
 #### 작업 목록
 
-- [ ] **3.9.1** `EqpSequentialProcessor.java:313` DLQ 발행 실패 catch 블록에 `log.error()` 추가
+- [x] **3.9.1** `EqpSequentialProcessor.java:313` DLQ 발행 실패 catch 블록에 `log.error()` 추가
   ```java
   } catch (Exception dlqEx) {
       log.error("DLQ 발행 실패 - 메시지 영구 유실 위험. eqpId={}, reasonCode={}",
@@ -882,7 +882,7 @@
   }
   ```
 
-- [ ] **3.9.2** `EqpSequentialProcessor.java:320` 격리 실패 catch 블록에 `log.error()` 추가
+- [x] **3.9.2** `EqpSequentialProcessor.java:320` 격리 실패 catch 블록에 `log.error()` 추가
   ```java
   } catch (Exception qEx) {
       log.error("설비 격리 실패 - 수동 격리 조치 필요. eqpId={}, reasonCode={}",
@@ -890,13 +890,13 @@
   }
   ```
 
-- [ ] **3.9.3** 코드베이스 전체에서 유사 패턴 확인
+- [x] **3.9.3** 코드베이스 전체에서 유사 패턴 확인
   ```bash
   # 비어 있거나 주석만 있는 catch 블록 탐색
   grep -rn "catch.*Exception" libs/comm/ | grep -v "log\." | grep -v "//"
   ```
 
-- [ ] **3.9.4** 변경 후 테스트
+- [x] **3.9.4** 변경 후 테스트
   - dlqPublisherPort 예외 발생 시 ERROR 로그 출력 확인
   - quarantinePort 예외 발생 시 ERROR 로그 출력 확인
 
@@ -913,14 +913,14 @@
 
 #### 작업 목록
 
-- [ ] **3.10.1** 완료 처리 단일화
+- [x] **3.10.1** 완료 처리 단일화
   - `setResult/setErrorResult` 호출 경로를 하나의 메서드로 통합
   - `AtomicBoolean completed` 로 1회만 응답 완료되도록 보장
 
-- [ ] **3.10.2** 정리 로직 보장
+- [x] **3.10.2** 정리 로직 보장
   - 완료/타임아웃/취소 모든 경로에서 `trackers.remove(traceId)` 가 반드시 실행되도록 `finally` 구조 적용
 
-- [ ] **3.10.3** 경합 시나리오 테스트 추가
+- [x] **3.10.3** 경합 시나리오 테스트 추가
   - `timeout` 과 `cancel` 이 거의 동시에 발생하는 케이스
   - Gateway/Business 응답 지연으로 완료 경로가 교차되는 케이스
 
@@ -1179,16 +1179,16 @@
 - [x] Task 2.6 - GatewayEquipmentProfileSnapshot 경량화 + 위치 정리 [PERF-02/DEP-02]
 
 ### Phase 3 (중간 - 안정성/성능 개선)
-- [ ] Task 3.1 - lastSeenAt 실패 예외 차단 [EX-03]
-- [ ] Task 3.2 - lastSeenAt 비동기 업데이트 [PERF-01]
-- [ ] Task 3.3 - EQP_START/END 상태 구분 개선 [STAB-01/API-02]
-- [ ] Task 3.4 - 권한 캐시 Closed by Default (1.3에 포함 가능) [OOP-02]
-- [ ] Task 3.5 - 비동기 재디스패치 이중 검증 제거 [QUALITY-01]
-- [ ] Task 3.6 - DualResponseTracker 정리 finally 보장 [MEM-01]
-- [ ] Task 3.7 - UiApiPermissionCache 주기적 갱신 [PERF-03]
-- [ ] Task 3.8 - ⭐ AuthController 강제 캐스팅 → instanceof 패턴 [QUALITY-04]
-- [ ] Task 3.9 - ⭐ EqpSequentialProcessor 무로그 예외 삼킴 수정 [EX-05]
-- [ ] Task 3.10 - DualResponseRegistry 완료/정리 경합 방지 [STAB-02]
+- [x] Task 3.1 - lastSeenAt 실패 예외 차단 [EX-03]
+- [x] Task 3.2 - lastSeenAt 비동기 업데이트 [PERF-01]
+- [x] Task 3.3 - EQP_START/END 상태 구분 개선 [STAB-01/API-02]
+- [x] Task 3.4 - 권한 캐시 Closed by Default (1.3에 포함 가능) [OOP-02]
+- [x] Task 3.5 - 비동기 재디스패치 이중 검증 제거 [QUALITY-01]
+- [x] Task 3.6 - DualResponseTracker 정리 finally 보장 [MEM-01]
+- [x] Task 3.7 - UiApiPermissionCache 주기적 갱신 [PERF-03]
+- [x] Task 3.8 - ⭐ AuthController 강제 캐스팅 → instanceof 패턴 [QUALITY-04]
+- [x] Task 3.9 - ⭐ EqpSequentialProcessor 무로그 예외 삼킴 수정 [EX-05]
+- [x] Task 3.10 - DualResponseRegistry 완료/정리 경합 방지 [STAB-02]
 
 ### Phase 4 (낮음 - 운영성/코드품질)
 - [ ] Task 4.1 - 401 응답 포맷 통일 [QUALITY-02]
