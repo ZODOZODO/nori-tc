@@ -251,14 +251,23 @@
   - 공개 API는 `tc_ui_permission` 에 `permission_code = 'PUBLIC'` 등록
   - `/auth/login`, `/actuator/health` 는 `UiSecurityConfig` 에서 `permitAll()` 로 처리 (DB 무관)
 
-- [ ] **1.3.3** `tc_ui_permission` 테이블에 기존 공개 API 데이터 등록
+- [x] **1.3.3** `tc_ui_permission` 테이블에 기존 공개 API 데이터 등록
   - 현재 사용 중인 모든 API 엔드포인트에 대한 permission_code 확인 및 등록
   - DLQ 조회, 비동기 결과 조회 등 기존 동작 유지
+  - 반영: `docs/db_table/sample_data/postgres_insert_sample_data.sql`
+    - ADMIN / DEVELOPER / OPERATOR 그룹 upsert
+    - `tc_ui_permission` upsert + `tc_user_group_permission` 정책 매핑
+    - `tc_user_info` 그룹별 샘플 사용자 1명(admin/developer/operator) 생성
+    - `tc_user_group_member` 1:1 그룹 매핑
 
-- [ ] **1.3.4** 변경 후 테스트
+- [x] **1.3.4** 변경 후 테스트
   - 권한 로드 실패 시 모든 API 차단 확인
   - 권한 등록된 API 정상 접근 확인
   - 권한 미등록 API 차단 확인
+  - 반영: `UiAuthScenarioTest`
+    - `권한_캐시_초기화_실패시_보호_API_차단_403`
+    - `권한_미등록_API_기본차단_403`
+  - 검증: `.\gradlew :apps:tc-ui-backend-app:test --tests "com.nori.tc.apps.uibackend.scenario.UiAuthScenarioTest"` 성공
 
 #### 완료 기준
 - DB 연결 실패 시 서버가 "모두 허용"이 아닌 "모두 차단" 상태로 동작

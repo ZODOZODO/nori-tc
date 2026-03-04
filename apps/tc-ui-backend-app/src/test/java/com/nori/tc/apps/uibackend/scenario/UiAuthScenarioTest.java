@@ -240,6 +240,72 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[시나리오 3] 403 응답 확인 완료");
     }
 
+    /**
+     * 시나리오 3-b: 권한 캐시 초기화 실패(failsafe) 상태에서는
+     * 인증된 사용자라도 보호 API 접근이 전부 차단되어야 합니다.
+     *
+     * <p>검증 목적:</p>
+     * <ul>
+     *   <li>UiApiPermissionCache.loadPermissions() 실패 시 initializationFailed=true 전환</li>
+     *   <li>isAuthorized()가 즉시 false를 반환하여 403 차단</li>
+     *   <li>"권한 로드 실패 시 전체 허용" 회귀(regression) 방지</li>
+     * </ul>
+     */
+    @Test
+    @DisplayName("시나리오 3-b: 권한 캐시 초기화 실패(failsafe) 시 보호 API 전면 차단(403)")
+    void 권한_캐시_초기화_실패시_보호_API_차단_403() throws Exception {
+        log.info("[시나리오 3-b] 권한 캐시 초기화 실패(failsafe) 시 보호 API 차단 검증 시작");
+
+        // given: 권한 캐시 재로딩 시 DB 조회 실패를 강제하여 failsafe 모드로 전환
+        when(apiPermissionPort.findAllActiveApiPermissions())
+                .thenThrow(new RuntimeException("권한 테이블 조회 실패 시뮬레이션"));
+        apiPermissionCache.loadPermissions();
+
+        // 인증은 유효하지만, failsafe 상태에서는 권한과 무관하게 차단되어야 함
+        final UserPrincipal principal = principalWithPermission("AUTH_ME_PERM", EQP_MANAGE_PERM);
+        when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
+
+        // when + then: 보호 API 접근 시 403 반환
+        mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andDo(print())
+                .andExpect(status().isForbidden());
+
+        log.info("[시나리오 3-b] failsafe 모드 403 차단 확인 완료");
+    }
+
+    /**
+     * 시나리오 3-c: 권한 테이블에 등록되지 않은 API는 기본 차단(closed by default)되어야 합니다.
+     *
+     * <p>검증 목적:</p>
+     * <ul>
+     *   <li>매칭 권한이 없는 URI 요청을 403으로 차단</li>
+     *   <li>신규 API 추가 시 권한 등록 누락을 즉시 탐지</li>
+     * </ul>
+     */
+    @Test
+    @DisplayName("시나리오 3-c: 권한 미등록 API는 기본 차단(403)")
+    void 권한_미등록_API_기본차단_403() throws Exception {
+        log.info("[시나리오 3-c] 권한 미등록 API 기본 차단(403) 검증 시작");
+
+        // given: /api/eqp 권한만 로드하여 /api/dlq/* 는 '미등록 API' 상태를 만듦
+        reloadPermissions(List.of(
+                apiPermission(EQP_MANAGE_PERM, "/api/eqp", null)
+        ));
+
+        // 사용자에게 EQP_MANAGE 권한이 있어도, /api/dlq는 매핑이 없으므로 차단되어야 함
+        final UserPrincipal principal = principalWithPermission(EQP_MANAGE_PERM);
+        when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
+
+        // when + then: 매핑 누락 API 접근 시 403
+        mockMvc.perform(get("/api/dlq/gateway")
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andDo(print())
+                .andExpect(status().isForbidden());
+
+        log.info("[시나리오 3-c] 미등록 API 403 차단 확인 완료");
+    }
+
     // ─────────────────────────────────────────────────────────
     // 시나리오 4: 유효 token + 권한 있는 API → 200
     // ─────────────────────────────────────────────────────────

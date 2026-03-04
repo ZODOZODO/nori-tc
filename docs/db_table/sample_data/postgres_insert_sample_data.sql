@@ -553,13 +553,176 @@ JOIN seed_lot_map l
   ON l.work_key = pj.work_key;
 
 -- =====================================================================
--- 6) 결과 확인
+-- 6) RBAC + 사용자 샘플 데이터 (Phase 1 반영)
+-- ---------------------------------------------------------------------
+-- 목적:
+--  - ADMIN / DEVELOPER / OPERATOR 그룹 기준을 표준화
+--  - UI API 권한 기준(tc_ui_permission)을 upsert로 고정
+--  - 그룹별 권한 매핑을 요구사항 기준으로 재구성
+--  - tc_user_info 에 그룹별 사용자 1명(admin/developer/operator) 보장
+-- ---------------------------------------------------------------------
+-- 참고:
+--  - 본 구간은 idempotent 성격으로 작성하여 재실행 시에도 동일 상태를 유지합니다.
+--  - sample 계정 비밀번호 평문: ChangeMe123!
+--    bcrypt 해시: $2b$10$NEGPGKiIoW.D3MGsubv24ubovk8uyxQIu3AKMoala6v9ILc59ub3G
+-- =====================================================================
+
+-- 6-1) 사용자 그룹 upsert
+INSERT INTO tc_user_group (
+  group_code, group_name, description, is_active, created_at, updated_at
+)
+VALUES
+  ('ADMIN',     '관리자', '모든 권한 보유',                 TRUE, now(), now()),
+  ('DEVELOPER', '개발자', 'USER/GROUP 관리 권한 제외',      TRUE, now(), now()),
+  ('OPERATOR',  '운영자', 'EQP/DLQ/MODEL 조회 중심 권한',   TRUE, now(), now())
+ON CONFLICT (group_code) DO UPDATE
+SET
+  group_name  = EXCLUDED.group_name,
+  description = EXCLUDED.description,
+  is_active   = EXCLUDED.is_active,
+  updated_at  = now();
+
+-- 6-2) API 권한 upsert
+INSERT INTO tc_ui_permission (
+  perm_code, perm_name, resource_type, match_type, resource, http_method,
+  description, is_active, created_at, updated_at, created_by, updated_by
+)
+VALUES
+  ('AUTH_ME_PERM',     '내 정보 조회',        'API', 'EXACT',  '/auth/me',    'GET',    'GET /auth/me',                    TRUE, now(), now(), 'SEED', 'SEED'),
+  ('AUTH_LOGOUT_PERM', '로그아웃',            'API', 'EXACT',  '/auth/logout','POST',   'POST /auth/logout',               TRUE, now(), now(), 'SEED', 'SEED'),
+  ('EQP_MANAGE',       '설비 관리',           'API', 'PREFIX', '/api/eqp',    NULL,     'POST/PUT/DELETE/start/end 포함', TRUE, now(), now(), 'SEED', 'SEED'),
+  ('ASYNC_READ',       '비동기 결과 조회',     'API', 'PREFIX', '/api/async',  'GET',    'GET /api/async/{traceId}',       TRUE, now(), now(), 'SEED', 'SEED'),
+  ('DLQ_READ',         'DLQ 조회',            'API', 'PREFIX', '/api/dlq',    'GET',    'GET /api/dlq/**',                TRUE, now(), now(), 'SEED', 'SEED'),
+  ('DLQ_DELETE',       'DLQ 삭제',            'API', 'PREFIX', '/api/dlq',    'DELETE', 'DELETE /api/dlq/**',             TRUE, now(), now(), 'SEED', 'SEED'),
+  ('MODEL_READ',       '모델 조회',           'API', 'PREFIX', '/api/model',  'GET',    '향후 모델 조회 API 대비',         TRUE, now(), now(), 'SEED', 'SEED'),
+  ('USER_INFO_WRITE',  '사용자 관리',         'API', 'PREFIX', '/api/user',   NULL,     '향후 사용자 생성/수정/삭제 대비',  TRUE, now(), now(), 'SEED', 'SEED'),
+  ('GROUP_WRITE',      '그룹 관리',           'API', 'PREFIX', '/api/group',  NULL,     '향후 그룹 생성/수정/삭제 대비',    TRUE, now(), now(), 'SEED', 'SEED')
+ON CONFLICT (perm_code) DO UPDATE
+SET
+  perm_name     = EXCLUDED.perm_name,
+  resource_type = EXCLUDED.resource_type,
+  match_type    = EXCLUDED.match_type,
+  resource      = EXCLUDED.resource,
+  http_method   = EXCLUDED.http_method,
+  description   = EXCLUDED.description,
+  is_active     = EXCLUDED.is_active,
+  updated_at    = now(),
+  updated_by    = 'SEED';
+
+-- 6-3) 그룹별 권한 매핑 재구성
+-- ADMIN/DEVELOPER/OPERATOR 대상 매핑을 먼저 삭제한 뒤 정책 기준으로 재삽입합니다.
+DELETE FROM tc_user_group_permission
+WHERE group_id IN (
+  SELECT group_id
+  FROM tc_user_group
+  WHERE group_code IN ('ADMIN', 'DEVELOPER', 'OPERATOR')
+);
+
+-- ADMIN: 활성 API 권한 전체
+INSERT INTO tc_user_group_permission (
+  group_id, perm_id, granted_at, granted_by
+)
+SELECT
+  g.group_id, p.perm_id, now(), 'SEED'
+FROM tc_user_group g
+JOIN tc_ui_permission p
+  ON p.resource_type = 'API'
+ AND p.is_active = TRUE
+WHERE g.group_code = 'ADMIN'
+ON CONFLICT (group_id, perm_id) DO NOTHING;
+
+-- DEVELOPER: USER/GROUP 관리 권한 제외
+INSERT INTO tc_user_group_permission (
+  group_id, perm_id, granted_at, granted_by
+)
+SELECT
+  g.group_id, p.perm_id, now(), 'SEED'
+FROM tc_user_group g
+JOIN tc_ui_permission p
+  ON p.resource_type = 'API'
+ AND p.is_active = TRUE
+WHERE g.group_code = 'DEVELOPER'
+  AND p.perm_code NOT IN ('USER_INFO_WRITE', 'GROUP_WRITE')
+ON CONFLICT (group_id, perm_id) DO NOTHING;
+
+-- OPERATOR: EQP/DLQ/MODEL 조회 중심 + 계정 기본 동작
+INSERT INTO tc_user_group_permission (
+  group_id, perm_id, granted_at, granted_by
+)
+SELECT
+  g.group_id, p.perm_id, now(), 'SEED'
+FROM tc_user_group g
+JOIN tc_ui_permission p
+  ON p.perm_code IN (
+    'AUTH_ME_PERM',
+    'AUTH_LOGOUT_PERM',
+    'ASYNC_READ',
+    'DLQ_READ',
+    'MODEL_READ'
+  )
+WHERE g.group_code = 'OPERATOR'
+ON CONFLICT (group_id, perm_id) DO NOTHING;
+
+-- 6-4) 그룹별 샘플 사용자 1명 upsert
+-- ChangeMe123!
+INSERT INTO tc_user_info (
+  company, department, user_name, user_id, user_id_norm, password_hash, email, status,
+  created_at, updated_at, created_by, updated_by
+)
+VALUES
+  ('NORI', 'Platform',    '관리자 계정', 'admin',     'admin',     '$2b$10$NEGPGKiIoW.D3MGsubv24ubovk8uyxQIu3AKMoala6v9ILc59ub3G', 'admin@nori.local',     'ACTIVE', now(), now(), 'SEED', 'SEED'),
+  ('NORI', 'Development', '개발자 계정', 'developer', 'developer', '$2b$10$NEGPGKiIoW.D3MGsubv24ubovk8uyxQIu3AKMoala6v9ILc59ub3G', 'developer@nori.local', 'ACTIVE', now(), now(), 'SEED', 'SEED'),
+  ('NORI', 'Operations',  '운영자 계정', 'operator',  'operator',  '$2b$10$NEGPGKiIoW.D3MGsubv24ubovk8uyxQIu3AKMoala6v9ILc59ub3G', 'operator@nori.local',  'ACTIVE', now(), now(), 'SEED', 'SEED')
+ON CONFLICT (user_id_norm) DO UPDATE
+SET
+  company       = EXCLUDED.company,
+  department    = EXCLUDED.department,
+  user_name     = EXCLUDED.user_name,
+  password_hash = EXCLUDED.password_hash,
+  email         = EXCLUDED.email,
+  status        = EXCLUDED.status,
+  updated_at    = now(),
+  updated_by    = 'SEED';
+
+-- 6-5) 사용자-그룹 멤버십 재정렬
+-- 샘플 3계정에 대한 기존 그룹 멤버십을 제거한 뒤, 정책대로 1:1 재매핑합니다.
+DELETE FROM tc_user_group_member
+WHERE user_pk IN (
+  SELECT user_pk
+  FROM tc_user_info
+  WHERE user_id_norm IN ('admin', 'developer', 'operator')
+);
+
+INSERT INTO tc_user_group_member (
+  user_pk, group_id, granted_at, granted_by
+)
+SELECT
+  u.user_pk,
+  g.group_id,
+  now(),
+  'SEED'
+FROM tc_user_info u
+JOIN tc_user_group g
+  ON (
+    (u.user_id_norm = 'admin' AND g.group_code = 'ADMIN')
+    OR (u.user_id_norm = 'developer' AND g.group_code = 'DEVELOPER')
+    OR (u.user_id_norm = 'operator' AND g.group_code = 'OPERATOR')
+  )
+ON CONFLICT (user_pk, group_id) DO NOTHING;
+
+-- =====================================================================
+-- 7) 결과 확인
 -- =====================================================================
 
 \echo '--- SEED RESULT CHECK ---'
-SELECT 'tc_model' AS table_name, COUNT(*) AS cnt FROM tc_model;
-SELECT 'tc_eqp'   AS table_name, COUNT(*) AS cnt FROM tc_eqp;
-SELECT 'tc_work'  AS table_name, COUNT(*) AS cnt FROM tc_work;
+SELECT 'tc_model'                 AS table_name, COUNT(*) AS cnt FROM tc_model;
+SELECT 'tc_eqp'                   AS table_name, COUNT(*) AS cnt FROM tc_eqp;
+SELECT 'tc_work'                  AS table_name, COUNT(*) AS cnt FROM tc_work;
+SELECT 'tc_user_group'            AS table_name, COUNT(*) AS cnt FROM tc_user_group;
+SELECT 'tc_ui_permission'         AS table_name, COUNT(*) AS cnt FROM tc_ui_permission;
+SELECT 'tc_user_info'             AS table_name, COUNT(*) AS cnt FROM tc_user_info;
+SELECT 'tc_user_group_permission' AS table_name, COUNT(*) AS cnt FROM tc_user_group_permission;
+SELECT 'tc_user_group_member'     AS table_name, COUNT(*) AS cnt FROM tc_user_group_member;
 
 COMMIT;
 
