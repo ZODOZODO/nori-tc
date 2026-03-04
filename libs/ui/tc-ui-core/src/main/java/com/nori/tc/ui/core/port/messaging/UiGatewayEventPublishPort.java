@@ -23,8 +23,7 @@ public interface UiGatewayEventPublishPort {
     /**
      * Gateway 이벤트 토픽으로 Kafka 메시지를 발행합니다.
      *
-     * <p>비동기로 발행되며(KafkaTemplate.send() 후 대기 없음), 발행 성공/실패 여부는
-     * 콜백 로그로만 확인합니다. 이 메서드는 즉시 반환됩니다.</p>
+     * <p>브로커 승인까지 동기 대기하며, 발행 실패는 즉시 예외로 전파합니다.</p>
      *
      * @param message 발행할 UI Task 메시지 (metadata.traceId, data.eqpId 포함 필수)
      * @throws IllegalStateException eqpId의 route_partition이 미배정인 경우

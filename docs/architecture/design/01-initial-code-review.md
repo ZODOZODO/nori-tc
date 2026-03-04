@@ -53,11 +53,15 @@ CompletableFuture + DeferredResult 조합 등 고수준 설계 의도는 잘 반
 
 ---
 
-### [ARCH-01] 치명적 - DualResponseRegistry 분산 환경 불가
+### [ARCH-01] 치명적(다중 인스턴스 전환 시) - DualResponseRegistry 분산 환경 불가
 
 #### 문제
 
 `DualResponseRegistry`는 `ConcurrentHashMap<String, DualResponseTracker>` 로 JVM 힙 메모리 내에서만 동작합니다.
+
+현재 설계 문서에는 UI-backend **단일 인스턴스 운영 전제**가 명시되어 있으므로,
+단일 인스턴스로만 운영한다면 즉시 장애로 드러나지 않을 수 있습니다.
+다만 다중 인스턴스(HPA/롤링/이중화)로 전환하는 순간 치명적 장애로 전환됩니다.
 
 ```
 tc-ui-backend-app (인스턴스 A)
@@ -580,22 +584,22 @@ DeferredResult 처리 흐름:
 7. HTTP 응답 완료
 ```
 
-하나의 요청에 Redis 조회가 2회 발생합니다. 고트래픽 환경에서 불필요한 부하입니다.
+하나의 요청에서 Redis 조회가 2회 발생할 수 있습니다. 고트래픽 환경에서는 불필요한 부하가 될 수 있습니다.
 
 #### 개선 방법
 
 ```java
-// UiTokenAuthenticationFilter.java 수정
+// UiTokenAuthenticationFilter.java 수정 (권장)
 @Override
 protected boolean shouldNotFilterAsyncDispatch() {
-    return true;  // 비동기 디스패치에서는 필터 재실행 건너뜀
+    return false;  // 유지: DeferredResult 재디스패치 401 회귀 방지
 }
 
-// 또는: 비동기 재디스패치 시 SecurityContext 이미 설정된 경우 스킵
+// 비동기 재디스패치에서 이미 인증 정보가 복원된 경우만 빠르게 통과
 @Override
 protected void doFilterInternal(...) {
-    // 이미 인증된 경우 스킵
-    if (SecurityContextHolder.getContext().getAuthentication() != null) {
+    if (isAsyncDispatch(request)
+            && SecurityContextHolder.getContext().getAuthentication() != null) {
         filterChain.doFilter(request, response);
         return;
     }
@@ -610,12 +614,13 @@ protected void doFilterInternal(...) {
 #### 문제
 
 ```java
-// UiTokenAuthenticationFilter.java - 인증 실패 응답
-response.setContentType("application/json");
-response.getWriter().write("Unauthorized: " + message);  // 평문 문자열
+// UiTokenAuthenticationFilter.java
+sendUnauthorized(response, "유효하지 않은 인증 토큰입니다.");
+// → ApiResponse.error("UNAUTHORIZED", ...) JSON 반환
 
-// 모든 비즈니스 에러 응답
-ApiResponse.error("AUTH_REQUIRED", "인증이 필요합니다.")  // JSON 구조체
+// UiSecurityConfig.java - AuthenticationEntryPoint
+response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+// → 기본 에러 포맷(컨테이너/프레임워크) 반환
 ```
 
 클라이언트가 인증 에러와 비즈니스 에러를 다르게 파싱해야 합니다.
@@ -623,12 +628,18 @@ ApiResponse.error("AUTH_REQUIRED", "인증이 필요합니다.")  // JSON 구조
 #### 개선 방법
 
 ```java
-// UiTokenAuthenticationFilter - 인증 실패 응답 통일
-private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
-    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-    response.setContentType("application/json;charset=UTF-8");
-    String body = objectMapper.writeValueAsString(ApiResponse.error("UNAUTHORIZED", message));
-    response.getWriter().write(body);
+// AuthenticationEntryPoint를 커스텀해서 401 포맷을 ApiResponse로 통일
+public class UiAuthenticationEntryPoint implements AuthenticationEntryPoint {
+    @Override
+    public void commence(HttpServletRequest request,
+                         HttpServletResponse response,
+                         AuthenticationException authException) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        String body = objectMapper.writeValueAsString(
+                ApiResponse.error("UNAUTHORIZED", "인증이 필요합니다."));
+        response.getWriter().write(body);
+    }
 }
 ```
 
@@ -1052,13 +1063,13 @@ private void safeSetResult(DeferredResult<?> deferredResult, Object result) {
 
 ---
 
-### [PERF-01] 중요 - lastSeenAt 동기 DB 업데이트 (매 요청)
+### [PERF-01] 중요 - lastSeenAt 동기 DB 업데이트 (캐시 미스 경로)
 
 #### 문제
 
-`ValidateTokenUseCase` 에서 캐시 미스 시에만이 아니라 캐시 히트 시에도 `lastSeenAt` 이 업데이트된다면, 매 API 요청마다 `UPDATE tc_ui_auth_session` 이 실행됩니다.
-
-초당 100건 요청 = 초당 100건 DB write = DB 병목
+현재 구현은 `ValidateTokenUseCase` 에서 **캐시 미스 경로에서만** `lastSeenAt` 을 동기 업데이트합니다.
+다만 토큰 종류가 많거나 TTL이 짧아 캐시 미스 비율이 높아지면,
+인증 경로의 DB write 부담이 커질 수 있습니다.
 
 #### 개선 방법
 
@@ -1218,15 +1229,10 @@ public RedisTemplate<String, Object> businessRedisTemplate(...) {
     template.setKeySerializer(new StringRedisSerializer());
 
     // JDK 직렬화 제거 → JSON 직렬화로 교체
-    ObjectMapper mapper = new ObjectMapper()
-        .registerModule(new JavaTimeModule())
-        .activateDefaultTyping(
-            LaissezFaireSubTypeValidator.instance,
-            ObjectMapper.DefaultTyping.NON_FINAL,
-            JsonTypeInfo.As.PROPERTY
-        );
-    template.setValueSerializer(new GenericJackson2JsonRedisSerializer(mapper));
-    template.setHashValueSerializer(new GenericJackson2JsonRedisSerializer(mapper));
+    // 주의: activateDefaultTyping + LaissezFaireSubTypeValidator 조합은 사용하지 않습니다.
+    GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
+    template.setValueSerializer(serializer);
+    template.setHashValueSerializer(serializer);
     return template;
 }
 ```
@@ -1551,7 +1557,7 @@ GET /api/async/{traceId}
 | EX-02 | LogoutUseCase DB/Redis 불일치 | **높음** | 안정성 | |
 | OOP-01 | EQP 발행 실패 시 보상 트랜잭션 없음 | **높음** | 무결성 | ARCH-04와 연관 |
 | EX-03 | lastSeenAt 실패 시 인증 실패 전파 | **중간** | 예외처리 | |
-| PERF-01 | lastSeenAt 동기 DB 업데이트 | **중간** | 성능 | |
+| PERF-01 | lastSeenAt 동기 DB 업데이트 (캐시 미스 경로) | **중간** | 성능 | |
 | STAB-01 | EQP_START/END 결과 소멸 가능성 | **중간** | 안정성 | |
 | OOP-02 | 권한 캐시 기본 개방 정책 | **중간** | 보안/설계 | |
 | **QUALITY-04** | **AuthController 강제 캐스팅 → 500 위험** | **중간** | 코드품질 | ⭐ 신규 |

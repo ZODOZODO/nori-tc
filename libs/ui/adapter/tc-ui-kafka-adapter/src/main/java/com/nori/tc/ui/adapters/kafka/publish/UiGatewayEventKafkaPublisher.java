@@ -2,17 +2,23 @@ package com.nori.tc.ui.adapters.kafka.publish;
 
 import com.nori.tc.messaging.kafka.contract.KafkaHeaderSupport;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
+import com.nori.tc.ui.adapters.kafka.config.UiKafkaPublishProperties;
 import com.nori.tc.ui.adapters.kafka.config.UiKafkaTopicProperties;
+import com.nori.tc.ui.adapters.kafka.exception.UiKafkaPublishException;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEqpRoutePartitionLookupPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.ExecutionException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * {@code tc.ui.events.gateway} 토픽으로 UI 이벤트를 발행하는 어댑터입니다.
@@ -28,7 +34,7 @@ import java.util.Optional;
  *   <li>빈 Optional 또는 음수이면 발행을 차단하고 ERROR 로그를 남깁니다</li>
  *   <li>{@code ProducerRecord(topic, routePartition, key=eqpId, payload)} 생성</li>
  *   <li>추적 헤더(x-trace-id, x-event-type, x-source)를 레코드에 추가</li>
- *   <li>{@code KafkaTemplate.send(record)} 비동기 발행 후 콜백에서 성공/실패를 로깅</li>
+ *   <li>{@code KafkaTemplate.send(record).get(timeout)}으로 브로커 승인까지 동기 대기</li>
  * </ol>
  *
  * <p>NOTE: {@code KafkaTemplate.send(topic, key, value)} 직접 호출은 금지합니다.
@@ -50,6 +56,7 @@ public class UiGatewayEventKafkaPublisher implements UiGatewayEventPublishPort {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final UiKafkaTopicProperties topicProperties;
+    private final UiKafkaPublishProperties publishProperties;
     private final UiGatewayEqpRoutePartitionLookupPort routePartitionLookupPort;
 
     /**
@@ -57,15 +64,18 @@ public class UiGatewayEventKafkaPublisher implements UiGatewayEventPublishPort {
      *
      * @param kafkaTemplate              Kafka 발행 템플릿
      * @param topicProperties            토픽 이름 설정
+     * @param publishProperties          발행 타임아웃 설정
      * @param routePartitionLookupPort   eqpId → route_partition 조회 포트 (U13)
      */
     public UiGatewayEventKafkaPublisher(
             final KafkaTemplate<String, Object> kafkaTemplate,
             final UiKafkaTopicProperties topicProperties,
+            final UiKafkaPublishProperties publishProperties,
             final UiGatewayEqpRoutePartitionLookupPort routePartitionLookupPort
     ) {
         this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate is null");
         this.topicProperties = Objects.requireNonNull(topicProperties, "topicProperties is null");
+        this.publishProperties = Objects.requireNonNull(publishProperties, "publishProperties is null");
         this.routePartitionLookupPort = Objects.requireNonNull(routePartitionLookupPort, "routePartitionLookupPort is null");
     }
 
@@ -73,11 +83,12 @@ public class UiGatewayEventKafkaPublisher implements UiGatewayEventPublishPort {
      * Gateway 이벤트 토픽으로 Kafka 메시지를 발행합니다.
      *
      * <p>eqpId의 route_partition을 조회하여 명시적 파티션으로 발행합니다.
-     * 발행은 비동기로 수행되며 콜백에서 성공/실패를 로깅합니다.</p>
+     * 브로커 승인까지 동기 대기하고, 실패 시 {@link UiKafkaPublishException}을 던집니다.</p>
      *
      * @param message 발행할 UI Task 메시지 (metadata.traceId, data.eqpId 포함 필수)
      * @throws IllegalArgumentException  message가 null인 경우
      * @throws IllegalStateException     route_partition이 미배정 또는 음수인 경우 (U13 발행 차단)
+     * @throws UiKafkaPublishException   브로커 응답 타임아웃 또는 발행 실패인 경우
      */
     @Override
     public void publish(final KafkaUiTaskMessage message) {
@@ -135,23 +146,12 @@ public class UiGatewayEventKafkaPublisher implements UiGatewayEventPublishPort {
         );
 
         final long sendStartNano = System.nanoTime();
+        final long publishTimeoutSeconds = publishProperties.getPublishTimeoutSeconds();
 
-        kafkaTemplate.send(record).whenComplete((sendResult, ex) -> {
-            final long latencyMs = elapsedMillis(sendStartNano);
+        try {
+            final SendResult<String, Object> sendResult = kafkaTemplate.send(record)
+                    .get(publishTimeoutSeconds, TimeUnit.SECONDS);
 
-            if (ex != null) {
-                // 브로커 전송 실패 — 비동기 콜백이므로 예외를 throw할 수 없음
-                // 호출부(UseCase)는 이 실패를 인지하지 못하므로 반드시 ERROR 로그를 남김
-                log.error(
-                        "tc.ui.events.gateway 발행 실패(비동기). "
-                                + "topic={}, partition={}, eqpId={}, traceId={}, eventType={}, latencyMs={}",
-                        topic, routePartition, eqpId, traceId, eventType, latencyMs,
-                        ex
-                );
-                return;
-            }
-
-            // 브로커 승인 완료
             if (log.isDebugEnabled()) {
                 log.debug(
                         "tc.ui.events.gateway 발행 완료. "
@@ -159,10 +159,45 @@ public class UiGatewayEventKafkaPublisher implements UiGatewayEventPublishPort {
                         topic,
                         sendResult.getRecordMetadata().partition(),
                         sendResult.getRecordMetadata().offset(),
-                        eqpId, traceId, eventType, latencyMs
+                        eqpId, traceId, eventType, elapsedMillis(sendStartNano)
                 );
             }
-        });
+        } catch (TimeoutException e) {
+            log.error(
+                    "tc.ui.events.gateway 발행 타임아웃. topic={}, partition={}, eqpId={}, traceId={}, eventType={}, timeoutSeconds={}",
+                    topic, routePartition, eqpId, traceId, eventType, publishTimeoutSeconds, e
+            );
+            throw new UiKafkaPublishException(
+                    "Gateway Kafka 발행 타임아웃",
+                    "GATEWAY",
+                    traceId,
+                    e
+            );
+        } catch (ExecutionException e) {
+            final Throwable cause = e.getCause() != null ? e.getCause() : e;
+            log.error(
+                    "tc.ui.events.gateway 발행 실패. topic={}, partition={}, eqpId={}, traceId={}, eventType={}",
+                    topic, routePartition, eqpId, traceId, eventType, cause
+            );
+            throw new UiKafkaPublishException(
+                    "Gateway Kafka 발행 실패",
+                    "GATEWAY",
+                    traceId,
+                    cause
+            );
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error(
+                    "tc.ui.events.gateway 발행 인터럽트. topic={}, partition={}, eqpId={}, traceId={}, eventType={}",
+                    topic, routePartition, eqpId, traceId, eventType, e
+            );
+            throw new UiKafkaPublishException(
+                    "Gateway Kafka 발행 인터럽트",
+                    "GATEWAY",
+                    traceId,
+                    e
+            );
+        }
     }
 
     /**

@@ -2,27 +2,23 @@ package com.nori.tc.ui.adapters.redis.session;
 
 import com.nori.tc.ui.domain.auth.UserPrincipal;
 
-import java.io.Serializable;
 import java.util.Set;
 
 /**
  * Redis 저장용 UI 세션 캐시 엔트리입니다.
  *
  * <p>역할:</p>
- * <p>{@link UserPrincipal}은 record 타입으로 {@link Serializable}을 구현하지 않습니다.
- * Redis에 JDK 직렬화 방식으로 저장하기 위해 동일한 필드를 담는 어댑터 전용 래퍼 클래스입니다.</p>
+ * <p>{@link UserPrincipal}을 Redis JSON 직렬화로 저장하기 위한 어댑터 전용 DTO입니다.
+ * JDK 직렬화는 역직렬화 공격 표면이 커서 제거하고, 안전한 JSON 기반 직렬화로 전환했습니다.</p>
  *
  * <p>키 형식: {@code tc:ui:backend:session:{token}}</p>
  * <p>TTL: {@code tc.ui.backend.auth.token-cache-ttl-seconds} 설정값을 따릅니다.</p>
  *
  * <p>직렬화 호환성:</p>
- * <p>필드 추가·삭제 시 {@code serialVersionUID}를 갱신해야 합니다.
- * 기존 캐시 항목이 남아있으면 역직렬화 오류가 발생할 수 있으므로,
- * 변경 후 Redis 캐시 키를 flush 하거나 TTL 만료를 기다려야 합니다.</p>
+ * <p>JSON 필드 구조가 변경되면 기존 캐시와 호환되지 않을 수 있습니다.
+ * 배포 시 Redis 캐시 flush 또는 키 prefix 버전 분리를 함께 적용해야 안전합니다.</p>
  */
-public class RedisUiSessionEntry implements Serializable {
-
-    private static final long serialVersionUID = 1L;
+public class RedisUiSessionEntry {
 
     /** 사용자 PK (tc_user_info.user_pk) */
     private long userPk;

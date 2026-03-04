@@ -3,24 +3,21 @@ package com.nori.tc.ui.adapters.redis.async;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 
-import java.io.Serializable;
-
 /**
  * Redis 저장용 비동기 작업 결과 엔트리입니다.
  *
  * <p>역할:</p>
- * <p>{@link KafkaUiTaskReplyMessage}는 record 타입으로 {@link Serializable}을 구현하지 않습니다.
- * Redis에 JDK 직렬화 방식으로 저장하기 위해 동일한 필드를 담는 어댑터 전용 래퍼 클래스입니다.</p>
+ * <p>{@link KafkaUiTaskReplyMessage}를 Redis JSON 직렬화로 저장하기 위한 어댑터 전용 DTO입니다.
+ * JDK 직렬화 제거로 역직렬화 공격 표면을 줄입니다.</p>
  *
  * <p>키 형식: {@code tc:ui:backend:async:{traceId}}</p>
  * <p>TTL: {@code tc.ui.backend.async.result-ttl-seconds} 설정값을 따릅니다 (기본 600초).</p>
  *
  * <p>직렬화 호환성:</p>
- * <p>필드 추가·삭제 시 {@code serialVersionUID}를 갱신해야 합니다.</p>
+ * <p>필드 구조가 바뀌면 기존 Redis 값과 호환되지 않을 수 있으므로
+ * 배포 시 캐시 정리 정책을 함께 적용해야 합니다.</p>
  */
-public class RedisUiAsyncResultEntry implements Serializable {
-
-    private static final long serialVersionUID = 1L;
+public class RedisUiAsyncResultEntry {
 
     // --- metadata 필드 (KafkaUiTaskMessage.KafkaUiTaskMetadata에서 복사) ---
 

@@ -27,6 +27,7 @@
 3. **Task 단위로 커밋**: 하나의 Task = 하나의 커밋. 롤백이 용이하도록 한다.
 4. **리뷰 ID 참조**: 각 Task는 `design/01-initial-code-review.md` 의 ID (예: ARCH-01) 를 참조한다.
 5. **완료 기준**: 코드 변경 + 테스트 통과 + 로컬 실행 확인.
+6. **리뷰 ID 완전성 유지**: `design/01-initial-code-review.md` 의 모든 리뷰 ID가 본 문서의 Task에 직접 매핑되어야 한다.
 
 ---
 
@@ -46,7 +47,7 @@
 
 #### 작업 목록
 
-- [ ] **1.0.1** 현재 비밀번호가 commit된 커밋 이력 범위 파악
+- [x] **1.0.1** 현재 비밀번호가 commit된 커밋 이력 범위 파악
   ```bash
   git log --all --full-history -- "config/tc-db.properties"
   git log --all --full-history -- "apps/*/config/tc-redis.properties"
@@ -60,7 +61,7 @@
   - 기존 `REDACTED_REDIS_PASSWORD` → 새 강력 비밀번호로 교체
   - Gateway Redis(6379), Business Redis(6380) 모두 교체
 
-- [ ] **1.0.4** `.gitignore` 에 config 파일 추가
+- [x] **1.0.4** `.gitignore` 에 config 파일 추가
   ```bash
   # .gitignore 에 추가
   config/tc-db.properties
@@ -71,7 +72,7 @@
   apps/tc-comm-gateway-app/config/tc-redis.properties
   ```
 
-- [ ] **1.0.5** template 파일 생성 (빈값으로 git 추적)
+- [x] **1.0.5** template 파일 생성 (빈값으로 git 추적)
   ```
   config/tc-db.properties.template       (spring.datasource.password= 처럼 빈값)
   apps/tc-ui-backend-app/config/tc-redis.properties.template
@@ -98,7 +99,7 @@
   git push origin --force --tags
   ```
 
-- [ ] **1.0.8** 개발 환경 재설정 가이드 작성
+- [x] **1.0.8** 개발 환경 재설정 가이드 작성
   - template 파일에서 실제 config 파일 생성 방법
   - 환경변수 설정 방법 (또는 로컬 config 파일 작성 방법)
 
@@ -117,27 +118,27 @@
 
 #### 작업 목록
 
-- [ ] **1.1.1** `UiRedisConfiguration.java` 수정
+- [x] **1.1.1** `UiRedisConfiguration.java` 수정
   - `JdkSerializationRedisSerializer` → `GenericJackson2JsonRedisSerializer` 로 교체
   - `businessRedisTemplate` 의 value/hashValue serializer 변경
   - `gatewayRedisTemplate` 의 value/hashValue serializer 변경
   - 필요한 ObjectMapper 빈 생성 (JavaTimeModule 등록 포함)
 
-- [ ] **1.1.2** `RedisUiSessionEntry.java` 수정
+- [x] **1.1.2** `RedisUiSessionEntry.java` 수정
   - `implements Serializable` 제거
   - Jackson 직렬화 가능하도록 기본 생성자 확인
   - `UserPrincipal` 이 Jackson 직렬화 가능한지 확인 (record → DTO 변환 필요 시 수정)
 
-- [ ] **1.1.3** `RedisUiAsyncResultEntry.java` 수정
+- [x] **1.1.3** `RedisUiAsyncResultEntry.java` 수정
   - `implements Serializable` 제거
   - `KafkaUiTaskReplyMessage` 가 Jackson 직렬화 가능한지 확인
   - Jackson 역직렬화 시 타입 정보 포함 설정 (`@JsonTypeInfo`) 검토
 
-- [ ] **1.1.4** Redis 데이터 마이그레이션 계획 수립
+- [x] **1.1.4** Redis 데이터 마이그레이션 계획 수립
   - 기존 JDK 직렬화 데이터와 새 JSON 데이터 혼재 방지
   - 배포 전 Redis flush 또는 키 패턴 변경으로 격리
 
-- [ ] **1.1.5** 변경 후 테스트
+- [x] **1.1.5** 변경 후 테스트
   - UiSessionCacheService: put → get 왕복 테스트
   - AsyncResultStoreService: save → get 왕복 테스트
   - 기존 @WebMvcTest 시나리오 테스트 전체 실행
@@ -150,13 +151,13 @@
 
 ### Task 1.2 - [ARCH-01] DualResponseRegistry Redis 기반으로 교체
 
-**참조:** [ARCH-01 상세](../design/01-initial-code-review.md#arch-01-치명적---dualresponseregistry-분산-환경-불가)
+**참조:** [ARCH-01 상세](../design/01-initial-code-review.md)
 **예상 범위:** tc-ui-core, tc-ui-redis-adapter 모듈
 **위험도:** 치명적 (다중 인스턴스 운영 불가)
 
 #### 작업 목록
 
-- [ ] **1.2.1** tc-ui-core: `DualResponseRedisPort` 인터페이스 정의
+- [x] **1.2.1** tc-ui-core: `DualResponseRedisPort` 인터페이스 정의
   ```
   위치: libs/ui/tc-ui-core/src/.../port/DualResponseRedisPort.java
   ```
@@ -165,12 +166,12 @@
   - `void cancel(String traceId)` - 취소/정리
   - `Optional<UiDualTaskFinalResult> getResult(String traceId)` - 결과 조회
 
-- [ ] **1.2.2** tc-ui-core: `DualResponseRegistry` 리팩토링
+- [x] **1.2.2** tc-ui-core: `DualResponseRegistry` 리팩토링
   - 현재 `ConcurrentHashMap` 기반 인메모리 로직을 `DualResponseRedisPort` 를 통해 Redis로 위임
   - `CompletableFuture` 로컬 Future는 Redis Pub/Sub 이벤트 수신 시 완료
   - 타임아웃 처리: Redis TTL + `orTimeout()` 병행
 
-- [ ] **1.2.3** tc-ui-redis-adapter: `DualResponseRedisAdapter.java` 구현
+- [x] **1.2.3** tc-ui-redis-adapter: `DualResponseRedisAdapter.java` 구현
   ```
   위치: libs/ui/adapter/tc-ui-redis-adapter/src/.../registry/DualResponseRedisAdapter.java
   ```
@@ -183,7 +184,7 @@
     - 완료 채널: `tc:ui:backend:dual:complete`
     - 구독 채널 필터: 메시지에 traceId 포함
 
-- [ ] **1.2.4** tc-ui-redis-adapter: Pub/Sub 구독자 구현
+- [x] **1.2.4** tc-ui-redis-adapter: Pub/Sub 구독자 구현
   ```
   위치: libs/ui/adapter/tc-ui-redis-adapter/src/.../registry/DualResponsePubSubListener.java
   ```
@@ -191,11 +192,11 @@
   - 완료 메시지 수신 시 해당 traceId의 `CompletableFuture` 완료 처리
   - 로컬 Map(Future 참조용)과 Redis 상태 분리
 
-- [ ] **1.2.5** `UiRedisConfiguration.java` 수정
+- [x] **1.2.5** `UiRedisConfiguration.java` 수정
   - Pub/Sub `RedisMessageListenerContainer` 빈 추가
   - `DualResponsePubSubListener` 채널 등록
 
-- [ ] **1.2.6** 변경 후 테스트
+- [x] **1.2.6** 변경 후 테스트
   - 단일 인스턴스 환경에서 DualResponse 정상 동작 확인
   - 타임아웃 동작 확인
   - 기존 @WebMvcTest 시나리오 테스트 전체 실행
@@ -218,7 +219,7 @@
 
 #### 작업 목록
 
-- [ ] **1.3.1** `UiApiPermissionCache.java` 수정
+- [x] **1.3.1** `UiApiPermissionCache.java` 수정
   - `@PostConstruct` 에서 권한 로드 실패 시 `IllegalStateException` 발생 → 기동 중단
   - 또는 `initializationFailed` 플래그 → `isAuthorized()` 에서 전체 차단
 
@@ -245,7 +246,7 @@
   }
   ```
 
-- [ ] **1.3.2** `isAuthorized()` 정책 변경: open by default → closed by default
+- [x] **1.3.2** `isAuthorized()` 정책 변경: open by default → closed by default
   - 매핑된 권한이 없는 API는 기본 차단 (false 반환)
   - 공개 API는 `tc_ui_permission` 에 `permission_code = 'PUBLIC'` 등록
   - `/auth/login`, `/actuator/health` 는 `UiSecurityConfig` 에서 `permitAll()` 로 처리 (DB 무관)
@@ -272,7 +273,7 @@
 
 #### 작업 목록
 
-- [ ] **1.4.1** `UiGatewayEventKafkaPublisher.java` 수정
+- [x] **1.4.1** `UiGatewayEventKafkaPublisher.java` 수정
   - `kafkaTemplate.send(record).whenComplete(...)` → `kafkaTemplate.send(record).get(timeout)` 방식으로 변경
   - 발행 전용 타임아웃 상수 추가 (예: `PUBLISH_TIMEOUT_SECONDS = 3`)
   - `ExecutionException`, `TimeoutException` 을 `UiKafkaPublishException` (RuntimeException) 으로 래핑하여 throw
@@ -297,27 +298,27 @@
   }
   ```
 
-- [ ] **1.4.2** `UiBusinessEventKafkaPublisher.java` 동일 방식으로 수정
+- [x] **1.4.2** `UiBusinessEventKafkaPublisher.java` 동일 방식으로 수정
 
-- [ ] **1.4.3** `UiKafkaPublishException.java` 생성
+- [x] **1.4.3** `UiKafkaPublishException.java` 생성
   ```
   위치: libs/ui/adapter/tc-ui-kafka-adapter/src/.../exception/UiKafkaPublishException.java
   ```
   - `RuntimeException` 상속
   - 발행 대상(Gateway/Business), traceId, cause를 담는 생성자
 
-- [ ] **1.4.4** `EqpController.java` 검증
+- [x] **1.4.4** `EqpController.java` 검증
   - `publish()` 가 동기화되어 `UiKafkaPublishException` 을 throw하므로
     기존 `try-catch(Exception e)` 에서 올바르게 잡히는지 확인
   - Gateway 발행 성공 후 Business 발행 실패 시 보상 이벤트 발행 로직 연계 ([Task 2.4] 참조)
 
-- [ ] **1.4.5** 발행 타임아웃 설정 외부화
+- [x] **1.4.5** 발행 타임아웃 설정 외부화
   ```yaml
   # application.yaml 또는 tc-messaging.properties
   tc.ui.backend.kafka.publish-timeout-seconds: 3
   ```
 
-- [ ] **1.4.6** 변경 후 테스트
+- [x] **1.4.6** 변경 후 테스트
   - 정상 발행: 브로커 정상 시 publish() 정상 완료 확인
   - 타임아웃 발행: 브로커 응답 지연 시 `UiKafkaPublishException` throw 확인
   - EqpController: 발행 실패 시 500 응답 확인 (타임아웃 504와 구분)
@@ -427,9 +428,9 @@
 
 ---
 
-### Task 2.3 - [ARCH-02] tc-ui-core Port 기술 중립화
+### Task 2.3 - [ARCH-02 / DEP-01] tc-ui-core Port 기술 중립화
 
-**참조:** [ARCH-02 상세](../design/01-initial-code-review.md#arch-02-중요---tc-ui-core-port가-kafka-계약-타입에-직접-의존)
+**참조:** [ARCH-02 상세](../design/01-initial-code-review.md#arch-02-중요---tc-ui-core-port가-kafka-계약-타입에-직접-의존), [DEP-01 상세](../design/01-initial-code-review.md#dep-01-중요---core-계층이-messaging-계약에-의존)
 **예상 범위:** tc-ui-core, tc-ui-kafka-adapter 모듈
 **위험도:** 높음 (헥사고날 구조 오염, 기술 교체 불가)
 
@@ -598,6 +599,38 @@
 
 ---
 
+### Task 2.6 - [PERF-02 / DEP-02] GatewayEquipmentProfileSnapshot 메시지 경량화 및 위치 정리
+
+**참조:** [PERF-02 상세](../design/01-initial-code-review.md#perf-02-중요---gatewayequipmentprofilesnapshot-kafka-메시지-크기), [DEP-02 상세](../design/01-initial-code-review.md#dep-02-경미---gatewayequipmentprofilesnapshot이-kafka-계약-레이어에-위치)
+**예상 범위:** tc-messaging-kafka-contract, tc-ui-kafka-adapter, tc-ui-core, tc-comm-domain(또는 tc-db-domain)
+**위험도:** 높음 (대형 메시지로 인한 발행 실패 + 도메인 레이어 의존성 오염)
+
+#### 작업 목록
+
+- [ ] **2.6.1** 이벤트별 payload 정책 정리
+  - EQP_START/END처럼 프로파일 전체가 불필요한 이벤트는 `equipmentProfile = null` 또는 경량 DTO 사용
+  - 생성/수정처럼 실제로 필요한 이벤트만 상세 스냅샷 포함
+
+- [ ] **2.6.2** `GatewayEquipmentProfileSnapshot` 위치 이동
+  - Kafka 계약 모듈(`tc-messaging-kafka-contract`)에서 분리
+  - 공용 도메인 모듈(`tc-comm-domain` 또는 `tc-db-domain`)로 이동 후 계약 모듈은 참조만 하도록 변경
+
+- [ ] **2.6.3** 메시지 크기 가드레일 추가
+  - Kafka producer 설정의 `max.request.size` 점검
+  - 브로커 `message.max.bytes` 점검
+  - 필요 시 사전 직렬화 크기 측정 로깅 또는 초과 방어 로직 추가
+
+- [ ] **2.6.4** 변경 후 테스트
+  - 파라미터/포트 수가 많은 설비 데이터로 발행 시나리오 테스트
+  - `RecordTooLargeException` 미발생 확인
+  - 스냅샷 이동 후 컴파일/의존성 그래프 정상 확인
+
+#### 완료 기준
+- `GatewayEquipmentProfileSnapshot` 이 Kafka 계약 모듈의 소유 타입이 아님
+- 대형 설비 기준 발행 시 `RecordTooLargeException` 없이 정상 처리
+
+---
+
 ## Phase 3 - 중간 위험도 개선
 
 > 운영 성능과 안정성을 높이는 항목입니다.
@@ -606,7 +639,7 @@
 
 ### Task 3.1 - [EX-03] lastSeenAt 업데이트 실패 예외 차단
 
-**참조:** [EX-03 상세](../design/01-initial-code-review.md#ex-03-중요---validatetokenusecase-lastseenат-실패-시-인증-실패-전파-위험)
+**참조:** [EX-03 상세](../design/01-initial-code-review.md#ex-03-중요---validatetokenusecase-lastseenat-실패-시-인증-실패-전파-위험)
 **예상 범위:** tc-ui-core 모듈
 
 #### 작업 목록
@@ -628,7 +661,7 @@
 
 ### Task 3.2 - [PERF-01] lastSeenAt 비동기 업데이트로 전환
 
-**참조:** [PERF-01 상세](../design/01-initial-code-review.md#perf-01-중요---lastseenат-동기-db-업데이트-매-요청)
+**참조:** [PERF-01 상세](../design/01-initial-code-review.md#perf-01-중요---lastseenat-동기-db-업데이트-캐시-미스-경로)
 **예상 범위:** tc-ui-core 모듈
 
 #### 작업 목록
@@ -664,9 +697,9 @@
 
 ---
 
-### Task 3.3 - [STAB-01] EQP_START/END 비동기 결과 상태 구분 개선
+### Task 3.3 - [STAB-01 / API-02] EQP_START/END 비동기 결과 상태 구분 개선
 
-**참조:** [STAB-01 상세](../design/01-initial-code-review.md#stab-01-중요---eqpstartend-비동기-결과-소멸-가능성)
+**참조:** [STAB-01 상세](../design/01-initial-code-review.md#stab-01-중요---eqpstartend-비동기-결과-소멸-가능성), [API-02 상세](../design/01-initial-code-review.md#api-02-중요---polling-처리-중과-없음-구분-불가)
 **예상 범위:** tc-ui-core, tc-ui-redis-adapter, tc-ui-web-adapter 모듈
 
 #### 작업 목록
@@ -724,8 +757,9 @@
   protected void doFilterInternal(HttpServletRequest request,
                                    HttpServletResponse response,
                                    FilterChain chain) throws ServletException, IOException {
-      // 이미 인증된 경우 (비동기 재디스패치 포함) 스킵
-      if (SecurityContextHolder.getContext().getAuthentication() != null) {
+      // 비동기 재디스패치이고 이미 인증 정보가 있는 경우만 스킵
+      if (isAsyncDispatch(request)
+              && SecurityContextHolder.getContext().getAuthentication() != null) {
           chain.doFilter(request, response);
           return;
       }
@@ -858,6 +892,31 @@
 
 #### 완료 기준
 - `EqpSequentialProcessor` 의 DLQ/격리 catch 블록에 `log.error()` 호출 존재
+
+---
+
+### Task 3.10 - [STAB-02] DualResponseRegistry 완료/정리 경합 방지
+
+**참조:** [STAB-02 상세](../design/01-initial-code-review.md#stab-02-중요---dualresponseregistry-타임아웃-후-정리-불확실성)
+**예상 범위:** tc-ui-core, tc-ui-web-adapter 모듈
+**위험도:** 중간 (중복 완료 처리 시 IllegalStateException 위험)
+
+#### 작업 목록
+
+- [ ] **3.10.1** 완료 처리 단일화
+  - `setResult/setErrorResult` 호출 경로를 하나의 메서드로 통합
+  - `AtomicBoolean completed` 로 1회만 응답 완료되도록 보장
+
+- [ ] **3.10.2** 정리 로직 보장
+  - 완료/타임아웃/취소 모든 경로에서 `trackers.remove(traceId)` 가 반드시 실행되도록 `finally` 구조 적용
+
+- [ ] **3.10.3** 경합 시나리오 테스트 추가
+  - `timeout` 과 `cancel` 이 거의 동시에 발생하는 케이스
+  - Gateway/Business 응답 지연으로 완료 경로가 교차되는 케이스
+
+#### 완료 기준
+- 하나의 `traceId` 에 대해 `DeferredResult` 완료가 최대 1회만 발생
+- 경합 상황에서도 `IllegalStateException` 없이 `trackers` 정리 보장
 
 ---
 
@@ -1042,34 +1101,84 @@
 
 ---
 
+### Task 4.9 - [QUALITY-03] EqpController 발행 실패 흐름 단순화
+
+**참조:** [QUALITY-03 상세](../design/01-initial-code-review.md#quality-03-경미---eqpcontroller-발행-실패-흐름-복잡성)
+**예상 범위:** tc-ui-web-adapter, tc-ui-core 모듈
+
+#### 작업 목록
+
+- [ ] **4.9.1** `EqpController.create()` 실패 경로 단순화
+  - `future.cancel(true)` + `whenComplete(CancellationException)` 의 간접 흐름 제거
+  - 발행 실패 시 `registry.cancel(traceId)` 후 `deferredResult.setErrorResult(...)` 를 즉시 호출하고 반환
+
+- [ ] **4.9.2** 실패 원인 로그 일원화
+  - 발행 실패, 보상 실패, 응답 반환 코드(500/504)를 구조화 로그로 분리 기록
+
+- [ ] **4.9.3** 변경 후 테스트
+  - Gateway/Business 발행 실패 시 즉시 500 반환 확인
+  - 타임아웃(504)과 발행 실패(500) 경계가 명확히 유지되는지 확인
+
+#### 완료 기준
+- `EqpController` 의 발행 실패 경로에 `CancellationException` 의존 로직이 없음
+- 발행 실패와 타임아웃 응답이 분리되어 반환됨
+
+---
+
+### Task 4.10 - [API-01] DELETE 요청 Body 의존 제거
+
+**참조:** [API-01 상세](../design/01-initial-code-review.md#api-01-경미---delete-메서드-request-body)
+**예상 범위:** tc-ui-web-adapter, tc-ui-core 모듈
+
+#### 작업 목록
+
+- [ ] **4.10.1** `DELETE /api/eqp/{eqpId}` 계약 정리
+  - 삭제에 필요한 값은 경로 변수/쿼리 파라미터로만 전달
+  - Request Body 의존 제거
+
+- [ ] **4.10.2** 하위 호환 전환 전략 적용
+  - 기존 클라이언트가 body를 보내는 경우 임시 경고 로그 후 무시 또는 명시적 400 반환 정책 결정
+
+- [ ] **4.10.3** 변경 후 테스트
+  - body 없이 삭제 요청 정상 처리 확인
+  - 프록시/게이트웨이 구간에서 body 유실 환경에서도 동일 동작 확인
+
+#### 완료 기준
+- DELETE API가 Request Body 없이 동일 기능을 제공
+- 클라이언트/게이트웨이 환경 차이에 따른 동작 불일치가 없음
+
+---
+
 ## 전체 작업 체크리스트
 
 > 이 섹션을 복사하여 작업 추적에 활용하세요.
 
 ### Phase 1 (치명적 - 배포 전 필수)
 - [ ] Task 1.0 - ⭐ 평문 비밀번호 git 이력 제거 + 자격증명 교체 [SEC-04]
-- [ ] Task 1.1 - JDK 직렬화 → JSON 직렬화 교체 [SEC-01]
-- [ ] Task 1.2 - DualResponseRegistry Redis 기반 교체 [ARCH-01]
+- [x] Task 1.1 - JDK 직렬화 → JSON 직렬화 교체 [SEC-01]
+- [x] Task 1.2 - DualResponseRegistry Redis 기반 교체 [ARCH-01]
 - [ ] Task 1.3 - 권한 캐시 failsafe + closed by default [EX-04/SEC-03]
-- [ ] Task 1.4 - ⭐ Dual 발행 fire-and-forget → 브로커 확인 동기화 [ARCH-04]
+- [x] Task 1.4 - ⭐ Dual 발행 fire-and-forget → 브로커 확인 동기화 [ARCH-04]
 
 ### Phase 2 (높음 - 빠른 수정 필요)
 - [ ] Task 2.1 - Kafka 파싱 실패 Dead Letter Topic [EX-01]
 - [ ] Task 2.2 - LogoutUseCase Redis evict 실패 처리 [EX-02]
-- [ ] Task 2.3 - tc-ui-core Port 기술 중립화 [ARCH-02]
+- [ ] Task 2.3 - tc-ui-core Port 기술 중립화 [ARCH-02/DEP-01]
 - [ ] Task 2.4 - EQP 발행 실패 보상 처리 [OOP-01]
 - [ ] Task 2.5 - Redis Key 토큰 SHA-256 해시 [SEC-02]
+- [ ] Task 2.6 - GatewayEquipmentProfileSnapshot 경량화 + 위치 정리 [PERF-02/DEP-02]
 
 ### Phase 3 (중간 - 안정성/성능 개선)
 - [ ] Task 3.1 - lastSeenAt 실패 예외 차단 [EX-03]
 - [ ] Task 3.2 - lastSeenAt 비동기 업데이트 [PERF-01]
-- [ ] Task 3.3 - EQP_START/END 상태 구분 개선 [STAB-01]
-- [ ] Task 3.4 - 권한 캐시 Closed by Default (1.3에 포함 가능)
+- [ ] Task 3.3 - EQP_START/END 상태 구분 개선 [STAB-01/API-02]
+- [ ] Task 3.4 - 권한 캐시 Closed by Default (1.3에 포함 가능) [OOP-02]
 - [ ] Task 3.5 - 비동기 재디스패치 이중 검증 제거 [QUALITY-01]
 - [ ] Task 3.6 - DualResponseTracker 정리 finally 보장 [MEM-01]
 - [ ] Task 3.7 - UiApiPermissionCache 주기적 갱신 [PERF-03]
 - [ ] Task 3.8 - ⭐ AuthController 강제 캐스팅 → instanceof 패턴 [QUALITY-04]
 - [ ] Task 3.9 - ⭐ EqpSequentialProcessor 무로그 예외 삼킴 수정 [EX-05]
+- [ ] Task 3.10 - DualResponseRegistry 완료/정리 경합 방지 [STAB-02]
 
 ### Phase 4 (낮음 - 운영성/코드품질)
 - [ ] Task 4.1 - 401 응답 포맷 통일 [QUALITY-02]
@@ -1080,3 +1189,5 @@
 - [ ] Task 4.6 - DualResponseRegistry 동시성 테스트 [TEST-01]
 - [ ] Task 4.7 - UseCase 단위 테스트 추가 [TEST-02]
 - [ ] Task 4.8 - ⭐ 플러그인 서명 검증 구현 [SEC-05]
+- [ ] Task 4.9 - EqpController 발행 실패 흐름 단순화 [QUALITY-03]
+- [ ] Task 4.10 - DELETE 요청 Body 의존 제거 [API-01]

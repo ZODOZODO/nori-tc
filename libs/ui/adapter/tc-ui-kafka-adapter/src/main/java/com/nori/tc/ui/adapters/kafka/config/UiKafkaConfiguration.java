@@ -20,7 +20,7 @@ import java.util.Map;
  *
  * <p>역할:</p>
  * <ul>
- *   <li>{@link UiKafkaTopicProperties} ConfigurationProperties 활성화</li>
+ *   <li>{@link UiKafkaTopicProperties}, {@link UiKafkaPublishProperties} ConfigurationProperties 활성화</li>
  *   <li>{@code tc.ui.commands} 전용 KafkaListenerContainerFactory 생성
  *       (MANUAL_IMMEDIATE ACK 모드, String 역직렬화)</li>
  * </ul>
@@ -35,7 +35,7 @@ import java.util.Map;
  * <p>Phase 7 {@code TcUiBackendAutoConfiguration}에서 {@code @Import} 대상입니다.</p>
  */
 @Configuration
-@EnableConfigurationProperties(UiKafkaTopicProperties.class)
+@EnableConfigurationProperties({UiKafkaTopicProperties.class, UiKafkaPublishProperties.class})
 public class UiKafkaConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(UiKafkaConfiguration.class);

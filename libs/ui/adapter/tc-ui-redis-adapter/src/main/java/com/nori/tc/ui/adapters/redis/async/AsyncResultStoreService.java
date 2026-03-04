@@ -1,5 +1,6 @@
 package com.nori.tc.ui.adapters.redis.async;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import org.slf4j.Logger;
@@ -30,8 +31,8 @@ import java.util.Optional;
  * <p>키 형식: {@code tc:ui:backend:async:{traceId}}</p>
  * <p>TTL: {@code tc.ui.backend.async.result-ttl-seconds} 설정값 (기본 600초)</p>
  *
- * <p>{@link KafkaUiTaskReplyMessage}는 record 타입으로 직접 직렬화할 수 없으므로,
- * {@link RedisUiAsyncResultEntry} 래퍼 클래스를 통해 JDK 직렬화로 저장합니다.</p>
+ * <p>{@link KafkaUiTaskReplyMessage}는 Redis 저장 시 {@link RedisUiAsyncResultEntry}로 변환하여
+ * JSON 직렬화 방식으로 저장합니다.</p>
  */
 @Service
 @EnableConfigurationProperties(UiAsyncProperties.class)
@@ -44,15 +45,19 @@ public class AsyncResultStoreService implements AsyncResultStorePort {
 
     private final RedisTemplate<String, Object> businessRedisTemplate;
     private final UiAsyncProperties asyncProperties;
+    private final ObjectMapper redisObjectMapper;
 
     public AsyncResultStoreService(
             @Qualifier("businessRedisTemplate") final RedisTemplate<String, Object> businessRedisTemplate,
-            final UiAsyncProperties asyncProperties
+            final UiAsyncProperties asyncProperties,
+            @Qualifier("uiRedisObjectMapper") final ObjectMapper redisObjectMapper
     ) {
         this.businessRedisTemplate = Objects.requireNonNull(businessRedisTemplate,
                 "businessRedisTemplate 은 null 이 될 수 없습니다.");
         this.asyncProperties = Objects.requireNonNull(asyncProperties,
                 "asyncProperties 는 null 이 될 수 없습니다.");
+        this.redisObjectMapper = Objects.requireNonNull(redisObjectMapper,
+                "redisObjectMapper 는 null 이 될 수 없습니다.");
     }
 
     /**
@@ -120,6 +125,14 @@ public class AsyncResultStoreService implements AsyncResultStorePort {
             if (raw instanceof RedisUiAsyncResultEntry entry) {
                 if (log.isDebugEnabled()) {
                     log.debug("비동기 결과 조회 성공. traceId={}, status={}", traceId, entry.getStatus());
+                }
+                return Optional.of(entry.toReplyMessage());
+            }
+            if (raw instanceof java.util.Map<?, ?> map) {
+                // 직렬화 포맷 전환 과정에서 LinkedHashMap으로 역직렬화되는 경우를 방어합니다.
+                final RedisUiAsyncResultEntry entry = redisObjectMapper.convertValue(map, RedisUiAsyncResultEntry.class);
+                if (log.isDebugEnabled()) {
+                    log.debug("비동기 결과 조회 성공(Map 변환). traceId={}, status={}", traceId, entry.getStatus());
                 }
                 return Optional.of(entry.toReplyMessage());
             }

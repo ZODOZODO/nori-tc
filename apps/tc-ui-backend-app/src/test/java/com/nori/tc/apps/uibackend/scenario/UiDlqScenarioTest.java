@@ -48,14 +48,14 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
      * DLQ 시나리오 공통 사전 설정입니다.
      *
      * <p>DLQ 조회 API는 인증된 사용자 컨텍스트에서 호출됩니다.
-     * 권한 캐시가 비어있으므로 (open by default) 인증된 사용자는 모두 접근 가능합니다.</p>
+     * closed by default 정책이므로 DLQ 접근 권한(EQP_MANAGE)을 가진 사용자로 테스트합니다.</p>
      */
     @BeforeEach
     void setUpValidToken() {
         // 유효한 Bearer 토큰으로 모든 DLQ 요청에 인증이 통과하도록 설정합니다.
         // lenient()를 사용하여 특정 테스트에서 토큰을 사용하지 않더라도 불필요한 Stubbing 경고를 방지합니다.
         lenient().when(tokenCachePort.get(TEST_TOKEN))
-                .thenReturn(Optional.of(principalWithPermission()));
+                .thenReturn(Optional.of(principalWithPermission(EQP_MANAGE_PERM)));
     }
 
     // ─────────────────────────────────────────────────────────

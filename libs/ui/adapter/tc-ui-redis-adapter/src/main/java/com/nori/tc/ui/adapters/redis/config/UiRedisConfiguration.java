@@ -1,5 +1,9 @@
 package com.nori.tc.ui.adapters.redis.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.nori.tc.ui.adapters.redis.registry.DualResponsePubSubListener;
+import com.nori.tc.ui.adapters.redis.registry.DualResponseRedisAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -10,27 +14,26 @@ import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.JdkSerializationRedisSerializer;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * UI Backend Redis 이중 연결 설정 클래스입니다.
+ * UI Backend Redis 이중 연결 + 직렬화 + Pub/Sub 설정 클래스입니다.
  *
- * <p>Gateway Redis(6379)와 Business Redis(6380)에 대한 독립된 {@link RedisTemplate}
- * 빈을 각각 생성합니다. Spring Boot 기본 {@code spring.data.redis.*} 자동설정을
- * 사용하지 않으므로, {@link LettuceConnectionFactory}를 직접 생성합니다.</p>
+ * <p>핵심 목표:</p>
+ * <ul>
+ *   <li>Gateway Redis(6379), Business Redis(6380)를 각각 독립 연결로 관리합니다.</li>
+ *   <li>기존 JDK 직렬화를 제거하고 JSON 직렬화로 통일합니다.</li>
+ *   <li>DualResponse 완료 알림 채널을 Business Redis Pub/Sub로 수신합니다.</li>
+ * </ul>
  *
  * <p>직렬화 전략:</p>
  * <ul>
- *   <li>Key: {@link StringRedisSerializer} — 사람이 읽을 수 있는 키 형식 유지</li>
- *   <li>Value: {@link JdkSerializationRedisSerializer} — gateway/business 어댑터가
- *       저장한 DLQ 엔트리(RedisDlqEntry, RedisBusinessDlqEntry 등)와 동일한
- *       직렬화 방식을 사용하여 역직렬화 호환성을 보장합니다.</li>
+ *   <li>Key/HashKey: {@link StringRedisSerializer}</li>
+ *   <li>Value/HashValue: {@link GenericJackson2JsonRedisSerializer}</li>
  * </ul>
- *
- * <p>연결 수명 주기:</p>
- * <p>각 {@link LettuceConnectionFactory}는 Spring Bean으로 등록되어
- * {@code destroyMethod = "destroy"}를 통해 애플리케이션 종료 시 정상 해제됩니다.</p>
  */
 @Configuration
 @EnableConfigurationProperties(UiRedisProperties.class)
@@ -38,109 +41,155 @@ public class UiRedisConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(UiRedisConfiguration.class);
 
+    /**
+     * Redis JSON 직렬화 전용 ObjectMapper 빈입니다.
+     *
+     * <p>목적:</p>
+     * <ul>
+     *   <li>Redis 저장 전용 직렬화 정책을 애플리케이션 기본 ObjectMapper와 분리합니다.</li>
+     *   <li>자바 시간 타입 등 추가 모듈이 클래스패스에 있을 경우 자동 등록합니다.</li>
+     * </ul>
+     *
+     * <p>보안 주의:</p>
+     * <p>위험한 기본 타이핑(activateDefaultTyping + LaissezFaireSubTypeValidator) 조합은 사용하지 않습니다.</p>
+     *
+     * @return Redis 직렬화용 ObjectMapper
+     */
+    @Bean(name = "uiRedisObjectMapper")
+    public ObjectMapper uiRedisObjectMapper() {
+        final ObjectMapper mapper = new ObjectMapper();
+        mapper.findAndRegisterModules();
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
+    }
+
+    /**
+     * Redis Value/HashValue 직렬화기 빈입니다.
+     *
+     * @param uiRedisObjectMapper Redis 전용 ObjectMapper
+     * @return JSON 기반 Redis 직렬화기
+     */
+    @Bean(name = "uiRedisValueSerializer")
+    public GenericJackson2JsonRedisSerializer uiRedisValueSerializer(
+            @Qualifier("uiRedisObjectMapper") final ObjectMapper uiRedisObjectMapper
+    ) {
+        return new GenericJackson2JsonRedisSerializer(uiRedisObjectMapper);
+    }
+
     // -------------------------------------------------------------------------
-    // Gateway Redis (6379) — DLQ / Quarantine 조회·삭제 전용
+    // Gateway Redis (6379)
     // -------------------------------------------------------------------------
 
     /**
-     * Gateway Redis(6379) 연결 팩토리 빈입니다.
+     * Gateway Redis 연결 팩토리입니다.
      *
-     * <p>Bean으로 등록해야 Spring이 {@code destroy()} 를 호출하여
-     * 애플리케이션 종료 시 Lettuce 연결을 정상 해제합니다.</p>
-     *
-     * @param props Gateway 노드 연결 정보가 담긴 설정 객체
-     * @return 초기화가 완료된 {@link LettuceConnectionFactory}
+     * @param props Redis 연결 프로퍼티
+     * @return gateway 연결 팩토리
      */
     @Bean(name = "gatewayLettuceConnectionFactory", destroyMethod = "destroy")
     public LettuceConnectionFactory gatewayLettuceConnectionFactory(final UiRedisProperties props) {
         final LettuceConnectionFactory factory = buildConnectionFactory(props.getGateway());
-        log.debug("Gateway LettuceConnectionFactory 생성. host={}:{}",
+        log.debug("Gateway Redis 연결 팩토리 생성 완료. host={}, port={}",
                 props.getGateway().getHost(), props.getGateway().getPort());
         return factory;
     }
 
     /**
-     * Gateway Redis용 {@link RedisTemplate} 빈입니다.
+     * Gateway RedisTemplate 빈입니다.
      *
-     * <p>사용처:</p>
-     * <ul>
-     *   <li>{@code GatewayDlqRedisService} — {@code tc:comm:gateway:dlq:*} 읽기/삭제</li>
-     *   <li>{@code GatewayDlqRedisService} — {@code tc:comm:gateway:quarantine:*} 읽기</li>
-     * </ul>
-     *
-     * @param factory gatewayLettuceConnectionFactory
-     * @return JDK 직렬화 기반 {@link RedisTemplate}
+     * @param factory gateway 연결 팩토리
+     * @param valueSerializer JSON 직렬화기
+     * @return gateway RedisTemplate
      */
     @Bean(name = "gatewayRedisTemplate")
     public RedisTemplate<String, Object> gatewayRedisTemplate(
-            @Qualifier("gatewayLettuceConnectionFactory") final LettuceConnectionFactory factory
+            @Qualifier("gatewayLettuceConnectionFactory") final LettuceConnectionFactory factory,
+            @Qualifier("uiRedisValueSerializer") final GenericJackson2JsonRedisSerializer valueSerializer
     ) {
-        final RedisTemplate<String, Object> template = buildTemplate(factory);
-        log.info("gatewayRedisTemplate 초기화 완료.");
+        final RedisTemplate<String, Object> template = buildTemplate(factory, valueSerializer);
+        log.info("gatewayRedisTemplate 초기화 완료. serializer=GenericJackson2JsonRedisSerializer");
         return template;
     }
 
     // -------------------------------------------------------------------------
-    // Business Redis (6380) — DLQ 조회 + 토큰 캐시 + 비동기 결과 저장
+    // Business Redis (6380)
     // -------------------------------------------------------------------------
 
     /**
-     * Business Redis(6380) 연결 팩토리 빈입니다.
+     * Business Redis 연결 팩토리입니다.
      *
-     * @param props Business 노드 연결 정보가 담긴 설정 객체
-     * @return 초기화가 완료된 {@link LettuceConnectionFactory}
+     * @param props Redis 연결 프로퍼티
+     * @return business 연결 팩토리
      */
     @Bean(name = "businessLettuceConnectionFactory", destroyMethod = "destroy")
     public LettuceConnectionFactory businessLettuceConnectionFactory(final UiRedisProperties props) {
         final LettuceConnectionFactory factory = buildConnectionFactory(props.getBusiness());
-        log.debug("Business LettuceConnectionFactory 생성. host={}:{}",
+        log.debug("Business Redis 연결 팩토리 생성 완료. host={}, port={}",
                 props.getBusiness().getHost(), props.getBusiness().getPort());
         return factory;
     }
 
     /**
-     * Business Redis용 {@link RedisTemplate} 빈입니다.
+     * Business RedisTemplate 빈입니다.
      *
-     * <p>사용처:</p>
-     * <ul>
-     *   <li>{@code BusinessDlqRedisService} — {@code tc:business:core:dlq:*} 읽기/삭제</li>
-     *   <li>{@code UiSessionCacheService} — {@code tc:ui:backend:session:{token}} 캐시 저장/조회</li>
-     *   <li>{@code AsyncResultStoreService} — {@code tc:ui:backend:async:{traceId}} 결과 저장/조회</li>
-     * </ul>
+     * <p>토큰 캐시, 비동기 결과 저장, DualResponse 상태 저장에 사용됩니다.</p>
      *
-     * @param factory businessLettuceConnectionFactory
-     * @return JDK 직렬화 기반 {@link RedisTemplate}
+     * @param factory business 연결 팩토리
+     * @param valueSerializer JSON 직렬화기
+     * @return business RedisTemplate
      */
     @Bean(name = "businessRedisTemplate")
     public RedisTemplate<String, Object> businessRedisTemplate(
-            @Qualifier("businessLettuceConnectionFactory") final LettuceConnectionFactory factory
+            @Qualifier("businessLettuceConnectionFactory") final LettuceConnectionFactory factory,
+            @Qualifier("uiRedisValueSerializer") final GenericJackson2JsonRedisSerializer valueSerializer
     ) {
-        final RedisTemplate<String, Object> template = buildTemplate(factory);
-        log.info("businessRedisTemplate 초기화 완료.");
+        final RedisTemplate<String, Object> template = buildTemplate(factory, valueSerializer);
+        log.info("businessRedisTemplate 초기화 완료. serializer=GenericJackson2JsonRedisSerializer");
         return template;
     }
 
     // -------------------------------------------------------------------------
-    // 공통 빌더 메서드
+    // DualResponse Redis Pub/Sub
     // -------------------------------------------------------------------------
 
     /**
-     * Redis 노드 설정을 기반으로 {@link LettuceConnectionFactory}를 생성합니다.
+     * DualResponse 완료 알림 채널 구독 컨테이너입니다.
      *
-     * <p>password 가 비어 있으면 인증 없이 연결을 시도합니다.
-     * {@code afterPropertiesSet()} 을 호출하여 연결 팩토리를 즉시 초기화합니다.</p>
+     * <p>Business Redis 연결을 사용하여 완료 채널을 구독합니다.
+     * 메시지 수신 시 {@link DualResponsePubSubListener}가 traceId 기준으로
+     * 로컬 CompletableFuture 완료를 트리거합니다.</p>
      *
-     * @param node 연결할 Redis 노드 정보
-     * @return 초기화된 {@link LettuceConnectionFactory}
+     * @param businessFactory business Redis 연결 팩토리
+     * @param listener 완료 메시지 리스너
+     * @return RedisMessageListenerContainer
      */
-    private LettuceConnectionFactory buildConnectionFactory(
-            final UiRedisProperties.RedisNodeProperties node
+    @Bean(name = "dualResponseRedisMessageListenerContainer")
+    public RedisMessageListenerContainer dualResponseRedisMessageListenerContainer(
+            @Qualifier("businessLettuceConnectionFactory") final LettuceConnectionFactory businessFactory,
+            final DualResponsePubSubListener listener
     ) {
+        final RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(businessFactory);
+        container.addMessageListener(listener, new ChannelTopic(DualResponseRedisAdapter.DUAL_COMPLETE_CHANNEL));
+        log.info("DualResponse Pub/Sub 리스너 등록 완료. channel={}", DualResponseRedisAdapter.DUAL_COMPLETE_CHANNEL);
+        return container;
+    }
+
+    // -------------------------------------------------------------------------
+    // 공통 빌더
+    // -------------------------------------------------------------------------
+
+    /**
+     * 노드 설정을 기반으로 LettuceConnectionFactory를 생성합니다.
+     *
+     * @param node Redis 노드 설정
+     * @return 초기화된 연결 팩토리
+     */
+    private LettuceConnectionFactory buildConnectionFactory(final UiRedisProperties.RedisNodeProperties node) {
         final RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(node.getHost());
         config.setPort(node.getPort());
 
-        // 비밀번호가 설정된 경우에만 인증 정보 추가
         if (node.getPassword() != null && !node.getPassword().isBlank()) {
             config.setPassword(RedisPassword.of(node.getPassword()));
         }
@@ -151,29 +200,24 @@ public class UiRedisConfiguration {
     }
 
     /**
-     * 공통 직렬화 설정이 적용된 {@link RedisTemplate}을 생성합니다.
+     * 공통 직렬화 정책이 적용된 RedisTemplate을 생성합니다.
      *
-     * <p>Key/HashKey: {@link StringRedisSerializer} — 문자열 키</p>
-     * <p>Value/HashValue: {@link JdkSerializationRedisSerializer} — JDK 직렬화</p>
-     * <p>{@code afterPropertiesSet()} 을 호출하여 템플릿을 즉시 초기화합니다.</p>
-     *
-     * @param factory 연결 팩토리
-     * @return 설정이 완료된 {@link RedisTemplate}
+     * @param factory Redis 연결 팩토리
+     * @param valueSerializer Value/HashValue 직렬화기
+     * @return 초기화된 RedisTemplate
      */
-    private RedisTemplate<String, Object> buildTemplate(final LettuceConnectionFactory factory) {
+    private RedisTemplate<String, Object> buildTemplate(
+            final LettuceConnectionFactory factory,
+            final GenericJackson2JsonRedisSerializer valueSerializer
+    ) {
         final RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
 
-        // 키는 사람이 읽을 수 있는 문자열로 저장 (scan 패턴 매칭에도 유리)
         final StringRedisSerializer stringSerializer = new StringRedisSerializer();
         template.setKeySerializer(stringSerializer);
         template.setHashKeySerializer(stringSerializer);
-
-        // 값은 JDK 직렬화 — gateway/business 어댑터의 DLQ 엔트리와 역직렬화 호환
-        final JdkSerializationRedisSerializer jdkSerializer = new JdkSerializationRedisSerializer();
-        template.setValueSerializer(jdkSerializer);
-        template.setHashValueSerializer(jdkSerializer);
-
+        template.setValueSerializer(valueSerializer);
+        template.setHashValueSerializer(valueSerializer);
         template.afterPropertiesSet();
         return template;
     }

@@ -24,6 +24,7 @@ import com.nori.tc.ui.core.port.messaging.UiGatewayEqpRoutePartitionLookupPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import com.nori.tc.ui.core.port.redis.BusinessDlqPort;
+import com.nori.tc.ui.core.port.redis.DualResponseRedisPort;
 import com.nori.tc.ui.core.port.redis.GatewayDlqPort;
 import com.nori.tc.ui.core.port.redis.TokenCachePort;
 import com.nori.tc.ui.core.properties.UiAuthProperties;
@@ -205,6 +206,9 @@ abstract class UiBackendScenarioTestSupport {
     AsyncResultStorePort asyncResultStorePort;
 
     @MockitoBean
+    DualResponseRedisPort dualResponseRedisPort;
+
+    @MockitoBean
     GatewayDlqPort gatewayDlqPort;
 
     @MockitoBean
@@ -228,17 +232,21 @@ abstract class UiBackendScenarioTestSupport {
     // ─────────────────────────────────────────────────────────
 
     /**
-     * 각 테스트 전에 API 권한 캐시를 빈 상태(List.of())로 초기화합니다.
+     * 각 테스트 전에 기본 API 권한 캐시를 로드합니다.
      *
-     * <p>빈 캐시 상태에서는 인증된 모든 사용자에게 접근이 허용됩니다 (open by default).
-     * 특정 시나리오에서 권한 제한이 필요할 경우, 해당 테스트에서
-     * {@link #reloadPermissions(java.util.List)}를 호출하여 권한 캐시를 재설정합니다.</p>
+     * <p>현재 정책은 closed by default 이므로, 테스트에서 호출하는 보호 API를
+     * 명시적으로 등록해두고 필요한 시나리오에서 {@link #reloadPermissions(List)}로 재정의합니다.</p>
      */
     @BeforeEach
     void setUpCommonMocks() {
-        // API 권한 캐시를 빈 상태로 초기화: 인증된 사용자에게 전체 허용
-        lenient().when(apiPermissionPort.findAllActiveApiPermissions())
-                .thenReturn(List.of());
+        lenient().when(apiPermissionPort.findAllActiveApiPermissions()).thenReturn(List.of(
+                apiPermission(EQP_MANAGE_PERM, "/api/eqp", null),
+                apiPermission(EQP_MANAGE_PERM, "/api/async", "GET"),
+                apiPermission(EQP_MANAGE_PERM, "/api/dlq", null),
+                apiPermission("AUTH_ME_PERM", "/auth/me", "GET"),
+                apiPermission("AUTH_LOGOUT_PERM", "/auth/logout", "POST")
+        ));
+        apiPermissionCache.loadPermissions();
     }
 
     // ─────────────────────────────────────────────────────────
@@ -306,9 +314,7 @@ abstract class UiBackendScenarioTestSupport {
     /**
      * 권한 코드를 하나도 보유하지 않은 UserPrincipal을 생성합니다.
      *
-     * <p>API 권한 캐시가 비어있을 경우 이 Principal로도 모든 API에 접근 가능합니다
-     * (open by default for authenticated). 권한 제한 시나리오를 검증하려면
-     * 먼저 {@link #reloadPermissions(java.util.List)}로 권한 캐시를 설정해야 합니다.</p>
+     * <p>현재 정책은 closed by default 이므로, 권한이 없으면 보호 API 접근이 차단됩니다.</p>
      *
      * @return 권한 없는 UserPrincipal
      */

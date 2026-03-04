@@ -32,8 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>POST /auth/logout → 200 → 이전 token 재사용 → 401</li>
  * </ol>
  *
- * <p>참고: 권한 캐시(UiApiPermissionCache)는 @PostConstruct에서 빈 List로 초기화됩니다.
- * 403 시나리오 검증 시에는 {@link #reloadPermissions}를 통해 캐시를 재설정합니다.</p>
+ * <p>참고: 권한 캐시(UiApiPermissionCache)는 closed by default 정책으로 동작합니다.
+ * 테스트 기본 권한은 {@link UiBackendScenarioTestSupport#setUpCommonMocks()}에서 로드되며,
+ * 403 시나리오 검증 시에는 {@link #reloadPermissions(List)}로 재설정합니다.</p>
  */
 @DisplayName("Phase 10 시나리오 1~5: 인증/인가 흐름 검증")
 class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
@@ -245,8 +246,8 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
     /**
      * 시나리오 4: 유효한 토큰 + EQP_MANAGE 권한 보유 시 GET /auth/me → 200을 반환합니다.
      *
-     * <p>권한 캐시가 비어있어서 open by default 정책이 적용되거나,
-     * 사용자가 해당 권한을 보유한 경우 접근이 허용됩니다.</p>
+     * <p>권한 캐시 정책은 closed by default 이며,
+     * 사용자가 해당 권한을 보유한 경우에만 접근이 허용됩니다.</p>
      */
     @Test
     @DisplayName("시나리오 4: 유효 token + 권한 있는 API(GET /auth/me) → 200")
@@ -297,7 +298,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[시나리오 5] 로그아웃 후 이전 token 재사용 → 401 검증 시작");
 
         // given: 1단계 - 로그아웃 전 유효한 토큰 상태 설정
-        final UserPrincipal principal = principalWithPermission();
+        final UserPrincipal principal = principalWithPermission("AUTH_LOGOUT_PERM");
         when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
 
         // when: POST /auth/logout → 200 확인

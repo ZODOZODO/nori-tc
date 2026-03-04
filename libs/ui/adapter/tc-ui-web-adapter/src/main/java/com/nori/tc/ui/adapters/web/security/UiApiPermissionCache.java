@@ -21,9 +21,9 @@ import java.util.Objects;
  * {@link UiSecurityConfig}의 커스텀 {@code AuthorizationManager}가 매 HTTP 요청마다
  * 이 캐시를 참조하여 URL 인가 판단을 수행합니다.</p>
  *
- * <p>인가 판단 규칙:</p>
+ * <p>인가 판단 규칙(Closed by Default):</p>
  * <ul>
- *   <li>요청 URI에 해당하는 API 권한이 없는 경우 → 인증된 사용자에게 허용</li>
+ *   <li>요청 URI에 해당하는 API 권한이 없는 경우 → 기본 차단</li>
  *   <li>요청 URI에 매칭되는 API 권한이 있는 경우 → 사용자가 해당 permCode 보유 시 허용</li>
  *   <li>matchType=PREFIX → requestUri.startsWith(permission.resource)</li>
  *   <li>matchType=EXACT  → requestUri.equals(permission.resource)</li>
@@ -31,10 +31,9 @@ import java.util.Objects;
  *   <li>httpMethod 지정  → 요청 메서드와 대소문자 무관 비교</li>
  * </ul>
  *
- * <p>캐시 갱신:</p>
- * <p>권한 데이터는 기동 시 1회 로드됩니다.
- * 권한 변경 사항은 애플리케이션 재시작 후 반영됩니다.
- * (동적 갱신이 필요한 경우 별도 refresh API 구현을 검토하십시오.)</p>
+ * <p>기동 실패 대응(failsafe):</p>
+ * <p>초기 권한 로드에 실패하면 {@code initializationFailed=true} 상태로 전환하고,
+ * 권한 판단 요청을 전부 차단합니다. "권한 로드 실패 시 전체 허용" 문제를 방지합니다.</p>
  */
 @Component
 public class UiApiPermissionCache {
@@ -50,6 +49,13 @@ public class UiApiPermissionCache {
     private volatile List<TcUiPermission> cachedPermissions = List.of();
 
     /**
+     * 초기화 실패 플래그입니다.
+     *
+     * <p>true 상태에서는 모든 보호 API를 차단합니다(failsafe).</p>
+     */
+    private volatile boolean initializationFailed;
+
+    /**
      * 필수 의존성을 초기화합니다.
      *
      * @param apiPermissionPort API 권한 전체 조회 포트
@@ -61,27 +67,26 @@ public class UiApiPermissionCache {
     /**
      * 기동 시 API 권한 목록을 로드합니다.
      *
-     * <p>DB 조회 실패 시에도 애플리케이션 기동을 중단하지 않고
-     * 빈 캐시로 시작합니다 (권한 없으면 인증된 사용자에게 허용되므로
-     * 보안 위험이 없음). 대신 ERROR 로그를 남겨 운영자에게 알립니다.</p>
+     * <p>DB 조회 실패 시 failsafe 모드로 전환하고 모든 API를 차단합니다.</p>
      */
     @PostConstruct
     public void loadPermissions() {
         try {
             final List<TcUiPermission> loaded = apiPermissionPort.findAllActiveApiPermissions();
             this.cachedPermissions = loaded;
+            this.initializationFailed = false;
             log.info("API 권한 캐시 로드 완료. 총 {}개 API 권한 활성.", loaded.size());
         } catch (Exception e) {
-            // DB 조회 실패는 기동을 중단하지 않음 - 빈 캐시로 운영
-            log.error("API 권한 캐시 로드 실패. 빈 캐시로 시작합니다. "
-                    + "인가 판단이 비정상 동작할 수 있으니 DB 상태를 확인하십시오.", e);
+            this.cachedPermissions = List.of();
+            this.initializationFailed = true;
+            log.error("API 권한 캐시 로드 실패 - failsafe 모드 활성화(모든 보호 API 차단).", e);
         }
     }
 
     /**
      * 요청 URI와 HTTP 메서드에 대해 사용자의 접근 권한을 판단합니다.
      *
-     * <p>매칭되는 API 권한이 없으면 인증된 사용자에게 허용합니다 (open by default for authenticated).
+     * <p>매칭되는 API 권한이 없으면 기본 차단합니다(closed by default).
      * 매칭되는 권한이 있으면 사용자의 permissionCodes 중 하나가 포함되어야 허용합니다.</p>
      *
      * @param principal  인증된 사용자 정보
@@ -90,16 +95,22 @@ public class UiApiPermissionCache {
      * @return 접근 허용이면 true, 거부면 false
      */
     public boolean isAuthorized(final UserPrincipal principal, final String httpMethod, final String requestUri) {
+        if (initializationFailed) {
+            log.warn("권한 캐시 초기화 실패 상태 - 요청 차단. uri={}, method={}, userPk={}",
+                    requestUri, httpMethod, principal.userPk());
+            return false;
+        }
+
         final List<TcUiPermission> matching = cachedPermissions.stream()
                 .filter(p -> matchUri(p, requestUri))
                 .filter(p -> matchMethod(p, httpMethod))
                 .toList();
 
         if (matching.isEmpty()) {
-            // 해당 URI에 설정된 API 권한 없음 → 인증된 사용자에게 허용
-            log.trace("API 권한 설정 없음 - 허용. uri={}, method={}, userPk={}",
+            // Closed by default: 매핑된 권한이 없으면 차단
+            log.warn("API 권한 미등록 경로 차단. uri={}, method={}, userPk={}",
                     requestUri, httpMethod, principal.userPk());
-            return true;
+            return false;
         }
 
         // 매칭된 권한 중 사용자가 보유한 permCode가 있으면 허용

@@ -1,5 +1,6 @@
 package com.nori.tc.ui.adapters.redis.session;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.ui.core.port.redis.TokenCachePort;
 import com.nori.tc.ui.core.properties.UiAuthProperties;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
@@ -23,8 +24,8 @@ import java.util.Optional;
  * <p>키 형식: {@code tc:ui:backend:session:{token}}</p>
  * <p>TTL: {@code tc.ui.backend.auth.token-cache-ttl-seconds} 설정값 (기본 300초)</p>
  *
- * <p>{@link UserPrincipal}은 record 타입으로 직접 직렬화할 수 없으므로,
- * {@link RedisUiSessionEntry} 래퍼 클래스를 통해 JDK 직렬화로 저장합니다.</p>
+ * <p>{@link UserPrincipal}은 Redis 저장 시 {@link RedisUiSessionEntry}로 변환하여
+ * JSON 직렬화 방식으로 저장합니다.</p>
  */
 @Service
 @EnableConfigurationProperties(UiAuthProperties.class)
@@ -37,15 +38,19 @@ public class UiSessionCacheService implements TokenCachePort {
 
     private final RedisTemplate<String, Object> businessRedisTemplate;
     private final UiAuthProperties authProperties;
+    private final ObjectMapper redisObjectMapper;
 
     public UiSessionCacheService(
             @Qualifier("businessRedisTemplate") final RedisTemplate<String, Object> businessRedisTemplate,
-            final UiAuthProperties authProperties
+            final UiAuthProperties authProperties,
+            @Qualifier("uiRedisObjectMapper") final ObjectMapper redisObjectMapper
     ) {
         this.businessRedisTemplate = Objects.requireNonNull(businessRedisTemplate,
                 "businessRedisTemplate 은 null 이 될 수 없습니다.");
         this.authProperties = Objects.requireNonNull(authProperties,
                 "authProperties 는 null 이 될 수 없습니다.");
+        this.redisObjectMapper = Objects.requireNonNull(redisObjectMapper,
+                "redisObjectMapper 는 null 이 될 수 없습니다.");
     }
 
     /**
@@ -75,6 +80,14 @@ public class UiSessionCacheService implements TokenCachePort {
             if (raw instanceof RedisUiSessionEntry entry) {
                 if (log.isDebugEnabled()) {
                     log.debug("토큰 캐시 HIT. key={}, userPk={}", key, entry.getUserPk());
+                }
+                return Optional.of(entry.toPrincipal());
+            }
+            if (raw instanceof java.util.Map<?, ?> map) {
+                // 직렬화 포맷 전환 과정에서 LinkedHashMap으로 역직렬화되는 경우를 방어합니다.
+                final RedisUiSessionEntry entry = redisObjectMapper.convertValue(map, RedisUiSessionEntry.class);
+                if (log.isDebugEnabled()) {
+                    log.debug("토큰 캐시 HIT(Map 변환). key={}, userPk={}", key, entry.getUserPk());
                 }
                 return Optional.of(entry.toPrincipal());
             }

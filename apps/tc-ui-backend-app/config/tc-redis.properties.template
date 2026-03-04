@@ -1,0 +1,23 @@
+﻿################################################################################
+# tc-redis.properties.template (TC-UI-BACKEND-APP)
+#
+# 목적
+# - UI Backend가 사용하는 Gateway Redis(6379), Business Redis(6380) 연결 템플릿입니다.
+# - 실제 비밀번호는 환경변수로만 주입합니다.
+#
+# 사용 방법
+# 1) 본 파일을 복사해서 apps/tc-ui-backend-app/config/tc-redis.properties 를 생성합니다.
+# 2) 아래 환경변수를 설정합니다.
+#    - TC_GATEWAY_REDIS_PASSWORD
+#    - TC_BUSINESS_REDIS_PASSWORD
+#    - 필요 시 앱 전용 변수(TC_UI_BACKEND_GATEWAY_REDIS_PASSWORD,
+#      TC_UI_BACKEND_BUSINESS_REDIS_PASSWORD)로 오버라이드 가능합니다.
+################################################################################
+
+tc.ui.backend.redis.gateway.host=localhost
+tc.ui.backend.redis.gateway.port=6379
+tc.ui.backend.redis.gateway.password=${TC_UI_BACKEND_GATEWAY_REDIS_PASSWORD:${TC_GATEWAY_REDIS_PASSWORD:}}
+
+tc.ui.backend.redis.business.host=localhost
+tc.ui.backend.redis.business.port=6380
+tc.ui.backend.redis.business.password=${TC_UI_BACKEND_BUSINESS_REDIS_PASSWORD:${TC_BUSINESS_REDIS_PASSWORD:}}

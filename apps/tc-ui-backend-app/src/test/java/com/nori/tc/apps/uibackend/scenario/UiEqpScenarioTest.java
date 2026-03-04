@@ -3,6 +3,7 @@ package com.nori.tc.apps.uibackend.scenario;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
+import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
 import com.nori.tc.ui.domain.task.UiTaskResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,14 +47,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>DualResponse 테스트 전략 (시나리오 6):</p>
  * <p>{@link DualResponseRegistry}는 {@code @MockitoSpyBean}으로 실제 동작을 유지합니다.
  * {@link ArgumentCaptor}로 EqpController 내부에서 생성된 traceId를 캡처하고,
- * {@link DualResponseRegistry#record}를 테스트 스레드에서 직접 호출하여
- * Gateway/Business 응답을 시뮬레이션합니다.</p>
+ * Redis 조회 결과를 주입하고 {@link DualResponseRegistry#completeFromRedis(String)}를 호출하여
+ * Gateway/Business 완료 신호를 시뮬레이션합니다.</p>
  *
  * <p>DeferredResult 비동기 패턴 (MockMvc):</p>
  * <ol>
  *   <li>{@code mockMvc.perform(...).andExpect(request().asyncStarted()).andReturn()}
  *       — 비동기 요청 시작, MvcResult 획득</li>
- *   <li>ArgumentCaptor로 traceId 캡처 → {@code record()} 직접 호출로 DeferredResult 완료</li>
+ *   <li>ArgumentCaptor로 traceId 캡처 → {@code completeFromRedis()} 호출로 DeferredResult 완료</li>
  *   <li>{@code mockMvc.perform(asyncDispatch(mvcResult))} — 완료된 DeferredResult 응답 검증</li>
  * </ol>
  */
@@ -66,8 +67,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
      * EQP 시나리오 공통 사전 설정입니다.
      *
      * <p>EQP 관련 API는 인증된 사용자 컨텍스트에서 호출됩니다.
-     * 권한 캐시가 비어있으므로 (open by default) EQP_MANAGE 권한 보유 여부와 무관하게
-     * 인증된 사용자라면 접근이 허용됩니다.</p>
+     * 현재 정책은 closed by default 이므로 EQP_MANAGE 권한을 가진 사용자로 테스트를 수행합니다.</p>
      */
     @BeforeEach
     void setUpValidToken() {
@@ -91,9 +91,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
      *       응답 유실 엣지 케이스를 방어합니다</li>
      *   <li>Gateway 토픽({@code tc.ui.events.gateway}) + Business 토픽({@code tc.ui.events.business}) 동시 발행</li>
      *   <li>ArgumentCaptor로 내부 생성된 traceId를 캡처</li>
-     *   <li>DualResponseRegistry.record()로 Gateway + Business 응답을 직접 주입 (Kafka 수신 시뮬레이션)</li>
-     *   <li>두 번째 record() 호출 시 DualResponseTracker가 양방향 수신을 감지 →
-     *       CompletableFuture 완료 → deferredResult.setResult() 동기 호출</li>
+     *   <li>DualResponse Redis 조회 결과를 주입</li>
+     *   <li>{@link DualResponseRegistry#completeFromRedis(String)} 호출로 CompletableFuture 완료</li>
      *   <li>asyncDispatch → 200 OK 검증</li>
      * </ol>
      */
@@ -126,21 +125,19 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
         log.debug("[시나리오 6] 캡처된 traceId={}", capturedTraceId);
 
-        // then-3: Kafka 응답 시뮬레이션 — 실제 운영에서는 tc.ui.commands 토픽에서
-        // UiCommandIngressService가 수신하여 DualResponseRegistry.record()를 호출합니다.
-        // 테스트에서는 직접 호출하여 CompletableFuture를 완료시킵니다.
-        dualResponseRegistry.record(
-                capturedTraceId,
-                DualResponseRegistry.SOURCE_GATEWAY,
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY)
-        );
-        // 두 번째 record() 호출 시 DualResponseTracker.resolveNow()가 실행되어
-        // CompletableFuture 완료 → EqpController.whenComplete 콜백 → deferredResult.setResult() 동기 호출
-        dualResponseRegistry.record(
-                capturedTraceId,
-                DualResponseRegistry.SOURCE_BUSINESS,
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS)
-        );
+        // then-3: Redis 조회 결과 + 완료 신호 시뮬레이션
+        final UiTaskResult gatewayResult =
+                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY);
+        final UiTaskResult businessResult =
+                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS);
+        when(dualResponseRedisPort.getResult(capturedTraceId))
+                .thenReturn(Optional.of(new UiDualTaskFinalResult(
+                        capturedTraceId,
+                        true,
+                        gatewayResult,
+                        businessResult
+                )));
+        dualResponseRegistry.completeFromRedis(capturedTraceId);
 
         // then-4: DeferredResult 완료 후 비동기 응답 검증
         mockMvc.perform(asyncDispatch(mvcResult))

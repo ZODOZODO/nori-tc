@@ -262,7 +262,7 @@ public class EqpController {
      *   <li>{@link DualResponseRegistry#register}를 Kafka 발행 이전에 호출하여 응답 유실 방지</li>
      *   <li>CompletableFuture 완료 시 DeferredResult에 결과 설정</li>
      *   <li>Gateway + Business 토픽에 동시 발행</li>
-     *   <li>발행 실패 시 future 취소 → whenComplete에서 PUBLISH_FAILED 처리</li>
+     *   <li>발행 실패 시 {@link DualResponseRegistry#cancel(String)} 호출 → whenComplete에서 PUBLISH_FAILED 처리</li>
      * </ol>
      *
      * @param eventType  이벤트 타입 (로그용)
@@ -295,10 +295,10 @@ public class EqpController {
             log.debug("DualRequest Kafka 발행 완료. eventType={}, traceId={}, eqpId={}",
                     eventType, traceId, eqpId);
         } catch (Exception e) {
-            // 발행 실패: Future 취소 → whenComplete에서 CancellationException으로 처리
+            // 발행 실패: Redis/로컬 대기를 함께 취소 → whenComplete에서 CancellationException으로 처리
             log.error("DualRequest Kafka 발행 실패. eventType={}, traceId={}, eqpId={}",
                     eventType, traceId, eqpId, e);
-            future.cancel(true);
+            dualResponseRegistry.cancel(traceId);
         }
 
         return deferredResult;
