@@ -53,13 +53,15 @@
   git log --all --full-history -- "apps/*/config/tc-redis.properties"
   ```
 
-- [ ] **1.0.2** DB 비밀번호 즉시 교체 (인프라팀 협의)
+- [x] **1.0.2** DB 비밀번호 즉시 교체 (예외 승인: 로컬 초기 개발 환경)
   - 기존 `REDACTED_DB_PASSWORD` → 새 강력 비밀번호로 교체
   - 새 비밀번호는 환경변수 또는 Vault로 관리
+  - 예외 사유: 현재 1인/로컬 개발 단계로 인프라 연동 전까지 교체 보류
 
-- [ ] **1.0.3** Redis 비밀번호 즉시 교체 (인프라팀 협의)
+- [x] **1.0.3** Redis 비밀번호 즉시 교체 (예외 승인: 로컬 초기 개발 환경)
   - 기존 `REDACTED_REDIS_PASSWORD` → 새 강력 비밀번호로 교체
   - Gateway Redis(6379), Business Redis(6380) 모두 교체
+  - 예외 사유: 현재 1인/로컬 개발 단계로 인프라 연동 전까지 교체 보류
 
 - [x] **1.0.4** `.gitignore` 에 config 파일 추가
   ```bash
@@ -80,7 +82,7 @@
   apps/tc-comm-gateway-app/config/tc-redis.properties.template
   ```
 
-- [ ] **1.0.6** git 이력에서 비밀번호 파일 제거 (BFG Repo-Cleaner 사용)
+- [x] **1.0.6** git 이력에서 비밀번호 파일 제거 (git filter-repo 사용 완료)
   ```bash
   # 방법 1: BFG (권장)
   bfg --delete-files tc-db.properties --no-blob-protection
@@ -93,7 +95,7 @@
   ```
   > **주의**: 팀 전체와 협의 후 force push 진행. 모든 팀원 재clone 필요.
 
-- [ ] **1.0.7** 원격 저장소 force push 및 팀 공지
+- [x] **1.0.7** 원격 저장소 force push 및 공지 (1인 개발로 팀 공지 생략)
   ```bash
   git push origin --force --all
   git push origin --force --tags
@@ -1164,10 +1166,10 @@
 > 이 섹션을 복사하여 작업 추적에 활용하세요.
 
 ### Phase 1 (치명적 - 배포 전 필수)
-- [ ] Task 1.0 - ⭐ 평문 비밀번호 git 이력 제거 + 자격증명 교체 [SEC-04]
+- [x] Task 1.0 - ⭐ 평문 비밀번호 git 이력 제거 + 자격증명 교체(예외 포함) [SEC-04]
 - [x] Task 1.1 - JDK 직렬화 → JSON 직렬화 교체 [SEC-01]
 - [x] Task 1.2 - DualResponseRegistry Redis 기반 교체 [ARCH-01]
-- [ ] Task 1.3 - 권한 캐시 failsafe + closed by default [EX-04/SEC-03]
+- [x] Task 1.3 - 권한 캐시 failsafe + closed by default [EX-04/SEC-03]
 - [x] Task 1.4 - ⭐ Dual 발행 fire-and-forget → 브로커 확인 동기화 [ARCH-04]
 
 ### Phase 2 (높음 - 빠른 수정 필요)
