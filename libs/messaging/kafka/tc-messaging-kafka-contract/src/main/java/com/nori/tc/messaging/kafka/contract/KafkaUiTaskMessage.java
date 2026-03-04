@@ -1,5 +1,7 @@
 package com.nori.tc.messaging.kafka.contract;
 
+import com.nori.tc.comm.gateway.domain.profile.GatewayEquipmentProfileSnapshot;
+
 /**
  * UI -> Gateway 작업 요청 메시지 계약입니다.
  *

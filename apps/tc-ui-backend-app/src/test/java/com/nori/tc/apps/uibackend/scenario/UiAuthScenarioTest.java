@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -325,5 +326,32 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(status().isUnauthorized());
 
         log.info("[시나리오 5] 로그아웃 후 이전 token 재사용 → 401 확인 완료");
+    }
+
+    /**
+     * 시나리오 5-a: Redis evict 실패가 발생해도 로그아웃 응답은 200을 유지합니다.
+     *
+     * <p>DB revoke가 성공한 상태에서 Redis 캐시 삭제만 실패할 수 있으므로,
+     * LogoutUseCase는 예외를 전파하지 않고 ERROR 로그만 남긴 뒤 정상 흐름을 유지해야 합니다.</p>
+     */
+    @Test
+    @DisplayName("시나리오 5-a: 로그아웃 Redis evict 실패 → 200 유지")
+    void 로그아웃_redis_evict_실패_응답_200() throws Exception {
+        log.info("[시나리오 5-a] 로그아웃 Redis evict 실패 시 200 유지 검증 시작");
+
+        final UserPrincipal principal = principalWithPermission("AUTH_LOGOUT_PERM");
+        when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
+        doThrow(new RuntimeException("Redis write timeout"))
+                .when(tokenCachePort).evict(TEST_TOKEN);
+
+        mockMvc.perform(post("/auth/logout")
+                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(sessionPort).revoke(TEST_TOKEN);
+        verify(tokenCachePort).evict(TEST_TOKEN);
+        log.info("[시나리오 5-a] Redis evict 실패 시에도 로그아웃 200 유지 확인 완료");
     }
 }

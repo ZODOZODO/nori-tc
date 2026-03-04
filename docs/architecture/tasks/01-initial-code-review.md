@@ -344,11 +344,11 @@
 
 #### 작업 목록
 
-- [ ] **2.1.1** Dead Letter Topic 설정
+- [x] **2.1.1** Dead Letter Topic 설정
   - 토픽명: `tc.ui.commands.DLT` (Dead Letter Topic)
   - Kafka Admin 또는 인프라에서 토픽 생성 (replication-factor, retention 설정)
 
-- [ ] **2.1.2** `UiKafkaConfiguration.java` 수정
+- [x] **2.1.2** `UiKafkaConfiguration.java` 수정
   - `DefaultErrorHandler` + `DeadLetterPublishingRecoverer` 빈 추가
   - 재시도 없이 즉시 DLT로 전송 (파싱 실패는 재시도해도 의미 없음)
 
@@ -364,7 +364,7 @@
   }
   ```
 
-- [ ] **2.1.3** `UiCommandKafkaSubscriber.java` 수정
+- [x] **2.1.3** `UiCommandKafkaSubscriber.java` 수정
   - `JsonProcessingException` catch 블록에서 DLT 전송 로직 추가
   - `ContainerStoppedException` 등 인프라 예외와 비즈니스 예외 구분 처리
   - DLT 전송 실패 시 로그 + 원본 payload 로그 기록 (추적 가능하도록)
@@ -372,7 +372,7 @@
 - [ ] **2.1.4** DLT 모니터링 설정 (선택)
   - `tc.ui.commands.DLT` 에 쌓이는 메시지 수 알람 설정 (Kafka UI, Prometheus 등)
 
-- [ ] **2.1.5** 변경 후 테스트
+- [x] **2.1.5** 변경 후 테스트
   - 의도적으로 잘못된 JSON 메시지를 `tc.ui.commands` 에 발행
   - `tc.ui.commands.DLT` 에 메시지 도착 확인
   - 이후 정상 메시지 처리 확인 (DLT로 인한 consumer 중단 없음)
@@ -391,7 +391,7 @@
 
 #### 작업 목록
 
-- [ ] **2.2.1** `LogoutUseCase.java` 수정
+- [x] **2.2.1** `LogoutUseCase.java` 수정
   - `tokenCachePort.evict(token)` 을 try-catch 로 감싸고 실패 시 ERROR 로그
   - Redis 실패 시 로그아웃 전체를 실패로 처리하지 않음 (DB revoke는 이미 완료)
 
@@ -409,7 +409,7 @@
   }
   ```
 
-- [ ] **2.2.2** `ValidateTokenUseCase.java` 에 revoke 확인 로직 추가
+- [x] **2.2.2** `ValidateTokenUseCase.java` 에 revoke 확인 로직 추가
   - 캐시 히트된 세션이 DB에서 revoked = true 인 경우 캐시 무효화
   - 단, 이 검증을 매번 수행하면 DB 조회 부하 → 캐시 히트 확률이 낮아짐
   - 대안: 로그아웃 이벤트를 Redis Pub/Sub으로 전달하여 모든 인스턴스 캐시 무효화
@@ -419,7 +419,7 @@
   // 방법 2: Redis Pub/Sub 로그아웃 이벤트 → 전체 인스턴스 캐시 무효화
   ```
 
-- [ ] **2.2.3** 변경 후 테스트
+- [x] **2.2.3** 변경 후 테스트
   - tokenCachePort.evict() 가 예외 발생 시 로그아웃 응답이 정상(200) 임을 확인
   - DB에 revoked = true 로 저장됨을 확인
 
@@ -436,7 +436,7 @@
 
 #### 작업 목록
 
-- [ ] **2.3.1** tc-ui-core: `UiCommandReply.java` 도메인 DTO 생성
+- [x] **2.3.1** tc-ui-core: `UiCommandReply.java` 도메인 DTO 생성
   ```
   위치: libs/ui/tc-ui-core/src/.../domain/UiCommandReply.java
   또는: libs/ui/tc-ui-domain/src/.../task/UiCommandReply.java
@@ -452,7 +452,7 @@
   ) {}
   ```
 
-- [ ] **2.3.2** `UiCommandIngressPort.java` 시그니처 변경
+- [x] **2.3.2** `UiCommandIngressPort.java` 시그니처 변경
   ```java
   // 변경 전
   void handle(KafkaUiTaskReplyMessage reply);
@@ -461,7 +461,7 @@
   void handle(UiCommandReply reply);
   ```
 
-- [ ] **2.3.3** `AsyncResultStorePort.java` 시그니처 변경
+- [x] **2.3.3** `AsyncResultStorePort.java` 시그니처 변경
   ```java
   // 변경 전
   void save(String traceId, KafkaUiTaskReplyMessage reply);
@@ -472,11 +472,11 @@
   Optional<UiCommandReply> get(String traceId);
   ```
 
-- [ ] **2.3.4** `UiCommandIngressService.java` 수정
+- [x] **2.3.4** `UiCommandIngressService.java` 수정
   - `handle(KafkaUiTaskReplyMessage)` → `handle(UiCommandReply)` 로 수신 타입 변경
   - `KafkaUiTaskReplyMessage` 에서 `UiCommandReply` 로의 변환은 Kafka Adapter에서 담당
 
-- [ ] **2.3.5** `UiCommandKafkaSubscriber.java` 수정
+- [x] **2.3.5** `UiCommandKafkaSubscriber.java` 수정
   - `KafkaUiTaskReplyMessage` → `UiCommandReply` 변환 로직 추가
   - 변환 후 `ingressPort.handle(commandReply)` 호출
 
@@ -493,15 +493,15 @@
   }
   ```
 
-- [ ] **2.3.6** `AsyncResultStoreService.java` (Redis Adapter) 수정
+- [x] **2.3.6** `AsyncResultStoreService.java` (Redis Adapter) 수정
   - `KafkaUiTaskReplyMessage` 대신 `UiCommandReply` 저장/조회
 
-- [ ] **2.3.7** `AsyncResultController.java` 수정
+- [x] **2.3.7** `AsyncResultController.java` 수정
   - `AsyncResultStorePort.get()` 반환 타입이 `Optional<UiCommandReply>` 로 변경됨에 따라 응답 매핑 수정
 
-- [ ] **2.3.8** `tc-ui-core/build.gradle.kts` 에서 `tc-messaging-kafka-contract` 의존성 제거 확인
+- [x] **2.3.8** `tc-ui-core/build.gradle.kts` 에서 `tc-messaging-kafka-contract` 의존성 제거 확인
 
-- [ ] **2.3.9** 변경 후 테스트
+- [x] **2.3.9** 변경 후 테스트
   - 기존 @WebMvcTest 시나리오 테스트 전체 실행
   - EQP_START/END 비동기 결과 조회 정상 동작 확인
 
@@ -519,7 +519,7 @@
 
 #### 작업 목록
 
-- [ ] **2.4.1** `EqpController.java` 수정
+- [x] **2.4.1** `EqpController.java` 수정
   - Gateway 발행 성공 여부를 추적하는 로컬 변수 추가
   - Business 발행 실패 시 Gateway에 보상 이벤트 발행
 
@@ -545,12 +545,13 @@
   }
   ```
 
-- [ ] **2.4.2** `KafkaUiTaskEventType.java` 에 ROLLBACK 이벤트 타입 추가 (Gateway와 사전 협의 필요)
-  - 또는 기존 이벤트 타입에 rollback 플래그 필드 추가
+- [x] **2.4.2** 보상 식별 정보 추가 (기존 `EQP_DELETE` + rollback 플래그 사용)
+  - 신규 이벤트 타입을 추가하지 않고 `uiMessage=ROLLBACK|...` 형식으로 보상 요청임을 식별
 
-- [ ] **2.4.3** Gateway가 ROLLBACK 이벤트를 처리하는지 확인 (tc-comm-gateway-app 팀과 협의)
+- [x] **2.4.3** Gateway가 보상 `EQP_DELETE` 이벤트를 처리하는지 확인
+  - `GatewayUiTaskProcessorRegistry` 에서 rollback 플래그(`uiMessage` prefix) 감지 로그 및 삭제 처리 연계 확인
 
-- [ ] **2.4.4** 변경 후 테스트
+- [x] **2.4.4** 변경 후 테스트
   - Business 발행 실패 시 Gateway 보상 이벤트 발행 확인
   - 보상 이벤트 발행도 실패 시 ERROR 로그 확인
 
@@ -567,7 +568,7 @@
 
 #### 작업 목록
 
-- [ ] **2.5.1** `UiSessionCacheService.java` 수정
+- [x] **2.5.1** `UiSessionCacheService.java` 수정
   - `buildCacheKey(String token)` private 메서드 추가 (SHA-256 해시)
 
   ```java
@@ -584,11 +585,11 @@
 
   - `get()`, `put()`, `evict()` 에서 token 대신 `buildCacheKey(token)` 사용
 
-- [ ] **2.5.2** Redis 기존 세션 캐시 무효화 계획
+- [x] **2.5.2** Redis 기존 세션 캐시 무효화 계획
   - 배포 시 기존 `tc:ui:backend:session:{원문토큰}` 형식 키 만료 또는 일괄 삭제
   - 사용자는 재로그인 필요 (공지 또는 강제 로그아웃 처리)
 
-- [ ] **2.5.3** 변경 후 테스트
+- [x] **2.5.3** 변경 후 테스트
   - put 후 get 정상 동작 확인
   - evict 후 get 캐시 미스 확인
   - Redis CLI에서 SCAN으로 키 패턴 확인 (원문 토큰이 없는지)
@@ -607,20 +608,20 @@
 
 #### 작업 목록
 
-- [ ] **2.6.1** 이벤트별 payload 정책 정리
+- [x] **2.6.1** 이벤트별 payload 정책 정리
   - EQP_START/END처럼 프로파일 전체가 불필요한 이벤트는 `equipmentProfile = null` 또는 경량 DTO 사용
   - 생성/수정처럼 실제로 필요한 이벤트만 상세 스냅샷 포함
 
-- [ ] **2.6.2** `GatewayEquipmentProfileSnapshot` 위치 이동
+- [x] **2.6.2** `GatewayEquipmentProfileSnapshot` 위치 이동
   - Kafka 계약 모듈(`tc-messaging-kafka-contract`)에서 분리
   - 공용 도메인 모듈(`tc-comm-domain` 또는 `tc-db-domain`)로 이동 후 계약 모듈은 참조만 하도록 변경
 
-- [ ] **2.6.3** 메시지 크기 가드레일 추가
+- [x] **2.6.3** 메시지 크기 가드레일 추가
   - Kafka producer 설정의 `max.request.size` 점검
   - 브로커 `message.max.bytes` 점검
   - 필요 시 사전 직렬화 크기 측정 로깅 또는 초과 방어 로직 추가
 
-- [ ] **2.6.4** 변경 후 테스트
+- [x] **2.6.4** 변경 후 테스트
   - 파라미터/포트 수가 많은 설비 데이터로 발행 시나리오 테스트
   - `RecordTooLargeException` 미발생 확인
   - 스냅샷 이동 후 컴파일/의존성 그래프 정상 확인
@@ -1161,12 +1162,12 @@
 - [x] Task 1.4 - ⭐ Dual 발행 fire-and-forget → 브로커 확인 동기화 [ARCH-04]
 
 ### Phase 2 (높음 - 빠른 수정 필요)
-- [ ] Task 2.1 - Kafka 파싱 실패 Dead Letter Topic [EX-01]
-- [ ] Task 2.2 - LogoutUseCase Redis evict 실패 처리 [EX-02]
-- [ ] Task 2.3 - tc-ui-core Port 기술 중립화 [ARCH-02/DEP-01]
-- [ ] Task 2.4 - EQP 발행 실패 보상 처리 [OOP-01]
-- [ ] Task 2.5 - Redis Key 토큰 SHA-256 해시 [SEC-02]
-- [ ] Task 2.6 - GatewayEquipmentProfileSnapshot 경량화 + 위치 정리 [PERF-02/DEP-02]
+- [x] Task 2.1 - Kafka 파싱 실패 Dead Letter Topic [EX-01]
+- [x] Task 2.2 - LogoutUseCase Redis evict 실패 처리 [EX-02]
+- [x] Task 2.3 - tc-ui-core Port 기술 중립화 [ARCH-02/DEP-01]
+- [x] Task 2.4 - EQP 발행 실패 보상 처리 [OOP-01]
+- [x] Task 2.5 - Redis Key 토큰 SHA-256 해시 [SEC-02]
+- [x] Task 2.6 - GatewayEquipmentProfileSnapshot 경량화 + 위치 정리 [PERF-02/DEP-02]
 
 ### Phase 3 (중간 - 안정성/성능 개선)
 - [ ] Task 3.1 - lastSeenAt 실패 예외 차단 [EX-03]

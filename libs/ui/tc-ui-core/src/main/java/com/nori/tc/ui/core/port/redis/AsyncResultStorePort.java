@@ -1,6 +1,6 @@
 package com.nori.tc.ui.core.port.redis;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
+import com.nori.tc.ui.core.model.UiCommandReply;
 
 import java.util.Optional;
 
@@ -30,9 +30,9 @@ public interface AsyncResultStorePort {
      * 메시지를 수신했을 때 호출합니다. TTL은 구현체가 설정에서 읽어 적용합니다.</p>
      *
      * @param traceId 작업 추적 ID (ULID, 캐시 키 생성에 사용)
-     * @param reply   저장할 Kafka reply 메시지 (STATUS, ERRORCODE, ERRORMSG 포함)
+     * @param reply   저장할 명령 응답 DTO (status, errorCode, errorMsg 포함)
      */
-    void save(String traceId, KafkaUiTaskReplyMessage reply);
+    void save(String traceId, UiCommandReply reply);
 
     /**
      * 비동기 작업 결과를 조회합니다.
@@ -41,9 +41,9 @@ public interface AsyncResultStorePort {
      * 결과가 없으면 아직 처리 중이거나 TTL이 만료된 것으로 간주합니다.</p>
      *
      * @param traceId 조회할 작업 추적 ID
-     * @return 저장된 결과가 있으면 KafkaUiTaskReplyMessage, 없으면 빈 Optional
+     * @return 저장된 결과가 있으면 UiCommandReply, 없으면 빈 Optional
      */
-    Optional<KafkaUiTaskReplyMessage> get(String traceId);
+    Optional<UiCommandReply> get(String traceId);
 
     /**
      * 테스트 또는 초기 구성에 사용할 noop(아무 동작 없음) 구현체를 반환합니다.
@@ -53,12 +53,12 @@ public interface AsyncResultStorePort {
     static AsyncResultStorePort noop() {
         return new AsyncResultStorePort() {
             @Override
-            public void save(final String traceId, final KafkaUiTaskReplyMessage reply) {
+            public void save(final String traceId, final UiCommandReply reply) {
                 // noop: 아무 동작 없음
             }
 
             @Override
-            public Optional<KafkaUiTaskReplyMessage> get(final String traceId) {
+            public Optional<UiCommandReply> get(final String traceId) {
                 return Optional.empty();
             }
         };

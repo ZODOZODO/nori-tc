@@ -1,17 +1,19 @@
-package com.nori.tc.messaging.kafka.contract;
+package com.nori.tc.comm.gateway.domain.profile;
 
 import java.util.List;
 
 /**
- * UI -> Gateway EQP_CREATE/EQP_UPDATE 요청 시 전달하는 설비 프로파일 스냅샷 계약입니다.
+ * UI -> Gateway EQP_CREATE/EQP_UPDATE 요청 시 전달하는 설비 프로파일 스냅샷 도메인 계약입니다.
  *
- * <p>Gateway가 DB 재조회 없이 EQP bean(EquipmentContextRegistry)을 갱신할 수 있도록,
- * 런타임 검증과 컨텍스트 구성에 필요한 정보를 하나의 payload로 전달합니다.</p>
+ * <p>이 타입은 Kafka 전용 계약이 아니라 "설비 도메인 스냅샷" 자체를 표현하므로,
+ * Kafka 계약 모듈이 아닌 comm-domain 계층에 위치합니다.</p>
  *
- * <p>주의:</p>
- * <p>- 본 타입은 계약 계층이므로 enum 대신 문자열을 사용합니다.</p>
- * <p>- 날짜/시각 값도 JSON 직렬화 호환성을 위해 ISO-8601 문자열로 전달합니다.</p>
- * <p>- 실제 필수값 검증과 의미 검증은 Gateway 처리 계층에서 수행합니다.</p>
+ * <p>설계 원칙:</p>
+ * <ul>
+ *   <li>기술 중립성: 특정 메시징 구현(Kafka)에 종속되지 않습니다.</li>
+ *   <li>직렬화 호환성: enum 대신 문자열, 시각은 ISO-8601 문자열을 사용합니다.</li>
+ *   <li>불변 컬렉션: 리스트 필드는 null-safe + 방어적 복사로 고정합니다.</li>
+ * </ul>
  */
 public record GatewayEquipmentProfileSnapshot(
         Long eqpKey,

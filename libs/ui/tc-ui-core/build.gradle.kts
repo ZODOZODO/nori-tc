@@ -51,10 +51,10 @@ dependencies {
     api(project(":libs:db:tc-db-domain"))
 
     /*
-     * Kafka 메시지 계약(KafkaUiTaskMessage, KafkaUiTaskReplyMessage)을 Port 시그니처에서 사용합니다.
-     * api로 선언하여 tc-ui-kafka-adapter가 동일 타입을 사용할 수 있도록 노출합니다.
+     * Gateway 설비 프로파일 스냅샷을 Port 시그니처(UiCommandMessage)에서 사용합니다.
+     * Kafka 계약 모듈이 아닌 comm-domain 타입을 통해 기술 중립성을 유지합니다.
      */
-    api(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
+    api(project(":libs:comm:tc-comm-domain"))
 
     /*
      * Kafka source 상수(TcKafkaSources.UI_BACKEND 등)를 web-adapter에서 사용합니다.

@@ -1,8 +1,6 @@
 package com.nori.tc.ui.core.service;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyEventType;
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyStatus;
+import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.port.messaging.UiCommandIngressPort;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
@@ -32,8 +30,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>eventType 계약:</p>
  * <p>Gateway와 Business Core는 처리 완료 후 원본 요청 eventType에 {@code _REP} 접미사를
- * 붙여 tc.ui.commands에 발행합니다. 예) EQP_CREATE 요청 → EQP_CREATE_REP 응답.
- * 자세한 내용은 {@link KafkaUiTaskReplyEventType}을 참조합니다.</p>
+ * 붙여 tc.ui.commands에 발행합니다. 예) EQP_CREATE 요청 → EQP_CREATE_REP 응답.</p>
  */
 @Component
 public class UiCommandIngressService implements UiCommandIngressPort {
@@ -67,33 +64,22 @@ public class UiCommandIngressService implements UiCommandIngressPort {
      * @param reply 수신된 Kafka reply 메시지
      */
     @Override
-    public void handle(final KafkaUiTaskReplyMessage reply) {
-        final String eventType = reply.metadata().eventType();
-        final String traceId   = reply.metadata().traceId();
-        final String source    = reply.metadata().source();
+    public void handle(final UiCommandReply reply) {
+        final String eventType = reply.eventType().trim().toUpperCase();
+        final String traceId   = reply.traceId();
+        final String source    = reply.source();
 
-        // ─────────────────────────────────────────────────────────
-        // eventType 문자열 → KafkaUiTaskReplyEventType enum 변환
-        // 알 수 없는 eventType(미지원 이벤트, 오탈자)은 WARN 후 무시합니다.
-        // 재처리해도 동일한 결과이므로 예외를 상위로 전파하지 않습니다.
-        // ─────────────────────────────────────────────────────────
-        final KafkaUiTaskReplyEventType replyEventType;
-        try {
-            replyEventType = KafkaUiTaskReplyEventType.fromText(eventType);
-        } catch (IllegalArgumentException e) {
-            log.warn("처리되지 않은 eventType - 무시. eventType={}, traceId={}, source={}",
-                    eventType, traceId, source);
-            return;
-        }
-
-        switch (replyEventType) {
+        switch (eventType) {
             // eqp_create/update/delete: Gateway + Business Core 양방향 응답 수집
-            case EQP_CREATE_REP, EQP_UPDATE_REP, EQP_DELETE_REP ->
+            case "EQP_CREATE_REP", "EQP_UPDATE_REP", "EQP_DELETE_REP" ->
                 handleDualResponse(traceId, source, reply);
 
             // eqp_start/end: Gateway 단일 응답을 Redis에 임시 저장, front polling 방식
-            case EQP_START_REP, EQP_END_REP ->
+            case "EQP_START_REP", "EQP_END_REP" ->
                 handleAsyncResult(traceId, reply);
+
+            default -> log.warn("처리되지 않은 eventType - 무시. eventType={}, traceId={}, source={}",
+                    eventType, traceId, source);
         }
     }
 
@@ -111,7 +97,7 @@ public class UiCommandIngressService implements UiCommandIngressPort {
     private void handleDualResponse(
             final String traceId,
             final String source,
-            final KafkaUiTaskReplyMessage reply
+            final UiCommandReply reply
     ) {
         final UiTaskResult result = toUiTaskResult(traceId, source, reply);
         log.info("DualResponse 기록. traceId={}, source={}, status={}",
@@ -128,16 +114,13 @@ public class UiCommandIngressService implements UiCommandIngressPort {
      * @param traceId 작업 추적 ID
      * @param reply   수신된 reply 메시지
      */
-    private void handleAsyncResult(final String traceId, final KafkaUiTaskReplyMessage reply) {
-        log.info("비동기 결과 Redis 저장. traceId={}, status={}", traceId, reply.data().STATUS());
+    private void handleAsyncResult(final String traceId, final UiCommandReply reply) {
+        log.info("비동기 결과 Redis 저장. traceId={}, status={}", traceId, reply.status());
         asyncResultStorePort.save(traceId, reply);
     }
 
     /**
-     * KafkaUiTaskReplyMessage를 UiTaskResult 도메인 객체로 변환합니다.
-     *
-     * <p>KafkaUiTaskReplyData의 STATUS 문자열을 UiTaskStatus enum으로 매핑합니다.
-     * 알 수 없는 STATUS 값은 FAIL로 처리하고 경고 로그를 남깁니다.</p>
+     * UiCommandReply를 UiTaskResult 도메인 객체로 변환합니다.
      *
      * @param traceId 작업 추적 ID
      * @param source  응답 출처
@@ -147,37 +130,11 @@ public class UiCommandIngressService implements UiCommandIngressPort {
     private UiTaskResult toUiTaskResult(
             final String traceId,
             final String source,
-            final KafkaUiTaskReplyMessage reply
+            final UiCommandReply reply
     ) {
-        final String statusStr = reply.data().STATUS();
-        final UiTaskStatus taskStatus = parseStatus(traceId, source, statusStr);
-
-        if (taskStatus == UiTaskStatus.PASS) {
+        if (reply.status() == UiTaskStatus.PASS) {
             return UiTaskResult.pass(traceId, source);
         }
-        return UiTaskResult.fail(traceId, source, reply.data().ERRORCODE(), reply.data().ERRORMSG());
-    }
-
-    /**
-     * STATUS 문자열을 UiTaskStatus enum으로 변환합니다.
-     *
-     * @param traceId   로그용 traceId
-     * @param source    로그용 source
-     * @param statusStr KafkaUiTaskReplyData.STATUS 값 (PASS/FAIL)
-     * @return 변환된 UiTaskStatus (변환 불가 시 FAIL 반환)
-     */
-    private UiTaskStatus parseStatus(
-            final String traceId,
-            final String source,
-            final String statusStr
-    ) {
-        try {
-            final KafkaUiTaskReplyStatus replyStatus = KafkaUiTaskReplyStatus.valueOf(statusStr);
-            return replyStatus == KafkaUiTaskReplyStatus.PASS ? UiTaskStatus.PASS : UiTaskStatus.FAIL;
-        } catch (IllegalArgumentException e) {
-            log.warn("알 수 없는 STATUS 값 - FAIL로 처리. traceId={}, source={}, status={}",
-                    traceId, source, statusStr);
-            return UiTaskStatus.FAIL;
-        }
+        return UiTaskResult.fail(traceId, source, reply.errorCode(), reply.errorMsg());
     }
 }

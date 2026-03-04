@@ -11,7 +11,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -21,7 +25,7 @@ import java.util.Optional;
  * <p>{@link TokenCachePort}를 구현하며, 매 요청마다 DB를 조회하지 않고
  * Redis 캐시에서 {@link UserPrincipal}을 빠르게 조회할 수 있도록 합니다.</p>
  *
- * <p>키 형식: {@code tc:ui:backend:session:{token}}</p>
+ * <p>키 형식: {@code tc:ui:backend:session:{sha256(token)}}</p>
  * <p>TTL: {@code tc.ui.backend.auth.token-cache-ttl-seconds} 설정값 (기본 300초)</p>
  *
  * <p>{@link UserPrincipal}은 Redis 저장 시 {@link RedisUiSessionEntry}로 변환하여
@@ -67,7 +71,7 @@ public class UiSessionCacheService implements TokenCachePort {
     public Optional<UserPrincipal> get(final String token) {
         Objects.requireNonNull(token, "token 은 null 이 될 수 없습니다.");
 
-        final String key = KEY_PREFIX + token;
+        final String key = buildCacheKey(token);
         try {
             final Object raw = businessRedisTemplate.opsForValue().get(key);
             if (raw == null) {
@@ -120,7 +124,7 @@ public class UiSessionCacheService implements TokenCachePort {
         Objects.requireNonNull(token, "token 은 null 이 될 수 없습니다.");
         Objects.requireNonNull(principal, "principal 은 null 이 될 수 없습니다.");
 
-        final String key = KEY_PREFIX + token;
+        final String key = buildCacheKey(token);
         final Duration ttl = Duration.ofSeconds(authProperties.tokenCacheTtlSeconds());
         final RedisUiSessionEntry entry = RedisUiSessionEntry.from(principal);
 
@@ -148,7 +152,7 @@ public class UiSessionCacheService implements TokenCachePort {
     public void evict(final String token) {
         Objects.requireNonNull(token, "token 은 null 이 될 수 없습니다.");
 
-        final String key = KEY_PREFIX + token;
+        final String key = buildCacheKey(token);
         try {
             final Boolean deleted = businessRedisTemplate.delete(key);
             if (log.isDebugEnabled()) {
@@ -156,6 +160,25 @@ public class UiSessionCacheService implements TokenCachePort {
             }
         } catch (Exception e) {
             log.warn("토큰 캐시 제거 실패. key={}", key, e);
+        }
+    }
+
+    /**
+     * 토큰 원문을 SHA-256으로 해시하여 Redis 키를 생성합니다.
+     *
+     * <p>원문 토큰이 Redis 키에 노출되면 Redis 접근 권한 유출 시 인증 토큰이 직접 노출될 수 있으므로,
+     * 키 저장 경로에서는 원문 대신 고정 길이 해시를 사용합니다.</p>
+     *
+     * @param token 원본 세션 토큰
+     * @return {@code tc:ui:backend:session:{sha256(token)}} 형식의 캐시 키
+     */
+    private static String buildCacheKey(final String token) {
+        try {
+            final MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+            final byte[] hash = messageDigest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return KEY_PREFIX + HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
         }
     }
 }

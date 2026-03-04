@@ -1,13 +1,13 @@
 package com.nori.tc.ui.adapters.redis.async;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
+import com.nori.tc.ui.core.model.UiCommandReply;
+import com.nori.tc.ui.domain.task.UiTaskStatus;
 
 /**
  * Redis 저장용 비동기 작업 결과 엔트리입니다.
  *
  * <p>역할:</p>
- * <p>{@link KafkaUiTaskReplyMessage}를 Redis JSON 직렬화로 저장하기 위한 어댑터 전용 DTO입니다.
+ * <p>{@link UiCommandReply}를 Redis JSON 직렬화로 저장하기 위한 어댑터 전용 DTO입니다.
  * JDK 직렬화 제거로 역직렬화 공격 표면을 줄입니다.</p>
  *
  * <p>키 형식: {@code tc:ui:backend:async:{traceId}}</p>
@@ -21,11 +21,8 @@ public class RedisUiAsyncResultEntry {
 
     // --- metadata 필드 (KafkaUiTaskMessage.KafkaUiTaskMetadata에서 복사) ---
 
-    /** 이벤트 타입 (예: EQP_START, EQP_END) */
+    /** 이벤트 타입 (예: EQP_START_REP, EQP_END_REP) */
     private String eventType;
-
-    /** 메시지 발행 시각 (ISO-8601 문자열) */
-    private String timestamp;
 
     /** 메시지 발행 출처 (예: TC-COMM-GATEWAY, TC-BUSINESS-CORE) */
     private String source;
@@ -57,38 +54,47 @@ public class RedisUiAsyncResultEntry {
     }
 
     /**
-     * {@link KafkaUiTaskReplyMessage}를 Redis 저장용 엔트리로 변환합니다.
+     * {@link UiCommandReply}를 Redis 저장용 엔트리로 변환합니다.
      *
      * @param reply 변환할 Kafka reply 메시지
      * @return Redis 저장용 엔트리
      */
-    public static RedisUiAsyncResultEntry from(final KafkaUiTaskReplyMessage reply) {
+    public static RedisUiAsyncResultEntry from(final UiCommandReply reply) {
         final RedisUiAsyncResultEntry entry = new RedisUiAsyncResultEntry();
-        entry.traceId = reply.metadata().traceId();
-        entry.eventType = reply.metadata().eventType();
-        entry.timestamp = reply.metadata().timestamp();
-        entry.source = reply.metadata().source();
-        entry.eqpId = reply.data().eqpId();
-        entry.interfaceType = reply.data().interfaceType();
-        entry.status = reply.data().STATUS();
-        entry.errorMsg = reply.data().ERRORMSG();
-        entry.errorCode = reply.data().ERRORCODE();
+        entry.traceId = reply.traceId();
+        entry.eventType = reply.eventType();
+        entry.source = reply.source();
+        entry.eqpId = reply.eqpId();
+        entry.interfaceType = reply.interfaceType();
+        entry.status = reply.status().name();
+        entry.errorMsg = reply.errorMsg();
+        entry.errorCode = reply.errorCode();
         return entry;
     }
 
     /**
-     * Redis에서 읽은 엔트리를 도메인 계약 객체 {@link KafkaUiTaskReplyMessage}로 복원합니다.
+     * Redis에서 읽은 엔트리를 도메인 계약 객체 {@link UiCommandReply}로 복원합니다.
      *
-     * @return 복원된 KafkaUiTaskReplyMessage
+     * @return 복원된 UiCommandReply
      */
-    public KafkaUiTaskReplyMessage toReplyMessage() {
-        // KafkaUiTaskMetadata(eventType, timestamp, source, traceId) — 필드 순서 일치
-        final KafkaUiTaskMessage.KafkaUiTaskMetadata metadata =
-                new KafkaUiTaskMessage.KafkaUiTaskMetadata(eventType, timestamp, source, traceId);
-        final KafkaUiTaskReplyMessage.KafkaUiTaskReplyData data =
-                new KafkaUiTaskReplyMessage.KafkaUiTaskReplyData(
-                        eqpId, interfaceType, status, errorMsg, errorCode);
-        return new KafkaUiTaskReplyMessage(metadata, data);
+    public UiCommandReply toReplyMessage() {
+        final UiTaskStatus parsedStatus;
+        try {
+            parsedStatus = UiTaskStatus.valueOf(status);
+        } catch (Exception ex) {
+            // 비정상 status 값은 FAIL로 보정하여 응답 파이프라인이 중단되지 않게 합니다.
+            return new UiCommandReply(
+                    traceId,
+                    source,
+                    eventType,
+                    eqpId,
+                    interfaceType,
+                    UiTaskStatus.FAIL,
+                    "INVALID_STATUS",
+                    "Redis async entry에 저장된 status 값이 유효하지 않습니다: " + status
+            );
+        }
+        return new UiCommandReply(traceId, source, eventType, eqpId, interfaceType, parsedStatus, errorCode, errorMsg);
     }
 
     public String getTraceId() {

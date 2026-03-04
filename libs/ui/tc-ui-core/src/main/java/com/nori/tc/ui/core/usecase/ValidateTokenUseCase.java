@@ -14,7 +14,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 세션 토큰 유효성 검증 유스케이스입니다.
@@ -38,11 +40,19 @@ import java.util.Set;
 public class ValidateTokenUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ValidateTokenUseCase.class);
+    /**
+     * 캐시 히트 토큰에 대해 revoked 재검증을 수행하는 최소 주기(ms)입니다.
+     *
+     * <p>매 요청마다 DB를 조회하면 캐시 이점이 사라지므로, 토큰별로 일정 주기마다만
+     * DB 유효성(revoked/만료)를 재검증합니다.</p>
+     */
+    private static final long CACHE_HIT_REVOKE_RECHECK_INTERVAL_MS = 30_000L;
 
     private final SessionPort sessionPort;
     private final UserPort userPort;
     private final PermissionPort permissionPort;
     private final TokenCachePort tokenCachePort;
+    private final Map<String, Long> nextRevokeCheckEpochMsByToken = new ConcurrentHashMap<>();
 
     public ValidateTokenUseCase(
             final SessionPort sessionPort,
@@ -69,6 +79,7 @@ public class ValidateTokenUseCase {
         // 1단계: Redis 캐시 조회 - 히트 시 DB 접근 없이 즉시 반환
         final var cached = tokenCachePort.get(token);
         if (cached.isPresent()) {
+            verifyRevocationOnCacheHit(token, cached.get().userPk());
             log.trace("토큰 캐시 히트. userPk={}", cached.get().userPk());
             return cached.get();
         }
@@ -106,6 +117,7 @@ public class ValidateTokenUseCase {
 
         // 6단계: Redis 캐시 저장 (TTL은 UiSessionCacheService 설정에서 적용)
         tokenCachePort.put(token, principal);
+        nextRevokeCheckEpochMsByToken.put(token, System.currentTimeMillis() + CACHE_HIT_REVOKE_RECHECK_INTERVAL_MS);
         log.debug("토큰 캐시 저장 완료. userPk={}", userPk);
 
         // 7단계: 최근 활동 시각 업데이트 (성능을 위해 동기 처리 - 어댑터에서 @Async 적용 가능)
@@ -113,5 +125,37 @@ public class ValidateTokenUseCase {
 
         log.debug("토큰 검증 성공. userPk={}, userId={}", userPk, userInfo.userId());
         return principal;
+    }
+
+    /**
+     * 캐시 히트 세션에 대해 주기적 DB 유효성 검증(revoked/만료)을 수행합니다.
+     *
+     * <p>로그아웃 직후 Redis evict가 실패했을 때, 캐시 TTL 동안 revoked 토큰이 통과하는 문제를
+     * 줄이기 위해 최소 주기로 DB 유효 세션 여부를 다시 확인합니다.</p>
+     *
+     * @param token 캐시 히트 토큰
+     * @param userPk 로그용 사용자 PK
+     */
+    private void verifyRevocationOnCacheHit(final String token, final long userPk) {
+        final long now = System.currentTimeMillis();
+        final long nextCheckAt = nextRevokeCheckEpochMsByToken.getOrDefault(token, 0L);
+        if (now < nextCheckAt) {
+            return;
+        }
+
+        // findValidByToken은 revoked=false + expiresAt > now 조건을 포함하므로
+        // 결과가 없으면 "폐기 또는 만료 또는 미존재"로 판단할 수 있습니다.
+        if (sessionPort.findValidByToken(token).isEmpty()) {
+            nextRevokeCheckEpochMsByToken.remove(token);
+            tokenCachePort.evict(token);
+            log.warn("캐시 히트 토큰이 DB에서 무효로 확인되어 캐시 제거. userPk={}", userPk);
+            throw new UiAuthenticationException("유효하지 않은 세션 토큰입니다.");
+        }
+
+        nextRevokeCheckEpochMsByToken.put(token, now + CACHE_HIT_REVOKE_RECHECK_INTERVAL_MS);
+        if (log.isDebugEnabled()) {
+            log.debug("캐시 히트 세션 DB 유효성 검증 완료. userPk={}, nextCheckInMs={}",
+                    userPk, CACHE_HIT_REVOKE_RECHECK_INTERVAL_MS);
+        }
     }
 }

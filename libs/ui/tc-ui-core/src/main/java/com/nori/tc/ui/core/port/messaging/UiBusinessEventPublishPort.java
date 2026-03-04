@@ -1,6 +1,6 @@
 package com.nori.tc.ui.core.port.messaging;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
+import com.nori.tc.ui.core.model.UiCommandMessage;
 
 /**
  * tc.ui.events.business 토픽 발행 포트입니다.
@@ -26,9 +26,9 @@ public interface UiBusinessEventPublishPort {
      *
      * <p>브로커 승인까지 동기 대기하며, 발행 실패는 즉시 예외로 전파합니다.</p>
      *
-     * @param message 발행할 UI Task 메시지 (metadata.traceId, data.eqpId 포함 필수)
+     * @param message 발행할 UI 명령 메시지
      */
-    void publish(KafkaUiTaskMessage message);
+    void publish(UiCommandMessage message);
 
     /**
      * 테스트 또는 초기 구성에 사용할 noop(아무 동작 없음) 구현체를 반환합니다.

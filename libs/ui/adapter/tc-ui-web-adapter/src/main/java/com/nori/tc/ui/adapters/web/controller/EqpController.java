@@ -1,9 +1,7 @@
 package com.nori.tc.ui.adapters.web.controller;
 
+import com.nori.tc.comm.gateway.domain.profile.GatewayEquipmentProfileSnapshot;
 import com.nori.tc.messaging.domain.kafka.TcKafkaSources;
-import com.nori.tc.messaging.kafka.contract.GatewayEquipmentProfileSnapshot;
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskEventType;
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import com.nori.tc.ui.adapters.web.config.UiDualRequestProperties;
 import com.nori.tc.ui.adapters.web.dto.request.EqpCreateRequest;
 import com.nori.tc.ui.adapters.web.dto.request.EqpDeleteRequest;
@@ -11,6 +9,8 @@ import com.nori.tc.ui.adapters.web.dto.request.EqpLifecycleRequest;
 import com.nori.tc.ui.adapters.web.dto.request.EqpUpdateRequest;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.adapters.web.dto.response.AsyncAcceptResponse;
+import com.nori.tc.ui.core.model.UiCommandEventType;
+import com.nori.tc.ui.core.model.UiCommandMessage;
 import com.nori.tc.ui.core.port.messaging.UiBusinessEventPublishPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
@@ -31,7 +31,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.DeferredResult;
 
-import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -76,6 +75,7 @@ import java.util.concurrent.TimeoutException;
 public class EqpController {
 
     private static final Logger log = LoggerFactory.getLogger(EqpController.class);
+    private static final String ROLLBACK_UI_MESSAGE_PREFIX = "ROLLBACK";
 
     private final DualResponseRegistry dualResponseRegistry;
     private final UiGatewayEventPublishPort gatewayEventPublishPort;
@@ -125,12 +125,12 @@ public class EqpController {
         log.info("EQP_CREATE 요청. eqpId={}, interfaceType={}, traceId={}",
                 eqpId, request.interfaceType(), traceId);
 
-        final KafkaUiTaskMessage message = buildMessage(
-                KafkaUiTaskEventType.EQP_CREATE, traceId, eqpId,
+        final UiCommandMessage message = buildMessage(
+                UiCommandEventType.EQP_CREATE, traceId, eqpId,
                 request.interfaceType(), request.uiMessage(), request.equipmentProfile()
         );
 
-        return submitDualRequest(KafkaUiTaskEventType.EQP_CREATE, traceId, eqpId, message);
+        return submitDualRequest(UiCommandEventType.EQP_CREATE, traceId, eqpId, message);
     }
 
     /**
@@ -153,12 +153,12 @@ public class EqpController {
         log.info("EQP_UPDATE 요청. eqpId={}, interfaceType={}, traceId={}",
                 eqpId, request.interfaceType(), traceId);
 
-        final KafkaUiTaskMessage message = buildMessage(
-                KafkaUiTaskEventType.EQP_UPDATE, traceId, eqpId,
+        final UiCommandMessage message = buildMessage(
+                UiCommandEventType.EQP_UPDATE, traceId, eqpId,
                 request.interfaceType(), request.uiMessage(), request.equipmentProfile()
         );
 
-        return submitDualRequest(KafkaUiTaskEventType.EQP_UPDATE, traceId, eqpId, message);
+        return submitDualRequest(UiCommandEventType.EQP_UPDATE, traceId, eqpId, message);
     }
 
     /**
@@ -180,12 +180,12 @@ public class EqpController {
         log.info("EQP_DELETE 요청. eqpId={}, interfaceType={}, traceId={}",
                 eqpId, request.interfaceType(), traceId);
 
-        final KafkaUiTaskMessage message = buildMessage(
-                KafkaUiTaskEventType.EQP_DELETE, traceId, eqpId,
+        final UiCommandMessage message = buildMessage(
+                UiCommandEventType.EQP_DELETE, traceId, eqpId,
                 request.interfaceType(), request.uiMessage(), null
         );
 
-        return submitDualRequest(KafkaUiTaskEventType.EQP_DELETE, traceId, eqpId, message);
+        return submitDualRequest(UiCommandEventType.EQP_DELETE, traceId, eqpId, message);
     }
 
     // -------------------------------------------------------------------------
@@ -213,12 +213,12 @@ public class EqpController {
         log.info("EQP_START 요청. eqpId={}, interfaceType={}, traceId={}",
                 eqpId, request.interfaceType(), traceId);
 
-        final KafkaUiTaskMessage message = buildMessage(
-                KafkaUiTaskEventType.EQP_START, traceId, eqpId,
+        final UiCommandMessage message = buildMessage(
+                UiCommandEventType.EQP_START, traceId, eqpId,
                 request.interfaceType(), request.uiMessage(), null
         );
 
-        return publishLifecycleAndAccept(KafkaUiTaskEventType.EQP_START, traceId, eqpId, message);
+        return publishLifecycleAndAccept(UiCommandEventType.EQP_START, traceId, eqpId, message);
     }
 
     /**
@@ -242,12 +242,12 @@ public class EqpController {
         log.info("EQP_END 요청. eqpId={}, interfaceType={}, traceId={}",
                 eqpId, request.interfaceType(), traceId);
 
-        final KafkaUiTaskMessage message = buildMessage(
-                KafkaUiTaskEventType.EQP_END, traceId, eqpId,
+        final UiCommandMessage message = buildMessage(
+                UiCommandEventType.EQP_END, traceId, eqpId,
                 request.interfaceType(), request.uiMessage(), null
         );
 
-        return publishLifecycleAndAccept(KafkaUiTaskEventType.EQP_END, traceId, eqpId, message);
+        return publishLifecycleAndAccept(UiCommandEventType.EQP_END, traceId, eqpId, message);
     }
 
     // -------------------------------------------------------------------------
@@ -268,14 +268,14 @@ public class EqpController {
      * @param eventType  이벤트 타입 (로그용)
      * @param traceId    작업 추적 ID
      * @param eqpId      설비 ID (로그용)
-     * @param message    발행할 Kafka 메시지 (gateway/business 동일 내용)
+     * @param message    발행할 UI 명령 메시지 (gateway/business 동일 내용)
      * @return DeferredResult (성공 200 / 실패 500 / 타임아웃 504)
      */
     private DeferredResult<ResponseEntity<ApiResponse<Void>>> submitDualRequest(
-            final KafkaUiTaskEventType eventType,
+            final UiCommandEventType eventType,
             final String traceId,
             final String eqpId,
-            final KafkaUiTaskMessage message
+            final UiCommandMessage message
     ) {
         final DeferredResult<ResponseEntity<ApiResponse<Void>>> deferredResult = new DeferredResult<>();
 
@@ -289,19 +289,83 @@ public class EqpController {
         );
 
         // 3단계: Gateway + Business 토픽에 동시 발행
+        boolean gatewayPublished = false;
         try {
             gatewayEventPublishPort.publish(message);
+            gatewayPublished = true;
             businessEventPublishPort.publish(message);
             log.debug("DualRequest Kafka 발행 완료. eventType={}, traceId={}, eqpId={}",
                     eventType, traceId, eqpId);
         } catch (Exception e) {
-            // 발행 실패: Redis/로컬 대기를 함께 취소 → whenComplete에서 CancellationException으로 처리
             log.error("DualRequest Kafka 발행 실패. eventType={}, traceId={}, eqpId={}",
                     eventType, traceId, eqpId, e);
+            if (gatewayPublished) {
+                publishRollbackIfNeeded(eventType, traceId, eqpId, message);
+            }
             dualResponseRegistry.cancel(traceId);
         }
 
         return deferredResult;
+    }
+
+    /**
+     * Business 발행 실패 시 Gateway 보상 이벤트를 발행합니다.
+     *
+     * <p>현재는 EQP_CREATE 케이스만 자동 보상이 가능합니다. UPDATE/DELETE는 이전 상태 스냅샷이 없어
+     * 안전한 자동 복구가 불가능하므로 오류 로그를 남기고 수동 조치를 유도합니다.</p>
+     *
+     * @param failedEventType 실패한 원본 이벤트 타입
+     * @param failedTraceId 실패한 원본 traceId
+     * @param eqpId 설비 ID
+     * @param originalMessage 원본 발행 메시지
+     */
+    private void publishRollbackIfNeeded(
+            final UiCommandEventType failedEventType,
+            final String failedTraceId,
+            final String eqpId,
+            final UiCommandMessage originalMessage
+    ) {
+        if (failedEventType != UiCommandEventType.EQP_CREATE) {
+            log.error(
+                    "Business 발행 실패 보상 자동화 미지원 이벤트. failedEventType={}, traceId={}, eqpId={}, 수동 정합성 점검 필요",
+                    failedEventType, failedTraceId, eqpId
+            );
+            return;
+        }
+
+        final UiCommandMessage rollbackMessage = buildMessage(
+                UiCommandEventType.EQP_DELETE,
+                generateTraceId(),
+                eqpId,
+                originalMessage.interfaceType(),
+                buildRollbackUiMessage(failedEventType, failedTraceId),
+                null
+        );
+
+        try {
+            gatewayEventPublishPort.publish(rollbackMessage);
+            log.info("Business 발행 실패 보상 이벤트 발행 완료. rollbackEventType=EQP_DELETE, failedEventType={}, failedTraceId={}, eqpId={}",
+                    failedEventType, failedTraceId, eqpId);
+        } catch (Exception rollbackEx) {
+            log.error("보상 이벤트 발행 실패 - 수동 조치 필요. failedEventType={}, failedTraceId={}, eqpId={}",
+                    failedEventType, failedTraceId, eqpId, rollbackEx);
+        }
+    }
+
+    /**
+     * 보상 이벤트 추적용 uiMessage를 생성합니다.
+     *
+     * @param failedEventType 실패한 원본 이벤트 타입
+     * @param failedTraceId 실패한 원본 traceId
+     * @return 보상 추적용 uiMessage 문자열
+     */
+    private static String buildRollbackUiMessage(
+            final UiCommandEventType failedEventType,
+            final String failedTraceId
+    ) {
+        return ROLLBACK_UI_MESSAGE_PREFIX
+                + "|failedEventType=" + failedEventType.name()
+                + "|failedTraceId=" + failedTraceId;
     }
 
     /**
@@ -325,7 +389,7 @@ public class EqpController {
      */
     private void resolveDeferredResult(
             final DeferredResult<ResponseEntity<ApiResponse<Void>>> deferredResult,
-            final KafkaUiTaskEventType eventType,
+            final UiCommandEventType eventType,
             final String traceId,
             final String eqpId,
             final UiDualTaskFinalResult result,
@@ -386,14 +450,14 @@ public class EqpController {
      * @param eventType 이벤트 타입 (EQP_START 또는 EQP_END)
      * @param traceId   작업 추적 ID
      * @param eqpId     설비 ID (로그용)
-     * @param message   발행할 Kafka 메시지
+     * @param message   발행할 UI 명령 메시지
      * @return 202 Accepted + traceId | 500 발행 실패
      */
     private ResponseEntity<ApiResponse<AsyncAcceptResponse>> publishLifecycleAndAccept(
-            final KafkaUiTaskEventType eventType,
+            final UiCommandEventType eventType,
             final String traceId,
             final String eqpId,
-            final KafkaUiTaskMessage message
+            final UiCommandMessage message
     ) {
         try {
             gatewayEventPublishPort.publish(message);
@@ -413,10 +477,9 @@ public class EqpController {
     // -------------------------------------------------------------------------
 
     /**
-     * KafkaUiTaskMessage를 생성합니다.
+     * 기술 중립 UI 명령 메시지를 생성합니다.
      *
-     * <p>metadata: eventType + 현재 시각 + UI_BACKEND source + traceId</p>
-     * <p>data: eqpId + interfaceType + uiMessage + equipmentProfile</p>
+     * <p>Kafka 직렬화용 envelope(metadata/data) 조립은 Kafka 어댑터 계층에서 수행합니다.</p>
      *
      * @param eventType        이벤트 타입
      * @param traceId          작업 추적 ID
@@ -424,24 +487,24 @@ public class EqpController {
      * @param interfaceType    인터페이스 타입
      * @param uiMessage        UI 메시지 (null 허용)
      * @param equipmentProfile 설비 프로파일 스냅샷 (null 허용 — DELETE/START/END 시 생략)
-     * @return 생성된 KafkaUiTaskMessage
+     * @return 생성된 UiCommandMessage
      */
-    private KafkaUiTaskMessage buildMessage(
-            final KafkaUiTaskEventType eventType,
+    private UiCommandMessage buildMessage(
+            final UiCommandEventType eventType,
             final String traceId,
             final String eqpId,
             final String interfaceType,
             final String uiMessage,
             final GatewayEquipmentProfileSnapshot equipmentProfile
     ) {
-        return new KafkaUiTaskMessage(
-                new KafkaUiTaskMessage.KafkaUiTaskMetadata(
-                        eventType.name(),
-                        OffsetDateTime.now().toString(),
-                        TcKafkaSources.UI_BACKEND,
-                        traceId
-                ),
-                new KafkaUiTaskMessage.KafkaUiTaskData(eqpId, interfaceType, uiMessage, equipmentProfile)
+        return new UiCommandMessage(
+                eventType,
+                traceId,
+                TcKafkaSources.UI_BACKEND,
+                eqpId,
+                interfaceType,
+                uiMessage,
+                equipmentProfile
         );
     }
 

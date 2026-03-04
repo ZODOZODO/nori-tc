@@ -239,6 +239,11 @@ abstract class UiBackendScenarioTestSupport {
      */
     @BeforeEach
     void setUpCommonMocks() {
+        // ValidateTokenUseCase가 캐시 히트 경로에서도 주기적으로 DB 유효 세션을 재검증하므로,
+        // 공통 픽스처에서 기본 토큰(TEST_TOKEN)에 대한 유효 세션을 미리 설정합니다.
+        // 각 시나리오에서 만료/폐기 상태를 검증해야 하는 경우 테스트 메서드 내부 stubbing으로 덮어씁니다.
+        lenient().when(sessionPort.findValidByToken(TEST_TOKEN)).thenReturn(java.util.Optional.of(validSession()));
+
         lenient().when(apiPermissionPort.findAllActiveApiPermissions()).thenReturn(List.of(
                 apiPermission(EQP_MANAGE_PERM, "/api/eqp", null),
                 apiPermission(EQP_MANAGE_PERM, "/api/async", "GET"),

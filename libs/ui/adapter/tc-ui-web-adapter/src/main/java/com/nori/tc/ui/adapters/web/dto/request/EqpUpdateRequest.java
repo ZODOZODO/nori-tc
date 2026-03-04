@@ -1,6 +1,6 @@
 package com.nori.tc.ui.adapters.web.dto.request;
 
-import com.nori.tc.messaging.kafka.contract.GatewayEquipmentProfileSnapshot;
+import com.nori.tc.comm.gateway.domain.profile.GatewayEquipmentProfileSnapshot;
 import jakarta.validation.constraints.NotBlank;
 
 /**

@@ -17,6 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * tc.ui.backend.kafka.gateway-events-topic=tc.ui.events.gateway
  * tc.ui.backend.kafka.business-events-topic=tc.ui.events.business
  * tc.ui.backend.kafka.commands-topic=tc.ui.commands
+ * tc.ui.backend.kafka.commands-dlt-topic=tc.ui.commands.DLT
  * </pre>
  */
 @ConfigurationProperties(prefix = "tc.ui.backend.kafka")
@@ -53,6 +54,25 @@ public class UiKafkaTopicProperties {
      * </ul>
      */
     private String commandsTopic;
+    /**
+     * tc.ui.commands 파싱 실패 메시지를 적재하는 DLT 토픽입니다.
+     */
+    private String commandsDltTopic = "tc.ui.commands.DLT";
+
+    /**
+     * DLT 토픽 파티션 수입니다.
+     */
+    private int commandsDltPartitions = 3;
+
+    /**
+     * DLT 토픽 복제 팩터입니다.
+     */
+    private short commandsDltReplicationFactor = 1;
+
+    /**
+     * DLT 토픽 보관 기간(ms)입니다.
+     */
+    private long commandsDltRetentionMs = 604_800_000L;
 
     /**
      * 기동 시 토픽 이름 설정 유효성을 검증합니다.
@@ -65,9 +85,36 @@ public class UiKafkaTopicProperties {
         requireText("tc.ui.backend.kafka.gateway-events-topic", gatewayEventsTopic);
         requireText("tc.ui.backend.kafka.business-events-topic", businessEventsTopic);
         requireText("tc.ui.backend.kafka.commands-topic", commandsTopic);
+        requireText("tc.ui.backend.kafka.commands-dlt-topic", commandsDltTopic);
+        if (commandsDltPartitions <= 0) {
+            throw new IllegalStateException(
+                    "tc.ui.backend.kafka.commands-dlt-partitions 는 1 이상이어야 합니다. actual="
+                            + commandsDltPartitions
+            );
+        }
+        if (commandsDltReplicationFactor <= 0) {
+            throw new IllegalStateException(
+                    "tc.ui.backend.kafka.commands-dlt-replication-factor 는 1 이상이어야 합니다. actual="
+                            + commandsDltReplicationFactor
+            );
+        }
+        if (commandsDltRetentionMs <= 0L) {
+            throw new IllegalStateException(
+                    "tc.ui.backend.kafka.commands-dlt-retention-ms 는 1 이상이어야 합니다. actual="
+                            + commandsDltRetentionMs
+            );
+        }
 
-        log.info("UiKafkaTopicProperties 검증 완료. gatewayEvents={}, businessEvents={}, commands={}",
-                gatewayEventsTopic, businessEventsTopic, commandsTopic);
+        log.info(
+                "UiKafkaTopicProperties 검증 완료. gatewayEvents={}, businessEvents={}, commands={}, commandsDlt={}, dltPartitions={}, dltReplicationFactor={}, dltRetentionMs={}",
+                gatewayEventsTopic,
+                businessEventsTopic,
+                commandsTopic,
+                commandsDltTopic,
+                commandsDltPartitions,
+                commandsDltReplicationFactor,
+                commandsDltRetentionMs
+        );
     }
 
     /**
@@ -105,5 +152,37 @@ public class UiKafkaTopicProperties {
 
     public void setCommandsTopic(final String commandsTopic) {
         this.commandsTopic = commandsTopic;
+    }
+
+    public String getCommandsDltTopic() {
+        return commandsDltTopic;
+    }
+
+    public void setCommandsDltTopic(final String commandsDltTopic) {
+        this.commandsDltTopic = commandsDltTopic;
+    }
+
+    public int getCommandsDltPartitions() {
+        return commandsDltPartitions;
+    }
+
+    public void setCommandsDltPartitions(final int commandsDltPartitions) {
+        this.commandsDltPartitions = commandsDltPartitions;
+    }
+
+    public short getCommandsDltReplicationFactor() {
+        return commandsDltReplicationFactor;
+    }
+
+    public void setCommandsDltReplicationFactor(final short commandsDltReplicationFactor) {
+        this.commandsDltReplicationFactor = commandsDltReplicationFactor;
+    }
+
+    public long getCommandsDltRetentionMs() {
+        return commandsDltRetentionMs;
+    }
+
+    public void setCommandsDltRetentionMs(final long commandsDltRetentionMs) {
+        this.commandsDltRetentionMs = commandsDltRetentionMs;
     }
 }

@@ -1,10 +1,12 @@
 package com.nori.tc.apps.uibackend.scenario;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
+import com.nori.tc.ui.core.model.UiCommandReply;
+import com.nori.tc.ui.core.model.UiCommandEventType;
+import com.nori.tc.ui.core.model.UiCommandMessage;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
 import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
 import com.nori.tc.ui.domain.task.UiTaskResult;
+import com.nori.tc.ui.domain.task.UiTaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,15 +16,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -225,20 +228,15 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         // given: Gateway가 EQP_START 처리 완료 후 tc.ui.commands에 EQP_START_REP를 발행하고
         // UiCommandIngressService가 수신하여 Redis에 저장한 상태를 시뮬레이션합니다.
         final String traceId = "test-trace-id-eqp-start-001";
-        final KafkaUiTaskReplyMessage reply = new KafkaUiTaskReplyMessage(
-                new KafkaUiTaskMessage.KafkaUiTaskMetadata(
-                        "EQP_START_REP",
-                        OffsetDateTime.now().toString(),
-                        DualResponseRegistry.SOURCE_GATEWAY,
-                        traceId
-                ),
-                new KafkaUiTaskReplyMessage.KafkaUiTaskReplyData(
-                        TEST_EQP_ID,
-                        "HSMS",
-                        "PASS",
-                        null,   // errorMsg: 성공 시 null
-                        null    // errorCode: 성공 시 null
-                )
+        final UiCommandReply reply = new UiCommandReply(
+                traceId,
+                DualResponseRegistry.SOURCE_GATEWAY,
+                "EQP_START_REP",
+                TEST_EQP_ID,
+                "HSMS",
+                UiTaskStatus.PASS,
+                null,
+                null
         );
         when(asyncResultStorePort.get(traceId)).thenReturn(Optional.of(reply));
 
@@ -332,5 +330,77 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.errorCode").value("PUBLISH_FAILED"));
 
         log.info("[시나리오 10] 발행 차단 → 500 PUBLISH_FAILED 확인 완료");
+    }
+
+    /**
+     * 시나리오 10-a: Gateway 발행 성공 후 Business 발행 실패 시 보상 삭제 이벤트를 발행합니다.
+     */
+    @Test
+    @DisplayName("시나리오 10-a: Business 발행 실패 시 Gateway 보상 이벤트(EQP_DELETE) 발행")
+    void Business_발행_실패_보상_이벤트_발행() throws Exception {
+        log.info("[시나리오 10-a] Business 발행 실패 시 보상 이벤트 발행 검증 시작");
+
+        doThrow(new RuntimeException("business broker unavailable"))
+                .when(businessEventPublishPort).publish(any());
+
+        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
+                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"eqpId":"EQP-COMP-001","interfaceType":"HSMS"}
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("PUBLISH_FAILED"));
+
+        final ArgumentCaptor<UiCommandMessage> gatewayCaptor = ArgumentCaptor.forClass(UiCommandMessage.class);
+        verify(gatewayEventPublishPort, times(2)).publish(gatewayCaptor.capture());
+        verify(businessEventPublishPort, times(1)).publish(any());
+
+        final UiCommandMessage compensation = gatewayCaptor.getAllValues().get(1);
+        org.junit.jupiter.api.Assertions.assertEquals(UiCommandEventType.EQP_DELETE, compensation.eventType());
+        org.junit.jupiter.api.Assertions.assertTrue(compensation.uiMessage().startsWith("ROLLBACK|"));
+
+        log.info("[시나리오 10-a] 보상 이벤트 발행 확인 완료");
+    }
+
+    /**
+     * 시나리오 10-b: 보상 이벤트 발행도 실패해도 최종 응답은 500으로 정상 종료합니다.
+     */
+    @Test
+    @DisplayName("시나리오 10-b: 보상 이벤트 발행 실패 시에도 요청은 500으로 정상 종료")
+    void 보상_이벤트_발행_실패_흐름_검증() throws Exception {
+        log.info("[시나리오 10-b] 보상 이벤트 발행 실패 흐름 검증 시작");
+
+        // 1차 gateway 발행(원본)은 성공, 2차 gateway 발행(보상)은 실패로 시뮬레이션합니다.
+        doNothing()
+                .doThrow(new RuntimeException("rollback publish failed"))
+                .when(gatewayEventPublishPort).publish(any());
+        doThrow(new RuntimeException("business publish failed"))
+                .when(businessEventPublishPort).publish(any());
+
+        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
+                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"eqpId":"EQP-COMP-FAIL-001","interfaceType":"HSMS"}
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.errorCode").value("PUBLISH_FAILED"));
+
+        verify(gatewayEventPublishPort, times(2)).publish(any());
+        verify(businessEventPublishPort, times(1)).publish(any());
+
+        log.info("[시나리오 10-b] 보상 발행 실패 시에도 500 응답 유지 확인 완료");
     }
 }

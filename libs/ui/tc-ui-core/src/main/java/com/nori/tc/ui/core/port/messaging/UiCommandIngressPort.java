@@ -1,6 +1,6 @@
 package com.nori.tc.ui.core.port.messaging;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
+import com.nori.tc.ui.core.model.UiCommandReply;
 
 /**
  * tc.ui.commands 토픽 수신 처리 포트입니다.
@@ -32,9 +32,9 @@ public interface UiCommandIngressPort {
      *
      * <p>eventType에 따라 DualResponseRegistry 또는 AsyncResultStorePort로 라우팅합니다.</p>
      *
-     * @param reply 수신된 Kafka reply 메시지 (metadata.eventType, metadata.traceId, metadata.source 포함)
+     * @param reply 수신된 명령 응답 DTO (eventType, traceId, source 포함)
      */
-    void handle(KafkaUiTaskReplyMessage reply);
+    void handle(UiCommandReply reply);
 
     /**
      * 테스트 또는 초기 구성에 사용할 noop(아무 동작 없음) 구현체를 반환합니다.

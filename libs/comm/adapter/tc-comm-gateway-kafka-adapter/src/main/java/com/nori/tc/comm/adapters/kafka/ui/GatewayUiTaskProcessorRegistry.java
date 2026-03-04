@@ -154,12 +154,22 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
                         KafkaUiTaskEventType.EQP_DELETE,
                         message,
                         uiTaskPolicyProperties.getDeleteTimeoutMs(),
-                        () -> runtimeControlService.deleteRuntimeContext(
-                                message.data().eqpId(),
-                                message.data().interfaceType(),
-                                message.metadata().traceId(),
-                                uiTaskPolicyProperties.getDeleteTimeoutMs()
-                        ),
+                        () -> {
+                            if (isRollbackCompensationDelete(message)) {
+                                log.warn(
+                                        "EQP_DELETE 보상 이벤트 수신. eqpId={}, traceId={}, uiMessage={}",
+                                        message.data().eqpId(),
+                                        message.metadata().traceId(),
+                                        message.data().uiMessage()
+                                );
+                            }
+                            runtimeControlService.deleteRuntimeContext(
+                                    message.data().eqpId(),
+                                    message.data().interfaceType(),
+                                    message.metadata().traceId(),
+                                    uiTaskPolicyProperties.getDeleteTimeoutMs()
+                            );
+                        },
                         "Unhandled error while processing EQP_DELETE"
                 )
         );
@@ -534,6 +544,19 @@ public class GatewayUiTaskProcessorRegistry implements KafkaTaskProcessorRegistr
             return null;
         }
         return trimmed.toUpperCase();
+    }
+
+    /**
+     * EQP_DELETE 요청이 보상 경로인지 판별합니다.
+     *
+     * @param message 수신 메시지
+     * @return 보상 메시지면 true
+     */
+    private static boolean isRollbackCompensationDelete(final KafkaUiTaskMessage message) {
+        if (message == null || message.data() == null || message.data().uiMessage() == null) {
+            return false;
+        }
+        return message.data().uiMessage().startsWith("ROLLBACK|");
     }
 
     /**

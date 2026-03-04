@@ -1,6 +1,9 @@
 package com.nori.tc.ui.adapters.kafka.config;
 
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,8 +12,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,7 +68,8 @@ public class UiKafkaConfiguration {
      */
     @Bean("uiCommandListenerContainerFactory")
     public ConcurrentKafkaListenerContainerFactory<String, String> uiCommandListenerContainerFactory(
-            @Value("${spring.kafka.bootstrap-servers}") final String bootstrapServers
+            @Value("${spring.kafka.bootstrap-servers}") final String bootstrapServers,
+            final CommonErrorHandler uiCommandCommonErrorHandler
     ) {
         final Map<String, Object> consumerProps = buildCommandsConsumerProperties(bootstrapServers);
         final DefaultKafkaConsumerFactory<String, String> consumerFactory =
@@ -71,13 +81,63 @@ public class UiKafkaConfiguration {
 
         // MANUAL_IMMEDIATE: onMessage 메서드 내에서 Acknowledgment.acknowledge() 호출 시 즉시 커밋
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.setCommonErrorHandler(uiCommandCommonErrorHandler);
 
         log.info(
                 "uiCommandListenerContainerFactory 초기화 완료. "
-                        + "bootstrapServers={}, ackMode=MANUAL_IMMEDIATE",
+                        + "bootstrapServers={}, ackMode=MANUAL_IMMEDIATE, errorHandler=DLT",
                 bootstrapServers
         );
         return factory;
+    }
+
+    /**
+     * tc.ui.commands 파싱 실패/인프라 실패 처리를 위한 공통 에러 핸들러입니다.
+     *
+     * <p>핵심 정책:</p>
+     * <ul>
+     *   <li>재시도 없음(FixedBackOff=0,0)</li>
+     *   <li>실패 레코드는 즉시 DLT로 라우팅</li>
+     * </ul>
+     *
+     * @param kafkaTemplate DLT 발행용 KafkaTemplate
+     * @param topicProperties Kafka 토픽 설정
+     * @return 공통 에러 핸들러
+     */
+    @Bean
+    public CommonErrorHandler uiCommandCommonErrorHandler(
+            final KafkaTemplate<String, Object> kafkaTemplate,
+            final UiKafkaTopicProperties topicProperties
+    ) {
+        final DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
+                kafkaTemplate,
+                (record, ex) -> new TopicPartition(topicProperties.getCommandsDltTopic(), record.partition())
+        );
+        final DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(0L, 0L));
+        log.info("uiCommandCommonErrorHandler 초기화 완료. dltTopic={}, retries=0",
+                topicProperties.getCommandsDltTopic());
+        return errorHandler;
+    }
+
+    /**
+     * tc.ui.commands 파싱 실패 메시지 보관용 DLT 토픽을 정의합니다.
+     *
+     * @param topicProperties DLT 토픽 설정
+     * @return DLT 토픽 정의
+     */
+    @Bean
+    public NewTopic uiCommandDltTopic(final UiKafkaTopicProperties topicProperties) {
+        final NewTopic topic = TopicBuilder.name(topicProperties.getCommandsDltTopic())
+                .partitions(topicProperties.getCommandsDltPartitions())
+                .replicas(topicProperties.getCommandsDltReplicationFactor())
+                .config(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(topicProperties.getCommandsDltRetentionMs()))
+                .build();
+        log.info("uiCommandDltTopic 정의 완료. topic={}, partitions={}, replicationFactor={}, retentionMs={}",
+                topicProperties.getCommandsDltTopic(),
+                topicProperties.getCommandsDltPartitions(),
+                topicProperties.getCommandsDltReplicationFactor(),
+                topicProperties.getCommandsDltRetentionMs());
+        return topic;
     }
 
     /**

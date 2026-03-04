@@ -1,8 +1,8 @@
 package com.nori.tc.ui.adapters.web.controller;
 
-import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.adapters.web.dto.response.AsyncResultResponse;
+import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,7 +74,7 @@ public class AsyncResultController {
     ) {
         log.trace("비동기 결과 조회 요청. traceId={}", traceId);
 
-        final Optional<KafkaUiTaskReplyMessage> replyOptional = asyncResultStorePort.get(traceId);
+        final Optional<UiCommandReply> replyOptional = asyncResultStorePort.get(traceId);
 
         if (replyOptional.isEmpty()) {
             // 아직 처리 중이거나 TTL이 만료된 경우
@@ -82,18 +82,17 @@ public class AsyncResultController {
             return ResponseEntity.notFound().build();
         }
 
-        final KafkaUiTaskReplyMessage reply = replyOptional.get();
-        final KafkaUiTaskReplyMessage.KafkaUiTaskReplyData data = reply.data();
+        final UiCommandReply reply = replyOptional.get();
 
         log.debug("비동기 결과 조회 완료. traceId={}, eqpId={}, status={}",
-                traceId, data.eqpId(), data.STATUS());
+                traceId, reply.eqpId(), reply.status());
 
         final AsyncResultResponse response = new AsyncResultResponse(
                 traceId,
-                data.eqpId(),
-                data.STATUS(),
-                data.ERRORCODE(),
-                data.ERRORMSG()
+                reply.eqpId(),
+                reply.status().name(),
+                reply.errorCode(),
+                reply.errorMsg()
         );
 
         return ResponseEntity.ok(ApiResponse.success(response));

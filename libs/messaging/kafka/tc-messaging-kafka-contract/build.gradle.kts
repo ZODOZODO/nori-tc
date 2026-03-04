@@ -28,6 +28,12 @@ java {
 
 dependencies {
     /*
+     * Kafka 메시지 payload에서 설비 프로파일 스냅샷 타입을 참조합니다.
+     * 해당 스냅샷은 Kafka 전용 계약이 아닌 comm-domain 소유 타입입니다.
+     */
+    api(project(":libs:comm:tc-comm-domain"))
+
+    /*
      * 현재 단계는 모듈 스캐폴딩만 생성합니다.
      * 구현 단계에서 필요한 최소 의존성만 추가하여 계약 모듈의 경량성을 유지합니다.
      *
