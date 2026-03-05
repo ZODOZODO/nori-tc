@@ -30,23 +30,23 @@
 - Cookie 인증 + CSRF/CORS 적용에 필요한 설정 키를 확정하고, 운영/로컬 프로파일 정책을 분리합니다.
 
 ### 작업
-- [ ] `UiAuthProperties` 확장
-  - [ ] `cookieName`
-  - [ ] `cookiePath`
-  - [ ] `cookieDomain` (옵션)
-  - [ ] `cookieSecure`
-  - [ ] `cookieSameSite`
-  - [ ] `csrfCookieName`
-  - [ ] `csrfHeaderName`
-  - [ ] `corsAllowedOrigins`
-- [ ] `application.yaml`에 프로파일별 설정 import 추가
-  - [ ] `optional:file:config/tc-ui-backend-${spring.profiles.active}.properties`
-- [ ] `config/tc-ui-backend-local.properties` 신규 생성
-  - [ ] `cookieSecure=false`
-  - [ ] `cookieSameSite=Lax`
-- [ ] `config/tc-ui-backend.properties` 운영 기본값 반영
-  - [ ] `cookieSecure=true`
-  - [ ] `cookieSameSite=None`
+- [x] `UiAuthProperties` 확장
+  - [x] `cookieName`
+  - [x] `cookiePath`
+  - [x] `cookieDomain` (옵션)
+  - [x] `cookieSecure`
+  - [x] `cookieSameSite`
+  - [x] `csrfCookieName`
+  - [x] `csrfHeaderName`
+  - [x] `corsAllowedOrigins`
+- [x] `application.yaml`에 프로파일별 설정 import 추가
+  - [x] `optional:file:config/tc-ui-backend-${spring.profiles.active}.properties`
+- [x] `config/tc-ui-backend-local.properties` 신규 생성
+  - [x] `cookieSecure=false`
+  - [x] `cookieSameSite=Lax`
+- [x] `config/tc-ui-backend.properties` 운영 기본값 반영
+  - [x] `cookieSecure=true`
+  - [x] `cookieSameSite=None`
 
 ---
 
@@ -140,4 +140,3 @@
 - 완전 전환 정책으로 Bearer 하위 호환은 제공하지 않습니다.
 - 로컬 환경은 프로파일 분리로 보안 속성을 완화합니다.
 - 파싱 실패는 DLT 적재 대신 로그/메트릭 기반 운영 대응을 사용합니다.
-

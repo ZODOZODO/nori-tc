@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -64,7 +65,7 @@ class LoginUseCaseTest {
                 userPort,
                 sessionPort,
                 passwordVerifier,
-                new UiAuthProperties(8, 300)
+                createAuthProperties()
         );
 
         final AuthToken token = useCase.execute(" TestUser ", "password-raw");
@@ -92,7 +93,7 @@ class LoginUseCaseTest {
                 new FakeUserPort(),
                 new CapturingSessionPort(),
                 new StubPasswordVerifier(true),
-                new UiAuthProperties(8, 300)
+                createAuthProperties()
         );
         final UiAuthenticationException missingUserEx = assertThrows(
                 UiAuthenticationException.class,
@@ -105,7 +106,7 @@ class LoginUseCaseTest {
                 existingUserPort,
                 new CapturingSessionPort(),
                 new StubPasswordVerifier(false),
-                new UiAuthProperties(8, 300)
+                createAuthProperties()
         );
         final UiAuthenticationException passwordMismatchEx = assertThrows(
                 UiAuthenticationException.class,
@@ -128,7 +129,7 @@ class LoginUseCaseTest {
                 userPort,
                 new CapturingSessionPort(),
                 new StubPasswordVerifier(true),
-                new UiAuthProperties(8, 300)
+                createAuthProperties()
         );
 
         final UiAuthenticationException exception = assertThrows(
@@ -160,6 +161,29 @@ class LoginUseCaseTest {
                 OffsetDateTime.now(),
                 "SYSTEM",
                 "SYSTEM"
+        );
+    }
+
+    /**
+     * LoginUseCase 테스트에서 공통으로 사용하는 인증 설정 객체를 생성합니다.
+     *
+     * <p>본 테스트는 로그인 도메인 로직(sessionTtlHours/tokenCacheTtlSeconds) 검증이 목적이므로,
+     * Cookie/CSRF/CORS 관련 신규 필드는 설계 기본값과 동일한 값으로 채워 생성합니다.</p>
+     *
+     * @return 테스트 전용 UiAuthProperties 인스턴스
+     */
+    private static UiAuthProperties createAuthProperties() {
+        return new UiAuthProperties(
+                8,
+                300,
+                "TC_UI_AUTH",
+                "/",
+                null,
+                true,
+                "None",
+                "XSRF-TOKEN",
+                "X-XSRF-TOKEN",
+                List.of("http://localhost:3000")
         );
     }
 

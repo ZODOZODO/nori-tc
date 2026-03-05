@@ -33,6 +33,10 @@
       - optional:file:config/tc-redis.properties
       - optional:file:config/tc-log.properties
       - optional:file:config/tc-ui-backend.properties
+      # 활성 프로파일별 UI Backend 오버라이드 설정(예: local/dev/prod)을 선택적으로 로딩합니다.
+      # - spring.profiles.active=local 인 경우: config/tc-ui-backend-local.properties
+      # - optional 접두사로 파일이 없어도 기동은 계속됩니다.
+      - optional:file:config/tc-ui-backend-${spring.profiles.active}.properties
 
 logging:
   level:
