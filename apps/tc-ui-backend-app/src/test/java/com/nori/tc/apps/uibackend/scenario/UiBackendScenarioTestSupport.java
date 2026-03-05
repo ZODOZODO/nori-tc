@@ -15,6 +15,7 @@ import com.nori.tc.ui.adapters.web.security.UiApiPermissionCache;
 import com.nori.tc.ui.adapters.web.security.UiAuthenticationEntryPoint;
 import com.nori.tc.ui.adapters.web.security.UiSecurityConfig;
 import com.nori.tc.ui.adapters.web.security.UiTokenAuthenticationFilter;
+import com.nori.tc.ui.core.port.db.EqpQueryPort;
 import com.nori.tc.ui.core.port.db.PasswordVerifierPort;
 import com.nori.tc.ui.core.port.db.PermissionPort;
 import com.nori.tc.ui.core.port.db.SessionPort;
@@ -196,6 +197,9 @@ abstract class UiBackendScenarioTestSupport {
 
     @MockitoBean
     UiApiPermissionPort apiPermissionPort;
+
+    @MockitoBean
+    EqpQueryPort eqpQueryPort;
 
     // ─────────────────────────────────────────────────────────
     // Redis 포트 MockBean

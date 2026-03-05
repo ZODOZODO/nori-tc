@@ -66,49 +66,49 @@
 - 단수형 경로 규칙으로 CRUD API를 제공합니다.
 
 ### 컨트롤러 추가
-- [ ] `ModelController` (`/api/model/**`)
-- [ ] `UserController` (`/api/user/**`)
-- [ ] `GroupController` (`/api/group/**`)
-- [ ] `PermissionController` (`/api/permission/**`)
+- [x] `ModelController` (`/api/model/**`)
+- [x] `UserController` (`/api/user/**`)
+- [x] `GroupController` (`/api/group/**`)
+- [x] `PermissionController` (`/api/permission/**`)
 
 ### Eqp 조회 API 추가
-- [ ] `GET /api/eqp`
-- [ ] `GET /api/eqp/{eqpId}`
-- [ ] 기존 `POST/PUT/DELETE/start/end /api/eqp/**`와 공존 확인
+- [x] `GET /api/eqp`
+- [x] `GET /api/eqp/{eqpId}`
+- [x] 기존 `POST/PUT/DELETE/start/end /api/eqp/**`와 공존 확인
 
 ### Model Info API
-- [ ] `GET /api/model`
-- [ ] `GET /api/model/{modelVersionKey}`
-- [ ] `POST /api/model`
-- [ ] `PUT /api/model/{modelVersionKey}`
-- [ ] `DELETE /api/model/{modelVersionKey}`
+- [x] `GET /api/model`
+- [x] `GET /api/model/{modelVersionKey}`
+- [x] `POST /api/model`
+- [x] `PUT /api/model/{modelVersionKey}`
+- [x] `DELETE /api/model/{modelVersionKey}`
 
 ### User Info API
-- [ ] `GET /api/user`
-- [ ] `GET /api/user/{userPk}`
-- [ ] `POST /api/user`
-- [ ] `PUT /api/user/{userPk}`
-- [ ] `DELETE /api/user/{userPk}`
-- [ ] `POST /api/user/{userPk}/group/{groupId}`
-- [ ] `DELETE /api/user/{userPk}/group/{groupId}`
-- [ ] `POST /api/user/{userPk}/password/reset`
+- [x] `GET /api/user`
+- [x] `GET /api/user/{userPk}`
+- [x] `POST /api/user`
+- [x] `PUT /api/user/{userPk}`
+- [x] `DELETE /api/user/{userPk}`
+- [x] `POST /api/user/{userPk}/group/{groupId}`
+- [x] `DELETE /api/user/{userPk}/group/{groupId}`
+- [x] `POST /api/user/{userPk}/password/reset`
 
 ### Group Info API
-- [ ] `GET /api/group`
-- [ ] `GET /api/group/{groupId}`
-- [ ] `POST /api/group`
-- [ ] `PUT /api/group/{groupId}`
-- [ ] `DELETE /api/group/{groupId}`
-- [ ] `GET /api/group/{groupId}/permission`
-- [ ] `POST /api/group/{groupId}/permission/{permId}`
-- [ ] `DELETE /api/group/{groupId}/permission/{permId}`
+- [x] `GET /api/group`
+- [x] `GET /api/group/{groupId}`
+- [x] `POST /api/group`
+- [x] `PUT /api/group/{groupId}`
+- [x] `DELETE /api/group/{groupId}`
+- [x] `GET /api/group/{groupId}/permission`
+- [x] `POST /api/group/{groupId}/permission/{permId}`
+- [x] `DELETE /api/group/{groupId}/permission/{permId}`
 
 ### UI Permission API
-- [ ] `GET /api/permission`
-- [ ] `GET /api/permission/{permId}`
-- [ ] `POST /api/permission`
-- [ ] `PUT /api/permission/{permId}`
-- [ ] `DELETE /api/permission/{permId}`
+- [x] `GET /api/permission`
+- [x] `GET /api/permission/{permId}`
+- [x] `POST /api/permission`
+- [x] `PUT /api/permission/{permId}`
+- [x] `DELETE /api/permission/{permId}`
 
 ---
 

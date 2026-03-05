@@ -1,15 +1,21 @@
 package com.nori.tc.ui.adapters.web.controller;
 
 import com.nori.tc.comm.gateway.domain.profile.GatewayEquipmentProfileSnapshot;
+import com.nori.tc.db.core.common.PageRequest;
+import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.messaging.domain.kafka.TcKafkaSources;
 import com.nori.tc.ui.adapters.web.config.UiDualRequestProperties;
+import com.nori.tc.ui.adapters.web.controller.support.UiPageRequestSupport;
 import com.nori.tc.ui.adapters.web.dto.request.EqpCreateRequest;
 import com.nori.tc.ui.adapters.web.dto.request.EqpLifecycleRequest;
 import com.nori.tc.ui.adapters.web.dto.request.EqpUpdateRequest;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.adapters.web.dto.response.AsyncAcceptResponse;
+import com.nori.tc.ui.adapters.web.dto.response.EqpInfoResponse;
+import com.nori.tc.ui.core.model.PagedResponse;
 import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
+import com.nori.tc.ui.core.port.db.EqpQueryPort;
 import com.nori.tc.ui.core.port.messaging.UiBusinessEventPublishPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
@@ -24,6 +30,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,6 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -45,6 +53,8 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>제공 엔드포인트:</p>
  * <ul>
+ *   <li>GET    /api/eqp          — 설비 목록 조회 (DB 기반)</li>
+ *   <li>GET    /api/eqp/{eqpId}  — 설비 상세 조회 (DB 기반)</li>
  *   <li>POST   /api/eqp          — 설비 등록 (EQP_CREATE), Gateway + Business 동시 발행 후 양방향 응답 대기</li>
  *   <li>PUT    /api/eqp/{eqpId}  — 설비 수정 (EQP_UPDATE), Gateway + Business 동시 발행 후 양방향 응답 대기</li>
  *   <li>DELETE /api/eqp/{eqpId}  — 설비 삭제 (EQP_DELETE), Gateway + Business 동시 발행 후 양방향 응답 대기</li>
@@ -81,6 +91,7 @@ public class EqpController {
     private static final String ROLLBACK_UI_MESSAGE_PREFIX = "ROLLBACK";
     private static final String TRACE_ID_MDC_KEY = "traceId";
 
+    private final EqpQueryPort eqpQueryPort;
     private final DualResponseRegistry dualResponseRegistry;
     private final UiGatewayEventPublishPort gatewayEventPublishPort;
     private final UiBusinessEventPublishPort businessEventPublishPort;
@@ -90,6 +101,7 @@ public class EqpController {
     /**
      * 필수 의존성을 초기화합니다.
      *
+     * @param eqpQueryPort              설비 조회 포트
      * @param dualResponseRegistry      양방향 응답 수집 레지스트리
      * @param gatewayEventPublishPort   Gateway Kafka 이벤트 발행 포트
      * @param businessEventPublishPort  Business Kafka 이벤트 발행 포트
@@ -97,17 +109,76 @@ public class EqpController {
      * @param dualRequestProperties     DualResponse 타임아웃 설정
      */
     public EqpController(
+            final EqpQueryPort eqpQueryPort,
             final DualResponseRegistry dualResponseRegistry,
             final UiGatewayEventPublishPort gatewayEventPublishPort,
             final UiBusinessEventPublishPort businessEventPublishPort,
             final AsyncResultStorePort asyncResultStorePort,
             final UiDualRequestProperties dualRequestProperties
     ) {
+        this.eqpQueryPort = Objects.requireNonNull(eqpQueryPort, "eqpQueryPort is null");
         this.dualResponseRegistry = Objects.requireNonNull(dualResponseRegistry, "dualResponseRegistry is null");
         this.gatewayEventPublishPort = Objects.requireNonNull(gatewayEventPublishPort, "gatewayEventPublishPort is null");
         this.businessEventPublishPort = Objects.requireNonNull(businessEventPublishPort, "businessEventPublishPort is null");
         this.asyncResultStorePort = Objects.requireNonNull(asyncResultStorePort, "asyncResultStorePort is null");
         this.dualRequestProperties = Objects.requireNonNull(dualRequestProperties, "dualRequestProperties is null");
+    }
+
+    // -------------------------------------------------------------------------
+    // 조회 엔드포인트: GET /api/eqp, GET /api/eqp/{eqpId}
+    // -------------------------------------------------------------------------
+
+    /**
+     * 설비 목록을 페이지 단위로 조회합니다.
+     *
+     * @param offset 조회 시작 위치(기본값 0)
+     * @param limit  조회 건수(기본값 100, 최대 500)
+     * @return 목록 페이지 응답
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<PagedResponse<EqpInfoResponse>>> list(
+            @RequestParam(name = "offset", required = false) final Integer offset,
+            @RequestParam(name = "limit", required = false) final Integer limit
+    ) {
+        final PageRequest pageRequest = UiPageRequestSupport.resolve(offset, limit);
+
+        if (log.isDebugEnabled()) {
+            log.debug("설비 목록 조회 요청. offset={}, limit={}", pageRequest.offset(), pageRequest.limit());
+        }
+
+        final PagedResponse<TcEqp> page = eqpQueryPort.findAll(pageRequest);
+        final PagedResponse<EqpInfoResponse> responsePage = toEqpPage(page);
+
+        if (log.isDebugEnabled()) {
+            log.debug("설비 목록 조회 완료. offset={}, limit={}, pageSize={}, totalCount={}",
+                    responsePage.offset(), responsePage.limit(), responsePage.items().size(), responsePage.count());
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(responsePage));
+    }
+
+    /**
+     * 설비 ID(eqpId) 기준으로 단건을 조회합니다.
+     *
+     * @param eqpId 설비 비즈니스 ID
+     * @return 단건 조회 응답
+     */
+    @GetMapping("/{eqpId}")
+    public ResponseEntity<ApiResponse<EqpInfoResponse>> get(
+            @PathVariable final String eqpId
+    ) {
+        if (log.isDebugEnabled()) {
+            log.debug("설비 단건 조회 요청. eqpId={}", eqpId);
+        }
+
+        final Optional<TcEqp> optionalEqp = eqpQueryPort.findByEqpId(eqpId);
+        if (optionalEqp.isEmpty()) {
+            log.warn("설비 단건 조회 결과 없음. eqpId={}", eqpId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("NOT_FOUND", "설비를 찾을 수 없습니다."));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(toEqpInfoResponse(optionalEqp.get())));
     }
 
     // -------------------------------------------------------------------------
@@ -612,6 +683,47 @@ public class EqpController {
      */
     private static String generateTraceId() {
         return UUID.randomUUID().toString();
+    }
+
+    /**
+     * 설비 도메인 페이지를 응답 DTO 페이지로 변환합니다.
+     *
+     * @param page 도메인 페이지 응답
+     * @return API 응답 페이지
+     */
+    private static PagedResponse<EqpInfoResponse> toEqpPage(final PagedResponse<TcEqp> page) {
+        return PagedResponse.of(
+                page.items().stream()
+                        .map(EqpController::toEqpInfoResponse)
+                        .toList(),
+                page.offset(),
+                page.limit(),
+                page.count()
+        );
+    }
+
+    /**
+     * 설비 도메인을 응답 DTO로 변환합니다.
+     *
+     * @param eqp 설비 도메인 객체
+     * @return 응답 DTO
+     */
+    private static EqpInfoResponse toEqpInfoResponse(final TcEqp eqp) {
+        return new EqpInfoResponse(
+                eqp.eqpKey(),
+                eqp.eqpId(),
+                eqp.commInterface(),
+                eqp.commMode(),
+                eqp.routePartition(),
+                eqp.eqpIp(),
+                eqp.eqpPort(),
+                eqp.modelVersionKey(),
+                eqp.enabled(),
+                eqp.createdAt(),
+                eqp.updatedAt(),
+                eqp.createdBy(),
+                eqp.updatedBy()
+        );
     }
 
     /**
