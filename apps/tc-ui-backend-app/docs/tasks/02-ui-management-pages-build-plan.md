@@ -128,24 +128,24 @@
 ## Phase 5: 시나리오 테스트 확장
 
 ### 인증/인가 기본 검증
-- [ ] 미인증 요청 401
-- [ ] 권한 부족 403
+- [x] 미인증 요청 401
+- [x] 권한 부족 403
 
 ### 기능 검증
-- [ ] 로그인 성공 후 front 기본 진입 페이지 `EqpInfo` 검증
-- [ ] `GET /api/eqp` + 기존 명령 API 공존 검증
-- [ ] Model CRUD 성공/실패/중복/참조충돌(409) 검증
-- [ ] User CRUD + 비밀번호 초기화 + 사용자-그룹 매핑 CRUD 검증
-- [ ] Group CRUD + 그룹-권한 매핑 CRUD 검증
-- [ ] UI Permission CRUD + 권한 캐시 재로딩 검증
-- [ ] 물리 삭제 시 FK 제약 충돌 에러코드(409/400) 검증
-- [ ] 목록 API `offset/limit` 기본값/상한 검증
+- [x] 로그인 성공 후 front 기본 진입 페이지 `EqpInfo` 검증
+- [x] `GET /api/eqp` + 기존 명령 API 공존 검증
+- [x] Model CRUD 성공/실패/중복/참조충돌(409) 검증
+- [x] User CRUD + 비밀번호 초기화 + 사용자-그룹 매핑 CRUD 검증
+- [x] Group CRUD + 그룹-권한 매핑 CRUD 검증
+- [x] UI Permission CRUD + 권한 캐시 재로딩 검증
+- [x] 물리 삭제 시 FK 제약 충돌 에러코드(409/400) 검증
+- [x] 목록 API `offset/limit` 기본값/상한 검증
 
 ---
 
 ## 완료 기준 (Definition of Done)
-- [ ] 설계 문서(D02)와 구현 결과가 일치함
-- [ ] 단수형 경로 규칙(`/api/model`, `/api/user`, `/api/group`, `/api/permission`)이 일관됨
-- [ ] Eqp 변경 API는 기존 명령 방식을 유지하고 조회 API만 추가됨
-- [ ] 물리 삭제/충돌 정책이 API 응답 코드에 반영됨
+- [x] 설계 문서(D02)와 구현 결과가 일치함
+- [x] 단수형 경로 규칙(`/api/model`, `/api/user`, `/api/group`, `/api/permission`)이 일관됨
+- [x] Eqp 변경 API는 기존 명령 방식을 유지하고 조회 API만 추가됨
+- [x] 물리 삭제/충돌 정책이 API 응답 코드에 반영됨
 - [ ] 신규 테스트가 CI에서 통과함

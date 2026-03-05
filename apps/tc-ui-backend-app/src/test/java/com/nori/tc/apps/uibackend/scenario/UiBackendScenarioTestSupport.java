@@ -11,16 +11,27 @@ import com.nori.tc.ui.adapters.web.controller.AsyncResultController;
 import com.nori.tc.ui.adapters.web.controller.AuthController;
 import com.nori.tc.ui.adapters.web.controller.DlqController;
 import com.nori.tc.ui.adapters.web.controller.EqpController;
+import com.nori.tc.ui.adapters.web.controller.GroupController;
+import com.nori.tc.ui.adapters.web.controller.ModelController;
+import com.nori.tc.ui.adapters.web.controller.PermissionController;
+import com.nori.tc.ui.adapters.web.controller.UserController;
+import com.nori.tc.ui.adapters.web.controller.support.UiApiExceptionHandler;
 import com.nori.tc.ui.adapters.web.security.UiApiPermissionCache;
 import com.nori.tc.ui.adapters.web.security.UiAuthenticationEntryPoint;
 import com.nori.tc.ui.adapters.web.security.UiSecurityConfig;
 import com.nori.tc.ui.adapters.web.security.UiTokenAuthenticationFilter;
 import com.nori.tc.ui.core.port.db.EqpQueryPort;
+import com.nori.tc.ui.core.port.db.GroupCrudPort;
+import com.nori.tc.ui.core.port.db.GroupPermissionMappingPort;
+import com.nori.tc.ui.core.port.db.ModelCrudPort;
 import com.nori.tc.ui.core.port.db.PasswordVerifierPort;
 import com.nori.tc.ui.core.port.db.PermissionPort;
+import com.nori.tc.ui.core.port.db.PermissionCrudPort;
 import com.nori.tc.ui.core.port.db.SessionPort;
 import com.nori.tc.ui.core.port.db.UiApiPermissionPort;
 import com.nori.tc.ui.core.port.db.UserPort;
+import com.nori.tc.ui.core.port.db.UserCrudPort;
+import com.nori.tc.ui.core.port.db.UserGroupMappingPort;
 import com.nori.tc.ui.core.port.messaging.UiBusinessEventPublishPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEqpRoutePartitionLookupPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
@@ -80,7 +91,11 @@ import static org.mockito.Mockito.lenient;
         AuthController.class,
         EqpController.class,
         DlqController.class,
-        AsyncResultController.class
+        AsyncResultController.class,
+        ModelController.class,
+        UserController.class,
+        GroupController.class,
+        PermissionController.class
 })
 @Import({
         // Controllers: @WebMvcTest는 @SpringBootApplication 기준 패키지(com.nori.tc.apps.uibackend)만
@@ -90,6 +105,11 @@ import static org.mockito.Mockito.lenient;
         EqpController.class,
         DlqController.class,
         AsyncResultController.class,
+        ModelController.class,
+        UserController.class,
+        GroupController.class,
+        PermissionController.class,
+        UiApiExceptionHandler.class,
         UiSecurityConfig.class,
         UiAuthenticationEntryPoint.class,
         UiTokenAuthenticationFilter.class,
@@ -200,6 +220,24 @@ abstract class UiBackendScenarioTestSupport {
 
     @MockitoBean
     EqpQueryPort eqpQueryPort;
+
+    @MockitoBean
+    ModelCrudPort modelCrudPort;
+
+    @MockitoBean
+    UserCrudPort userCrudPort;
+
+    @MockitoBean
+    GroupCrudPort groupCrudPort;
+
+    @MockitoBean
+    PermissionCrudPort permissionCrudPort;
+
+    @MockitoBean
+    UserGroupMappingPort userGroupMappingPort;
+
+    @MockitoBean
+    GroupPermissionMappingPort groupPermissionMappingPort;
 
     // ─────────────────────────────────────────────────────────
     // Redis 포트 MockBean
