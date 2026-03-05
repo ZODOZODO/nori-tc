@@ -118,10 +118,10 @@
 - 신규 API 경로에 대한 권한 정책을 데이터 기준으로 고정합니다.
 
 ### 작업
-- [ ] `docs/db_table/sample_data/postgres_insert_sample_data.sql`에 `MODEL_WRITE` 추가
-- [ ] `docs/db_table/sample_data/postgres_insert_sample_data.sql`에 `PERMISSION_WRITE` 추가
-- [ ] `/api/permission` 리소스 권한 매핑 반영
-- [ ] ADMIN/DEVELOPER/OPERATOR 기본 권한 매핑 재점검
+- [x] `docs/db_table/sample_data/postgres_insert_sample_data.sql`에 `MODEL_WRITE` 추가
+- [x] `docs/db_table/sample_data/postgres_insert_sample_data.sql`에 `PERMISSION_WRITE` 추가
+- [x] `/api/permission` 리소스 권한 매핑 반영
+- [x] ADMIN/DEVELOPER/OPERATOR 기본 권한 매핑 재점검
 
 ---
 

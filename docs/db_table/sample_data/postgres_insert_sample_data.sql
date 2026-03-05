@@ -581,7 +581,7 @@ INSERT INTO tc_user_group (
 )
 VALUES
   ('ADMIN',     '관리자', '모든 권한 보유',                 TRUE, now(), now()),
-  ('DEVELOPER', '개발자', 'USER/GROUP 관리 권한 제외',      TRUE, now(), now()),
+  ('DEVELOPER', '개발자', 'USER/GROUP/PERMISSION 관리 제외', TRUE, now(), now()),
   ('OPERATOR',  '운영자', 'EQP/DLQ/MODEL 조회 중심 권한',   TRUE, now(), now())
 ON CONFLICT (group_code) DO UPDATE
 SET
@@ -598,13 +598,17 @@ INSERT INTO tc_ui_permission (
 VALUES
   ('AUTH_ME_PERM',     '내 정보 조회',        'API', 'EXACT',  '/auth/me',    'GET',    'GET /auth/me',                    TRUE, now(), now(), 'SEED', 'SEED'),
   ('AUTH_LOGOUT_PERM', '로그아웃',            'API', 'EXACT',  '/auth/logout','POST',   'POST /auth/logout',               TRUE, now(), now(), 'SEED', 'SEED'),
-  ('EQP_MANAGE',       '설비 관리',           'API', 'PREFIX', '/api/eqp',    NULL,     'POST/PUT/DELETE/start/end 포함', TRUE, now(), now(), 'SEED', 'SEED'),
+  ('EQP_MANAGE',       '설비 관리',           'API', 'PREFIX', '/api/eqp',    NULL,     'GET/POST/PUT/DELETE/start/end 포함', TRUE, now(), now(), 'SEED', 'SEED'),
   ('ASYNC_READ',       '비동기 결과 조회',     'API', 'PREFIX', '/api/async',  'GET',    'GET /api/async/{traceId}',       TRUE, now(), now(), 'SEED', 'SEED'),
   ('DLQ_READ',         'DLQ 조회',            'API', 'PREFIX', '/api/dlq',    'GET',    'GET /api/dlq/**',                TRUE, now(), now(), 'SEED', 'SEED'),
   ('DLQ_DELETE',       'DLQ 삭제',            'API', 'PREFIX', '/api/dlq',    'DELETE', 'DELETE /api/dlq/**',             TRUE, now(), now(), 'SEED', 'SEED'),
-  ('MODEL_READ',       '모델 조회',           'API', 'PREFIX', '/api/model',  'GET',    '향후 모델 조회 API 대비',         TRUE, now(), now(), 'SEED', 'SEED'),
+  ('MODEL_READ',       '모델 조회',           'API', 'PREFIX', '/api/model',  'GET',    'GET /api/model 조회 전용',        TRUE, now(), now(), 'SEED', 'SEED'),
+  -- http_method 컬럼은 단일 값만 저장할 수 있으므로 MODEL_WRITE는 null(전체 메서드)로 두고,
+  -- 역할 매핑에서 OPERATOR에 MODEL_WRITE를 부여하지 않아 읽기 전용 정책을 유지합니다.
+  ('MODEL_WRITE',      '모델 변경',           'API', 'PREFIX', '/api/model',  NULL,     'POST/PUT/DELETE 모델 변경',       TRUE, now(), now(), 'SEED', 'SEED'),
   ('USER_INFO_WRITE',  '사용자 관리',         'API', 'PREFIX', '/api/user',   NULL,     '향후 사용자 생성/수정/삭제 대비',  TRUE, now(), now(), 'SEED', 'SEED'),
-  ('GROUP_WRITE',      '그룹 관리',           'API', 'PREFIX', '/api/group',  NULL,     '향후 그룹 생성/수정/삭제 대비',    TRUE, now(), now(), 'SEED', 'SEED')
+  ('GROUP_WRITE',      '그룹 관리',           'API', 'PREFIX', '/api/group',  NULL,     '향후 그룹 생성/수정/삭제 대비',    TRUE, now(), now(), 'SEED', 'SEED'),
+  ('PERMISSION_WRITE', 'UI 권한 관리',        'API', 'PREFIX', '/api/permission', NULL,  'GET/POST/PUT/DELETE /api/permission', TRUE, now(), now(), 'SEED', 'SEED')
 ON CONFLICT (perm_code) DO UPDATE
 SET
   perm_name     = EXCLUDED.perm_name,
@@ -639,7 +643,7 @@ JOIN tc_ui_permission p
 WHERE g.group_code = 'ADMIN'
 ON CONFLICT (group_id, perm_id) DO NOTHING;
 
--- DEVELOPER: USER/GROUP 관리 권한 제외
+-- DEVELOPER: USER/GROUP/PERMISSION 관리 권한 제외
 INSERT INTO tc_user_group_permission (
   group_id, perm_id, granted_at, granted_by
 )
@@ -650,7 +654,7 @@ JOIN tc_ui_permission p
   ON p.resource_type = 'API'
  AND p.is_active = TRUE
 WHERE g.group_code = 'DEVELOPER'
-  AND p.perm_code NOT IN ('USER_INFO_WRITE', 'GROUP_WRITE')
+  AND p.perm_code NOT IN ('USER_INFO_WRITE', 'GROUP_WRITE', 'PERMISSION_WRITE')
 ON CONFLICT (group_id, perm_id) DO NOTHING;
 
 -- OPERATOR: EQP/DLQ/MODEL 조회 중심 + 계정 기본 동작
