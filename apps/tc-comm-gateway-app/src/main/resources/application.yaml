@@ -7,6 +7,10 @@ spring:
   # - 필요 시 web-application-type 값을 변경해 웹 엔드포인트를 활성화할 수 있습니다.
   main:
     web-application-type: none
+    # Non-web 애플리케이션은 기본적으로 메인 스레드가 종료되면 JVM 종료 판정 대상이 됩니다.
+    # 현재 gateway 런타임 스레드(Kafka/Mailbox/Lifecycle)가 daemon 스레드로 동작하므로
+    # keep-alive를 켜서 비웹 모드에서도 프로세스가 즉시 종료되지 않도록 유지합니다.
+    keep-alive: true
 
   # 2) 외부 설정 파일 import
   # - 운영 환경에서 코드 변경 없이 설정만 교체할 수 있도록 분리합니다.

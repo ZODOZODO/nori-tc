@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.entity.model;
 
-import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.jpa.common.entity.base.AbstractCreatedUpdatedEntity;
 
@@ -17,118 +16,120 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 /**
- * tc_model 테이블 매핑 엔티티.
+ * {@code tc_model} 원장 테이블 매핑 엔티티입니다.
  *
- * [DB 스키마]
- * - model_key      : bigint generated always as identity (PK)
- * - model_name     : varchar(128) NOT NULL
- * - model_version  : varchar(32) NOT NULL
- * - comm_interface : varchar(16) NOT NULL (HSMS/SOCKET)
- * - status         : varchar(16) NOT NULL (DRAFT/ACTIVE/DEPRECATED)
- * - maker          : varchar(32)
- * - created_at     : timestamptz NOT NULL
- * - updated_at     : timestamptz NOT NULL
- * - created_by     : varchar(50) NOT NULL default 'SYSTEM'
- * - updated_by     : varchar(50) NOT NULL default 'SYSTEM'
- * - Constraints    : UNIQUE (model_name, model_version)
+ * <p>
+ * 중요: 모델 버전 정보({@code model_version}, {@code status})는
+ * {@code tc_model_version} 테이블에 존재합니다.
+ * 따라서 본 엔티티는 원장 테이블의 실 컬럼만 매핑합니다.
+ * </p>
  *
- * [설계 포인트]
- * 1. MapStruct 호환성:
- * - public 생성자를 제공하여 Mapper가 객체를 생성할 수 있게 합니다.
- *
- * 2. Identity Strategy:
- * - PK(model_key)는 DB 자동 생성(Identity)을 따릅니다.
+ * <p>매핑 컬럼</p>
+ * <ul>
+ *     <li>{@code model_key}: PK, IDENTITY</li>
+ *     <li>{@code model_name}: 모델 원장 이름(UNIQUE)</li>
+ *     <li>{@code comm_interface}: HSMS/SOCKET</li>
+ *     <li>{@code maker}: 제조사/공급사 식별 문자열(선택)</li>
+ *     <li>{@code created_by}, {@code updated_by}: 감사용 사용자 식별자</li>
+ * </ul>
  */
 @Entity
 @Table(
         name = "tc_model",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uq_tc_model_name_version", columnNames = {"model_name", "model_version"})
+                @UniqueConstraint(name = "uk_tc_model_model_name", columnNames = {"model_name"})
         }
 )
 public class TcModelEntity extends AbstractCreatedUpdatedEntity {
 
+    /**
+     * tc_model PK입니다.
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "model_key", nullable = false)
     private Long modelKey;
 
+    /**
+     * 모델 원장 이름입니다.
+     */
     @Column(name = "model_name", length = 128, nullable = false)
     private String modelName;
 
-    @Column(name = "model_version", length = 32, nullable = false)
-    private String modelVersion;
-
+    /**
+     * 통신 인터페이스 유형입니다.
+     */
     @Enumerated(EnumType.STRING)
     @Column(name = "comm_interface", length = 16, nullable = false)
     private ProtocolType commInterface;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 16, nullable = false)
-    private ModelStatus status;
-
+    /**
+     * 제조사/공급사 문자열입니다.
+     */
     @Column(name = "maker", length = 32)
     private String maker;
 
+    /**
+     * 생성 사용자입니다.
+     */
     @Column(name = "created_by", length = 50, nullable = false)
     private String createdBy;
 
+    /**
+     * 최종 수정 사용자입니다.
+     */
     @Column(name = "updated_by", length = 50, nullable = false)
     private String updatedBy;
 
-    // =========================================================================
-    // Constructors (MapStruct & JPA)
-    // =========================================================================
-
     /**
-     * 기본 생성자 (필수)
+     * JPA 기본 생성자입니다.
      */
     public TcModelEntity() {
     }
 
     /**
-     * 전체 인자 생성자
+     * 전체 필드 생성자입니다.
+     *
+     * @param modelKey tc_model PK
+     * @param modelName 모델 원장 이름
+     * @param commInterface 통신 인터페이스
+     * @param maker 제조사/공급사
+     * @param createdBy 생성 사용자
+     * @param updatedBy 최종 수정 사용자
      */
-    public TcModelEntity(Long modelKey, String modelName, String modelVersion, ProtocolType commInterface, ModelStatus status, String maker, String createdBy, String updatedBy) {
+    public TcModelEntity(
+            Long modelKey,
+            String modelName,
+            ProtocolType commInterface,
+            String maker,
+            String createdBy,
+            String updatedBy
+    ) {
         this.modelKey = modelKey;
         this.modelName = modelName;
-        this.modelVersion = modelVersion;
         this.commInterface = commInterface;
-        this.status = status;
         this.maker = maker;
         this.createdBy = createdBy;
         this.updatedBy = updatedBy;
     }
 
-    // =========================================================================
-    // Static Factory
-    // =========================================================================
-
-    
     /**
-     * DB JPA 계층 규약에 맞게 데이터를 변환/구성합니다.
+     * 신규 원장 엔티티를 생성합니다.
      *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelName 도메인 데이터 객체
-     * @param modelVersion 도메인 데이터 객체
-     * @return DB JPA 계층 처리 결과
+     * @param modelName 모델 이름
+     * @return 생성된 엔티티
      */
-    public static TcModelEntity newEntity(String modelName, String modelVersion) {
+    public static TcModelEntity newEntity(String modelName) {
         if (modelName == null || modelName.isBlank()) {
             throw new IllegalArgumentException("modelName must not be null/blank");
         }
-        if (modelVersion == null || modelVersion.isBlank()) {
-            throw new IllegalArgumentException("modelVersion must not be null/blank");
-        }
-        TcModelEntity e = new TcModelEntity();
-        e.setModelName(modelName);
-        e.setModelVersion(modelVersion);
-        return e;
+        TcModelEntity entity = new TcModelEntity();
+        entity.setModelName(modelName);
+        return entity;
     }
 
     /**
-     * DB Insert 전 데이터 보정
-     * - created_by/updated_by가 비어있으면 SYSTEM으로 기본값 세팅
+     * INSERT 직전에 감사 컬럼 기본값을 보정합니다.
      */
     @PrePersist
     private void applyDefaults() {
@@ -141,8 +142,7 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
     }
 
     /**
-     * DB Update 전 데이터 보정
-     * - updated_by가 비어있으면 SYSTEM으로 기본값 세팅
+     * UPDATE 직전에 감사 컬럼 기본값을 보정합니다.
      */
     @PreUpdate
     private void applyUpdateDefaults() {
@@ -151,181 +151,85 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
         }
     }
 
-    // =========================================================================
-    // Getters & Setters
-    // =========================================================================
-
-    
     /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
+     * tc_model PK를 반환합니다.
      */
     public Long getModelKey() {
         return modelKey;
     }
 
-    
     /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelKey 대상 키 값
+     * tc_model PK를 설정합니다.
      */
     public void setModelKey(Long modelKey) {
         this.modelKey = modelKey;
     }
 
-    
     /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
+     * 모델 이름을 반환합니다.
      */
     public String getModelName() {
         return modelName;
     }
 
-    
     /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelName 도메인 데이터 객체
+     * 모델 이름을 설정합니다.
      */
     public void setModelName(String modelName) {
         this.modelName = modelName;
     }
 
-    
     /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
-     */
-    public String getModelVersion() {
-        return modelVersion;
-    }
-
-    
-    /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param modelVersion 도메인 데이터 객체
-     */
-    public void setModelVersion(String modelVersion) {
-        this.modelVersion = modelVersion;
-    }
-
-    
-    /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
+     * 통신 인터페이스를 반환합니다.
      */
     public ProtocolType getCommInterface() {
         return commInterface;
     }
 
-    
     /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param commInterface DB JPA 계층 처리에 사용하는 입력 값
+     * 통신 인터페이스를 설정합니다.
      */
     public void setCommInterface(ProtocolType commInterface) {
         this.commInterface = commInterface;
     }
 
-    
     /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
-     */
-    public ModelStatus getStatus() {
-        return status;
-    }
-
-    
-    /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param status DB JPA 계층 처리에 사용하는 입력 값
-     */
-    public void setStatus(ModelStatus status) {
-        this.status = status;
-    }
-
-    
-    /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
+     * 제조사/공급사 정보를 반환합니다.
      */
     public String getMaker() {
         return maker;
     }
 
-    
     /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param maker DB JPA 계층 처리에 사용하는 입력 값
+     * 제조사/공급사 정보를 설정합니다.
      */
     public void setMaker(String maker) {
         this.maker = maker;
     }
 
-    
     /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
+     * 생성 사용자를 반환합니다.
      */
     public String getCreatedBy() {
         return createdBy;
     }
 
-    
     /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param createdBy DB JPA 계층 처리에 사용하는 입력 값
+     * 생성 사용자를 설정합니다.
      */
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
     }
 
-    
     /**
-     * DB JPA 계층의 현재 값을 조회합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @return DB JPA 계층 처리 결과
+     * 최종 수정 사용자를 반환합니다.
      */
     public String getUpdatedBy() {
         return updatedBy;
     }
 
-    
     /**
-     * DB JPA 계층 설정 값을 반영합니다.
-     *
-     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
-     * @param updatedBy DB JPA 계층 처리에 사용하는 입력 값
+     * 최종 수정 사용자를 설정합니다.
      */
     public void setUpdatedBy(String updatedBy) {
         this.updatedBy = updatedBy;

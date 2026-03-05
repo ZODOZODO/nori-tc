@@ -61,7 +61,7 @@ call "%SCRIPT_DIR%gradlew.bat" %APP_TASK% --no-daemon
 if errorlevel 1 goto :ERR_BUILD
 
 for /f "delims=" %%F in ('dir /b /a:-d /o:-d "%APP_DIR%\build\libs\*.jar" 2^>nul') do (
-    echo %%~nxF | findstr /I /R /C:"-plain\.jar$" >nul
+    echo(%%~nxF|findstr /I /R /C:"-plain\.jar$" >nul
     if errorlevel 1 if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
 )
 

@@ -13,9 +13,11 @@ java {
 }
 
 dependencies {
-    // Redis 접근을 위한 Spring Data Redis Starter
+    // Redis 연동을 위한 Spring Data Redis Starter
     implementation(libs.spring.boot.starter.data.redis)
 
+    // Spring Data Redis 4.x에서 Jackson2 기반 JSON 직렬화기를 사용하기 위한 필수 의존성
+    implementation(libs.jackson.databind)
 
     testImplementation(libs.spring.boot.starter.test)
 }

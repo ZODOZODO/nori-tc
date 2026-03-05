@@ -128,7 +128,7 @@ CREATE TABLE public.tc_model_secs_message (
     CONSTRAINT pk_tc_model_secs_message PRIMARY KEY (secs_msg_key),
     CONSTRAINT fk_tc_model_secs_message_model_version_key__tc_model_version
         FOREIGN KEY (model_version_key) REFERENCES public.tc_model_version(model_version_key) ON DELETE CASCADE,
-    CONSTRAINT uk_tc_model_secs_message_model_version_key UNIQUE (model_version_key)
+    CONSTRAINT uk_tc_model_secs_message_model_version_key_secs_msg_name UNIQUE (model_version_key, secs_msg_name)
 );
 
 CREATE INDEX ix_tc_model_secs_message_model_version_key ON public.tc_model_secs_message (model_version_key);
@@ -145,7 +145,7 @@ CREATE TABLE public.tc_model_socket_message (
     CONSTRAINT pk_tc_model_socket_message PRIMARY KEY (socket_msg_key),
     CONSTRAINT fk_tc_model_socket_message_model_version_key__tc_model_version
         FOREIGN KEY (model_version_key) REFERENCES public.tc_model_version(model_version_key) ON DELETE CASCADE,
-    CONSTRAINT uk_tc_model_socket_message_model_version_key UNIQUE (model_version_key)
+    CONSTRAINT uk_tc_model_socket_message_model_version_key_socket_msg_name UNIQUE (model_version_key, socket_msg_name)
 );
 
 CREATE INDEX ix_tc_model_socket_message_model_version_key ON public.tc_model_socket_message (model_version_key);

@@ -74,7 +74,7 @@ REM   - The script now keeps delayed expansion disabled globally so secret value
 REM     containing '!' are preserved when read from environment/prompt input.
 REM   - Use findstr suffix matching to filter out "-plain.jar" artifacts.
 for /f "delims=" %%F in ('dir /b /a:-d /o:-d "%APP_DIR%\build\libs\*.jar" 2^>nul') do (
-    echo %%~nxF | findstr /I /R /C:"-plain\.jar$" >nul
+    echo(%%~nxF|findstr /I /R /C:"-plain\.jar$" >nul
     if errorlevel 1 if not defined APP_JAR set "APP_JAR=%SCRIPT_DIR%%APP_DIR%\build\libs\%%F"
 )
 

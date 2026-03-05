@@ -191,15 +191,23 @@ SELECT model_version_key, 'SITE', 'DEV', now() FROM seed_model_map
 UNION ALL
 SELECT model_version_key, 'REVISION', 'A', now() FROM seed_model_map;
 
--- HSMS 모델: 버전별 1개씩 (1:1 제약 충족)
+-- HSMS 모델: 버전별 2개 이상 (1:N 관계 검증)
 INSERT INTO tc_model_secs_message(model_version_key, secs_msg_name, description, data_index, updated_at)
 SELECT m.model_version_key, 'S1F1', 'Are you there', NULL, now()
 FROM seed_model_map m
+WHERE m.comm_interface='HSMS'
+UNION ALL
+SELECT m.model_version_key, 'S2F41', 'Remote command', NULL, now()
+FROM seed_model_map m
 WHERE m.comm_interface='HSMS';
 
--- SOCKET 모델: 버전별 1개씩 (1:1 제약 충족)
+-- SOCKET 모델: 버전별 2개 이상 (1:N 관계 검증)
 INSERT INTO tc_model_socket_message(model_version_key, socket_msg_name, description, data_index, updated_at)
 SELECT m.model_version_key, 'CMD=PING', 'Health check', NULL, now()
+FROM seed_model_map m
+WHERE m.comm_interface='SOCKET'
+UNION ALL
+SELECT m.model_version_key, 'CMD=STATUS', 'Status request', NULL, now()
 FROM seed_model_map m
 WHERE m.comm_interface='SOCKET';
 

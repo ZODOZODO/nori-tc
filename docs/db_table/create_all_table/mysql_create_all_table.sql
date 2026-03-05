@@ -124,7 +124,7 @@ CREATE TABLE tc_model_secs_message (
   CONSTRAINT pk_tc_model_secs_message PRIMARY KEY (secs_msg_key),
   CONSTRAINT fk_tc_model_secs_message_model_version_key__tc_model_version
     FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_secs_message_model_version_key UNIQUE (model_version_key)
+  CONSTRAINT uk_tc_model_secs_message_model_version_key_secs_msg_name UNIQUE (model_version_key, secs_msg_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX ix_tc_model_secs_message_model_version_key ON tc_model_secs_message (model_version_key);
 CREATE INDEX ix_tc_model_secs_message_secs_msg_name ON tc_model_secs_message (secs_msg_name);
@@ -141,7 +141,7 @@ CREATE TABLE tc_model_socket_message (
   CONSTRAINT pk_tc_model_socket_message PRIMARY KEY (socket_msg_key),
   CONSTRAINT fk_tc_model_socket_message_model_version_key__tc_model_version
     FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
-  CONSTRAINT uk_tc_model_socket_message_model_version_key UNIQUE (model_version_key)
+  CONSTRAINT uk_tc_model_socket_message_model_version_key_socket_msg_name UNIQUE (model_version_key, socket_msg_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX ix_tc_model_socket_message_model_version_key ON tc_model_socket_message (model_version_key);
 CREATE INDEX ix_tc_model_socket_message_socket_msg_name ON tc_model_socket_message (socket_msg_name);
