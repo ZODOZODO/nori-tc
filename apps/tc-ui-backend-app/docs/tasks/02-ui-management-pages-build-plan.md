@@ -44,19 +44,19 @@
 - `tc-db-core` Store 기반으로 확장 Port 구현체를 추가합니다.
 
 ### 작업
-- [ ] Eqp 조회 Port 구현체 추가
-- [ ] Model CRUD Port 구현체 추가
-- [ ] User CRUD Port 구현체 추가
-- [ ] Group CRUD Port 구현체 추가
-- [ ] Permission CRUD Port 구현체 추가
-- [ ] User-Group 매핑 Port 구현체 추가
-- [ ] Group-Permission 매핑 Port 구현체 추가
-- [ ] 삭제/충돌 정책 반영 (`409`/`400`)
+- [x] Eqp 조회 Port 구현체 추가
+- [x] Model CRUD Port 구현체 추가
+- [x] User CRUD Port 구현체 추가
+- [x] Group CRUD Port 구현체 추가
+- [x] Permission CRUD Port 구현체 추가
+- [x] User-Group 매핑 Port 구현체 추가
+- [x] Group-Permission 매핑 Port 구현체 추가
+- [x] 삭제/충돌 정책 반영 (`409`/`400`)
 
 ### 정책 반영 체크
-- [ ] `tc_user_info` 삭제 전 `tc_ui_auth_session` 정리 절차 강제
-- [ ] `tc_model_version` 참조 충돌 시 `409 CONFLICT` 반환
-- [ ] 매핑 테이블(`tc_user_group_member`, `tc_user_group_permission`) 물리 삭제
+- [x] `tc_user_info` 삭제 전 `tc_ui_auth_session` 정리 절차 강제
+- [x] `tc_model_version` 참조 충돌 시 `409 CONFLICT` 반환
+- [x] 매핑 테이블(`tc_user_group_member`, `tc_user_group_permission`) 물리 삭제
 
 ---
 
