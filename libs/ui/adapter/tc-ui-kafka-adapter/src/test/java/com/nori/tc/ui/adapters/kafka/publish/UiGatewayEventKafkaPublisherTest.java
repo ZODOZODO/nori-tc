@@ -40,7 +40,6 @@ class UiGatewayEventKafkaPublisherTest {
         topicProperties.setGatewayEventsTopic("tc.ui.events.gateway");
         topicProperties.setBusinessEventsTopic("tc.ui.events.business");
         topicProperties.setCommandsTopic("tc.ui.commands");
-        topicProperties.setCommandsDltTopic("tc.ui.commands.DLT");
         topicProperties.validate();
 
         final UiKafkaPublishProperties publishProperties = new UiKafkaPublishProperties();

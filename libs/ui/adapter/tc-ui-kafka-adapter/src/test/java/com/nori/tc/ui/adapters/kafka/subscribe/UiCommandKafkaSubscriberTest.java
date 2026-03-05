@@ -3,13 +3,10 @@ package com.nori.tc.ui.adapters.kafka.subscribe;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskMessage;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
-import com.nori.tc.ui.adapters.kafka.config.UiKafkaPublishProperties;
-import com.nori.tc.ui.adapters.kafka.config.UiKafkaTopicProperties;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.port.messaging.UiCommandIngressPort;
 import com.nori.tc.ui.domain.task.UiTaskStatus;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,22 +14,21 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.kafka.support.SendResult;
 
 import java.time.OffsetDateTime;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * {@link UiCommandKafkaSubscriber} 단위 테스트입니다.
+ *
+ * <p>D03 정책에 따라 파싱 실패 시 DLT 발행 없이 ACK + skip 되는지,
+ * 정상 메시지가 ingress로 전달되는지를 검증합니다.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class UiCommandKafkaSubscriberTest {
@@ -40,47 +36,19 @@ class UiCommandKafkaSubscriberTest {
     @Mock
     private UiCommandIngressPort ingressPort;
     @Mock
-    private KafkaTemplate<String, Object> kafkaTemplate;
-    @Mock
     private Acknowledgment acknowledgment;
-    @Mock
-    private SendResult<String, Object> sendResult;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private UiCommandKafkaSubscriber subscriber;
 
     @BeforeEach
     void setUp() {
-        final UiKafkaTopicProperties topicProperties = new UiKafkaTopicProperties();
-        topicProperties.setGatewayEventsTopic("tc.ui.events.gateway");
-        topicProperties.setBusinessEventsTopic("tc.ui.events.business");
-        topicProperties.setCommandsTopic("tc.ui.commands");
-        topicProperties.setCommandsDltTopic("tc.ui.commands.DLT");
-        topicProperties.setCommandsDltPartitions(3);
-        topicProperties.setCommandsDltReplicationFactor((short) 1);
-        topicProperties.setCommandsDltRetentionMs(604800000L);
-        topicProperties.validate();
-
-        final UiKafkaPublishProperties publishProperties = new UiKafkaPublishProperties();
-        publishProperties.setPublishTimeoutSeconds(1L);
-        publishProperties.setMaxRequestBytes(1_048_576);
-        publishProperties.validate();
-
-        subscriber = new UiCommandKafkaSubscriber(
-                ingressPort,
-                objectMapper,
-                kafkaTemplate,
-                topicProperties,
-                publishProperties
-        );
+        subscriber = new UiCommandKafkaSubscriber(ingressPort, objectMapper);
     }
 
     @Test
-    @DisplayName("JSON 파싱 실패 시 DLT 전송 후 ACK")
-    void parsingFailure_sendDlt_andAck() {
-        when(kafkaTemplate.send(any(ProducerRecord.class)))
-                .thenReturn(CompletableFuture.completedFuture(sendResult));
-
+    @DisplayName("JSON 파싱 실패 시 ACK 후 ingress 미호출")
+    void parsingFailure_ack_andSkipIngress() {
         final ConsumerRecord<String, String> record = new ConsumerRecord<>(
                 "tc.ui.commands",
                 1,
@@ -91,16 +59,8 @@ class UiCommandKafkaSubscriberTest {
 
         subscriber.onMessage(record, acknowledgment);
 
-        final ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass(ProducerRecord.class);
-        verify(kafkaTemplate).send(captor.capture());
         verify(acknowledgment).acknowledge();
         verify(ingressPort, never()).handle(any());
-
-        final ProducerRecord<String, Object> published = captor.getValue();
-        assertEquals("tc.ui.commands.DLT", published.topic());
-        assertEquals(1, published.partition());
-        assertEquals("EQP-001", published.key());
-        assertEquals("{\"invalid-json\"", published.value());
     }
 
     @Test

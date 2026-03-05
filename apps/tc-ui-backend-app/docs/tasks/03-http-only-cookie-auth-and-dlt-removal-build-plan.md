@@ -77,20 +77,20 @@
 - DLT 구성/설정/코드 의존을 전면 제거하고 파싱 실패 정책을 단순화합니다.
 
 ### 작업
-- [ ] `config/tc-ui-backend.properties`에서 `commands-dlt-*` 전부 삭제
-- [ ] `UiKafkaTopicProperties`
-  - [ ] DLT 필드 제거
-  - [ ] DLT 유효성 검증 제거
-  - [ ] DLT getter/setter 제거
-  - [ ] 로그 포맷 정리
-- [ ] `UiKafkaConfiguration`
-  - [ ] DLT `NewTopic` 빈 제거
-  - [ ] `DeadLetterPublishingRecoverer` 의존 제거
-  - [ ] DLT 전제 로그/주석 제거
-- [ ] `UiCommandKafkaSubscriber`
-  - [ ] DLT 발행 로직 제거
-  - [ ] 파싱 실패 정책을 `WARN + parse_error 메트릭 + ACK`로 고정
-  - [ ] DLT 헤더/복사 보조 메서드 제거
+- [x] `config/tc-ui-backend.properties`에서 `commands-dlt-*` 전부 삭제
+- [x] `UiKafkaTopicProperties`
+  - [x] DLT 필드 제거
+  - [x] DLT 유효성 검증 제거
+  - [x] DLT getter/setter 제거
+  - [x] 로그 포맷 정리
+- [x] `UiKafkaConfiguration`
+  - [x] DLT `NewTopic` 빈 제거
+  - [x] `DeadLetterPublishingRecoverer` 의존 제거
+  - [x] DLT 전제 로그/주석 제거
+- [x] `UiCommandKafkaSubscriber`
+  - [x] DLT 발행 로직 제거
+  - [x] 파싱 실패 정책을 `WARN + parse_error 메트릭 + ACK`로 고정
+  - [x] DLT 헤더/복사 보조 메서드 제거
 
 ---
 

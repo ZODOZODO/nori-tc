@@ -2,75 +2,60 @@ package com.nori.tc.ui.adapters.kafka.subscribe;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import com.nori.tc.messaging.kafka.contract.KafkaUiTaskReplyMessage;
-import com.nori.tc.ui.adapters.kafka.config.UiKafkaPublishProperties;
-import com.nori.tc.ui.adapters.kafka.config.UiKafkaTopicProperties;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.port.messaging.UiCommandIngressPort;
 import com.nori.tc.ui.domain.task.UiTaskStatus;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.header.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.stereotype.Component;
 import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 /**
  * {@code tc.ui.commands} 토픽을 구독하는 UI Command 수신 어댑터입니다.
  *
  * <p>핵심 정책:</p>
  * <ul>
- *   <li>파싱 실패(JSON 불량): 즉시 DLT 전송 후 ACK (무한 재처리 방지)</li>
- *   <li>비즈니스 처리 실패: 오류 로그 후 ACK</li>
- *   <li>인프라성 실패(Kafka 컨테이너/브로커): 예외 재전파 (컨테이너 에러 핸들러 위임)</li>
+ *   <li>파싱 실패(JSON/계약 매핑 오류): WARN + parse_error 메트릭 + ACK</li>
+ *   <li>비즈니스 처리 실패: ERROR 로그 후 ACK</li>
+ *   <li>인프라성 실패(Kafka 컨테이너/브로커): 예외 재전파(컨테이너 재시도 위임)</li>
  * </ul>
  */
 @Component
 public class UiCommandKafkaSubscriber {
 
     private static final Logger log = LoggerFactory.getLogger(UiCommandKafkaSubscriber.class);
-    private static final String DLT_ERROR_HEADER = "x-dlt-error";
-    private static final String DLT_CLASS_HEADER = "x-dlt-error-class";
     private static final String TRACE_ID_MDC_KEY = "traceId";
 
     private final UiCommandIngressPort ingressPort;
     private final ObjectMapper objectMapper;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final UiKafkaTopicProperties topicProperties;
-    private final UiKafkaPublishProperties publishProperties;
     private final MeterRegistry meterRegistry;
     private final Counter parseErrorCounter;
 
     /**
-     * 필수 의존성을 주입받습니다.
+     * 테스트/로컬 조립 편의를 위한 생성자입니다.
+     *
+     * <p>메트릭이 필요 없는 환경에서는 MeterRegistry를 생략할 수 있도록
+     * 내부적으로 null 레지스트리 생성자로 위임합니다.</p>
      *
      * @param ingressPort tc.ui.commands 수신 처리 포트
      * @param objectMapper JSON 역직렬화용 ObjectMapper
-     * @param kafkaTemplate DLT 전송용 KafkaTemplate
-     * @param topicProperties Kafka 토픽 설정
-     * @param publishProperties 발행 타임아웃 설정
      */
     public UiCommandKafkaSubscriber(
             final UiCommandIngressPort ingressPort,
-            final ObjectMapper objectMapper,
-            final KafkaTemplate<String, Object> kafkaTemplate,
-            final UiKafkaTopicProperties topicProperties,
-            final UiKafkaPublishProperties publishProperties
+            final ObjectMapper objectMapper
     ) {
-        this(ingressPort, objectMapper, kafkaTemplate, topicProperties, publishProperties, null);
+        this(ingressPort, objectMapper, null);
     }
 
     /**
@@ -81,25 +66,16 @@ public class UiCommandKafkaSubscriber {
      *
      * @param ingressPort tc.ui.commands 수신 처리 포트
      * @param objectMapper JSON 역직렬화용 ObjectMapper
-     * @param kafkaTemplate DLT 전송용 KafkaTemplate
-     * @param topicProperties Kafka 토픽 설정
-     * @param publishProperties 발행 타임아웃 설정
      * @param meterRegistry Micrometer 레지스트리 (없으면 null)
      */
     @Autowired
     public UiCommandKafkaSubscriber(
             final UiCommandIngressPort ingressPort,
             final ObjectMapper objectMapper,
-            final KafkaTemplate<String, Object> kafkaTemplate,
-            final UiKafkaTopicProperties topicProperties,
-            final UiKafkaPublishProperties publishProperties,
             @Nullable final MeterRegistry meterRegistry
     ) {
         this.ingressPort = Objects.requireNonNull(ingressPort, "ingressPort is null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");
-        this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate is null");
-        this.topicProperties = Objects.requireNonNull(topicProperties, "topicProperties is null");
-        this.publishProperties = Objects.requireNonNull(publishProperties, "publishProperties is null");
         this.meterRegistry = meterRegistry;
         this.parseErrorCounter = meterRegistry == null
                 ? null
@@ -132,20 +108,11 @@ public class UiCommandKafkaSubscriber {
                     objectMapper.readValue(record.value(), KafkaUiTaskReplyMessage.class);
             commandReply = toCommandReply(rawReply);
         } catch (JsonProcessingException ex) {
-            incrementParseErrorCounter();
-            log.warn(
-                    "tc.ui.commands 메시지 JSON 파싱 실패 - DLT 전송 후 skip. topic={}, partition={}, offset={}, key={}, error={}",
-                    topic, partition, offset, key, ex.getOriginalMessage()
-            );
-            publishParseFailureToDlt(record, ex);
-            ack.acknowledge();
+            handleParseFailureAndAck(record, ack, ex, "json_deserialize");
             return;
         } catch (RuntimeException ex) {
-            log.error(
-                    "tc.ui.commands 파싱 단계 인프라 오류 - 재시도 위임. topic={}, partition={}, offset={}, key={}",
-                    topic, partition, offset, key, ex
-            );
-            throw ex;
+            handleParseFailureAndAck(record, ack, ex, "contract_mapping");
+            return;
         }
 
         try (MdcTraceScope ignored = openTraceMdcScope(commandReply.traceId())) {
@@ -155,6 +122,12 @@ public class UiCommandKafkaSubscriber {
                     "tc.ui.commands 수신. topic={}, partition={}, offset={}, eqpId={}, traceId={}, eventType={}, source={}",
                     topic, partition, offset, key, commandReply.traceId(), commandReply.eventType(), commandReply.source()
             );
+            if (log.isTraceEnabled()) {
+                log.trace(
+                        "tc.ui.commands 원문 payload 관측. topic={}, partition={}, offset={}, key={}, payload={}",
+                        topic, partition, offset, key, safeText(record.value())
+                );
+            }
 
             try {
                 ingressPort.handle(commandReply);
@@ -189,6 +162,65 @@ public class UiCommandKafkaSubscriber {
     }
 
     /**
+     * 파싱/계약 매핑 실패를 공통 정책으로 처리합니다.
+     *
+     * <p>정책은 D03 설계 기준에 따라 고정됩니다.</p>
+     * <ul>
+     *   <li>WARN 로그 기록</li>
+     *   <li>{@code kafka.command.parse_error} 메트릭 증가</li>
+     *   <li>현재 레코드 ACK 후 종료</li>
+     * </ul>
+     *
+     * @param record 원본 수신 레코드
+     * @param ack MANUAL_IMMEDIATE ACK 핸들러
+     * @param cause 파싱 실패 원인
+     * @param stage 실패 단계 식별자(json_deserialize / contract_mapping)
+     */
+    private void handleParseFailureAndAck(
+            final ConsumerRecord<String, String> record,
+            final Acknowledgment ack,
+            final Throwable cause,
+            final String stage
+    ) {
+        incrementParseErrorCounter();
+
+        log.warn(
+                "tc.ui.commands 파싱 실패 - ACK 후 skip. stage={}, topic={}, partition={}, offset={}, key={}, errorType={}, error={}",
+                stage,
+                record.topic(),
+                record.partition(),
+                record.offset(),
+                record.key(),
+                cause.getClass().getSimpleName(),
+                safeText(cause.getMessage())
+        );
+        if (log.isTraceEnabled()) {
+            log.trace(
+                    "tc.ui.commands 파싱 실패 원문 payload. stage={}, topic={}, partition={}, offset={}, key={}, payload={}",
+                    stage,
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    record.key(),
+                    safeText(record.value()),
+                    cause
+            );
+        }
+
+        ack.acknowledge();
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "tc.ui.commands 파싱 실패 레코드 ACK 완료. stage={}, topic={}, partition={}, offset={}, key={}",
+                    stage,
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    record.key()
+            );
+        }
+    }
+
+    /**
      * Kafka 계약 응답을 core 기술 중립 DTO로 변환합니다.
      *
      * @param reply Kafka 계약 응답
@@ -210,64 +242,6 @@ public class UiCommandKafkaSubscriber {
                 reply.data().errorCode(),
                 reply.data().errorMsg()
         );
-    }
-
-    /**
-     * 파싱 실패 레코드를 DLT 토픽으로 전송합니다.
-     *
-     * @param record 원본 수신 레코드
-     * @param ex 파싱 예외
-     */
-    private void publishParseFailureToDlt(
-            final ConsumerRecord<String, String> record,
-            final JsonProcessingException ex
-    ) {
-        final ProducerRecord<String, Object> dltRecord = new ProducerRecord<>(
-                topicProperties.getCommandsDltTopic(),
-                record.partition(),
-                record.key(),
-                record.value()
-        );
-        copyHeaders(record, dltRecord);
-        dltRecord.headers().add(DLT_ERROR_HEADER, safeText(ex.getOriginalMessage()).getBytes(StandardCharsets.UTF_8));
-        dltRecord.headers().add(DLT_CLASS_HEADER, ex.getClass().getName().getBytes(StandardCharsets.UTF_8));
-
-        try {
-            kafkaTemplate.send(dltRecord)
-                    .get(publishProperties.getPublishTimeoutSeconds(), TimeUnit.SECONDS);
-            log.warn(
-                    "tc.ui.commands 파싱 실패 메시지 DLT 전송 완료. dltTopic={}, partition={}, offset={}, key={}",
-                    topicProperties.getCommandsDltTopic(),
-                    record.partition(),
-                    record.offset(),
-                    record.key()
-            );
-        } catch (Exception dltEx) {
-            log.error(
-                    "tc.ui.commands DLT 전송 실패 - 원본 payload 기록. dltTopic={}, partition={}, offset={}, key={}, payload={}",
-                    topicProperties.getCommandsDltTopic(),
-                    record.partition(),
-                    record.offset(),
-                    record.key(),
-                    record.value(),
-                    dltEx
-            );
-        }
-    }
-
-    /**
-     * 원본 레코드 헤더를 DLT 레코드로 복사합니다.
-     *
-     * @param source 원본 ConsumerRecord
-     * @param target 대상 ProducerRecord
-     */
-    private static void copyHeaders(
-            final ConsumerRecord<String, String> source,
-            final ProducerRecord<String, Object> target
-    ) {
-        for (Header header : source.headers()) {
-            target.headers().add(header);
-        }
     }
 
     /**
