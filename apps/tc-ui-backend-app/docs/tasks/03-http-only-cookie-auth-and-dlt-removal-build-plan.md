@@ -56,18 +56,18 @@
 - Header Bearer 인증 의존을 제거하고 Cookie 인증으로 완전 전환합니다.
 
 ### 작업
-- [ ] `AuthController`
-  - [ ] 로그인 성공 시 `Set-Cookie(TC_UI_AUTH, HttpOnly)` 발급
-  - [ ] 로그인 응답 DTO에서 `token` 제거
-  - [ ] 로그아웃 시 삭제 쿠키(`Max-Age=0`) 발급
-  - [ ] `GET /auth/csrf` 엔드포인트 추가
-- [ ] `LoginResponse` 계약 변경 (`userPk`, `issuedAt`, `expiresAt`)
-- [ ] `UiTokenAuthenticationFilter`
-  - [ ] 토큰 추출 로직을 쿠키 전용으로 변경
-  - [ ] `Authorization: Bearer` 파싱 로직 제거
-- [ ] `UiSecurityConfig`
-  - [ ] CSRF 활성화 (`CookieCsrfTokenRepository`)
-  - [ ] CORS 활성화 (`allowCredentials=true`, 프로퍼티 기반 Origin)
+- [x] `AuthController`
+  - [x] 로그인 성공 시 `Set-Cookie(TC_UI_AUTH, HttpOnly)` 발급
+  - [x] 로그인 응답 DTO에서 `token` 제거
+  - [x] 로그아웃 시 삭제 쿠키(`Max-Age=0`) 발급
+  - [x] `GET /auth/csrf` 엔드포인트 추가
+- [x] `LoginResponse` 계약 변경 (`userPk`, `issuedAt`, `expiresAt`)
+- [x] `UiTokenAuthenticationFilter`
+  - [x] 토큰 추출 로직을 쿠키 전용으로 변경
+  - [x] `Authorization: Bearer` 파싱 로직 제거
+- [x] `UiSecurityConfig`
+  - [x] CSRF 활성화 (`CookieCsrfTokenRepository`)
+  - [x] CORS 활성화 (`allowCredentials=true`, 프로퍼티 기반 Origin)
 
 ---
 

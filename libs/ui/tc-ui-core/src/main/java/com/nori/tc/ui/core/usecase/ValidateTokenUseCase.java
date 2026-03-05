@@ -72,7 +72,7 @@ public class ValidateTokenUseCase {
      *
      * <p>UiTokenAuthenticationFilter(tc-ui-web-adapter)가 매 HTTP 요청마다 호출합니다.</p>
      *
-     * @param token 검증할 세션 토큰 (Authorization: Bearer 헤더에서 추출한 값)
+     * @param token 검증할 세션 토큰 (인증 쿠키에서 추출한 값)
      * @return 인증된 사용자 정보 (userPk, userId, 권한 코드 집합)
      * @throws UiAuthenticationException 토큰이 유효하지 않거나 계정이 비활성인 경우
      */

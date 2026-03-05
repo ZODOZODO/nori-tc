@@ -42,7 +42,7 @@ public class LogoutUseCase {
      * <p>이미 폐기된 토큰이나 존재하지 않는 토큰에 대한 호출도 안전하게 처리됩니다
      * (멱등성 보장: DB 업데이트 0건 = 정상 종료).</p>
      *
-     * @param token 폐기할 세션 토큰 (Authorization 헤더의 Bearer 값)
+     * @param token 폐기할 세션 토큰 (인증 쿠키에서 추출된 원본 값)
      */
     public void execute(final String token) {
         final String maskedToken = maskToken(token);

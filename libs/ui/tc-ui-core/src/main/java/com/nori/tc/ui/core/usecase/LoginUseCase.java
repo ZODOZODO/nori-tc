@@ -26,7 +26,7 @@ import java.time.OffsetDateTime;
  *   <li>BCrypt 비밀번호 검증 - 불일치 시 인증 거부</li>
  *   <li>SecureRandom 64자 세션 토큰 생성</li>
  *   <li>tc_ui_auth_session에 세션 저장</li>
- *   <li>AuthToken 반환 (이후 모든 API 요청의 Bearer 토큰으로 사용)</li>
+ *   <li>AuthToken 반환 (Web Adapter가 HttpOnly 인증 쿠키로 전달)</li>
  * </ol>
  *
  * <p>보안 원칙:</p>

@@ -3,16 +3,17 @@ package com.nori.tc.ui.adapters.web.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.core.exception.UiAuthenticationException;
+import com.nori.tc.ui.core.properties.UiAuthProperties;
 import com.nori.tc.ui.core.usecase.ValidateTokenUseCase;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,11 +28,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Bearer 토큰 기반 인증 처리 필터입니다.
+ * 인증 쿠키 기반 인증 처리 필터입니다.
  *
  * <p>처리 흐름:</p>
  * <ol>
- *   <li>{@code Authorization: Bearer {token}} 헤더에서 토큰 추출</li>
+ *   <li>{@link UiAuthProperties#cookieName()}으로 지정된 쿠키에서 토큰 추출</li>
  *   <li>토큰 없음 → SecurityContext 미설정 후 다음 필터로 통과
  *       (인가 단계에서 익명 요청으로 처리)</li>
  *   <li>{@link ValidateTokenUseCase#execute(String)} 호출:
@@ -44,7 +45,7 @@ import java.util.UUID;
  *   <li>토큰 검증 성공 → {@code UsernamePasswordAuthenticationToken}을 SecurityContext에 등록
  *       <ul>
  *         <li>principal = {@link UserPrincipal} (userPk, userId, permissionCodes)</li>
- *         <li>credentials = 원본 Bearer 토큰 (LogoutUseCase에서 토큰 폐기 시 사용)</li>
+ *         <li>credentials = 원본 쿠키 토큰 (LogoutUseCase에서 토큰 폐기 시 사용)</li>
  *       </ul>
  *   </li>
  *   <li>{@link UiAuthenticationException} → 401 Unauthorized JSON 응답 즉시 반환</li>
@@ -56,9 +57,6 @@ import java.util.UUID;
 public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(UiTokenAuthenticationFilter.class);
-
-    /** Bearer 토큰 접두사 */
-    private static final String BEARER_PREFIX = "Bearer ";
 
     /**
      * 분산 추적 상관관계 키(MDC)입니다.
@@ -86,19 +84,23 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private final ValidateTokenUseCase validateTokenUseCase;
     private final ObjectMapper objectMapper;
+    private final UiAuthProperties authProperties;
 
     /**
      * 필수 의존성을 초기화합니다.
      *
      * @param validateTokenUseCase 토큰 검증 유스케이스 (캐시 → DB 폴백 처리)
      * @param objectMapper         401 응답 JSON 직렬화용
+     * @param authProperties       인증 쿠키 이름/정책 프로퍼티
      */
     public UiTokenAuthenticationFilter(
             final ValidateTokenUseCase validateTokenUseCase,
-            final ObjectMapper objectMapper
+            final ObjectMapper objectMapper,
+            final UiAuthProperties authProperties
     ) {
         this.validateTokenUseCase = Objects.requireNonNull(validateTokenUseCase, "validateTokenUseCase is null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");
+        this.authProperties = Objects.requireNonNull(authProperties, "authProperties is null");
     }
 
     /**
@@ -111,7 +113,7 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
      * SecurityContext가 비어 있어 Spring Security가 401을 반환하게 됩니다.</p>
      *
      * <p>{@code false}를 반환하여 ASYNC 디스패치 시에도 이 필터가 실행되도록 합니다.
-     * 재실행 시 Authorization 헤더에서 토큰을 재검증하고 SecurityContext를 복원합니다.
+     * 재실행 시 요청 속성에 저장한 인증 객체를 재사용하여 SecurityContext를 복원합니다.
      * 토큰 검증은 Redis 캐시 히트로 처리되므로 성능 영향이 최소화됩니다.</p>
      *
      * @return false — ASYNC 디스패치에서도 이 필터를 실행함
@@ -172,12 +174,15 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
 
-            // 1단계: Authorization 헤더에서 Bearer 토큰 추출
-            final String token = extractBearerToken(request);
+            // 1단계: 인증 쿠키에서 세션 토큰 추출
+            final String token = extractTokenFromCookie(request, authProperties.cookieName());
             if (token == null) {
                 // 토큰 없음 → SecurityContext 미설정 후 다음 필터로 통과
                 // 공개 경로(POST /auth/login 등)는 이 경로로 처리됨
-                log.trace("Bearer 토큰 없음. uri={}, method={}", request.getRequestURI(), request.getMethod());
+                if (log.isTraceEnabled()) {
+                    log.trace("인증 쿠키 없음. cookieName={}, uri={}, method={}",
+                            authProperties.cookieName(), request.getRequestURI(), request.getMethod());
+                }
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -223,18 +228,29 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
     // -------------------------------------------------------------------------
 
     /**
-     * Authorization 헤더에서 Bearer 토큰을 추출합니다.
+     * 요청 쿠키 배열에서 지정된 이름의 인증 토큰을 추출합니다.
      *
      * @param request HTTP 요청
-     * @return Bearer 토큰 문자열 (없거나 형식이 맞지 않으면 null)
+     * @param cookieName 인증 토큰 쿠키 이름
+     * @return 토큰 문자열 (쿠키 미존재/공백 값이면 null)
      */
-    private static String extractBearerToken(final HttpServletRequest request) {
-        final String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header == null || !header.startsWith(BEARER_PREFIX)) {
+    private static String extractTokenFromCookie(final HttpServletRequest request, final String cookieName) {
+        final Cookie[] cookies = request.getCookies();
+        if (cookies == null || cookies.length == 0) {
             return null;
         }
-        final String token = header.substring(BEARER_PREFIX.length()).strip();
-        return token.isEmpty() ? null : token;
+
+        for (Cookie cookie : cookies) {
+            if (!cookieName.equals(cookie.getName())) {
+                continue;
+            }
+            final String token = cookie.getValue() == null ? null : cookie.getValue().trim();
+            if (token == null || token.isEmpty()) {
+                return null;
+            }
+            return token;
+        }
+        return null;
     }
 
     /**
