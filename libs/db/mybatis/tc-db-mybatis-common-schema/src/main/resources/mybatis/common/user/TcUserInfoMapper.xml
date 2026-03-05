@@ -99,6 +99,15 @@
          WHERE email = #{email}
     </select>
 
+    <select id="findAll" resultMap="TcUserInfoMap">
+        SELECT <include refid="TcUserInfoColumns"/>
+          FROM tc_user_info
+        ORDER BY updated_at DESC, user_pk ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
     <select id="findAllByCompanyDepartment" resultMap="TcUserInfoMap">
         SELECT <include refid="TcUserInfoColumns"/>
           FROM tc_user_info

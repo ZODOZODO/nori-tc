@@ -24,17 +24,17 @@
 - UI 관리 페이지 CRUD를 지원하는 기술 중립 Port/계약을 정의합니다.
 
 ### 작업
-- [ ] `libs/ui/tc-ui-core`에 Eqp 조회 Port 추가 (`GET /api/eqp`, `GET /api/eqp/{eqpId}`)
-- [ ] `libs/ui/tc-ui-core`에 Model CRUD Port 추가
-- [ ] `libs/ui/tc-ui-core`에 User CRUD Port 추가
-- [ ] `libs/ui/tc-ui-core`에 Group CRUD Port 추가
-- [ ] `libs/ui/tc-ui-core`에 Permission CRUD Port 추가
-- [ ] `libs/ui/tc-ui-core`에 User-Group 매핑 Port 추가
-- [ ] `libs/ui/tc-ui-core`에 Group-Permission 매핑 Port 추가
-- [ ] 공통 목록 응답 계약 `PagedResponse<T>` 정의
+- [x] `libs/ui/tc-ui-core`에 Eqp 조회 Port 추가 (`GET /api/eqp`, `GET /api/eqp/{eqpId}`)
+- [x] `libs/ui/tc-ui-core`에 Model CRUD Port 추가
+- [x] `libs/ui/tc-ui-core`에 User CRUD Port 추가
+- [x] `libs/ui/tc-ui-core`에 Group CRUD Port 추가
+- [x] `libs/ui/tc-ui-core`에 Permission CRUD Port 추가
+- [x] `libs/ui/tc-ui-core`에 User-Group 매핑 Port 추가
+- [x] `libs/ui/tc-ui-core`에 Group-Permission 매핑 Port 추가
+- [x] 공통 목록 응답 계약 `PagedResponse<T>` 정의
 
 ### DB Store 계약 보강
-- [ ] `libs/db/tc-db-core/.../TcUserInfoStore`에 `findAll(PageRequest)` 추가
+- [x] `libs/db/tc-db-core/.../TcUserInfoStore`에 `findAll(PageRequest)` 추가
 
 ---
 

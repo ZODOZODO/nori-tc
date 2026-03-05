@@ -80,6 +80,20 @@ public interface TcUserInfoMapper {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param offset 페이징/조회 범위 조건
+     * @param limit 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
+    List<TcUserInfo> findAll(
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
+
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
      * @param company DB MyBatis 계층 처리에 사용하는 입력 값
      * @param department DB MyBatis 계층 처리에 사용하는 입력 값
      * @param offset 페이징/조회 범위 조건

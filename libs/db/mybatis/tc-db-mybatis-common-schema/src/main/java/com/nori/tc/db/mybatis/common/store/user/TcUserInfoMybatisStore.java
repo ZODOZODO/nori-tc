@@ -182,6 +182,28 @@ public class TcUserInfoMybatisStore implements TcUserInfoStore {
      * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcUserInfo> findAll(PageRequest page) {
+        final PageRequest p = (page == null) ? PageRequest.defaultPage() : page;
+
+        try {
+            return mapper.findAll(p.offset(), p.limit());
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_user_info findAll failed.", e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_user_info findAll failed (unexpected).", e);
+        }
+    }
+
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
      * @param company DB MyBatis 계층 처리에 사용하는 입력 값
      * @param department DB MyBatis 계층 처리에 사용하는 입력 값
      * @param page 페이징/조회 범위 조건

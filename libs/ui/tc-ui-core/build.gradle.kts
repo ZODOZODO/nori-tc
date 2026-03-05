@@ -51,6 +51,12 @@ dependencies {
     api(project(":libs:db:tc-db-domain"))
 
     /*
+     * DB Core 공통 계약(PageRequest, Upsert Command)을 관리 Port 시그니처에서 사용합니다.
+     * api로 선언하여 Adapter 계층에서 동일 계약 타입을 재사용할 수 있도록 노출합니다.
+     */
+    api(project(":libs:db:tc-db-core"))
+
+    /*
      * Gateway 설비 프로파일 스냅샷을 Port 시그니처(UiCommandMessage)에서 사용합니다.
      * Kafka 계약 모듈이 아닌 comm-domain 타입을 통해 기술 중립성을 유지합니다.
      */

@@ -61,6 +61,19 @@ public interface TcUserInfoStore {
     Optional<TcUserInfo> findByEmail(String email);
 
     /**
+     * 사용자 전체 목록을 페이지 단위로 조회합니다.
+     *
+     * <p>
+     * 화면 기반 사용자 관리 목록 API에서 사용하는 기본 조회 메서드입니다.
+     * 조건 검색이 없는 순수 전체 목록 조회이며, 반드시 offset/limit 페이징을 적용합니다.
+     * </p>
+     *
+     * @param page 페이징 조건(없으면 구현체 기본 페이지 적용 권장)
+     * @return 조회된 사용자 목록
+     */
+    List<TcUserInfo> findAll(PageRequest page);
+
+    /**
      * 회사/부서 기준 목록 조회 + 페이징
      */
     List<TcUserInfo> findAllByCompanyDepartment(String company, String department, PageRequest page);
