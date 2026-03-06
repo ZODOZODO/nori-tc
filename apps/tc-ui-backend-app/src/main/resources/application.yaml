@@ -46,3 +46,9 @@ logging:
     # Kafka 내부 로그는 WARN으로 억제 (INFO 시 부팅 노이즈 과다)
     org.springframework.kafka: WARN
     org.apache.kafka: WARN
+
+management:
+  endpoints:
+    web:
+      # 운영 모니터링 엔드포인트를 /api 접두사 규칙으로 통일합니다.
+      base-path: /api/actuator

@@ -34,10 +34,10 @@ import java.util.Objects;
  *
  * <p>제공 엔드포인트:</p>
  * <ul>
- *   <li>POST /auth/login  — 사용자 ID/비밀번호로 로그인, 세션 토큰 쿠키 발급</li>
- *   <li>POST /auth/logout — 현재 세션 토큰 폐기 + 인증 쿠키 삭제</li>
- *   <li>GET  /auth/me     — 현재 인증된 사용자 정보 조회</li>
- *   <li>GET  /auth/csrf   — CSRF 토큰 쿠키 발급 트리거</li>
+ *   <li>POST /api/auth/login  — 사용자 ID/비밀번호로 로그인, 세션 토큰 쿠키 발급</li>
+ *   <li>POST /api/auth/logout — 현재 세션 토큰 폐기 + 인증 쿠키 삭제</li>
+ *   <li>GET  /api/auth/me     — 현재 인증된 사용자 정보 조회</li>
+ *   <li>GET  /api/auth/csrf   — CSRF 토큰 쿠키 발급 트리거</li>
  * </ul>
  *
  * <p>인증 흐름:</p>
@@ -47,7 +47,7 @@ import java.util.Objects;
  * 삭제 쿠키를 내려 브라우저의 인증 쿠키를 즉시 만료시킵니다.</p>
  */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);

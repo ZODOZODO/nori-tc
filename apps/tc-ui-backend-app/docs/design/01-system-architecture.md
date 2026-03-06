@@ -316,7 +316,7 @@ Spring Security:
   UiSecurityConfig (SecurityFilterChain)
 
 REST 컨트롤러:
-  AuthController        → /auth/login, /auth/logout, /auth/me
+  AuthController        → /api/auth/login, /api/auth/logout, /api/auth/me
   EqpController         → /api/eqp/** (CRUD + start/end)
   WorkController        → /api/work/**
   DlqController         → /api/dlq/gateway/**, /api/dlq/business/**
@@ -353,7 +353,7 @@ public class TcUiBackendAutoConfiguration { }
 ### 로그인 흐름
 
 ```
-POST /auth/login { userId, password }
+POST /api/auth/login { userId, password }
   1. tc_user_info에서 userIdNorm(trim+toLowerCase)으로 조회
   2. status == ACTIVE 확인 → 비활성 시 401
   3. PasswordEncoder.matches(rawPassword, passwordHash) → 불일치 시 401
@@ -403,14 +403,14 @@ tc_ui_permission 필드 활용:
   permCode=DLQ_READ,  resource=/api/dlq,  httpMethod=GET
 
 공개 경로 (인증 없이 허용):
-  POST /auth/login
-  GET  /actuator/health
+  POST /api/auth/login
+  GET  /api/actuator/health
 ```
 
 ### 로그아웃
 
 ```
-POST /auth/logout
+POST /api/auth/logout
   1. SecurityContext에서 현재 token 추출
   2. tc_ui_auth_session.revoked = true
   3. Business Redis 캐시 삭제 (Key: tc:ui:backend:session:{token})
@@ -525,11 +525,11 @@ tc.ui.backend.dlq.gateway-quarantine-prefix=tc:comm:gateway:quarantine:
 ## 검증 방법
 
 1. `./gradlew :apps:tc-ui-backend-app:bootRun` → HTTP 포트 기동 확인
-2. `POST /auth/login` → 200 + token 반환
+2. `POST /api/auth/login` → 200 + token 반환
 3. token 없이 `/api/eqp` → 401
 4. 유효 token + 권한 없는 API → 403
 5. 유효 token + 권한 있는 API → 200
-6. `POST /auth/logout` → 200 → 이전 token 재사용 → 401
+6. `POST /api/auth/logout` → 200 → 이전 token 재사용 → 401
 7. `POST /api/eqp` (create) → tc.ui.events.gateway + tc.ui.events.business 발행 확인
    → tc.ui.commands에 gateway/business 응답 발행 → 200 최종 반환
 8. `POST /api/eqp/{id}/start` → 202 즉시 반환 → tc.ui.events.gateway 발행 확인

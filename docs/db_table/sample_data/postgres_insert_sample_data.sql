@@ -596,8 +596,8 @@ INSERT INTO tc_ui_permission (
   description, is_active, created_at, updated_at, created_by, updated_by
 )
 VALUES
-  ('AUTH_ME_PERM',     '내 정보 조회',        'API', 'EXACT',  '/auth/me',    'GET',    'GET /auth/me',                    TRUE, now(), now(), 'SEED', 'SEED'),
-  ('AUTH_LOGOUT_PERM', '로그아웃',            'API', 'EXACT',  '/auth/logout','POST',   'POST /auth/logout',               TRUE, now(), now(), 'SEED', 'SEED'),
+  ('AUTH_ME_PERM',     '내 정보 조회',        'API', 'EXACT',  '/api/auth/me',    'GET',    'GET /api/auth/me',                    TRUE, now(), now(), 'SEED', 'SEED'),
+  ('AUTH_LOGOUT_PERM', '로그아웃',            'API', 'EXACT',  '/api/auth/logout','POST',   'POST /api/auth/logout',               TRUE, now(), now(), 'SEED', 'SEED'),
   ('EQP_MANAGE',       '설비 관리',           'API', 'PREFIX', '/api/eqp',    NULL,     'GET/POST/PUT/DELETE/start/end 포함', TRUE, now(), now(), 'SEED', 'SEED'),
   ('ASYNC_READ',       '비동기 결과 조회',     'API', 'PREFIX', '/api/async',  'GET',    'GET /api/async/{traceId}',       TRUE, now(), now(), 'SEED', 'SEED'),
   ('DLQ_READ',         'DLQ 조회',            'API', 'PREFIX', '/api/dlq',    'GET',    'GET /api/dlq/**',                TRUE, now(), now(), 'SEED', 'SEED'),

@@ -37,7 +37,7 @@
 
 ## 인증/보안 상세 설계
 
-### 1) 로그인 (`POST /auth/login`)
+### 1) 로그인 (`POST /api/auth/login`)
 - 인증 성공 시 세션 토큰은 응답 본문이 아닌 `Set-Cookie` 헤더로만 전달합니다.
 - 쿠키는 `HttpOnly` 속성으로 발급하여 JavaScript 접근을 차단합니다.
 - 응답 본문 예시는 아래와 같습니다.
@@ -55,15 +55,15 @@
 }
 ```
 
-### 2) 로그아웃 (`POST /auth/logout`)
+### 2) 로그아웃 (`POST /api/auth/logout`)
 - SecurityContext에 적재된 토큰으로 DB revoke + Redis evict를 수행합니다.
 - 응답 시 `TC_UI_AUTH` 삭제 쿠키(`Max-Age=0`)를 내려 클라이언트 쿠키를 즉시 만료시킵니다.
 
-### 3) 현재 사용자 조회 (`GET /auth/me`)
+### 3) 현재 사용자 조회 (`GET /api/auth/me`)
 - 기존과 동일하게 인증된 사용자 정보(`userPk`, `userId`, `permissionCodes`)를 반환합니다.
 - 인증 근거는 헤더가 아닌 쿠키입니다.
 
-### 4) CSRF 토큰 발급 (`GET /auth/csrf`) 신규
+### 4) CSRF 토큰 발급 (`GET /api/auth/csrf`) 신규
 - 프런트 초기 진입 시 호출하여 CSRF 토큰 쿠키를 확보합니다.
 - 상태 변경 요청(`POST`, `PUT`, `DELETE`)은 `X-XSRF-TOKEN` 헤더를 포함해야 합니다.
 

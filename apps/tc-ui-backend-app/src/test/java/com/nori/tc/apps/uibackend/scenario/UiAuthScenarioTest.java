@@ -59,7 +59,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         when(passwordVerifierPort.matches(rawPassword, fakeHash)).thenReturn(true);
 
         // when: 로그인 요청을 전송합니다.
-        final MvcResult loginResult = mockMvc.perform(post("/auth/login")
+        final MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -103,7 +103,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
     void 쿠키없는_보호_API_호출_401() throws Exception {
         log.info("[인증 2] 인증 쿠키 없는 보호 API 호출 401 검증 시작");
 
-        mockMvc.perform(get("/auth/me"))
+        mockMvc.perform(get("/api/auth/me"))
                 .andDo(print())
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
@@ -118,16 +118,16 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
     @Test
     @DisplayName("인증 3: 유효한 인증 쿠키 포함 보호 API 호출 시 200")
     void 쿠키있는_보호_API_인증_통과_200() throws Exception {
-        log.info("[인증 3] 유효 인증 쿠키 기반 /auth/me 200 검증 시작");
+        log.info("[인증 3] 유효 인증 쿠키 기반 /api/auth/me 200 검증 시작");
 
-        // given: /auth/me 경로 권한을 로드하고, 토큰 캐시에서 권한 보유 principal을 반환합니다.
+        // given: /api/auth/me 경로 권한을 로드하고, 토큰 캐시에서 권한 보유 principal을 반환합니다.
         reloadPermissions(List.of(
-                apiPermission("AUTH_ME_PERM", "/auth/me", "GET")
+                apiPermission("AUTH_ME_PERM", "/api/auth/me", "GET")
         ));
         final UserPrincipal principal = principalWithPermission("AUTH_ME_PERM");
         when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
 
-        mockMvc.perform(get("/auth/me")
+        mockMvc.perform(get("/api/auth/me")
                         .cookie(authCookie()))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -152,7 +152,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
 
         // when: 유효 CSRF와 인증 쿠키를 함께 전달해 로그아웃을 수행합니다.
-        final MvcResult logoutResult = mockMvc.perform(post("/auth/logout")
+        final MvcResult logoutResult = mockMvc.perform(post("/api/auth/logout")
                         .with(csrf())
                         .cookie(authCookie()))
                 .andDo(print())
@@ -182,7 +182,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         when(sessionPort.findValidByToken(TEST_TOKEN)).thenReturn(Optional.empty());
 
         // then: 동일 쿠키 재사용 요청은 401이어야 합니다.
-        mockMvc.perform(get("/auth/me")
+        mockMvc.perform(get("/api/auth/me")
                         .cookie(authCookie()))
                 .andDo(print())
                 .andExpect(status().isUnauthorized())
@@ -204,7 +204,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         final UserPrincipal principal = principalWithPermission("AUTH_LOGOUT_PERM");
         when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
 
-        mockMvc.perform(post("/auth/logout")
+        mockMvc.perform(post("/api/auth/logout")
                         .cookie(authCookie()))
                 .andDo(print())
                 .andExpect(status().isForbidden());
@@ -227,7 +227,7 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
         final UserPrincipal principal = principalWithPermission("AUTH_LOGOUT_PERM");
         when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principal));
 
-        mockMvc.perform(post("/auth/logout")
+        mockMvc.perform(post("/api/auth/logout")
                         .with(csrf())
                         .cookie(authCookie()))
                 .andDo(print())

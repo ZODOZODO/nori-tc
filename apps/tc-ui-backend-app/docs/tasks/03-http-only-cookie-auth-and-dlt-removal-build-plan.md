@@ -60,7 +60,7 @@
   - [x] 로그인 성공 시 `Set-Cookie(TC_UI_AUTH, HttpOnly)` 발급
   - [x] 로그인 응답 DTO에서 `token` 제거
   - [x] 로그아웃 시 삭제 쿠키(`Max-Age=0`) 발급
-  - [x] `GET /auth/csrf` 엔드포인트 추가
+  - [x] `GET /api/auth/csrf` 엔드포인트 추가
 - [x] `LoginResponse` 계약 변경 (`userPk`, `issuedAt`, `expiresAt`)
 - [x] `UiTokenAuthenticationFilter`
   - [x] 토큰 추출 로직을 쿠키 전용으로 변경
@@ -133,7 +133,7 @@
   - `UiTokenAuthenticationFilter`는 `Authorization: Bearer` 경로 없이 `TC_UI_AUTH` 쿠키만 읽어 인증합니다.
 - API 계약:
   - `LoginResponse`는 `userPk`, `issuedAt`, `expiresAt` 필드만 유지하며 `token` 필드는 제거되어 있습니다.
-  - `GET /auth/csrf` 엔드포인트가 존재하며 CSRF 쿠키 발급 트리거로 동작합니다.
+  - `GET /api/auth/csrf` 엔드포인트가 존재하며 CSRF 쿠키 발급 트리거로 동작합니다.
 - 보안 정책:
   - `UiSecurityConfig`에서 `CookieCsrfTokenRepository` 기반 CSRF가 활성화되어 있습니다.
   - `UiSecurityConfig`에서 CORS `allowCredentials=true`를 사용하고, 허용 Origin은 `tc.ui.backend.auth.cors-allowed-origins` 프로퍼티를 사용합니다.
@@ -164,7 +164,7 @@
   - 운영 배포 Origin을 화이트리스트로 명시해야 하며, 비어 있으면 same-origin 외 브라우저 요청이 차단됩니다.
 - CSRF:
   - 상태 변경 요청(`POST`, `PUT`, `PATCH`, `DELETE`)은 `X-XSRF-TOKEN` 헤더가 필요합니다.
-  - 프런트 초기 진입 시 `GET /auth/csrf` 호출로 CSRF 쿠키(`XSRF-TOKEN`)를 먼저 확보해야 합니다.
+  - 프런트 초기 진입 시 `GET /api/auth/csrf` 호출로 CSRF 쿠키(`XSRF-TOKEN`)를 먼저 확보해야 합니다.
 
 ---
 

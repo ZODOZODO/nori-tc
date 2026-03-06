@@ -3,7 +3,7 @@ package com.nori.tc.ui.adapters.web.dto.response;
 import java.time.OffsetDateTime;
 
 /**
- * POST /auth/login 성공 응답 DTO입니다.
+ * POST /api/auth/login 성공 응답 DTO입니다.
  *
  * <p>보안 정책상 실제 인증 토큰은 응답 본문이 아닌 HttpOnly 쿠키로만 전달합니다.
  * 본 DTO는 UI 화면에서 로그인 상태를 표시할 때 필요한 메타데이터만 포함합니다.</p>

@@ -29,14 +29,14 @@ dependencies {
 
     /*
      * Actuator 스타터입니다.
-     * - /actuator/health 등 운영 모니터링 엔드포인트를 제공합니다.
+     * - /api/actuator/health 등 운영 모니터링 엔드포인트를 제공합니다.
      */
     implementation(libs.spring.boot.starter.actuator)
 
     /*
      * Prometheus 메트릭 레지스트리입니다.
      * - Phase 4 OPS-01에서 추가한 Micrometer 커스텀 메트릭을
-     *   /actuator/prometheus 엔드포인트로 노출하기 위해 런타임에 연결합니다.
+     *   /api/actuator/prometheus 엔드포인트로 노출하기 위해 런타임에 연결합니다.
      */
     runtimeOnly(libs.micrometer.registry.prometheus)
 

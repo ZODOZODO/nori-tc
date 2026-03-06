@@ -243,7 +243,7 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
   - lastSeenAt @Async 업데이트
   - SecurityContextHolder 등록
 - [x] `UiSecurityConfig` (SecurityFilterChain)
-  - 공개 경로: POST /auth/login, GET /actuator/health
+  - 공개 경로: POST /api/auth/login, GET /api/actuator/health
   - CSRF 비활성화, session stateless
   - UiTokenAuthenticationFilter 등록
   - URL 인가: TcUiPermissionEntity.matchType=PREFIX, httpMethod null이면 전체 허용
@@ -251,9 +251,9 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 
 ### REST 컨트롤러
 - [x] `AuthController`
-  - POST /auth/login — LoginUseCase 호출, AuthToken 반환
-  - POST /auth/logout — LogoutUseCase 호출
-  - GET /auth/me — 현재 UserPrincipal 반환
+  - POST /api/auth/login — LoginUseCase 호출, AuthToken 반환
+  - POST /api/auth/logout — LogoutUseCase 호출
+  - GET /api/auth/me — 현재 UserPrincipal 반환
 - [x] `EqpController`
   - POST /api/eqp — eqp_create, DualResponse DeferredResult
   - PUT /api/eqp/{id} — eqp_update, DualResponse DeferredResult
@@ -355,11 +355,11 @@ gateway-db-adapter / business-db-adapter와 동일한 구조입니다.
 - `UiEqpScenarioTest.java` — EQP 설비 관리 시나리오
 - `UiDlqScenarioTest.java` — DLQ 관리 시나리오
 
-- [x] POST /auth/login → 200 + token 반환
+- [x] POST /api/auth/login → 200 + token 반환
 - [x] Bearer token 없이 /api/eqp → 401
 - [x] 유효 token + 권한 없는 API → 403
 - [x] 유효 token + 권한 있는 API → 200
-- [x] POST /auth/logout → 200 → 이전 token 재사용 → 401
+- [x] POST /api/auth/logout → 200 → 이전 token 재사용 → 401
 - [x] POST /api/eqp (create)
   - tc.ui.events.gateway 발행 확인 (Mock verify)
   - tc.ui.events.business 발행 확인 (Mock verify)

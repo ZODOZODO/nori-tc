@@ -178,7 +178,7 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
             final String token = extractTokenFromCookie(request, authProperties.cookieName());
             if (token == null) {
                 // 토큰 없음 → SecurityContext 미설정 후 다음 필터로 통과
-                // 공개 경로(POST /auth/login 등)는 이 경로로 처리됨
+                // 공개 경로(POST /api/auth/login 등)는 이 경로로 처리됨
                 if (log.isTraceEnabled()) {
                     log.trace("인증 쿠키 없음. cookieName={}, uri={}, method={}",
                             authProperties.cookieName(), request.getRequestURI(), request.getMethod());

@@ -3,7 +3,7 @@ package com.nori.tc.ui.adapters.web.dto.response;
 import java.util.Set;
 
 /**
- * GET /auth/me 응답 DTO입니다.
+ * GET /api/auth/me 응답 DTO입니다.
  *
  * <p>현재 인증된 사용자의 식별 정보와 보유 권한 코드 목록을 반환합니다.
  * 클라이언트에서 메뉴 노출 여부나 버튼 활성화 판단에 활용합니다.</p>

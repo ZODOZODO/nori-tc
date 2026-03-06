@@ -36,7 +36,7 @@ import java.util.Objects;
  *   <li>세션: STATELESS (서버 측 HttpSession 사용 안 함)</li>
  *   <li>인증 필터: {@link UiTokenAuthenticationFilter}를
  *       {@link UsernamePasswordAuthenticationFilter} 앞에 등록</li>
- *   <li>공개 경로: POST /auth/login, GET /auth/csrf, GET /actuator/health</li>
+ *   <li>공개 경로: POST /api/auth/login, GET /api/auth/csrf, GET /api/actuator/health</li>
  *   <li>그 외 경로: 인증 필수 + DB 기반 URL 인가 ({@link UiApiPermissionCache})</li>
  * </ul>
  *
@@ -102,9 +102,9 @@ public class UiSecurityConfig {
                 // URL별 인가 설정
                 .authorizeHttpRequests(auth -> auth
                         // 공개 경로: 인증 없이 허용
-                        .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/actuator/health").permitAll()
                         // CORS preflight 요청은 브라우저가 자동 호출하므로 인증 없이 허용합니다.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 그 외 모든 요청: 인증 필수 + DB 기반 URL 인가

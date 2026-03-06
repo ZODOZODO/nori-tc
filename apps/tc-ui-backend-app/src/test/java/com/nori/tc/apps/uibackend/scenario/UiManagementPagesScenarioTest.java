@@ -189,7 +189,7 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         when(eqpQueryPort.findAll(PageRequest.of(0, 100)))
                 .thenReturn(PagedResponse.of(List.of(sampleEqp()), 0, 100, 1));
 
-        mockMvc.perform(post("/auth/login")
+        mockMvc.perform(post("/api/auth/login")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

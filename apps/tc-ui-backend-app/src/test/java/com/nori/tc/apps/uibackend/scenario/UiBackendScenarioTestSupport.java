@@ -305,8 +305,8 @@ abstract class UiBackendScenarioTestSupport {
                 apiPermission(EQP_MANAGE_PERM, "/api/eqp", null),
                 apiPermission(EQP_MANAGE_PERM, "/api/async", "GET"),
                 apiPermission(EQP_MANAGE_PERM, "/api/dlq", null),
-                apiPermission("AUTH_ME_PERM", "/auth/me", "GET"),
-                apiPermission("AUTH_LOGOUT_PERM", "/auth/logout", "POST")
+                apiPermission("AUTH_ME_PERM", "/api/auth/me", "GET"),
+                apiPermission("AUTH_LOGOUT_PERM", "/api/auth/logout", "POST")
         ));
         apiPermissionCache.loadPermissions();
     }
