@@ -116,6 +116,7 @@ public class TcDbRedisAutoConfiguration {
      *
      * @return Object 값용 기본 JSON 직렬화기
      */
+    @SuppressWarnings("removal")
     private static RedisSerializer<Object> createDefaultJsonSerializer() {
         final ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.findAndRegisterModules();
@@ -123,6 +124,8 @@ public class TcDbRedisAutoConfiguration {
         if (log.isDebugEnabled()) {
             log.debug("tcRedisTemplate default serializer initialized as GenericJackson2JsonRedisSerializer");
         }
+        // TODO(tc-db-redis-starter): Jackson 3 전환 시점에 GenericJacksonJsonRedisSerializer(tools.jackson)로 마이그레이션한다.
+        // 현재는 프로젝트 전반의 Jackson 2(com.fasterxml.jackson) 기반 호환성을 위해 기존 serializer를 유지한다.
         return new GenericJackson2JsonRedisSerializer(objectMapper);
     }
 }

@@ -6,6 +6,8 @@ import com.nori.tc.ui.domain.task.UiTaskStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -231,9 +233,9 @@ class DualResponseRegistryTest {
         final CountDownLatch startGate = new CountDownLatch(1);
 
         try {
-            final CompletableFuture<UiDualTaskFinalResult>[] futures = new CompletableFuture[traceCount];
+            final List<CompletableFuture<UiDualTaskFinalResult>> futures = new ArrayList<>(traceCount);
             for (int i = 0; i < traceCount; i++) {
-                futures[i] = registry.register("trace-concurrency-" + i, 3_000L);
+                futures.add(registry.register("trace-concurrency-" + i, 3_000L));
             }
 
             final Future<?>[] tasks = new Future<?>[traceCount * 2];

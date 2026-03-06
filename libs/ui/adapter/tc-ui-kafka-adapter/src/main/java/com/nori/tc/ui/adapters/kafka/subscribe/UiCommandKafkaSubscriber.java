@@ -16,7 +16,6 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -72,7 +71,7 @@ public class UiCommandKafkaSubscriber {
     public UiCommandKafkaSubscriber(
             final UiCommandIngressPort ingressPort,
             final ObjectMapper objectMapper,
-            @Nullable final MeterRegistry meterRegistry
+            final MeterRegistry meterRegistry
     ) {
         this.ingressPort = Objects.requireNonNull(ingressPort, "ingressPort is null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");

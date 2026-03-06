@@ -8,7 +8,6 @@ import com.nori.tc.ui.domain.task.UiTaskResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -75,7 +74,7 @@ public class DualResponseRegistry {
     @Autowired
     public DualResponseRegistry(
             final DualResponseRedisPort dualResponseRedisPort,
-            @Nullable final MeterRegistry meterRegistry
+            final MeterRegistry meterRegistry
     ) {
         this.dualResponseRedisPort = Objects.requireNonNull(dualResponseRedisPort,
                 "dualResponseRedisPort is null");

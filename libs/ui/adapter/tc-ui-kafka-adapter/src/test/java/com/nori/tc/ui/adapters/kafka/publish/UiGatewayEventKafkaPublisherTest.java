@@ -7,6 +7,7 @@ import com.nori.tc.ui.adapters.kafka.exception.UiKafkaPublishException;
 import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEqpRoutePartitionLookupPort;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +69,6 @@ class UiGatewayEventKafkaPublisherTest {
         );
 
         assertThrows(UiKafkaPublishException.class, () -> publisher.publish(oversized));
-        verify(kafkaTemplate, never()).send(any(org.apache.kafka.clients.producer.ProducerRecord.class));
+        verify(kafkaTemplate, never()).send(org.mockito.ArgumentMatchers.<ProducerRecord<String, Object>>any());
     }
 }

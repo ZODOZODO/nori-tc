@@ -138,7 +138,7 @@ public class BusinessActionDataIndexHybridResolver {
      */
     private static void parseRootAsFieldSpec(JsonNode root, Map<String, ValueSpec> target) {
         final List<String> reservedKeys = List.of("mdf", "message", "messageName", "fields");
-        final var iterator = root.fields();
+        final var iterator = root.properties().iterator();
         while (iterator.hasNext()) {
             final Map.Entry<String, JsonNode> entry = iterator.next();
             if (reservedKeys.contains(entry.getKey())) {
@@ -152,7 +152,7 @@ public class BusinessActionDataIndexHybridResolver {
      * fields 객체를 필드 정의로 파싱합니다.
      */
     private static void parseFieldSpecObject(JsonNode fieldsNode, Map<String, ValueSpec> target) {
-        final var iterator = fieldsNode.fields();
+        final var iterator = fieldsNode.properties().iterator();
         while (iterator.hasNext()) {
             final Map.Entry<String, JsonNode> entry = iterator.next();
             target.put(entry.getKey(), parseValueSpec(entry.getValue()));
@@ -409,7 +409,7 @@ public class BusinessActionDataIndexHybridResolver {
         }
         if (node.isObject()) {
             final Map<String, Object> values = new LinkedHashMap<>();
-            final var fields = node.fields();
+            final var fields = node.properties().iterator();
             while (fields.hasNext()) {
                 final Map.Entry<String, JsonNode> field = fields.next();
                 values.put(field.getKey(), jsonValue(field.getValue()));

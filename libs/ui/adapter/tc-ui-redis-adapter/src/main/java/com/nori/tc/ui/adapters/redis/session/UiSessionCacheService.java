@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -55,7 +54,7 @@ public class UiSessionCacheService implements TokenCachePort {
             @Qualifier("businessRedisTemplate") final RedisTemplate<String, Object> businessRedisTemplate,
             final UiAuthProperties authProperties,
             @Qualifier("uiRedisObjectMapper") final ObjectMapper redisObjectMapper,
-            @Nullable final MeterRegistry meterRegistry
+            final MeterRegistry meterRegistry
     ) {
         this.businessRedisTemplate = Objects.requireNonNull(businessRedisTemplate,
                 "businessRedisTemplate 은 null 이 될 수 없습니다.");

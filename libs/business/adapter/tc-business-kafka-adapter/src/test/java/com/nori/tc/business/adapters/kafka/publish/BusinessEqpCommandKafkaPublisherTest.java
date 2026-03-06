@@ -80,7 +80,8 @@ class BusinessEqpCommandKafkaPublisherTest {
 
         // 카프카 발행은 성공한 것으로 가정하고 즉시 완료 future를 반환합니다.
         when(routePartitionLookupPort.findRoutePartitionByEqpId("EQP-TEST-01")).thenReturn(Optional.of(4));
-        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(CompletableFuture.completedFuture(null));
+        when(kafkaTemplate.send(org.mockito.ArgumentMatchers.<ProducerRecord<String, Object>>any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
         // 실행 단계: 발행을 수행합니다.
         publisher.publish(command);
@@ -131,7 +132,6 @@ class BusinessEqpCommandKafkaPublisherTest {
 
         // 실행/검증 단계: 명시 partition을 만들 수 없으므로 예외가 발생해야 하며, Kafka send는 호출되지 않아야 합니다.
         assertThrows(IllegalStateException.class, () -> publisher.publish(command));
-        verify(kafkaTemplate, never()).send(any(ProducerRecord.class));
+        verify(kafkaTemplate, never()).send(org.mockito.ArgumentMatchers.<ProducerRecord<String, Object>>any());
     }
 }
-
