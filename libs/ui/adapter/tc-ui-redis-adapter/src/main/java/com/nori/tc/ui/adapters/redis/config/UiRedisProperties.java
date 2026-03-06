@@ -14,11 +14,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>바인딩 대상 (config/tc-redis.properties):</p>
  * <pre>
- * tc.ui.backend.redis.gateway.host=192.168.0.22
+ * tc.ui.backend.redis.gateway.host=192.168.0.13
  * tc.ui.backend.redis.gateway.port=6379
  * tc.ui.backend.redis.gateway.password=...
  *
- * tc.ui.backend.redis.business.host=192.168.0.22
+ * tc.ui.backend.redis.business.host=192.168.0.13
  * tc.ui.backend.redis.business.port=6380
  * tc.ui.backend.redis.business.password=...
  * </pre>

@@ -44,8 +44,8 @@ class TcEqpSocketMybatisStoreTest {
     void shouldRejectSocketUpsertWhenPassiveListenerGroupRoutePartitionMismatch() {
         final TcEqpSocketMybatisStore store = new TcEqpSocketMybatisStore(socketMapper, eqpMapper);
 
-        final TcEqp currentParent = tcEqp(100L, "EQP-SOCKET-100", ProtocolType.SOCKET, "PASSIVE", 1, "192.168.0.22", 6000);
-        final TcEqp peerParent = tcEqp(101L, "EQP-SOCKET-101", ProtocolType.SOCKET, "PASSIVE", 2, "192.168.0.22", 6000);
+        final TcEqp currentParent = tcEqp(100L, "EQP-SOCKET-100", ProtocolType.SOCKET, "PASSIVE", 1, "192.168.0.13", 6000);
+        final TcEqp peerParent = tcEqp(101L, "EQP-SOCKET-101", ProtocolType.SOCKET, "PASSIVE", 2, "192.168.0.13", 6000);
         final TcEqpSocket peerSocket = tcEqpSocket(101L, "LINE_DELIMITED");
 
         when(eqpMapper.findByEqpKey(100L)).thenReturn(Optional.of(currentParent));

@@ -17,8 +17,8 @@ REM     settings.gradle.kts.
 REM   - It also warns if build.gradle.kts does not mention TcUiBackendApplication.
 REM
 REM Why this precheck exists:
-REM   - In the current repo snapshot, tc-ui-backend-app is present in apps\ but
-REM     appears to be missing from settings.gradle.kts, so root Gradle build may fail.
+REM   - If tc-ui-backend-app is not included in settings.gradle.kts, root Gradle
+REM     cannot execute :apps:tc-ui-backend-app:bootJar.
 REM ============================================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -35,7 +35,20 @@ set "TRACE_JFR=%TRACE_ROOT%\jfr"
 set "APP_JAR="
 set "FAIL_REASON="
 set "CONFIG_DIR=%SCRIPT_DIR%config"
-set "SPRING_CONFIG_IMPORTS=optional:file:config/tc-db.properties,optional:file:%APP_DIR_FWD%/config/tc-messaging.properties,optional:file:%APP_DIR_FWD%/config/tc-redis.properties,optional:file:config/tc-log.properties"
+
+REM ============================================================================
+REM spring.config.import override policy:
+REM - Shared properties (tc-db/tc-log) are loaded from repo-root config/
+REM - UI app properties (tc-messaging/tc-redis/tc-ui-backend) are loaded from
+REM   apps/tc-ui-backend-app/config/
+REM
+REM Important:
+REM - tc-ui-backend.properties contains required Kafka topic values, including
+REM   tc.ui.backend.kafka.gateway-events-topic.
+REM - If that file is omitted from spring.config.import, startup fails during
+REM   required property validation in UiKafkaTopicProperties.
+REM ============================================================================
+set "SPRING_CONFIG_IMPORTS=optional:file:config/tc-db.properties,optional:file:%APP_DIR_FWD%/config/tc-messaging.properties,optional:file:%APP_DIR_FWD%/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:%APP_DIR_FWD%/config/tc-ui-backend.properties"
 
 if not exist "%SCRIPT_DIR%gradlew.bat" goto :ERR_NO_GRADLEW
 where java >nul 2>&1

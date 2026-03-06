@@ -298,12 +298,12 @@ AsyncResultStoreService (businessRedisTemplate 공유):
 **tc-redis.properties:**
 ```properties
 # Gateway Redis - DLQ, Quarantine 읽기
-tc.ui.backend.redis.gateway.host=192.168.0.22
+tc.ui.backend.redis.gateway.host=192.168.0.13
 tc.ui.backend.redis.gateway.port=6379
 tc.ui.backend.redis.gateway.password=REDACTED_REDIS_PASSWORD
 
 # Business Redis - DLQ 읽기, 토큰 캐시, async 결과 임시 저장
-tc.ui.backend.redis.business.host=192.168.0.22
+tc.ui.backend.redis.business.host=192.168.0.13
 tc.ui.backend.redis.business.port=6380
 tc.ui.backend.redis.business.password=REDACTED_REDIS_PASSWORD
 ```
