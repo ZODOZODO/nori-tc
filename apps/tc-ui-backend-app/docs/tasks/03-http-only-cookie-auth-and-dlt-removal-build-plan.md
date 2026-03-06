@@ -100,19 +100,19 @@
 - 변경된 인증 계약 및 DLT 제거 정책에 맞게 테스트를 갱신합니다.
 
 ### 작업
-- [ ] 인증 시나리오 테스트
-  - [ ] 로그인 응답에 `data.token` 미포함 검증
-  - [ ] 로그인 응답 `Set-Cookie` 검증
-  - [ ] 쿠키 없는 보호 API `401` 검증
-  - [ ] 쿠키 있는 보호 API 인증 통과 검증
-  - [ ] 로그아웃 후 쿠키 삭제 및 재사용 불가 검증
-- [ ] CSRF 테스트
-  - [ ] 상태 변경 요청에서 CSRF 누락 시 `403`
-  - [ ] 유효 CSRF 포함 시 정상 처리
-- [ ] Kafka 테스트
-  - [ ] 파싱 실패 시 DLT 발행 assertion 제거
-  - [ ] 파싱 실패 ACK 및 ingress 미호출 검증
-  - [ ] topic properties fixture에서 DLT 키 제거
+- [x] 인증 시나리오 테스트
+  - [x] 로그인 응답에 `data.token` 미포함 검증
+  - [x] 로그인 응답 `Set-Cookie` 검증
+  - [x] 쿠키 없는 보호 API `401` 검증
+  - [x] 쿠키 있는 보호 API 인증 통과 검증
+  - [x] 로그아웃 후 쿠키 삭제 및 재사용 불가 검증
+- [x] CSRF 테스트
+  - [x] 상태 변경 요청에서 CSRF 누락 시 `403`
+  - [x] 유효 CSRF 포함 시 정상 처리
+- [x] Kafka 테스트
+  - [x] 파싱 실패 시 DLT 발행 assertion 제거
+  - [x] 파싱 실패 ACK 및 ingress 미호출 검증
+  - [x] topic properties fixture에서 DLT 키 제거
 
 ---
 

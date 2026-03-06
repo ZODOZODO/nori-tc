@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -76,7 +77,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
      */
     @BeforeEach
     void setUpValidToken() {
-        // 유효한 Bearer 토큰으로 모든 EQP 요청에 인증이 통과하도록 설정합니다.
+        // 유효한 인증 쿠키 토큰으로 모든 EQP 요청에 인증이 통과하도록 설정합니다.
         // lenient()를 사용하여 특정 테스트에서 토큰을 사용하지 않더라도 불필요한 Stubbing 경고를 방지합니다.
         lenient().when(tokenCachePort.get(TEST_TOKEN))
                 .thenReturn(Optional.of(principalWithPermission(EQP_MANAGE_PERM)));
@@ -109,7 +110,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         // when: POST /api/eqp 비동기 요청 시작 — DeferredResult 반환, Spring async 처리 중
         // gatewayEventPublishPort.publish()와 businessEventPublishPort.publish()는 @MockitoBean no-op으로 동작합니다.
         final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"eqpId":"EQP-CREATE-001","interfaceType":"HSMS"}
@@ -169,7 +171,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[시나리오 6-a] DeferredResult 재디스패치 토큰 이중검증 방지 검증 시작");
 
         final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"eqpId":"EQP-CREATE-ASYNC-001","interfaceType":"HSMS"}
@@ -218,7 +221,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
         final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
                         .queryParam("interfaceType", "HSMS")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
@@ -259,7 +263,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[시나리오 6-c] DELETE interfaceType 누락 400 검증 시작");
 
         final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
@@ -302,7 +307,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         // when + then: EQP_START 요청 → 202 즉시 반환
         // EqpController.publishLifecycleAndAccept()는 DeferredResult 없이 즉시 응답합니다.
         mockMvc.perform(post("/api/eqp/{eqpId}/start", TEST_EQP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"interfaceType":"HSMS"}
@@ -367,7 +373,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: polling → 200 + PASS 결과
         mockMvc.perform(get("/api/async/{traceId}", traceId)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -396,7 +403,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: 처리 중 상태 → 202
         mockMvc.perform(get("/api/async/{traceId}", traceId)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.success").value(true))
@@ -418,7 +426,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .thenReturn(Optional.of(AsyncResultEntry.timeout(traceId)));
 
         mockMvc.perform(get("/api/async/{traceId}", traceId)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isRequestTimeout())
                 .andExpect(jsonPath("$.success").value(true))
@@ -438,7 +447,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         when(asyncResultStorePort.getWithStatus(anyString())).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/async/{traceId}", "not-found-trace-id")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isNotFound());
 
@@ -488,7 +498,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         // when + then: route_partition 미배정 설비로 EQP_START 시도 → 발행 차단 → 500
         // EqpController.publishLifecycleAndAccept()의 catch 블록에서 ERROR 로그 후 500 PUBLISH_FAILED 반환
         mockMvc.perform(post("/api/eqp/{eqpId}/start", "NO-ROUTE-EQP")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"interfaceType":"HSMS"}
@@ -513,7 +524,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .when(businessEventPublishPort).publish(any());
 
         final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"eqpId":"EQP-COMP-001","interfaceType":"HSMS"}
@@ -554,7 +566,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .when(businessEventPublishPort).publish(any());
 
         final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"eqpId":"EQP-COMP-FAIL-001","interfaceType":"HSMS"}

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -52,7 +53,7 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
      */
     @BeforeEach
     void setUpValidToken() {
-        // 유효한 Bearer 토큰으로 모든 DLQ 요청에 인증이 통과하도록 설정합니다.
+        // 유효한 인증 쿠키 토큰으로 모든 DLQ 요청에 인증이 통과하도록 설정합니다.
         // lenient()를 사용하여 특정 테스트에서 토큰을 사용하지 않더라도 불필요한 Stubbing 경고를 방지합니다.
         lenient().when(tokenCachePort.get(TEST_TOKEN))
                 .thenReturn(Optional.of(principalWithPermission(EQP_MANAGE_PERM)));
@@ -90,7 +91,8 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: GET /api/dlq/gateway → 200 + DLQ 항목 2건
         mockMvc.perform(get("/api/dlq/gateway")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -117,7 +119,8 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: 빈 DLQ → 200 + 빈 배열
         mockMvc.perform(get("/api/dlq/gateway")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -144,7 +147,8 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: 삭제 요청 → 200 + data=true
         mockMvc.perform(delete("/api/dlq/gateway/{dlqId}", dlqId)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -182,7 +186,8 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: GET /api/dlq/business → 200 + DLQ 항목 3건
         mockMvc.perform(get("/api/dlq/business")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -210,7 +215,8 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: 빈 DLQ → 200 + 빈 배열
         mockMvc.perform(get("/api/dlq/business")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -237,7 +243,8 @@ class UiDlqScenarioTest extends UiBackendScenarioTestSupport {
 
         // when + then: 없는 항목 삭제 → 200 + data=false (멱등성 보장)
         mockMvc.perform(delete("/api/dlq/business/{dlqId}", dlqId)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))

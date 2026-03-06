@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
@@ -73,7 +74,7 @@ public class UiSecurityConfig {
             final UiApiPermissionCache permissionCache,
             final UiAuthenticationEntryPoint authenticationEntryPoint,
             final CsrfTokenRepository csrfTokenRepository,
-            final CorsConfigurationSource corsConfigurationSource,
+            @Qualifier("uiCorsConfigurationSource") final CorsConfigurationSource corsConfigurationSource,
             final UiAuthProperties authProperties
     ) throws Exception {
         Objects.requireNonNull(tokenFilter, "tokenFilter is null");

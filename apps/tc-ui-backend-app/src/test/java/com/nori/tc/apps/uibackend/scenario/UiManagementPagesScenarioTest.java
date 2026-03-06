@@ -36,6 +36,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -89,7 +90,7 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
     /**
      * 관리 페이지 시나리오 공통 사전 설정입니다.
      *
-     * <p>모든 관리 API는 Bearer 인증을 요구하므로, 기본적으로 TEST_TOKEN에
+     * <p>모든 관리 API는 인증 쿠키 기반 인증을 요구하므로, 기본적으로 TEST_TOKEN에
      * 관리자 수준 권한을 부여해 둡니다. 특정 테스트(403 검증 등)는 메서드 내부에서
      * stubbing/권한 캐시를 재정의합니다.</p>
      */
@@ -149,7 +150,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         when(tokenCachePort.get(TEST_TOKEN)).thenReturn(Optional.of(principalWithNoPermission()));
 
         mockMvc.perform(post("/api/model")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -188,6 +190,7 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .thenReturn(PagedResponse.of(List.of(sampleEqp()), 0, 100, 1));
 
         mockMvc.perform(post("/auth/login")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -198,17 +201,19 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.token").isNotEmpty());
+                .andExpect(jsonPath("$.data.token").doesNotExist());
 
         mockMvc.perform(get("/api/eqp")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.items[0].eqpId").value(TEST_EQP_ID));
 
         mockMvc.perform(post("/api/eqp/{eqpId}/start", TEST_EQP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -238,7 +243,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         when(modelCrudPort.upsert(any())).thenReturn(model);
 
         mockMvc.perform(get("/api/model")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.offset").value(0))
@@ -247,7 +253,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         verify(modelCrudPort).findAll(PageRequest.of(0, 100));
 
         mockMvc.perform(post("/api/model")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -266,13 +273,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.data.modelVersionKey").value(TEST_MODEL_VERSION_KEY));
 
         mockMvc.perform(get("/api/model/{modelVersionKey}", TEST_MODEL_VERSION_KEY)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.modelVersionKey").value(TEST_MODEL_VERSION_KEY));
 
         mockMvc.perform(put("/api/model/{modelVersionKey}", TEST_MODEL_VERSION_KEY)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -290,7 +299,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(delete("/api/model/{modelVersionKey}", TEST_MODEL_VERSION_KEY)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -310,7 +320,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .thenThrow(new UiConflictException("중복 모델 버전입니다."));
 
         mockMvc.perform(post("/api/model")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -330,7 +341,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .when(modelCrudPort).deleteByModelVersionKey(anyLong());
 
         mockMvc.perform(delete("/api/model/{modelVersionKey}", TEST_MODEL_VERSION_KEY)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
@@ -357,13 +369,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         when(userGroupMappingPort.upsert(any())).thenReturn(mapping);
 
         mockMvc.perform(get("/api/user")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.count").value(1));
 
         mockMvc.perform(post("/api/user")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -383,13 +397,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(get("/api/user/{userPk}", TEST_USER_PK)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userPk").value(TEST_USER_PK));
 
         mockMvc.perform(put("/api/user/{userPk}", TEST_USER_PK)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -408,7 +424,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(post("/api/user/{userPk}/password/reset", TEST_USER_PK)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -421,20 +438,23 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(post("/api/user/{userPk}/group/{groupId}", TEST_USER_PK, TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userPk").value(TEST_USER_PK))
                 .andExpect(jsonPath("$.data.groupId").value(TEST_GROUP_ID));
 
         mockMvc.perform(delete("/api/user/{userPk}/group/{groupId}", TEST_USER_PK, TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(delete("/api/user/{userPk}", TEST_USER_PK)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -462,13 +482,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         when(groupPermissionMappingPort.upsert(any())).thenReturn(mapping);
 
         mockMvc.perform(get("/api/group")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.count").value(1));
 
         mockMvc.perform(post("/api/group")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -483,13 +505,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(get("/api/group/{groupId}", TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.groupId").value(TEST_GROUP_ID));
 
         mockMvc.perform(put("/api/group/{groupId}", TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -504,26 +528,30 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(get("/api/group/{groupId}/permission", TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.count").value(1));
 
         mockMvc.perform(post("/api/group/{groupId}/permission/{permId}", TEST_GROUP_ID, TEST_PERMISSION_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.groupId").value(TEST_GROUP_ID))
                 .andExpect(jsonPath("$.data.permId").value(TEST_PERMISSION_ID));
 
         mockMvc.perform(delete("/api/group/{groupId}/permission/{permId}", TEST_GROUP_ID, TEST_PERMISSION_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(delete("/api/group/{groupId}", TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -546,13 +574,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         when(permissionCrudPort.upsert(any())).thenReturn(permission);
 
         mockMvc.perform(get("/api/permission")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.count").value(1));
 
         mockMvc.perform(post("/api/permission")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -573,13 +603,15 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(get("/api/permission/{permId}", TEST_PERMISSION_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.permId").value(TEST_PERMISSION_ID));
 
         mockMvc.perform(put("/api/permission/{permId}", TEST_PERMISSION_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -600,7 +632,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(delete("/api/permission/{permId}", TEST_PERMISSION_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -611,7 +644,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         ));
 
         mockMvc.perform(get("/api/permission")
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isForbidden());
 
@@ -629,7 +663,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         doThrow(new UiConflictException("그룹 삭제 충돌"))
                 .when(groupCrudPort).deleteByGroupId(TEST_GROUP_ID);
         mockMvc.perform(delete("/api/group/{groupId}", TEST_GROUP_ID)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
@@ -637,7 +672,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         doThrow(new UiBadRequestException("userPk는 1 이상이어야 합니다."))
                 .when(userCrudPort).deleteByUserPk(TEST_USER_PK);
         mockMvc.perform(delete("/api/user/{userPk}", TEST_USER_PK)
-                        .header("Authorization", "Bearer " + TEST_TOKEN))
+                        .cookie(authCookie())
+                        .with(csrf()))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
@@ -654,35 +690,40 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[Phase5-10] 목록 API limit 상한 정책 검증 시작");
 
         mockMvc.perform(get("/api/eqp")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .queryParam("limit", "501"))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
         mockMvc.perform(get("/api/model")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .queryParam("limit", "501"))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
         mockMvc.perform(get("/api/user")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .queryParam("limit", "501"))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
         mockMvc.perform(get("/api/group")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .queryParam("limit", "501"))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
         mockMvc.perform(get("/api/permission")
-                        .header("Authorization", "Bearer " + TEST_TOKEN)
+                        .cookie(authCookie())
+                        .with(csrf())
                         .queryParam("limit", "501"))
                 .andDo(print())
                 .andExpect(status().isBadRequest())

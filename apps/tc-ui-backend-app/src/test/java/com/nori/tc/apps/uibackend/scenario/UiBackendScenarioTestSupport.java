@@ -48,6 +48,7 @@ import com.nori.tc.ui.core.usecase.LogoutUseCase;
 import com.nori.tc.ui.core.usecase.ValidateTokenUseCase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -166,8 +167,11 @@ abstract class UiBackendScenarioTestSupport {
     static final String TEST_USER_ID = "testuser";
 
     /**
-     * 테스트용 64자 Bearer 세션 토큰.
-     * 실제 LoginUseCase가 생성하는 alphanumeric 64자 형식을 모방합니다.
+     * 테스트용 64자 세션 토큰입니다.
+     *
+     * <p>실제 {@link LoginUseCase}가 생성하는 영숫자 64자 토큰 형식을 모방합니다.
+     * Phase 4 이후 인증 계약은 HttpOnly 쿠키 기반이므로, 본 토큰은
+     * Authorization 헤더가 아닌 인증 쿠키 값으로 사용됩니다.</p>
      */
     static final String TEST_TOKEN =
             "TestTokenAABBCCDD11223344TestTokenAABBCCDD11223344TestTokenAABBCCDD";
@@ -191,6 +195,15 @@ abstract class UiBackendScenarioTestSupport {
 
     @Autowired
     UiApiPermissionCache apiPermissionCache;
+
+    /**
+     * 인증/CSRF 쿠키 이름 등 보안 계약 프로퍼티입니다.
+     *
+     * <p>테스트 코드가 하드코딩 문자열(예: {@code TC_UI_AUTH})에 의존하지 않고,
+     * 실제 런타임 설정값을 그대로 따르도록 주입받아 사용합니다.</p>
+     */
+    @Autowired
+    UiAuthProperties authProperties;
 
     // ─────────────────────────────────────────────────────────
     // DualResponseRegistry: @MockitoSpyBean (실제 동작 + verify/captor 지원)
@@ -407,5 +420,17 @@ abstract class UiBackendScenarioTestSupport {
                 now, now,
                 "SYSTEM", "SYSTEM"
         );
+    }
+
+    /**
+     * 기본 테스트 토큰을 담은 인증 쿠키 객체를 생성합니다.
+     *
+     * <p>쿠키 이름은 {@link UiAuthProperties#cookieName()} 설정을 사용하므로,
+     * 환경별 쿠키 이름 변경이 있어도 테스트가 계약을 자동으로 추종합니다.</p>
+     *
+     * @return 인증 필터가 인식 가능한 토큰 쿠키
+     */
+    Cookie authCookie() {
+        return new Cookie(authProperties.cookieName(), TEST_TOKEN);
     }
 }
