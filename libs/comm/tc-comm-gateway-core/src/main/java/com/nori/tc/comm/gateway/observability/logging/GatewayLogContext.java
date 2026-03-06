@@ -7,7 +7,7 @@ import com.nori.tc.logging.TcMdcTaskDecorator;
  * Gateway-specific log context facade.
  *
  * This class keeps existing call-sites stable while delegating
- * actual MDC handling to tc-log-starter shared utilities.
+ * actual MDC handling to tc-common-logging shared utilities.
  */
 public final class GatewayLogContext implements AutoCloseable {
 
@@ -56,3 +56,4 @@ public final class GatewayLogContext implements AutoCloseable {
         delegate.close();
     }
 }
+

@@ -42,11 +42,11 @@ dependencies {
     implementation(libs.spring.boot.starter)
 
     /*
-     * 공통 로그 스타터
+     * 공통 로깅 모듈
      *
      * - 서비스 공통 로그 패턴(MDC 포함), 롤링 정책, 컨텍스트 전파를 제공합니다.
      */
-    implementation(project(":libs:log:starter:tc-log-starter"))
+    implementation(project(":libs:common:tc-common-logging"))
 
     /*
      * Comm Gateway 핵심 스타터

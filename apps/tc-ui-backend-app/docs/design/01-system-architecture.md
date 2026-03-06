@@ -1,4 +1,4 @@
-> 작성일: 2026-03-01
+﻿> 작성일: 2026-03-01
 
 # tc-ui-backend-app 시스템 아키텍처 설계
 
@@ -77,7 +77,7 @@ java {
 
 dependencies {
     implementation(libs.spring.boot.starter)
-    implementation(project(":libs:log:starter:tc-log-starter"))
+    implementation(project(":libs:common:tc-common-logging"))
     implementation(project(":libs:ui:starter:tc-ui-backend-starter"))
     implementation(project(":libs:db:starter:tc-db-postgres-jpa-starter"))
     testImplementation(libs.spring.boot.starter.test)
@@ -536,3 +536,4 @@ tc.ui.backend.dlq.gateway-quarantine-prefix=tc:comm:gateway:quarantine:
    → tc.ui.commands에 start reply → `GET /api/async/{traceId}` → 결과 반환
 9. `GET /api/dlq/gateway` → Gateway Redis `tc:comm:gateway:dlq:*` 목록 반환
 10. `GET /api/dlq/business` → Business Redis `tc:business:core:dlq:*` 목록 반환
+

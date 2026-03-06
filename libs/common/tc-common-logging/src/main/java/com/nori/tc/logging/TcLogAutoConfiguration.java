@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
 /**
- * tc-log-starter 자동 설정.
+ * tc-common-logging 자동 설정.
  *
  * - 로그 압축 스케줄러를 등록한다
  * - 기본값: enabled=true
@@ -33,3 +33,4 @@ public class TcLogAutoConfiguration {
         return new LogCompressionScheduler(properties, environment);
     }
 }
+

@@ -54,19 +54,24 @@ dependencies {
     implementation(libs.spring.boot.starter.security)
 
     /*
-     * 공통 로그 스타터 의존성입니다.
-     * - 프로젝트 공통 로깅 포맷과 MDC 구성을 재사용합니다.
+     * 공통 로깅 모듈 의존성입니다.
+     * - 프로젝트 공통 로깅 포맷/필터/MDC 유틸리티를 재사용합니다.
      */
-    implementation(project(":libs:log:starter:tc-log-starter"))
+    implementation(project(":libs:common:tc-common-logging"))
 
     /*
      * UI Backend 핵심 스타터입니다.
      * - tc-ui-domain/core + 어댑터 4종(web/kafka/db/redis)을 한 번에 조립합니다.
      * - TcUiBackendAutoConfiguration이 core 패키지 스캔 + 어댑터 AutoConfiguration import로
      *   필요한 빈만 명시적으로 조립합니다.
-     * - Kafka Boot auto-configuration(KafkaTemplate 등)은 starter 내부에서 포함합니다.
      */
     implementation(project(":libs:ui:starter:tc-ui-backend-starter"))
+
+    /*
+     * Kafka 인프라 조립 스타터 의존성입니다.
+     * - 앱 경계에서 메시징 인프라 선택 책임을 명시적으로 갖도록 선언합니다.
+     */
+    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
 
     /*
      * DB 스타터 의존성입니다.

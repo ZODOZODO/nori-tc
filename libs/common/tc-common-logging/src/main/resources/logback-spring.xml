@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  tc-log-starter 공통 로그 설정
+  tc-common-logging 공통 로그 설정
 
   목표:
   - 모든 앱에서 동일한 로그 패턴/출력 정책 적용
@@ -98,3 +98,4 @@
     </root>
 
 </configuration>
+

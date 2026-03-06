@@ -33,7 +33,6 @@ dependencies {
     implementation(project(":libs:common:tc-common-consumer-runtime"))
     implementation(project(":libs:common:tc-common-task-execution"))
     implementation(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
-    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
     implementation(libs.jackson.databind)
 
     /*

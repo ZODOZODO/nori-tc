@@ -20,7 +20,7 @@ public final class EqpMdcPresenceFilter extends Filter<ILoggingEvent> {
 
     /**
      * MDC에서 설비 식별자를 읽을 때 사용할 키입니다.
-     * <p>tc-log-starter 공통 키 상수를 재사용하여 문자열 오타를 방지합니다.</p>
+     * <p>tc-common-logging 공통 키 상수를 재사용하여 문자열 오타를 방지합니다.</p>
      */
     private static final String EQP_ID_MDC_KEY = TcMdcKeys.EQP_ID;
 
@@ -67,3 +67,4 @@ public final class EqpMdcPresenceFilter extends Filter<ILoggingEvent> {
         return !UNKNOWN_EQP_ID.equalsIgnoreCase(normalized);
     }
 }
+

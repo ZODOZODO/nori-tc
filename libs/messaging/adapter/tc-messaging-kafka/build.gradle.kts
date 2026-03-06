@@ -23,7 +23,6 @@ dependencies {
     api(project(":libs:messaging:tc-messaging-core"))
 
     implementation(libs.spring.kafka)
-    implementation(libs.kafka.clients)
 
     // 상세 설명:
     // - @ConfigurationProperties 어노테이션은 spring-boot 모듈에 포함되어 있습니다.

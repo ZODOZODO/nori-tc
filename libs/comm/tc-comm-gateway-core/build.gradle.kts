@@ -23,9 +23,10 @@ dependencies {
     api(project(":libs:comm:tc-comm-socket"))
 
     /*
-     * 공통 로깅 스타터
+     * 공통 로깅 유틸리티
+     * - 코어 계층은 스타터가 아닌 공통 유틸리티 모듈에만 의존하여 결합도를 낮춥니다.
      */
-    implementation(project(":libs:log:starter:tc-log-starter"))
+    implementation(project(":libs:common:tc-common-logging"))
     api(libs.micrometer.core)
 
     /*

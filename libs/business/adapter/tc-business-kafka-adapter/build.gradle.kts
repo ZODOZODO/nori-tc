@@ -25,7 +25,7 @@ dependencies {
     implementation(project(":libs:common:tc-common-task-execution"))
 
     /*
-     * Kafka 메시지 계약 및 클라이언트 의존성입니다.
+     * Kafka 메시지 계약 의존성입니다.
      */
     implementation(project(":libs:messaging:tc-messaging-domain"))
     /*
@@ -34,7 +34,6 @@ dependencies {
      */
     implementation(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
     implementation(libs.spring.kafka)
-    implementation(libs.kafka.clients)
     implementation(libs.jackson.databind)
 
     /*

@@ -36,7 +36,6 @@ dependencies {
     implementation(project(":libs:messaging:kafka:tc-messaging-kafka-contract"))
     implementation(project(":libs:messaging:kafka:tc-messaging-kafka-runtime"))
     implementation(libs.spring.kafka)
-    implementation(libs.kafka.clients)
     implementation(libs.jackson.databind)
 
     /*

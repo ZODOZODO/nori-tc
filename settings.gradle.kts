@@ -182,14 +182,7 @@ include(":libs:comm:starter:tc-comm-gateway-starter")
 project(":libs:comm:starter:tc-comm-gateway-starter").projectDir = file("libs/comm/starter/tc-comm-gateway-starter")
 
 /* ===================================================
- * 6. Logging Modules
- * =================================================== */
-
-include(":libs:log:starter:tc-log-starter")
-project(":libs:log:starter:tc-log-starter").projectDir = file("libs/log/starter/tc-log-starter")
-
-/* ===================================================
- * 7. Common Modules
+ * 6. Common Modules
  * - Cross-app reusable runtime/algorithm modules
  * =================================================== */
 
@@ -203,8 +196,12 @@ project(":libs:common:tc-common-consumer-runtime").projectDir = file("libs/commo
 include(":libs:common:tc-common-task-execution")
 project(":libs:common:tc-common-task-execution").projectDir = file("libs/common/tc-common-task-execution")
 
+// [Common Logging] 전역 MDC/로그 필터/압축 스케줄러/Logback 설정을 제공하는 공용 모듈
+include(":libs:common:tc-common-logging")
+project(":libs:common:tc-common-logging").projectDir = file("libs/common/tc-common-logging")
+
 /* ===================================================
- * 8. Business Core Modules (App Composition Layer)
+ * 7. Business Core Modules (App Composition Layer)
  * - Domain / Core / Adapters / Starter
  * =================================================== */
 
@@ -230,7 +227,7 @@ include(":libs:business:starter:tc-business-core-starter")
 project(":libs:business:starter:tc-business-core-starter").projectDir = file("libs/business/starter/tc-business-core-starter")
 
 /* ===================================================
- * 9. UI Backend Modules (App Composition Layer)
+ * 8. UI Backend Modules (App Composition Layer)
  * - UI Backend 전용 헥사고날 아키텍처 모듈
  * - Front ↔ UI-backend: REST API 전용 (WebSocket/SSE 없음)
  * - 인증: DB 세션 토큰 + Business Redis 캐시

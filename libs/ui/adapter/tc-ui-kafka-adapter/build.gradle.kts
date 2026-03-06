@@ -48,7 +48,6 @@ dependencies {
      * Spring Kafka: KafkaTemplate, @KafkaListener, ProducerRecord 등
      */
     implementation(libs.spring.kafka)
-    implementation(libs.kafka.clients)
     implementation(libs.jackson.databind)
     implementation(libs.micrometer.core)
 

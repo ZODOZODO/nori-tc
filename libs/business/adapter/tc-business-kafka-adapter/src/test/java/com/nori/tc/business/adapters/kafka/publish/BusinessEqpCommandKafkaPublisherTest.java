@@ -19,7 +19,6 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -88,7 +87,9 @@ class BusinessEqpCommandKafkaPublisherTest {
 
         // 검증 단계: ProducerRecord의 핵심 라우팅 값(topic/key/partition)을 검증합니다.
         @SuppressWarnings("unchecked")
-        final ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass((Class) ProducerRecord.class);
+        final ArgumentCaptor<ProducerRecord<String, Object>> captor = ArgumentCaptor.forClass(
+                (Class<ProducerRecord<String, Object>>) (Class<?>) ProducerRecord.class
+        );
         verify(kafkaTemplate).send(captor.capture());
 
         final ProducerRecord<String, Object> record = captor.getValue();

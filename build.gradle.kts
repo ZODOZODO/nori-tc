@@ -54,15 +54,6 @@ subprojects {
         }
     }
 
-    // Spring Boot 앱에는 log-starter 자동 주입
-    pluginManager.withPlugin("org.springframework.boot") {
-        pluginManager.withPlugin("java") {
-            dependencies {
-                add("implementation", project(":libs:log:starter:tc-log-starter"))
-            }
-        }
-    }
-
     /**
      * Java 공통 설정
      *

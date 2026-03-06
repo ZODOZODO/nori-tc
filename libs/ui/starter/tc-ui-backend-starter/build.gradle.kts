@@ -51,11 +51,6 @@ dependencies {
     api(project(":libs:ui:adapter:tc-ui-redis-adapter"))
 
     /*
-     * Kafka AutoConfiguration: KafkaTemplate, ConsumerFactory 빈 구성에 필요합니다.
-     */
-    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
-
-    /*
      * AutoConfiguration 클래스 컴파일 의존성
      */
     compileOnly(libs.spring.boot)

@@ -42,6 +42,36 @@ class BusinessCoreArchitectureGuardTest {
     }
 
     /**
+     * 코어 모듈의 Gradle 스크립트가 starter 모듈에 직접 의존하지 않는지 검증합니다.
+     *
+     * <p>설계 규칙:</p>
+     * <p>- core 계층은 app 조립 책임을 갖는 starter 계층에 의존하면 안 됩니다.</p>
+     * <p>- core는 domain/common/adapter 계약만 참조하고, starter 조합은 app 경계에서 수행합니다.</p>
+     *
+     * @throws IOException 스크립트 파일 읽기 실패 시 예외
+     */
+    @Test
+    void businessCoreBuildScriptShouldNotDependOnStarterModules() throws IOException {
+        final Path buildScriptPath = Path.of("build.gradle.kts");
+        final List<String> lines = Files.readAllLines(buildScriptPath, StandardCharsets.UTF_8);
+        final List<String> violations = new ArrayList<>();
+
+        for (int i = 0; i < lines.size(); i++) {
+            final String line = lines.get(i).trim();
+            if (line.contains("project(\":libs:") && line.contains(":starter:")) {
+                violations.add((i + 1) + ": " + line);
+            }
+        }
+
+        Assertions.assertTrue(
+                violations.isEmpty(),
+                () -> "tc-business-core build.gradle.kts 에 starter 직접 의존이 남아 있습니다."
+                        + System.lineSeparator()
+                        + String.join(System.lineSeparator(), violations)
+        );
+    }
+
+    /**
      * 지정한 소스 루트 아래 Java 파일에서 금지 토큰 사용 위치를 수집합니다.
      *
      * <p>UTF-8로 파일을 읽고, 라인 단위로 토큰 포함 여부를 검사합니다.</p>

@@ -21,10 +21,10 @@ dependencies {
     implementation(libs.spring.boot.starter)
 
     /*
-     * 공통 로그 스타터 의존성입니다.
-     * - 프로젝트 공통 로깅 포맷과 MDC 구성을 재사용합니다.
+     * 공통 로깅 모듈 의존성입니다.
+     * - 프로젝트 공통 로깅 포맷/필터/MDC 유틸리티를 재사용합니다.
      */
-    implementation(project(":libs:log:starter:tc-log-starter"))
+    implementation(project(":libs:common:tc-common-logging"))
 
     /*
      * Business Core 스타터 의존성입니다.
@@ -32,6 +32,12 @@ dependencies {
      * - app 모듈은 실행 진입점과 외부 설정 결합 역할만 담당합니다.
      */
     implementation(project(":libs:business:starter:tc-business-core-starter"))
+
+    /*
+     * Kafka 인프라 조립 스타터 의존성입니다.
+     * - 앱 경계에서 메시징 인프라 선택 책임을 명시적으로 갖도록 선언합니다.
+     */
+    implementation(project(":libs:messaging:starter:tc-messaging-kafka-starter"))
 
     /*
      * DB 스타터 의존성입니다.

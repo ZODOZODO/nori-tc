@@ -19,11 +19,11 @@ dependencies {
     api(project(":libs:business:tc-business-domain"))
 
     /*
-     * 공통 로깅 스타터 의존성입니다.
+     * 공통 로깅 유틸리티 의존성입니다.
      * - BusinessLogContext를 통해 MDC(eqpId/traceId) 스코프를 제어할 때 사용합니다.
-     * - 앱/어댑터 계층이 코어 API만 의존해도 동일한 로깅 유틸리티를 재사용할 수 있습니다.
+     * - 코어 계층은 스타터가 아닌 공통 유틸리티 모듈에만 의존하여 결합도를 낮춥니다.
      */
-    implementation(project(":libs:log:starter:tc-log-starter"))
+    implementation(project(":libs:common:tc-common-logging"))
 
     /*
      * 공통 실행 알고리즘(mailbox/consumer-runtime/task-execution)을 조합합니다.
