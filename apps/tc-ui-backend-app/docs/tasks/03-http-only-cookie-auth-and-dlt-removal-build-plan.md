@@ -122,19 +122,58 @@
 - 최신 기준 문서와 실제 구현 결과가 일치하는지 확인합니다.
 
 ### 작업
-- [ ] `D03`와 구현 코드의 API/설정/정책 정합성 점검
-- [ ] `T03` 체크리스트 완료 상태 갱신
-- [ ] 테스트 실행 결과 기록
-- [ ] 운영 적용 시 주의사항(쿠키/CORS/CSRF) 점검 결과 기록
+- [x] `D03`와 구현 코드의 API/설정/정책 정합성 점검
+- [x] `T03` 체크리스트 완료 상태 갱신
+- [x] 테스트 실행 결과 기록
+- [x] 운영 적용 시 주의사항(쿠키/CORS/CSRF) 점검 결과 기록
+
+### 정합성 점검 결과 (2026-03-06)
+- 인증 전달 방식:
+  - `AuthController.login`은 응답 본문에 `token`을 포함하지 않고 `Set-Cookie(TC_UI_AUTH)`로만 토큰을 전달합니다.
+  - `UiTokenAuthenticationFilter`는 `Authorization: Bearer` 경로 없이 `TC_UI_AUTH` 쿠키만 읽어 인증합니다.
+- API 계약:
+  - `LoginResponse`는 `userPk`, `issuedAt`, `expiresAt` 필드만 유지하며 `token` 필드는 제거되어 있습니다.
+  - `GET /auth/csrf` 엔드포인트가 존재하며 CSRF 쿠키 발급 트리거로 동작합니다.
+- 보안 정책:
+  - `UiSecurityConfig`에서 `CookieCsrfTokenRepository` 기반 CSRF가 활성화되어 있습니다.
+  - `UiSecurityConfig`에서 CORS `allowCredentials=true`를 사용하고, 허용 Origin은 `tc.ui.backend.auth.cors-allowed-origins` 프로퍼티를 사용합니다.
+- Kafka 파싱 실패 정책:
+  - `UiCommandKafkaSubscriber`는 파싱 실패 시 `WARN + kafka.command.parse_error 메트릭 + ACK` 정책으로 고정되어 있습니다.
+  - `UiKafkaConfiguration`, `UiKafkaTopicProperties`, 앱 설정에서 `commands-dlt-*` 및 DLT 발행 구성은 제거되어 있습니다.
+
+### 테스트 실행 결과 (2026-03-06)
+- 실행 명령:
+  - `./gradlew :apps:tc-ui-backend-app:test --tests "com.nori.tc.apps.uibackend.scenario.UiAuthScenarioTest"`
+  - `./gradlew :libs:ui:adapter:tc-ui-kafka-adapter:test --tests "com.nori.tc.ui.adapters.kafka.subscribe.UiCommandKafkaSubscriberTest"`
+- 결과 요약:
+  - `UiAuthScenarioTest`: `tests=6`, `failures=0`, `errors=0`, `skipped=0`
+  - `UiCommandKafkaSubscriberTest`: `tests=2`, `failures=0`, `errors=0`, `skipped=0`
+- 핵심 검증 항목:
+  - 로그인 응답 `data.token` 미포함 + `Set-Cookie` 발급
+  - 인증 쿠키 유무에 따른 보호 API `401/200`
+  - CSRF 누락 시 `403`, 유효 CSRF 포함 시 정상 처리
+  - Kafka JSON 파싱 실패 시 ingress 미호출 + ACK 처리
+
+### 운영 적용 시 주의사항 점검 결과 (쿠키/CORS/CSRF)
+- 쿠키:
+  - 운영 기본값은 `cookie-secure=true`, `cookie-same-site=None`이며 HTTPS 전제입니다.
+  - 로컬 프로파일(`local`)은 `cookie-secure=false`, `cookie-same-site=Lax`로 분리되어 있습니다.
+  - 쿠키 삭제(로그아웃)는 로그인 쿠키와 동일한 Path/Domain/SameSite/Secure 정책 + `Max-Age=0`으로 처리됩니다.
+- CORS:
+  - 쿠키 인증(`allowCredentials=true`) 사용 시 `cors-allowed-origins`에 `*`를 사용할 수 없습니다.
+  - 운영 배포 Origin을 화이트리스트로 명시해야 하며, 비어 있으면 same-origin 외 브라우저 요청이 차단됩니다.
+- CSRF:
+  - 상태 변경 요청(`POST`, `PUT`, `PATCH`, `DELETE`)은 `X-XSRF-TOKEN` 헤더가 필요합니다.
+  - 프런트 초기 진입 시 `GET /auth/csrf` 호출로 CSRF 쿠키(`XSRF-TOKEN`)를 먼저 확보해야 합니다.
 
 ---
 
 ## Definition of Done
-- [ ] 런타임 코드/설정/테스트에서 `commands-dlt-*`, DLT 발행 로직이 제거됨
-- [ ] 인증 경로가 Cookie 기반으로 완전 전환됨 (Bearer 의존 제거)
-- [ ] CSRF/CORS 정책이 코드/설정/문서에 일관되게 반영됨
-- [ ] 로그인 응답 계약 변경(`token` 제거)이 테스트로 검증됨
-- [ ] `D03`, `T03`가 최신 기준 문서로 유지됨
+- [x] 런타임 코드/설정/테스트에서 `commands-dlt-*`, DLT 발행 로직이 제거됨
+- [x] 인증 경로가 Cookie 기반으로 완전 전환됨 (Bearer 의존 제거)
+- [x] CSRF/CORS 정책이 코드/설정/문서에 일관되게 반영됨
+- [x] 로그인 응답 계약 변경(`token` 제거)이 테스트로 검증됨
+- [x] `D03`, `T03`가 최신 기준 문서로 유지됨
 
 ## 구현 가정
 - 완전 전환 정책으로 Bearer 하위 호환은 제공하지 않습니다.
