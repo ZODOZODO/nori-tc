@@ -65,11 +65,13 @@
             RETURNING model_key
         )
         INSERT INTO tc_model_version
-            (model_key, model_version, status, description, created_by, updated_by)
+            (model_key, model_version, status, description, created_at, updated_at, created_by, updated_by)
         SELECT model_key,
                #{m.modelVersion},
                #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
                #{m.description},
+               CURRENT_TIMESTAMP,
+               CURRENT_TIMESTAMP,
                #{m.createdBy},
                #{m.updatedBy}
           FROM upsert_model

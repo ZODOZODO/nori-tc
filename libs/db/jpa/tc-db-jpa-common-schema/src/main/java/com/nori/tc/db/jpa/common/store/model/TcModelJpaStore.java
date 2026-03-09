@@ -113,11 +113,13 @@ public class TcModelJpaStore implements TcModelStore {
                 RETURNING model_key
             )
             INSERT INTO tc_model_version
-                (model_key, model_version, status, description, created_by, updated_by)
+                (model_key, model_version, status, description, created_at, updated_at, created_by, updated_by)
             SELECT model_key,
                    :modelVersion,
                    :status,
                    :description,
+                   CURRENT_TIMESTAMP,
+                   CURRENT_TIMESTAMP,
                    :createdBy,
                    :updatedBy
               FROM upsert_model

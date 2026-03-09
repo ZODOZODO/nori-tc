@@ -88,9 +88,9 @@ CREATE TABLE public.tc_model_version (
     model_version     VARCHAR(32) NOT NULL,
     status            VARCHAR(16) NOT NULL,
     description       VARCHAR(2000) NULL,
-    created_by        VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
     created_at        TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by        VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
     updated_by        VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
 
     CONSTRAINT pk_tc_model_version PRIMARY KEY (model_version_key),

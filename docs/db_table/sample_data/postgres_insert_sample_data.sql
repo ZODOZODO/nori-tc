@@ -145,7 +145,7 @@ WITH ins_model AS (
 ins_model_version AS (
   INSERT INTO tc_model_version (
     model_key, model_version, status, description,
-    created_by, created_at, updated_at, updated_by
+    created_at, updated_at, created_by, updated_by
   )
   SELECT m.model_key,
          '1.0.0',
@@ -155,7 +155,7 @@ ins_model_version AS (
            ELSE 'ACTIVE'
          END,
          'Seed model version for ' || m.model_name,
-         'SEED', now(), now(), 'SEED'
+         now(), now(), 'SEED', 'SEED'
   FROM ins_model m
   RETURNING model_version_key, model_key, model_version
 )
