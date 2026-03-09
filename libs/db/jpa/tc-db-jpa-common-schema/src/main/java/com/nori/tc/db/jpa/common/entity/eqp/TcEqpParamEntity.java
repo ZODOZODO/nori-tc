@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -20,6 +21,7 @@ import jakarta.persistence.UniqueConstraint;
  * - param_version : varchar(100) NOT NULL
  * - param_value   : text NULL
  * - description   : varchar(2000) NULL
+ * - created_by    : varchar(50) NOT NULL default 'SYSTEM'
  * - updated_at    : timestamptz NOT NULL default CURRENT_TIMESTAMP
  * - Constraints   : UNIQUE (eqp_key, param_name, param_version)
  */
@@ -55,6 +57,9 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
     @Column(name = "description", length = 2000)
     private String description;
 
+    @Column(name = "created_by", length = 50, nullable = false)
+    private String createdBy;
+
     // =========================================================================
     // Constructors (MapStruct & JPA)
     // =========================================================================
@@ -76,7 +81,8 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
             String paramName,
             String paramVersion,
             String paramValue,
-            String description
+            String description,
+            String createdBy
     ) {
         this.eqpParamKey = eqpParamKey;
         this.eqpKey = eqpKey;
@@ -84,6 +90,7 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
         this.paramVersion = paramVersion;
         this.paramValue = paramValue;
         this.description = description;
+        this.createdBy = createdBy;
     }
 
     // =========================================================================
@@ -110,6 +117,16 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
         e.setParamName(paramName);
         e.setParamVersion(paramVersion);
         return e;
+    }
+
+    /**
+     * INSERT 직전에 생성자 기본값을 보정합니다.
+     */
+    @PrePersist
+    private void applyCreatedByDefault() {
+        if (this.createdBy == null || this.createdBy.isBlank()) {
+            this.createdBy = "SYSTEM";
+        }
     }
 
     // =========================================================================
@@ -246,5 +263,27 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
      */
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param createdBy 생성 사용자 식별자
+     */
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
     }
 }

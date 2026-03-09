@@ -145,7 +145,7 @@ WITH ins_model AS (
 ins_model_version AS (
   INSERT INTO tc_model_version (
     model_key, model_version, status, description,
-    created_at, updated_at, created_by, updated_by
+    created_by, created_at, updated_at, updated_by
   )
   SELECT m.model_key,
          '1.0.0',
@@ -155,7 +155,7 @@ ins_model_version AS (
            ELSE 'ACTIVE'
          END,
          'Seed model version for ' || m.model_name,
-         now(), now(), 'SEED', 'SEED'
+         'SEED', now(), now(), 'SEED'
   FROM ins_model m
   RETURNING model_version_key, model_key, model_version
 )
@@ -358,10 +358,10 @@ FROM seed_eqp_map e
 JOIN LATERAL (VALUES ('LP1'), ('LP2')) AS p(port_id) ON TRUE;
 
 -- 설비 파라미터(설비당 2개)
-INSERT INTO tc_eqp_param(eqp_key, param_name, param_version, param_value, description, updated_at)
-SELECT eqp_key, 'CFG', 'v1', '{"seed":true}', 'Equipment config parameter', now() FROM seed_eqp_map
+INSERT INTO tc_eqp_param(eqp_key, param_name, param_version, param_value, description, created_by, updated_at)
+SELECT eqp_key, 'CFG', 'v1', '{"seed":true}', 'Equipment config parameter', 'SEED', now() FROM seed_eqp_map
 UNION ALL
-SELECT eqp_key, 'LIMIT', 'v1', '{"max":100}', 'Equipment limit parameter', now() FROM seed_eqp_map;
+SELECT eqp_key, 'LIMIT', 'v1', '{"max":100}', 'Equipment limit parameter', 'SEED', now() FROM seed_eqp_map;
 
 -- 설비 글로벌(설비당 1개)
 INSERT INTO tc_eqp_global(eqp_key, param_name, param_value, updated_at)

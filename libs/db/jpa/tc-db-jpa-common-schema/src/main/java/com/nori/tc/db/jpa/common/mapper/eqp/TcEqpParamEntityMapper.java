@@ -25,6 +25,7 @@ public interface TcEqpParamEntityMapper {
      */
     @Mapping(target = "eqpParamKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "eqpKey", ignore = true)
     @Mapping(target = "paramName", ignore = true)
     @Mapping(target = "paramVersion", ignore = true)

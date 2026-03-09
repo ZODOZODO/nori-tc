@@ -58,6 +58,7 @@ public class TcEqpParamMybatisStore implements TcEqpParamStore {
                 paramVersion,
                 command.paramValue(),
                 command.description(),
+                null,
                 null
         );
 

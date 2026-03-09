@@ -14,6 +14,7 @@
             <arg column="param_version" javaType="java.lang.String"/>
             <arg column="param_value" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
             <arg column="updated_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
@@ -21,18 +22,19 @@
     </resultMap>
 
     <sql id="TcEqpParamColumns">
-        eqp_param_key, eqp_key, param_name, param_version, param_value, description, updated_at
+        eqp_param_key, eqp_key, param_name, param_version, param_value, description, created_by, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp_param
-            (eqp_key, param_name, param_version, param_value, description)
+            (eqp_key, param_name, param_version, param_value, description, created_by)
         VALUES
             (#{e.eqpKey},
              #{e.paramName},
              #{e.paramVersion},
              #{e.paramValue},
-             #{e.description})
+             #{e.description},
+             COALESCE(#{e.createdBy}, 'SYSTEM'))
     </insert>
 
     <update id="updateByUniqueKey">
