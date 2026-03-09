@@ -7,6 +7,7 @@ import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.domain.common.eqp.EqpStateType;
 import com.nori.tc.db.domain.eqp.TcEqp;
+import com.nori.tc.db.domain.eqp.TcEqpParam;
 import com.nori.tc.db.domain.eqp.TcEqpState;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.model.PagedResponse;
@@ -44,6 +45,8 @@ public class JpaEqpQueryPort implements EqpQueryPort {
     private static final int PARAM_VERSION_PAGE_LIMIT = 500;
     private static final int PARAM_VERSION_SCAN_MAX_ROWS = 10_000;
     private static final int CONNECTION_STATE_HISTORY_LIMIT = 100;
+    // EDIT 버전은 내부 체크아웃 잠금용이므로 드롭다운 목록에 노출하지 않는다.
+    private static final String EDIT_VERSION = "EDIT";
 
     private final TcEqpStore eqpStore;
     private final TcEqpParamStore eqpParamStore;
@@ -163,6 +166,7 @@ public class JpaEqpQueryPort implements EqpQueryPort {
      * <ol>
      *   <li>eqpId로 tc_eqp를 조회해 eqpKey를 확보</li>
      *   <li>tc_eqp_param을 페이지 단위로 스캔하며 paramVersion을 수집</li>
+     *   <li>'EDIT' 버전은 체크아웃 잠금용이므로 결과에서 제외</li>
      *   <li>중복 제거 후 내림차순 정렬하여 반환</li>
      * </ol>
      *
@@ -170,7 +174,7 @@ public class JpaEqpQueryPort implements EqpQueryPort {
      * {@link #PARAM_VERSION_SCAN_MAX_ROWS} 상한을 둡니다.</p>
      *
      * @param eqpId 설비 비즈니스 키
-     * @return 버전 목록(설비 미존재/버전 미존재 시 빈 목록)
+     * @return 버전 목록(설비 미존재/버전 미존재 시 빈 목록, EDIT 버전 제외)
      */
     @Override
     public List<String> findParamVersionsByEqpId(final String eqpId) {
@@ -197,7 +201,8 @@ public class JpaEqpQueryPort implements EqpQueryPort {
                 final var pageParams = eqpParamStore.findAllByEqpKey(eqpKey, pageRequest);
                 final List<String> pageVersions = pageParams.stream()
                         .map(param -> param.paramVersion() == null ? null : param.paramVersion().trim())
-                        .filter(version -> version != null && !version.isBlank())
+                        // EDIT 버전은 내부 잠금용이므로 드롭다운 목록에서 제외한다.
+                        .filter(version -> version != null && !version.isBlank() && !EDIT_VERSION.equals(version))
                         .toList();
 
                 versionSet.addAll(pageVersions);
@@ -230,6 +235,100 @@ public class JpaEqpQueryPort implements EqpQueryPort {
             }
 
             log.error("설비 파라미터 버전 조회 실패. eqpId={}", eqpId, e);
+            throw e;
+        }
+    }
+
+    /**
+     * 설비 ID(eqpId)와 버전으로 파라미터 목록을 조회합니다.
+     *
+     * @param eqpId 설비 비즈니스 키
+     * @param version 파라미터 버전 (예: "v1.0", "EDIT")
+     * @return 파라미터 목록(설비 미존재 또는 해당 버전 없으면 빈 목록)
+     */
+    @Override
+    public List<TcEqpParam> findParamsByEqpIdAndVersion(final String eqpId, final String version) {
+        if (eqpId == null || eqpId.isBlank()) {
+            throw new UiBadRequestException("eqpId는 비어 있을 수 없습니다.");
+        }
+        if (version == null || version.isBlank()) {
+            throw new UiBadRequestException("version은 비어 있을 수 없습니다.");
+        }
+
+        try {
+            final Optional<TcEqp> optionalEqp = eqpStore.findByEqpId(eqpId);
+            if (optionalEqp.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("설비 파라미터 조회 대상이 없습니다. eqpId={}", eqpId);
+                }
+                return List.of();
+            }
+
+            final long eqpKey = optionalEqp.get().eqpKey();
+            final List<TcEqpParam> params = eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, version);
+
+            if (log.isDebugEnabled()) {
+                log.debug("설비 파라미터 조회 완료. eqpId={}, version={}, count={}", eqpId, version, params.size());
+            }
+
+            return params;
+        } catch (RuntimeException e) {
+            if (UiDbAdapterExceptionSupport.isBadRequest(e)) {
+                throw new UiBadRequestException("설비 파라미터 조회 입력이 올바르지 않습니다.", e);
+            }
+            log.error("설비 파라미터 조회 실패. eqpId={}, version={}", eqpId, version, e);
+            throw e;
+        }
+    }
+
+    /**
+     * 설비 ID(eqpId)에 매핑된 체크아웃 상태를 조회합니다.
+     *
+     * <p>EDIT 버전 파라미터가 존재하면 체크아웃 중이며, 첫 번째 EDIT 행의 created_by가 체크아웃한 사용자입니다.</p>
+     *
+     * @param eqpId 설비 비즈니스 키
+     * @return 설비 존재 시 체크아웃 상태, 설비 미존재 시 empty
+     */
+    @Override
+    public Optional<EqpCheckoutStateView> findCheckoutStateByEqpId(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            throw new UiBadRequestException("eqpId는 비어 있을 수 없습니다.");
+        }
+
+        try {
+            final Optional<TcEqp> optionalEqp = eqpStore.findByEqpId(eqpId);
+            if (optionalEqp.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("설비 체크아웃 상태 조회 대상이 없습니다. eqpId={}", eqpId);
+                }
+                return Optional.empty();
+            }
+
+            final long eqpKey = optionalEqp.get().eqpKey();
+            final boolean checkedOut = eqpParamStore.existsByEqpKeyAndVersion(eqpKey, EDIT_VERSION);
+
+            if (!checkedOut) {
+                return Optional.of(new EqpCheckoutStateView(false, null));
+            }
+
+            // EDIT 버전의 첫 번째 파라미터에서 체크아웃한 사용자 ID를 확인한다.
+            final List<TcEqpParam> editParams = eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, EDIT_VERSION);
+            final String checkedOutBy = editParams.stream()
+                    .map(TcEqpParam::createdBy)
+                    .filter(by -> by != null && !by.isBlank())
+                    .findFirst()
+                    .orElse(null);
+
+            if (log.isDebugEnabled()) {
+                log.debug("설비 체크아웃 상태 조회 완료. eqpId={}, checkedOut={}, checkedOutBy={}", eqpId, true, checkedOutBy);
+            }
+
+            return Optional.of(new EqpCheckoutStateView(true, checkedOutBy));
+        } catch (RuntimeException e) {
+            if (UiDbAdapterExceptionSupport.isBadRequest(e)) {
+                throw new UiBadRequestException("설비 체크아웃 상태 조회 입력이 올바르지 않습니다.", e);
+            }
+            log.error("설비 체크아웃 상태 조회 실패. eqpId={}", eqpId, e);
             throw e;
         }
     }

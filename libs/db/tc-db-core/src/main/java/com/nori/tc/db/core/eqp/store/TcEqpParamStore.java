@@ -45,6 +45,36 @@ public interface TcEqpParamStore {
      */
     List<TcEqpParam> findAllByEqpKey(long eqpKey, PageRequest page);
 
+    /**
+     * 특정 설비(eqp_key)와 버전(paramVersion)의 파라미터 목록 조회.
+     *
+     * @param eqpKey 설비 식별 키
+     * @param paramVersion 파라미터 버전 (예: "v1.0", "EDIT")
+     * @return 해당 설비/버전의 파라미터 목록
+     */
+    List<TcEqpParam> findAllByEqpKeyAndVersion(long eqpKey, String paramVersion);
+
+    /**
+     * 특정 설비(eqp_key)와 버전(paramVersion)의 파라미터 존재 여부를 확인합니다.
+     *
+     * <p>체크아웃 잠금 여부 확인에 사용합니다. EDIT 버전 존재 = 체크아웃 중.</p>
+     *
+     * @param eqpKey 설비 식별 키
+     * @param paramVersion 확인할 파라미터 버전
+     * @return 해당 버전의 파라미터가 1건 이상 존재하면 true
+     */
+    boolean existsByEqpKeyAndVersion(long eqpKey, String paramVersion);
+
+    /**
+     * 특정 설비(eqp_key)와 버전(paramVersion)의 파라미터 전체를 삭제합니다.
+     *
+     * <p>체크인 완료 후 EDIT 버전을 정리하는 데 사용합니다.</p>
+     *
+     * @param eqpKey 설비 식별 키
+     * @param paramVersion 삭제할 파라미터 버전
+     */
+    void deleteAllByEqpKeyAndVersion(long eqpKey, String paramVersion);
+
     
     /**
      * DB Core 계층 데이터 정리 또는 삭제를 처리합니다.

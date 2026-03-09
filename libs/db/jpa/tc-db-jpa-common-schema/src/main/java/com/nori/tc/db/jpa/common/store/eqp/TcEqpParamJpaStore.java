@@ -155,6 +155,82 @@ public class TcEqpParamJpaStore implements TcEqpParamStore {
         }
     }
 
+    /**
+     * 특정 설비(eqp_key)와 버전(paramVersion)의 파라미터 전체를 조회합니다.
+     *
+     * @param eqpKey 설비 식별 키
+     * @param paramVersion 파라미터 버전
+     * @return 해당 설비/버전의 파라미터 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcEqpParam> findAllByEqpKeyAndVersion(long eqpKey, String paramVersion) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be > 0");
+        }
+        if (paramVersion == null || paramVersion.isBlank()) {
+            throw new IllegalArgumentException("paramVersion must not be null/blank");
+        }
+
+        try {
+            return repository.findAllByEqpKeyAndParamVersion(eqpKey, paramVersion)
+                    .stream()
+                    .map(mapper::toDomain)
+                    .toList();
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_eqp_param] findAllByEqpKeyAndVersion failed: eqpKey=" + eqpKey + ", version=" + paramVersion, e);
+        }
+    }
+
+    /**
+     * 특정 설비(eqp_key)와 버전(paramVersion)의 파라미터 존재 여부를 확인합니다.
+     *
+     * @param eqpKey 설비 식별 키
+     * @param paramVersion 파라미터 버전
+     * @return 1건 이상 존재하면 true
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByEqpKeyAndVersion(long eqpKey, String paramVersion) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be > 0");
+        }
+        if (paramVersion == null || paramVersion.isBlank()) {
+            throw new IllegalArgumentException("paramVersion must not be null/blank");
+        }
+
+        try {
+            return repository.existsByEqpKeyAndParamVersion(eqpKey, paramVersion);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_eqp_param] existsByEqpKeyAndVersion failed: eqpKey=" + eqpKey + ", version=" + paramVersion, e);
+        }
+    }
+
+    /**
+     * 특정 설비(eqp_key)와 버전(paramVersion)의 파라미터 전체를 삭제합니다.
+     *
+     * <p>체크인 완료 후 EDIT 버전을 정리하는 데 사용합니다.</p>
+     *
+     * @param eqpKey 설비 식별 키
+     * @param paramVersion 삭제할 파라미터 버전
+     */
+    @Override
+    @Transactional
+    public void deleteAllByEqpKeyAndVersion(long eqpKey, String paramVersion) {
+        if (eqpKey <= 0) {
+            throw new IllegalArgumentException("eqpKey must be > 0");
+        }
+        if (paramVersion == null || paramVersion.isBlank()) {
+            throw new IllegalArgumentException("paramVersion must not be null/blank");
+        }
+
+        try {
+            repository.deleteAllByEqpKeyAndParamVersion(eqpKey, paramVersion);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_eqp_param] deleteAllByEqpKeyAndVersion failed: eqpKey=" + eqpKey + ", version=" + paramVersion, e);
+        }
+    }
+
     
     /**
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.

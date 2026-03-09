@@ -165,4 +165,60 @@ public class TcEqpParamMybatisStore implements TcEqpParamStore {
             throw new DbAccessException("tc_eqp_param deleteByEqpParamKey failed (unexpected). eqpParamKey=" + eqpParamKey, e);
         }
     }
+
+    /**
+     * 설비 키와 버전으로 파라미터 목록을 조회합니다.
+     *
+     * <p>NOTE: MyBatis 구현체는 현재 UI 레이어에서 사용되지 않습니다.
+     * 체크아웃/체크인 흐름은 JPA 구현체({@code TcEqpParamJpaStore})를 통해서만 처리됩니다.</p>
+     *
+     * @param eqpKey 설비 PK
+     * @param paramVersion 파라미터 버전 (예: "v1.0", "EDIT")
+     * @return 파라미터 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcEqpParam> findAllByEqpKeyAndVersion(long eqpKey, String paramVersion) {
+        // MyBatis 구현체에서는 지원하지 않는 연산입니다. JPA 구현체를 사용해야 합니다.
+        throw new UnsupportedOperationException(
+                "findAllByEqpKeyAndVersion is not implemented in MyBatis store. Use JPA store instead."
+        );
+    }
+
+    /**
+     * 설비 키와 버전으로 파라미터 존재 여부를 확인합니다.
+     *
+     * <p>NOTE: MyBatis 구현체는 현재 UI 레이어에서 사용되지 않습니다.
+     * 체크아웃/체크인 흐름은 JPA 구현체({@code TcEqpParamJpaStore})를 통해서만 처리됩니다.</p>
+     *
+     * @param eqpKey 설비 PK
+     * @param paramVersion 파라미터 버전 (예: "EDIT")
+     * @return 존재 여부
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByEqpKeyAndVersion(long eqpKey, String paramVersion) {
+        // MyBatis 구현체에서는 지원하지 않는 연산입니다. JPA 구현체를 사용해야 합니다.
+        throw new UnsupportedOperationException(
+                "existsByEqpKeyAndVersion is not implemented in MyBatis store. Use JPA store instead."
+        );
+    }
+
+    /**
+     * 설비 키와 버전으로 파라미터를 일괄 삭제합니다.
+     *
+     * <p>NOTE: MyBatis 구현체는 현재 UI 레이어에서 사용되지 않습니다.
+     * 체크아웃/체크인 흐름은 JPA 구현체({@code TcEqpParamJpaStore})를 통해서만 처리됩니다.</p>
+     *
+     * @param eqpKey 설비 PK
+     * @param paramVersion 삭제할 파라미터 버전 (예: "EDIT")
+     */
+    @Override
+    @Transactional
+    public void deleteAllByEqpKeyAndVersion(long eqpKey, String paramVersion) {
+        // MyBatis 구현체에서는 지원하지 않는 연산입니다. JPA 구현체를 사용해야 합니다.
+        throw new UnsupportedOperationException(
+                "deleteAllByEqpKeyAndVersion is not implemented in MyBatis store. Use JPA store instead."
+        );
+    }
 }

@@ -22,10 +22,10 @@ public interface TcEqpParamEntityMapper {
      * - eqpParamKey는 DB 생성(IDENTITY)이므로 무시
      * - updatedAt은 JPA Auditing이 관리하므로 무시
      * - eqpKey/paramName/paramVersion은 Unique Key이므로 변경 금지 (ignore)
+     * - createdBy는 UpsertTcEqpParam에서 전달받아 엔티티에 반영
      */
     @Mapping(target = "eqpParamKey", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "eqpKey", ignore = true)
     @Mapping(target = "paramName", ignore = true)
     @Mapping(target = "paramVersion", ignore = true)

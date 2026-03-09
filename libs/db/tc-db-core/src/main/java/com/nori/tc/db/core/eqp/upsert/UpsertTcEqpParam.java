@@ -7,12 +7,15 @@ package com.nori.tc.db.core.eqp.upsert;
  * 중복 키(Unique: eqp_key, param_name, param_version)를 기준으로
  * param_value/description을 갱신하거나 신규로 생성합니다.
  * </p>
+ *
+ * @param createdBy 파라미터를 생성/편집한 사용자 ID (null이면 SYSTEM 기본값 적용)
  */
 public record UpsertTcEqpParam(
         long eqpKey,
         String paramName,
         String paramVersion,
         String paramValue,
-        String description
+        String description,
+        String createdBy
 ) {
 }
