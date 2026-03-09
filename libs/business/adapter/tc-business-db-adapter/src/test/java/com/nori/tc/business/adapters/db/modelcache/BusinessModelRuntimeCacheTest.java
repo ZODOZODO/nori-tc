@@ -27,8 +27,8 @@ class BusinessModelRuntimeCacheTest {
         final TcEqp eqp1 = new TcEqp(1L, "EQP-1", ProtocolType.HSMS, "ACTIVE", 0, "127.0.0.1", 5001, 101L, true, now, now, "SYSTEM", "SYSTEM");
         final TcEqp eqp2 = new TcEqp(2L, "EQP-2", ProtocolType.SOCKET, "ACTIVE", 1, "127.0.0.1", 5002, 102L, true, now, now, "SYSTEM", "SYSTEM");
 
-        final TcModel model1 = new TcModel(101L, 101L, "MODEL-HSMS", "v1", ProtocolType.HSMS, ModelStatus.ACTIVE, "NORI", now, now, "SYSTEM", "SYSTEM");
-        final TcModel model2 = new TcModel(102L, 102L, "MODEL-SOCKET", "v1", ProtocolType.SOCKET, ModelStatus.ACTIVE, "NORI", now, now, "SYSTEM", "SYSTEM");
+        final TcModel model1 = new TcModel(101L, 101L, "MODEL-HSMS", "v1", ProtocolType.HSMS, ModelStatus.ACTIVE, null, "NORI", now, now, "SYSTEM", "SYSTEM");
+        final TcModel model2 = new TcModel(102L, 102L, "MODEL-SOCKET", "v1", ProtocolType.SOCKET, ModelStatus.ACTIVE, null, "NORI", now, now, "SYSTEM", "SYSTEM");
 
         final Map<Long, List<TcModelWorkflow>> workflowsByModel = Map.of(
                 101L, List.of(new TcModelWorkflow(1L, 101L, "WF-HSMS", "S6F11", "E1", "T1", null, "ACT-1", null, now)),
@@ -85,7 +85,7 @@ class BusinessModelRuntimeCacheTest {
         final OffsetDateTime now = OffsetDateTime.now();
 
         final TcEqp eqp = new TcEqp(1L, "EQP-1", ProtocolType.HSMS, "ACTIVE", 0, "127.0.0.1", 5001, 101L, true, now, now, "SYSTEM", "SYSTEM");
-        final TcModel model = new TcModel(101L, 101L, "MODEL-HSMS", "v1", ProtocolType.HSMS, ModelStatus.ACTIVE, "NORI", now, now, "SYSTEM", "SYSTEM");
+        final TcModel model = new TcModel(101L, 101L, "MODEL-HSMS", "v1", ProtocolType.HSMS, ModelStatus.ACTIVE, null, "NORI", now, now, "SYSTEM", "SYSTEM");
         final TcModelWorkflow workflow = new TcModelWorkflow(1L, 101L, "WF-HSMS", "S6F11", "E1", "T1", null, "ACT-1", null, now);
         final TcModelMdf mdf = new TcModelMdf(
                 1L,

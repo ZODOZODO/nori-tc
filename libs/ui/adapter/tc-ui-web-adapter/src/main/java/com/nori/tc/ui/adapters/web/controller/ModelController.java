@@ -129,6 +129,7 @@ public class ModelController {
                 request.modelVersion(),
                 request.commInterface(),
                 request.status(),
+                request.description(),
                 request.maker(),
                 request.createdBy(),
                 request.updatedBy()
@@ -168,6 +169,7 @@ public class ModelController {
                 request.modelVersion(),
                 request.commInterface(),
                 request.status(),
+                request.description(),
                 request.maker(),
                 request.createdBy(),
                 request.updatedBy()
@@ -223,6 +225,7 @@ public class ModelController {
                 model.modelVersion(),
                 model.commInterface(),
                 model.status(),
+                model.description(),
                 model.maker(),
                 model.createdAt(),
                 model.updatedAt(),
@@ -231,4 +234,3 @@ public class ModelController {
         );
     }
 }
-

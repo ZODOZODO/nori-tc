@@ -1,8 +1,8 @@
 -- =====================================================================
 -- seed_v5_fixed_pg.sql  (UTF-8)
 -- 목적:
---  - Outbox(tc_msg_send_queue / tc_msg_send_log)는 건드리지 않는다.
---  - 모델/설비/워크 및 하위 테이블까지 "유니크 제약 위반 없이" 샘플 데이터 생성
+--  - 샘플 데이터 대상 전체 테이블을 초기화(TRUNCATE + RESTART IDENTITY + CASCADE)한다.
+--  - 모델/설비/워크/권한 및 사용자 샘플 데이터를 일관된 상태로 재생성한다.
 -- =====================================================================
 
 \set ON_ERROR_STOP on
@@ -12,48 +12,30 @@ BEGIN;
 SET TIME ZONE 'UTC';
 
 -- =====================================================================
--- 0) 기존 데이터 삭제 (FK 자식 -> 부모 순)
---    * Outbox 2개 테이블은 삭제/삽입 모두 하지 않음
+-- 0) 기존 데이터 전체 초기화
+--    * TRUNCATE + RESTART IDENTITY + CASCADE로 데이터/시퀀스를 함께 초기화합니다.
+--    * public 스키마의 tc_* 테이블 전체를 동적으로 조회해 누락 없이 초기화합니다.
 -- =====================================================================
+DO $$
+DECLARE
+  truncate_target_list TEXT;
+BEGIN
+  SELECT string_agg(
+           format('%I.%I', table_schema, table_name),
+           ', '
+           ORDER BY table_name
+         )
+    INTO truncate_target_list
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_type = 'BASE TABLE'
+    AND table_name LIKE 'tc\_%' ESCAPE '\';
 
--- Work 하위
-DELETE FROM tc_work_processjob_lot_map;
-DELETE FROM tc_work_processjob;
-DELETE FROM tc_work_controljob;
-DELETE FROM tc_work_carrier_slot;
-DELETE FROM tc_work_carrier;
-DELETE FROM tc_work_lot;
-DELETE FROM tc_work_param;
-DELETE FROM tc_work;
-
--- Eqp 하위
-DELETE FROM tc_eqp_port_status;
-DELETE FROM tc_eqp_log;
-DELETE FROM tc_eqp_state_hist;
-DELETE FROM tc_eqp_state;
-DELETE FROM tc_eqp_param;
-DELETE FROM tc_eqp_global;
-DELETE FROM tc_eqp_hsms;
-DELETE FROM tc_eqp_socket;
-DELETE FROM tc_jar_business;
-DELETE FROM tc_jar_gateway;
-DELETE FROM tc_eqp;
-
--- Socket protocol type (eqp_socket FK 대상이므로 eqp_socket 삭제 후 삭제)
-DELETE FROM tc_eqp_socket_protocol_type;
-
--- Model 하위
-DELETE FROM tc_model_dcop_item;
-DELETE FROM tc_model_mdf;
-DELETE FROM tc_model_workflow;
-DELETE FROM tc_model_eventid;
-DELETE FROM tc_model_reportid;
-DELETE FROM tc_model_variableid;
-DELETE FROM tc_model_socket_message;
-DELETE FROM tc_model_secs_message;
-DELETE FROM tc_model_param;
-DELETE FROM tc_model_version;
-DELETE FROM tc_model;
+  IF truncate_target_list IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE ' || truncate_target_list || ' RESTART IDENTITY CASCADE';
+  END IF;
+END
+$$;
 
 -- =====================================================================
 -- 1) 상수/매핑용 임시 테이블
@@ -162,7 +144,7 @@ WITH ins_model AS (
 ),
 ins_model_version AS (
   INSERT INTO tc_model_version (
-    model_key, model_version, status,
+    model_key, model_version, status, description,
     created_at, updated_at, created_by, updated_by
   )
   SELECT m.model_key,
@@ -172,6 +154,7 @@ ins_model_version AS (
            WHEN m.model_name LIKE '%_04' THEN 'DEPRECATED'
            ELSE 'ACTIVE'
          END,
+         'Seed model version for ' || m.model_name,
          now(), now(), 'SEED', 'SEED'
   FROM ins_model m
   RETURNING model_version_key, model_key, model_version
@@ -375,10 +358,10 @@ FROM seed_eqp_map e
 JOIN LATERAL (VALUES ('LP1'), ('LP2')) AS p(port_id) ON TRUE;
 
 -- 설비 파라미터(설비당 2개)
-INSERT INTO tc_eqp_param(eqp_key, param_name, param_version, param_value, updated_at)
-SELECT eqp_key, 'CFG', 'v1', '{"seed":true}', now() FROM seed_eqp_map
+INSERT INTO tc_eqp_param(eqp_key, param_name, param_version, param_value, description, updated_at)
+SELECT eqp_key, 'CFG', 'v1', '{"seed":true}', 'Equipment config parameter', now() FROM seed_eqp_map
 UNION ALL
-SELECT eqp_key, 'LIMIT', 'v1', '{"max":100}',   now() FROM seed_eqp_map;
+SELECT eqp_key, 'LIMIT', 'v1', '{"max":100}', 'Equipment limit parameter', now() FROM seed_eqp_map;
 
 -- 설비 글로벌(설비당 1개)
 INSERT INTO tc_eqp_global(eqp_key, param_name, param_value, updated_at)
@@ -598,7 +581,10 @@ INSERT INTO tc_ui_permission (
 VALUES
   ('AUTH_ME_PERM',     '내 정보 조회',        'API', 'EXACT',  '/api/auth/me',    'GET',    'GET /api/auth/me',                    TRUE, now(), now(), 'SEED', 'SEED'),
   ('AUTH_LOGOUT_PERM', '로그아웃',            'API', 'EXACT',  '/api/auth/logout','POST',   'POST /api/auth/logout',               TRUE, now(), now(), 'SEED', 'SEED'),
-  ('EQP_MANAGE',       '설비 관리',           'API', 'PREFIX', '/api/eqp',    NULL,     'GET/POST/PUT/DELETE/start/end 포함', TRUE, now(), now(), 'SEED', 'SEED'),
+  ('EQP_READ',         '설비 조회',           'API', 'PREFIX', '/api/eqp',    'GET',    'GET /api/eqp 조회 전용',            TRUE, now(), now(), 'SEED', 'SEED'),
+  -- http_method 컬럼은 단일 값만 저장할 수 있으므로 EQP_WRITE는 null(전체 메서드)로 두고,
+  -- 역할 매핑에서 OPERATOR에 EQP_WRITE를 부여하지 않아 읽기 전용 정책을 유지합니다.
+  ('EQP_WRITE',        '설비 변경',           'API', 'PREFIX', '/api/eqp',    NULL,     'POST/PUT/DELETE/start/end 설비 변경', TRUE, now(), now(), 'SEED', 'SEED'),
   ('ASYNC_READ',       '비동기 결과 조회',     'API', 'PREFIX', '/api/async',  'GET',    'GET /api/async/{traceId}',       TRUE, now(), now(), 'SEED', 'SEED'),
   ('DLQ_READ',         'DLQ 조회',            'API', 'PREFIX', '/api/dlq',    'GET',    'GET /api/dlq/**',                TRUE, now(), now(), 'SEED', 'SEED'),
   ('DLQ_DELETE',       'DLQ 삭제',            'API', 'PREFIX', '/api/dlq',    'DELETE', 'DELETE /api/dlq/**',             TRUE, now(), now(), 'SEED', 'SEED'),
@@ -668,6 +654,7 @@ JOIN tc_ui_permission p
   ON p.perm_code IN (
     'AUTH_ME_PERM',
     'AUTH_LOGOUT_PERM',
+    'EQP_READ',
     'ASYNC_READ',
     'DLQ_READ',
     'MODEL_READ'

@@ -297,6 +297,7 @@ class BusinessWorkflowDispatchingActionExecutorTest {
                 "v1",
                 protocolType,
                 ModelStatus.ACTIVE,
+                null,
                 "NORI",
                 now,
                 now,

@@ -133,6 +133,7 @@ class BusinessWorkflowMatcherImplTest {
                 "v1",
                 protocolType,
                 ModelStatus.ACTIVE,
+                null,
                 "NORI",
                 now,
                 now,
@@ -190,5 +191,4 @@ class BusinessWorkflowMatcherImplTest {
                 + "\"}]}";
     }
 }
-
 

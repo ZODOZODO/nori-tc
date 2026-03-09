@@ -18,6 +18,7 @@
             <arg column="status"
                  javaType="com.nori.tc.db.domain.common.ModelStatus"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="description" javaType="java.lang.String"/>
             <arg column="maker" javaType="java.lang.String"/>
             <arg column="created_at"
                  javaType="java.time.OffsetDateTime"
@@ -37,6 +38,7 @@
         mv.model_version,
         m.comm_interface,
         mv.status,
+        mv.description,
         m.maker,
         mv.created_at,
         mv.updated_at,
@@ -63,16 +65,18 @@
             RETURNING model_key
         )
         INSERT INTO tc_model_version
-            (model_key, model_version, status, created_by, updated_by)
+            (model_key, model_version, status, description, created_by, updated_by)
         SELECT model_key,
                #{m.modelVersion},
                #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               #{m.description},
                #{m.createdBy},
                #{m.updatedBy}
           FROM upsert_model
         ON CONFLICT (model_key, model_version)
         DO UPDATE
                SET status = EXCLUDED.status,
+                   description = EXCLUDED.description,
                    updated_by = EXCLUDED.updated_by,
                    updated_at = CURRENT_TIMESTAMP
     </insert>
@@ -96,6 +100,7 @@
         UPDATE tc_model_version
            SET model_version = #{m.modelVersion},
                status = #{m.status, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               description = #{m.description},
                updated_by = #{m.updatedBy},
                updated_at = CURRENT_TIMESTAMP
          WHERE model_version_key = #{m.modelVersionKey}

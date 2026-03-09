@@ -193,9 +193,14 @@ public class UiTokenAuthenticationFilter extends OncePerRequestFilter {
                 principal = validateTokenUseCase.execute(token);
             } catch (UiAuthenticationException e) {
                 // 토큰 유효하지 않음 (만료/폐기/미존재/계정 비활성)
-                log.warn("토큰 인증 실패. uri={}, method={}, reason={}",
+                // 즉시 401을 반환하지 않고 SecurityContext 미설정 후 다음 필터로 통과합니다.
+                // - permitAll 엔드포인트(/api/auth/csrf, /api/auth/login 등)는 Spring Security가 허용합니다.
+                // - 보호 엔드포인트는 인가 단계에서 AuthenticationEntryPoint를 통해 401을 반환합니다.
+                // NOTE: 즉시 401을 반환하면 브라우저에 만료 쿠키가 남아 있을 때
+                //       permitAll 엔드포인트 접근까지 차단되어 로그인 자체가 불가능해집니다.
+                log.warn("유효하지 않은 토큰 - 익명 접근으로 처리합니다. uri={}, method={}, reason={}",
                         request.getRequestURI(), request.getMethod(), e.getMessage());
-                sendUnauthorized(response, "유효하지 않은 인증 토큰입니다.");
+                filterChain.doFilter(request, response);
                 return;
             } catch (Exception e) {
                 // 예상치 못한 예외 (Redis/DB 장애 등)

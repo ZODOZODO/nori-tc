@@ -32,8 +32,10 @@
 | `libs/ui/tc-ui-core/.../usecase/LoginUseCase.java` | 로그인 비즈니스 로직 |
 | `libs/ui/tc-ui-core/.../usecase/ValidateTokenUseCase.java` | 토큰 유효성 검증 |
 | `libs/ui/tc-ui-core/.../usecase/LogoutUseCase.java` | 로그아웃 비즈니스 로직 |
+| `libs/ui/adapter/tc-ui-web-adapter/.../security/UiSecurityConfig.java` | Spring Security 필터 체인 설정 (CSRF/CORS/URL 인가) |
 | `libs/ui/adapter/tc-ui-web-adapter/.../security/UiTokenAuthenticationFilter.java` | 요청별 토큰 검증 필터 |
 | `libs/ui/adapter/tc-ui-web-adapter/.../security/UiAuthenticationEntryPoint.java` | 인증 실패 응답 처리 |
+| `libs/ui/adapter/tc-ui-web-adapter/.../security/UiApiPermissionCache.java` | DB 기반 API URL 인가 캐시 (기동 시 로드, 주기 갱신) |
 | `libs/ui/tc-ui-domain/.../auth/AuthToken.java` | 세션 토큰 도메인 모델 |
 | `libs/ui/tc-ui-domain/.../auth/UserPrincipal.java` | 인증된 사용자 도메인 모델 |
 | `libs/db/tc-db-domain/.../user/TcUserInfo.java` | 사용자 DB 도메인 모델 |
@@ -54,14 +56,14 @@
    |-------------------->|                       |                      |
    |                     | onSubmit()            |                      |
    |                     |---------------------->|                      |
-   |                     |                       | prepareCsrfToken()   |
+   |                     |                       | mutateAsync()        |
+   |                     |                       | → authApi.login()    |
    |                     |                       |--------------------->|
+   |                     |                       |                      | issueCsrfToken()
    |                     |                       |                      | GET /api/auth/csrf
    |                     |                       |                      |--------------->
    |                     |                       |                      | <Set-Cookie: XSRF-TOKEN>
    |                     |                       |                      |<--------------
-   |                     |                       | login(credentials)   |
-   |                     |                       |--------------------->|
    |                     |                       |                      | POST /api/auth/login
    |                     |                       |                      | Header: X-XSRF-TOKEN
    |                     |                       |                      | Body: {userId, password}
@@ -71,7 +73,7 @@
    |                     |                       |                      |<--------------
    |                     |                       | verifyEqpAccess()    |
    |                     |                       |--------------------->|
-   |                     |                       |                      | GET /eqp (쿠키 자동 포함)
+   |                     |                       |                      | GET /api/eqp (쿠키 자동 포함)
    |                     |                       |                      |--------------->
    |                     |                       |                      | 200 OK
    |                     |                       |                      |<--------------
@@ -85,18 +87,21 @@
 
 #### Step 1: CSRF 토큰 발급
 
-**프론트엔드** (`auth.api.ts` - `issueCsrfToken()`)
+**프론트엔드** (`auth.api.ts` - `issueCsrfToken()`, `authApi.login()` 내부에서 자동 호출)
 
-```typescript
-// GET /api/auth/csrf 호출
-// 응답 쿠키에서 XSRF-TOKEN 추출
-// document.cookie에서 csrfToken 파싱
-```
+- `authApi.login()` 최초 단계에서 `issueCsrfToken()`을 직접 호출
+- `GET /api/auth/csrf` 호출 → `Set-Cookie: XSRF-TOKEN` 수신
+- `document.cookie`에서 `XSRF-TOKEN` 파싱 → 이후 `X-XSRF-TOKEN` 헤더에 주입
+- CSRF 쿠키가 없으면 `AuthApiError(CSRF_TOKEN_MISSING)` throw (로그인 요청 중단)
+- `prepareCsrfToken`은 `issueCsrfToken`의 public 별칭으로 노출되어 있으나,
+  실제 로그인 흐름에서는 `authApi.login()` 내부에서 자동으로 처리됨
 
 **백엔드** (`AuthController.java` - `csrf()`)
 
-- Spring Security의 `CsrfFilter`가 처리
-- 응답 쿠키로 `XSRF-TOKEN` 발급
+- `CsrfTokenRepository.loadDeferredToken(request, response).get()` 명시적 호출로
+  토큰 생성 + 저장을 즉시 트리거
+- `CookieCsrfTokenRepository`가 `Set-Cookie: XSRF-TOKEN` 응답 헤더를 생성
+- CSRF 쿠키 정책(Secure/SameSite/Domain)은 인증 쿠키와 동일하게 맞춤
 
 #### Step 2: 로그인 요청
 
@@ -187,8 +192,11 @@ Content-Type: application/json
 
 #### Step 4: 인증 확인 (verifyEqpAccess)
 
-로그인 성공 후 `GET /eqp` 요청으로 쿠키 기반 인증이 실제로 작동하는지 검증한 뒤,
+로그인 성공 후 `apiClient.get('/eqp', { withCredentials: true })`로 `GET /api/eqp`를 호출하여
+쿠키 기반 인증이 실제로 작동하는지 검증한 뒤,
 `navigate('/eqp', { replace: true })`로 메인 화면으로 이동.
+
+> `apiClient`의 `baseURL`이 `/api`이므로 실제 요청 경로는 `/api/eqp`입니다.
 
 ---
 
@@ -275,11 +283,30 @@ Content-Type: application/json
 
 ### 2.2 비동기 재디스패치 처리
 
-`UiTokenAuthenticationFilter`는 `shouldNotFilterAsyncDispatch = false`로 설정되어
+`UiTokenAuthenticationFilter`는 `shouldNotFilterAsyncDispatch() = false`로 설정되어
 DeferredResult 비동기 재디스패치 시에도 필터가 재실행됩니다.
 
-이 경우 request attribute(`ASYNC_AUTH_ATTRIBUTE`)에서 인증 객체를 복원하여
-DB/Redis 재조회 없이 SecurityContext를 재구성합니다.
+재디스패치(ASYNC dispatch) 처리 단계:
+
+1. **SecurityContext 재사용 (우선)**: SecurityContext에 이미 인증 정보가 있으면
+   토큰 재검증 없이 다음 필터로 즉시 통과
+2. **ASYNC_AUTH_ATTRIBUTE 복원 (폴백)**: SecurityContext가 비어 있는 경우
+   최초 REQUEST 디스패치에서 `request.setAttribute(ASYNC_AUTH_ATTRIBUTE, authentication)`으로
+   저장한 인증 객체를 복원하여 SecurityContext를 재구성
+
+> Redis 캐시 히트로 처리되는 경우에도 재조회가 필요하지만,
+> SecurityContext 재사용 경로에서는 Redis/DB 조회 자체를 건너뛰므로 성능 오버헤드가 최소화됩니다.
+
+### 2.3 요청 단위 traceId MDC 주입
+
+`UiTokenAuthenticationFilter`는 매 요청마다 traceId를 MDC에 주입합니다.
+
+우선순위:
+1. `X-Request-Id` 요청 헤더 값
+2. 동일 request의 이전 디스패치에서 저장한 `request attribute` 값 (재디스패치 시 동일 traceId 유지)
+3. `UUID.randomUUID()` 신규 생성
+
+필터 종료 시 이전 MDC 상태로 복구하여 traceId 누수를 방지합니다.
 
 ---
 
@@ -355,6 +382,8 @@ HTTP/1.1 401 Unauthorized
 | `POST` | `/api/auth/login` | 불필요 | 로그인 (세션 생성) |
 | `POST` | `/api/auth/logout` | 필요 | 로그아웃 (세션 폐기) |
 | `GET` | `/api/auth/me` | 필요 | 현재 사용자 정보 조회 |
+| `GET` | `/api/actuator/health` | 불필요 | 헬스 체크 |
+| `OPTIONS` | `/**` | 불필요 | CORS preflight (브라우저 자동 호출) |
 
 ---
 
@@ -431,11 +460,21 @@ record UserPrincipal(
 | `tc.ui.backend.auth.token-cache-ttl-seconds` | `300` | Redis 캐시 TTL (초) |
 | `tc.ui.backend.auth.cookie-name` | `TC_UI_AUTH` | 인증 쿠키 이름 |
 | `tc.ui.backend.auth.cookie-path` | `/` | 쿠키 경로 |
+| `tc.ui.backend.auth.cookie-domain` | (없음, 미지정) | 쿠키 Domain (옵션, 미지정 시 현재 도메인) |
 | `tc.ui.backend.auth.cookie-secure` | `true` | HTTPS 전용 여부 |
 | `tc.ui.backend.auth.cookie-same-site` | `None` | SameSite 정책 |
 | `tc.ui.backend.auth.csrf-cookie-name` | `XSRF-TOKEN` | CSRF 쿠키 이름 |
 | `tc.ui.backend.auth.csrf-header-name` | `X-XSRF-TOKEN` | CSRF 헤더 이름 |
-| `tc.ui.backend.auth.cors-allowed-origins` | (없음) | CORS 허용 Origin 목록 |
+| `tc.ui.backend.auth.cors-allowed-origins` | (없음) | CORS 허용 Origin 목록 (쉼표 구분) |
+
+> **로컬 프로파일 오버라이드** (`config/tc-ui-backend-local.properties`):
+> `spring.profiles.active=local` 지정 시 아래 값으로 덮어씁니다.
+>
+> | 설정 키 | 로컬 값 | 이유 |
+> |---------|---------|------|
+> | `cookie-secure` | `false` | HTTP(비TLS) 환경 테스트 |
+> | `cookie-same-site` | `Lax` | 로컬 same-site 요청 허용 |
+> | `cors-allowed-origins` | `http://localhost:3000,http://127.0.0.1:3000` | Vite dev server 허용 |
 
 ---
 
@@ -477,6 +516,25 @@ record UserPrincipal(
 사용자 미존재와 비밀번호 불일치를 동일한 메시지로 처리:
 > "아이디 또는 비밀번호가 올바르지 않습니다."
 
+### 8.6 URL 인가 체계 (UiApiPermissionCache)
+
+Spring Security의 `authorizeHttpRequests`에 커스텀 `AuthorizationManager`를 등록하여
+**DB 기반 URL 인가(Closed by Default)**를 구현합니다.
+
+**`UiApiPermissionCache` 동작:**
+- 애플리케이션 기동 시(`@PostConstruct`) `tc_ui_permission` 테이블의 활성 권한 목록을 메모리에 로드
+- `@Scheduled`로 주기적 갱신 (권한 변경 반영)
+- 초기 로드 실패 시 `initializationFailed=true` → 모든 보호 API 차단 (failsafe)
+
+**매 HTTP 요청 인가 판단 순서:**
+1. 인증 미완료(Anonymous) → 거부 (401)
+2. principal이 `UserPrincipal`이 아님 → 거부 (비정상 상태)
+3. `UiApiPermissionCache.isAuthorized(userPrincipal, httpMethod, requestUri)`:
+   - 캐시에 해당 URI 권한 없음 → **기본 차단**
+   - 권한 있음 + 사용자가 `permissionCode` 보유 → 허용
+   - matchType: `PREFIX`(startsWith) 또는 `EXACT`(equals)
+   - httpMethod: `null`이면 모든 메서드 허용, 지정 시 대소문자 무관 비교
+
 ---
 
 ## 9. 캐싱 전략
@@ -512,6 +570,9 @@ TTL: 300초 (5분)
 
 ### 백엔드
 
-| 에러코드 | HTTP Status | 발생 상황 |
-|---------|-------------|----------|
-| `UNAUTHORIZED` | 401 | 사용자 없음, 비밀번호 불일치, 비활성 계정, 토큰 만료/폐기, 인증 정보 누락 |
+| 에러코드 | HTTP Status | 발생 상황 | 처리 주체 |
+|---------|-------------|----------|----------|
+| `UNAUTHORIZED` | 401 | 사용자 없음, 비밀번호 불일치, 비활성 계정 | `AuthController` (로그인 실패) |
+| `UNAUTHORIZED` | 401 | 토큰 만료/폐기/미존재, 계정 비활성 (보호 API 접근) | `UiTokenAuthenticationFilter` (직접 응답) |
+| `UNAUTHORIZED` | 401 | 인증 정보 없이 보호 API 접근 (쿠키 미포함) | `UiAuthenticationEntryPoint` (Spring Security 위임) |
+| `UNAUTHORIZED` | 401 | Redis/DB 장애로 토큰 검증 불가 | `UiTokenAuthenticationFilter` (직접 응답) |

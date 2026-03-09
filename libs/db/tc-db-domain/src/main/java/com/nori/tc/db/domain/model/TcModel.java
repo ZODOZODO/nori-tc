@@ -20,6 +20,7 @@ public record TcModel(
         String modelVersion,
         ProtocolType commInterface,
         ModelStatus status,
+        String description,
         String maker,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,

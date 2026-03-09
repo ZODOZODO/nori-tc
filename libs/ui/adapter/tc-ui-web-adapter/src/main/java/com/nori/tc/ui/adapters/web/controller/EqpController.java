@@ -12,6 +12,7 @@ import com.nori.tc.ui.adapters.web.dto.request.EqpUpdateRequest;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.adapters.web.dto.response.AsyncAcceptResponse;
 import com.nori.tc.ui.adapters.web.dto.response.EqpInfoResponse;
+import com.nori.tc.ui.adapters.web.dto.response.EqpRuntimeStateResponse;
 import com.nori.tc.ui.core.model.PagedResponse;
 import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
@@ -44,6 +45,7 @@ import org.springframework.web.context.request.async.DeferredResult;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
@@ -55,6 +57,8 @@ import java.util.concurrent.TimeoutException;
  * <ul>
  *   <li>GET    /api/eqp          — 설비 목록 조회 (DB 기반)</li>
  *   <li>GET    /api/eqp/{eqpId}  — 설비 상세 조회 (DB 기반)</li>
+ *   <li>GET    /api/eqp/{eqpId}/param-versions — 설비 파라미터 버전 목록 조회 (tc_eqp_param 기반)</li>
+ *   <li>GET    /api/eqp/{eqpId}/runtime-state  — 설비 런타임 상태 조회 (tc_eqp_state/tc_eqp_state_hist 기반)</li>
  *   <li>POST   /api/eqp          — 설비 등록 (EQP_CREATE), Gateway + Business 동시 발행 후 양방향 응답 대기</li>
  *   <li>PUT    /api/eqp/{eqpId}  — 설비 수정 (EQP_UPDATE), Gateway + Business 동시 발행 후 양방향 응답 대기</li>
  *   <li>DELETE /api/eqp/{eqpId}  — 설비 삭제 (EQP_DELETE), Gateway + Business 동시 발행 후 양방향 응답 대기</li>
@@ -179,6 +183,75 @@ public class EqpController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(toEqpInfoResponse(optionalEqp.get())));
+    }
+
+    /**
+     * 설비 ID(eqpId)에 매핑된 파라미터 버전 목록을 조회합니다.
+     *
+     * <p>버전 소스는 {@code tc_eqp_param.param_version}이며, 동일 버전은 중복 없이 반환됩니다.</p>
+     *
+     * @param eqpId 설비 비즈니스 ID
+     * @return 버전 목록 응답
+     */
+    @GetMapping("/{eqpId}/param-versions")
+    public ResponseEntity<ApiResponse<List<String>>> getParamVersions(
+            @PathVariable final String eqpId
+    ) {
+        if (log.isDebugEnabled()) {
+            log.debug("설비 파라미터 버전 조회 요청. eqpId={}", eqpId);
+        }
+
+        final Optional<TcEqp> optionalEqp = eqpQueryPort.findByEqpId(eqpId);
+        if (optionalEqp.isEmpty()) {
+            log.warn("설비 파라미터 버전 조회 결과 없음 - 설비 미존재. eqpId={}", eqpId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("NOT_FOUND", "설비를 찾을 수 없습니다."));
+        }
+
+        final List<String> versions = eqpQueryPort.findParamVersionsByEqpId(eqpId);
+
+        if (log.isDebugEnabled()) {
+            log.debug("설비 파라미터 버전 조회 완료. eqpId={}, versionCount={}", eqpId, versions.size());
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(versions));
+    }
+
+    /**
+     * 설비 ID(eqpId)에 매핑된 런타임 상태를 조회합니다.
+     *
+     * <p>상태 소스:</p>
+     * <ul>
+     *   <li>tc_eqp_state: control_state, eqp_state</li>
+     *   <li>tc_eqp_state_hist: 최신 CONN 이력(to_state)</li>
+     * </ul>
+     *
+     * @param eqpId 설비 비즈니스 ID
+     * @return 런타임 상태 응답
+     */
+    @GetMapping("/{eqpId}/runtime-state")
+    public ResponseEntity<ApiResponse<EqpRuntimeStateResponse>> getRuntimeState(
+            @PathVariable final String eqpId
+    ) {
+        if (log.isDebugEnabled()) {
+            log.debug("설비 런타임 상태 조회 요청. eqpId={}", eqpId);
+        }
+
+        final Optional<EqpQueryPort.EqpRuntimeStateView> optionalState = eqpQueryPort.findRuntimeStateByEqpId(eqpId);
+        if (optionalState.isEmpty()) {
+            log.warn("설비 런타임 상태 조회 결과 없음 - 설비 미존재. eqpId={}", eqpId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("NOT_FOUND", "설비를 찾을 수 없습니다."));
+        }
+
+        final EqpQueryPort.EqpRuntimeStateView state = optionalState.get();
+        final EqpRuntimeStateResponse response = new EqpRuntimeStateResponse(
+                state.controlState(),
+                state.eqpState(),
+                state.connectionState()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     // -------------------------------------------------------------------------

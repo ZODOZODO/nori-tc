@@ -14,6 +14,7 @@ public record TcModelVersion(
         long modelKey,
         String modelVersion,
         ModelStatus status,
+        String description,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         String createdBy,

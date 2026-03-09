@@ -166,6 +166,7 @@ class BusinessWorkflowActionRegistryBuilderTest {
                 "v1",
                 ProtocolType.SOCKET,
                 ModelStatus.ACTIVE,
+                null,
                 "NORI",
                 now,
                 now,
@@ -181,6 +182,5 @@ class BusinessWorkflowActionRegistryBuilderTest {
         );
     }
 }
-
 
 

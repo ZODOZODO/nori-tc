@@ -18,6 +18,7 @@ import jakarta.validation.constraints.NotNull;
  * @param modelVersion 모델 버전(필수)
  * @param commInterface 통신 인터페이스 타입(필수)
  * @param status 모델 상태(필수)
+ * @param description 모델 버전 설명(선택)
  * @param maker 제조사 정보(선택)
  * @param createdBy 생성자 식별자(선택)
  * @param updatedBy 수정자 식별자(선택)
@@ -36,6 +37,8 @@ public record ModelUpsertRequest(
         @NotNull(message = "status는 필수입니다.")
         ModelStatus status,
 
+        String description,
+
         String maker,
 
         String createdBy,
@@ -43,4 +46,3 @@ public record ModelUpsertRequest(
         String updatedBy
 ) {
 }
-

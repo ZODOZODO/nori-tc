@@ -35,6 +35,7 @@ class BusinessModelRuntimeAssemblerTest {
                 "v1",
                 ProtocolType.HSMS,
                 ModelStatus.ACTIVE,
+                null,
                 "NORI",
                 now,
                 now,

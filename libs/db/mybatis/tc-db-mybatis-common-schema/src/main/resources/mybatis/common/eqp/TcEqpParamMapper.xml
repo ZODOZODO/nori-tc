@@ -13,6 +13,7 @@
             <arg column="param_name" javaType="java.lang.String"/>
             <arg column="param_version" javaType="java.lang.String"/>
             <arg column="param_value" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
             <arg column="updated_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
@@ -20,22 +21,24 @@
     </resultMap>
 
     <sql id="TcEqpParamColumns">
-        eqp_param_key, eqp_key, param_name, param_version, param_value, updated_at
+        eqp_param_key, eqp_key, param_name, param_version, param_value, description, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp_param
-            (eqp_key, param_name, param_version, param_value)
+            (eqp_key, param_name, param_version, param_value, description)
         VALUES
             (#{e.eqpKey},
              #{e.paramName},
              #{e.paramVersion},
-             #{e.paramValue})
+             #{e.paramValue},
+             #{e.description})
     </insert>
 
     <update id="updateByUniqueKey">
         UPDATE tc_eqp_param
            SET param_value = #{e.paramValue},
+               description = #{e.description},
                updated_at  = CURRENT_TIMESTAMP
          WHERE eqp_key = #{e.eqpKey}
            AND param_name = #{e.paramName}

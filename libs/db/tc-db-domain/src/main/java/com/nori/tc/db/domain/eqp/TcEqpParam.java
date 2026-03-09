@@ -20,6 +20,7 @@ public record TcEqpParam(
         String paramName,
         String paramVersion,
         String paramValue,
+        String description,
         OffsetDateTime updatedAt
 ) {
 }

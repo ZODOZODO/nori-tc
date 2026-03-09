@@ -118,6 +118,7 @@ class BusinessMdfMessageComposerTest {
                 "v1",
                 ProtocolType.HSMS,
                 ModelStatus.ACTIVE,
+                null,
                 "NORI",
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),

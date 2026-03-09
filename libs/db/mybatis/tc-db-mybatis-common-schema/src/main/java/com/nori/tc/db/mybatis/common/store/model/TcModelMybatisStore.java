@@ -165,6 +165,7 @@ public class TcModelMybatisStore implements TcModelStore {
                 command.modelVersion(),
                 command.commInterface(),
                 command.status(),
+                command.description(),
                 command.maker(),
                 null,
                 null,

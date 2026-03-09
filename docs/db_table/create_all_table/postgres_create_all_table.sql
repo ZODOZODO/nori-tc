@@ -87,6 +87,7 @@ CREATE TABLE public.tc_model_version (
     model_key         BIGINT NOT NULL,
     model_version     VARCHAR(32) NOT NULL,
     status            VARCHAR(16) NOT NULL,
+    description       VARCHAR(2000) NULL,
     created_at        TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by        VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
@@ -477,6 +478,7 @@ CREATE TABLE public.tc_eqp_param (
     param_name    VARCHAR(100) NOT NULL,
     param_version VARCHAR(100) NOT NULL,
     param_value   TEXT NULL,
+    description   VARCHAR(2000) NULL,
     updated_at    TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_tc_eqp_param PRIMARY KEY (eqp_param_key),

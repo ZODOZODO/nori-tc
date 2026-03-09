@@ -4,6 +4,7 @@ import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.ui.core.model.PagedResponse;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -24,6 +25,20 @@ import java.util.Optional;
 public interface EqpQueryPort {
 
     /**
+     * 설비 상세 화면의 상태 표시를 위한 런타임 상태 스냅샷입니다.
+     *
+     * @param controlState tc_eqp_state.control_state 문자열
+     * @param eqpState tc_eqp_state.eqp_state 문자열
+     * @param connectionState tc_eqp_state_hist(CONN)의 최신 to_state 문자열
+     */
+    record EqpRuntimeStateView(
+            String controlState,
+            String eqpState,
+            String connectionState
+    ) {
+    }
+
+    /**
      * 설비 목록을 페이지 단위로 조회합니다.
      *
      * @param pageRequest offset/limit 기반 페이지 요청
@@ -38,4 +53,28 @@ public interface EqpQueryPort {
      * @return 조회 결과, 미존재 시 빈 Optional
      */
     Optional<TcEqp> findByEqpId(String eqpId);
+
+    /**
+     * 설비 식별자(eqpId)에 매핑된 파라미터 버전 목록을 조회합니다.
+     *
+     * <p>데이터 소스는 {@code tc_eqp_param.param_version}이며, 중복 없는 버전 문자열 목록을 반환합니다.</p>
+     *
+     * @param eqpId 설비 비즈니스 키
+     * @return 버전 문자열 목록(해당 설비가 없거나 버전 데이터가 없으면 빈 목록)
+     */
+    List<String> findParamVersionsByEqpId(String eqpId);
+
+    /**
+     * 설비 식별자(eqpId)에 매핑된 런타임 상태 정보를 조회합니다.
+     *
+     * <p>조회 소스:</p>
+     * <ul>
+     *   <li>{@code tc_eqp_state} (control_state, eqp_state)</li>
+     *   <li>{@code tc_eqp_state_hist}의 최신 CONN 이력(to_state)</li>
+     * </ul>
+     *
+     * @param eqpId 설비 비즈니스 키
+     * @return 설비 존재 시 상태 스냅샷(상태 데이터가 없어도 Optional은 present), 설비 미존재 시 empty
+     */
+    Optional<EqpRuntimeStateView> findRuntimeStateByEqpId(String eqpId);
 }

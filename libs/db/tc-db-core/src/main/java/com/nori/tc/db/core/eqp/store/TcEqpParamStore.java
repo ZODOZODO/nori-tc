@@ -12,7 +12,7 @@ import com.nori.tc.db.domain.eqp.TcEqpParam;
  *
  * <p>
  * - Unique(eqp_key, param_name, param_version)을 기준으로 upsert를 수행한다.
- * - param_value만 갱신하는 패턴을 기본으로 한다.
+ * - param_value/description 갱신을 지원한다.
  * </p>
  */
 public interface TcEqpParamStore {

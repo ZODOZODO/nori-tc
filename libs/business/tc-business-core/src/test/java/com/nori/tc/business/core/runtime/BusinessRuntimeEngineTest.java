@@ -267,6 +267,7 @@ class BusinessRuntimeEngineTest {
                 "v1",
                 protocolType,
                 ModelStatus.ACTIVE,
+                null,
                 "NORI",
                 now,
                 now,

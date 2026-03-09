@@ -52,6 +52,7 @@ public class TcModelJpaStore implements TcModelStore {
             mv.model_version,
             m.comm_interface,
             mv.status,
+            mv.description,
             m.maker,
             mv.created_at,
             mv.updated_at,
@@ -112,16 +113,18 @@ public class TcModelJpaStore implements TcModelStore {
                 RETURNING model_key
             )
             INSERT INTO tc_model_version
-                (model_key, model_version, status, created_by, updated_by)
+                (model_key, model_version, status, description, created_by, updated_by)
             SELECT model_key,
                    :modelVersion,
                    :status,
+                   :description,
                    :createdBy,
                    :updatedBy
               FROM upsert_model
             ON CONFLICT (model_key, model_version)
             DO UPDATE
                    SET status = EXCLUDED.status,
+                       description = EXCLUDED.description,
                        updated_by = EXCLUDED.updated_by,
                        updated_at = CURRENT_TIMESTAMP
             """;
@@ -148,6 +151,7 @@ public class TcModelJpaStore implements TcModelStore {
             UPDATE tc_model_version
                SET model_version = :modelVersion,
                    status = :status,
+                   description = :description,
                    updated_by = :updatedBy,
                    updated_at = CURRENT_TIMESTAMP
              WHERE model_version_key = :modelVersionKey
@@ -212,6 +216,7 @@ public class TcModelJpaStore implements TcModelStore {
                         .setParameter("modelVersion", command.modelVersion())
                         .setParameter("commInterface", command.commInterface().name())
                         .setParameter("status", command.status().name())
+                        .setParameter("description", command.description())
                         .setParameter("maker", command.maker())
                         .setParameter("updatedBy", updatedBy)
                         .executeUpdate();
@@ -227,6 +232,7 @@ public class TcModelJpaStore implements TcModelStore {
                         .setParameter("modelVersion", command.modelVersion())
                         .setParameter("commInterface", command.commInterface().name())
                         .setParameter("status", command.status().name())
+                        .setParameter("description", command.description())
                         .setParameter("maker", command.maker())
                         .setParameter("createdBy", createdBy)
                         .setParameter("updatedBy", updatedBy)
@@ -417,7 +423,7 @@ public class TcModelJpaStore implements TcModelStore {
      * SQL 행(Object[])을 TcModel 도메인으로 변환합니다.
      */
     private TcModel mapRow(Object[] row) {
-        if (row.length < 11) {
+        if (row.length < 12) {
             throw new DbAccessException("tc_model native query row column count is invalid: " + row.length);
         }
 
@@ -429,10 +435,11 @@ public class TcModelJpaStore implements TcModelStore {
                 toProtocolType(row[4]),
                 toModelStatus(row[5]),
                 toOptionalString(row[6]),
-                toOffsetDateTime(row[7], "created_at"),
-                toOffsetDateTime(row[8], "updated_at"),
-                toRequiredString(row[9], "created_by"),
-                toRequiredString(row[10], "updated_by")
+                toOptionalString(row[7]),
+                toOffsetDateTime(row[8], "created_at"),
+                toOffsetDateTime(row[9], "updated_at"),
+                toRequiredString(row[10], "created_by"),
+                toRequiredString(row[11], "updated_by")
         );
     }
 

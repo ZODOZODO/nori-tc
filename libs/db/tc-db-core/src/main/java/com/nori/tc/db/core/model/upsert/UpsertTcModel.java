@@ -26,6 +26,7 @@ public record UpsertTcModel(
         String modelVersion,
         ProtocolType commInterface,
         ModelStatus status,
+        String description,
         String maker,
         String createdBy,
         String updatedBy

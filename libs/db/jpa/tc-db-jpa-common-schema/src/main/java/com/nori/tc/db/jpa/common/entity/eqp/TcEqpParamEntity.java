@@ -19,6 +19,7 @@ import jakarta.persistence.UniqueConstraint;
  * - param_name    : varchar(100) NOT NULL
  * - param_version : varchar(100) NOT NULL
  * - param_value   : text NULL
+ * - description   : varchar(2000) NULL
  * - updated_at    : timestamptz NOT NULL default CURRENT_TIMESTAMP
  * - Constraints   : UNIQUE (eqp_key, param_name, param_version)
  */
@@ -51,6 +52,9 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
     @Column(name = "param_value", columnDefinition = "text")
     private String paramValue;
 
+    @Column(name = "description", length = 2000)
+    private String description;
+
     // =========================================================================
     // Constructors (MapStruct & JPA)
     // =========================================================================
@@ -66,12 +70,20 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
     /**
      * 전체 인자 생성자
      */
-    public TcEqpParamEntity(Long eqpParamKey, Long eqpKey, String paramName, String paramVersion, String paramValue) {
+    public TcEqpParamEntity(
+            Long eqpParamKey,
+            Long eqpKey,
+            String paramName,
+            String paramVersion,
+            String paramValue,
+            String description
+    ) {
         this.eqpParamKey = eqpParamKey;
         this.eqpKey = eqpKey;
         this.paramName = paramName;
         this.paramVersion = paramVersion;
         this.paramValue = paramValue;
+        this.description = description;
     }
 
     // =========================================================================
@@ -212,5 +224,27 @@ public class TcEqpParamEntity extends AbstractUpdatedEntity {
      */
     public void setParamValue(String paramValue) {
         this.paramValue = paramValue;
+    }
+
+    
+    /**
+     * DB JPA 계층의 현재 값을 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @return DB JPA 계층 처리 결과
+     */
+    public String getDescription() {
+        return description;
+    }
+
+    
+    /**
+     * DB JPA 계층 설정 값을 반영합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param description DB JPA 계층 처리에 사용하는 입력 값
+     */
+    public void setDescription(String description) {
+        this.description = description;
     }
 }
