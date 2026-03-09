@@ -10,6 +10,8 @@ import com.nori.tc.ui.core.usecase.LoginUseCase;
 import com.nori.tc.ui.core.usecase.LogoutUseCase;
 import com.nori.tc.ui.domain.auth.AuthToken;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -55,6 +58,7 @@ public class AuthController {
     private final LoginUseCase loginUseCase;
     private final LogoutUseCase logoutUseCase;
     private final UiAuthProperties authProperties;
+    private final CsrfTokenRepository csrfTokenRepository;
 
     /**
      * 필수 의존성을 초기화합니다.
@@ -62,15 +66,18 @@ public class AuthController {
      * @param loginUseCase  로그인(세션 토큰 발급) 유스케이스
      * @param logoutUseCase 로그아웃(세션 토큰 폐기) 유스케이스
      * @param authProperties 인증 쿠키 정책 프로퍼티
+     * @param csrfTokenRepository CSRF 토큰 저장소 (cookie 기반)
      */
     public AuthController(
             final LoginUseCase loginUseCase,
             final LogoutUseCase logoutUseCase,
-            final UiAuthProperties authProperties
+            final UiAuthProperties authProperties,
+            final CsrfTokenRepository csrfTokenRepository
     ) {
         this.loginUseCase = Objects.requireNonNull(loginUseCase, "loginUseCase is null");
         this.logoutUseCase = Objects.requireNonNull(logoutUseCase, "logoutUseCase is null");
         this.authProperties = Objects.requireNonNull(authProperties, "authProperties is null");
+        this.csrfTokenRepository = Objects.requireNonNull(csrfTokenRepository, "csrfTokenRepository is null");
     }
 
     /**
@@ -234,16 +241,30 @@ public class AuthController {
      * 프런트는 초기 진입 시 이 엔드포인트를 호출해 CSRF 쿠키를 확보한 뒤,
      * 상태 변경 요청에 CSRF 헤더를 포함해야 합니다.</p>
      *
-     * @param csrfToken Spring Security가 생성/조회한 CSRF 토큰
+     * @param request 현재 HTTP 요청
+     * @param response 현재 HTTP 응답
      * @return 200 OK (응답 본문은 단순 성공; 실제 토큰 전달은 쿠키 계약을 따름)
      */
     @GetMapping("/csrf")
-    public ResponseEntity<ApiResponse<Void>> csrf(final CsrfToken csrfToken) {
+    public ResponseEntity<ApiResponse<Void>> csrf(
+            final HttpServletRequest request,
+            final HttpServletResponse response
+    ) {
+        /*
+         * CsrfTokenRepository는 지연(lazy) 방식으로 토큰을 생성/저장합니다.
+         * loadDeferredToken(...).get()을 호출하면 "토큰 조회 + 저장(saveToken)"이 보장되며,
+         * CookieCsrfTokenRepository를 사용하는 현재 구조에서는 Set-Cookie 응답 헤더가 즉시 생성됩니다.
+         * 프런트는 /api/auth/csrf 호출 직후 document.cookie에서 XSRF-TOKEN을 읽기 때문에
+         * 이 트리거가 누락되면 로그인 이전 단계에서 CSRF_TOKEN_MISSING으로 실패할 수 있습니다.
+         */
+        final CsrfToken csrfToken = csrfTokenRepository.loadDeferredToken(request, response).get();
+        final String resolvedToken = csrfToken.getToken();
         if (log.isTraceEnabled()) {
-            log.trace("CSRF 토큰 발급 완료. cookieName={}, headerName={}, parameterName={}",
+            log.trace("CSRF 토큰 발급 완료. cookieName={}, headerName={}, parameterName={}, tokenLength={}",
                     authProperties.csrfCookieName(),
                     csrfToken.getHeaderName(),
-                    csrfToken.getParameterName());
+                    csrfToken.getParameterName(),
+                    resolvedToken.length());
         }
         return ResponseEntity.ok(ApiResponse.success(null));
     }

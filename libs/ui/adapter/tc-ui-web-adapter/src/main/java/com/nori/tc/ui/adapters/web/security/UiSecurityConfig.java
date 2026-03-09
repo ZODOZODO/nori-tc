@@ -2,6 +2,7 @@ package com.nori.tc.ui.adapters.web.security;
 
 import com.nori.tc.ui.core.properties.UiAuthProperties;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
+import jakarta.servlet.DispatcherType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -14,11 +15,13 @@ import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -88,6 +91,12 @@ public class UiSecurityConfig {
                 // CSRF 활성화: Double Submit Cookie 패턴을 적용합니다.
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
+                        /*
+                         * Spring Security 7 기본 핸들러(XOR)는 헤더 토큰을 마스킹 포맷으로 기대합니다.
+                         * 본 UI는 쿠키(XSRF-TOKEN)의 원문 토큰을 그대로 헤더(X-XSRF-TOKEN)로 재전송하므로
+                         * raw 토큰 비교가 가능한 RequestAttributeHandler를 명시적으로 사용합니다.
+                         */
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                 )
 
                 // CORS 활성화: 쿠키 기반 인증이므로 allowCredentials=true 정책을 사용합니다.
@@ -101,6 +110,13 @@ public class UiSecurityConfig {
 
                 // URL별 인가 설정
                 .authorizeHttpRequests(auth -> auth
+                        /*
+                         * ERROR 디스패치는 원래 상태코드(404/500 등)를 클라이언트로 전달하기 위해
+                         * 인증 없이 통과시킵니다. 이를 막으면 /error가 다시 401로 치환되어
+                         * 실제 실패 원인이 가려지는 문제가 발생합니다.
+                         */
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers("/error").permitAll()
                         // 공개 경로: 인증 없이 허용
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
@@ -146,11 +162,27 @@ public class UiSecurityConfig {
         repository.setCookieName(authProperties.csrfCookieName());
         repository.setHeaderName(authProperties.csrfHeaderName());
         repository.setCookiePath(authProperties.cookiePath());
+        /*
+         * 기본 CookieCsrfTokenRepository는 request.isSecure()를 기준으로 Secure를 결정하고,
+         * SameSite/Domain은 명시적으로 설정하지 않으면 브라우저/환경별 기본 동작에 의존하게 됩니다.
+         * 인증 쿠키와 CSRF 쿠키 정책이 다르면 프런트가 토큰 쿠키를 읽지 못하는 상황이 발생할 수 있으므로
+         * 인증 설정(UiAuthProperties)과 동일한 쿠키 정책을 강제합니다.
+         */
+        repository.setCookieCustomizer(cookieBuilder -> {
+            cookieBuilder.secure(authProperties.cookieSecure());
+            cookieBuilder.sameSite(authProperties.cookieSameSite());
+            if (authProperties.cookieDomain() != null) {
+                cookieBuilder.domain(authProperties.cookieDomain());
+            }
+        });
 
-        log.info("CSRF 저장소 구성 완료. cookieName={}, headerName={}, cookiePath={}",
+        log.info("CSRF 저장소 구성 완료. cookieName={}, headerName={}, cookiePath={}, cookieDomain={}, cookieSecure={}, cookieSameSite={}",
                 authProperties.csrfCookieName(),
                 authProperties.csrfHeaderName(),
-                authProperties.cookiePath());
+                authProperties.cookiePath(),
+                authProperties.cookieDomain() == null ? "(none)" : authProperties.cookieDomain(),
+                authProperties.cookieSecure(),
+                authProperties.cookieSameSite());
         return repository;
     }
 
@@ -209,6 +241,10 @@ public class UiSecurityConfig {
             // 인증 미완료 → 거부
             if (authentication == null || !authentication.isAuthenticated()) {
                 log.debug("미인증 요청 거부. uri={}", context.getRequest().getRequestURI());
+                return new AuthorizationDecision(false);
+            }
+            if (authentication instanceof AnonymousAuthenticationToken) {
+                log.debug("익명 사용자 요청 거부. uri={}", context.getRequest().getRequestURI());
                 return new AuthorizationDecision(false);
             }
 

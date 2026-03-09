@@ -22,13 +22,14 @@ cd "$REPO_ROOT" || {
 APP_ID="tc-ui-backend-app"
 APP_TASK=":apps:tc-ui-backend-app:bootJar"
 APP_DIR="apps/tc-ui-backend-app"
+SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-local}"
 TRACE_BASE="${TC_TRACE_BASE:-$HOME/tc-trace}"
 TRACE_ROOT="${TRACE_BASE}/${APP_ID}"
 TRACE_HEAP="${TRACE_ROOT}/heap"
 TRACE_GC="${TRACE_ROOT}/gc"
 TRACE_JFR="${TRACE_ROOT}/jfr"
 CONFIG_DIR="${REPO_ROOT}/config"
-SPRING_CONFIG_IMPORTS="optional:file:config/tc-db.properties,optional:file:${APP_DIR}/config/tc-messaging.properties,optional:file:${APP_DIR}/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:${APP_DIR}/config/tc-ui-backend.properties"
+SPRING_CONFIG_IMPORTS="optional:file:config/tc-db.properties,optional:file:${APP_DIR}/config/tc-messaging.properties,optional:file:${APP_DIR}/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:${APP_DIR}/config/tc-ui-backend.properties,optional:file:${APP_DIR}/config/tc-ui-backend-${SPRING_PROFILES_ACTIVE}.properties"
 
 if [[ ! -f "$REPO_ROOT/gradlew" ]]; then
   echo "[ERROR] gradlew was not found in repo root."
@@ -89,6 +90,7 @@ echo "[INFO] Jar: $APP_JAR"
 echo "[INFO] Trace root: $TRACE_ROOT"
 echo "[INFO] Working dir: $REPO_ROOT"
 echo "[INFO] Config dir (spring.config.import file:config/...): $CONFIG_DIR"
+echo "[INFO] Active profile: $SPRING_PROFILES_ACTIVE"
 echo "[INFO] spring.config.import override: $SPRING_CONFIG_IMPORTS"
 echo "[INFO] Stop app with Ctrl+C. JFR will be dumped on exit."
 echo
@@ -96,6 +98,7 @@ echo
 # Keep working directory at repo root so file:config/... resolves correctly.
 java \
   -Duser.timezone=Asia/Seoul \
+  "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}" \
   "-Dspring.config.import=${SPRING_CONFIG_IMPORTS}" \
   -XX:+HeapDumpOnOutOfMemoryError \
   "-XX:HeapDumpPath=${TRACE_HEAP}" \

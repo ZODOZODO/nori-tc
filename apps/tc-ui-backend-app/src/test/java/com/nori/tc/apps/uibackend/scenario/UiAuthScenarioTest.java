@@ -1,6 +1,7 @@
 package com.nori.tc.apps.uibackend.scenario;
 
 import com.nori.tc.ui.domain.auth.UserPrincipal;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -13,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -42,6 +46,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
 
     private static final Logger log = LoggerFactory.getLogger(UiAuthScenarioTest.class);
+
+    /**
+     * /error는 내부 에러 디스패치의 최종 응답 포인트이므로,
+     * 인증 필터에서 401로 덮어쓰지 않고 원래 에러 상태를 전달해야 합니다.
+     */
+    @Test
+    @DisplayName("인증 0: /error 경로는 401로 치환되지 않아야 함")
+    void error_경로_응답_상태_401_치환_방지() throws Exception {
+        log.info("[인증 0] /error 응답 상태 401 치환 방지 검증 시작");
+
+        final MvcResult result = mockMvc.perform(get("/error"))
+                .andDo(print())
+                .andReturn();
+
+        assertNotEquals(401, result.getResponse().getStatus(),
+                "/error는 보안 필터에서 401로 치환되면 안 됩니다.");
+
+        log.info("[인증 0] /error 응답 상태 401 치환 방지 검증 완료. status={}", result.getResponse().getStatus());
+    }
 
     /**
      * 로그인 성공 시 응답 본문에는 토큰이 노출되지 않고,
@@ -190,6 +213,63 @@ class UiAuthScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
         log.info("[인증 4] 로그아웃 쿠키 삭제 및 재사용 불가 검증 완료");
+    }
+
+    /**
+     * CSRF 토큰 발급 엔드포인트는 프런트와 합의한 쿠키 계약을 항상 만족해야 합니다.
+     *
+     * <p>특히 Secure/SameSite/Domain/Path 정책은 인증 쿠키와 동일해야 하므로,
+     * 환경별 설정(UiAuthProperties)이 CSRF 쿠키에도 반영되는지 검증합니다.</p>
+     */
+    @Test
+    @DisplayName("CSRF 0: /api/auth/csrf 호출 시 XSRF-TOKEN Set-Cookie 발급")
+    void csrf_발급_엔드포인트_SetCookie_검증() throws Exception {
+        log.info("[CSRF 0] /api/auth/csrf Set-Cookie 발급 계약 검증 시작");
+
+        final MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andReturn();
+
+        final List<String> setCookieHeaders = csrfResult.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
+        final String csrfCookiePrefix = authProperties.csrfCookieName() + "=";
+        final String csrfSetCookie = setCookieHeaders.stream()
+                .filter(header -> header.startsWith(csrfCookiePrefix))
+                .findFirst()
+                .orElse(null);
+        final Cookie csrfCookie = java.util.Arrays.stream(csrfResult.getResponse().getCookies())
+                .filter(cookie -> authProperties.csrfCookieName().equals(cookie.getName()))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(csrfSetCookie, "CSRF 발급 응답에는 XSRF-TOKEN Set-Cookie가 포함되어야 합니다.");
+        assertNotNull(csrfCookie, "CSRF 발급 응답에는 XSRF-TOKEN 쿠키 객체가 포함되어야 합니다.");
+        assertAll(
+                () -> assertEquals(authProperties.cookiePath(), csrfCookie.getPath(),
+                        "CSRF 쿠키 Path는 인증 쿠키 Path와 동일해야 합니다."),
+                () -> assertEquals(authProperties.cookieSameSite(), csrfCookie.getAttribute("SameSite"),
+                        "CSRF 쿠키 SameSite는 인증 쿠키 SameSite와 동일해야 합니다."),
+                () -> assertFalse(csrfCookie.isHttpOnly(),
+                        "CSRF 쿠키는 프런트(JavaScript)에서 읽을 수 있어야 하므로 HttpOnly=false여야 합니다."),
+                () -> {
+                    if (authProperties.cookieSecure()) {
+                        assertTrue(csrfCookie.getSecure(),
+                                "cookieSecure=true 환경에서는 CSRF 쿠키도 Secure 속성을 가져야 합니다.");
+                    } else {
+                        assertFalse(csrfCookie.getSecure(),
+                                "cookieSecure=false 환경에서는 CSRF 쿠키에 Secure 속성이 없어야 합니다.");
+                    }
+                },
+                () -> {
+                    if (authProperties.cookieDomain() != null) {
+                        assertEquals(authProperties.cookieDomain(), csrfCookie.getDomain(),
+                                "cookieDomain이 지정된 경우 CSRF 쿠키에도 동일 Domain이 반영되어야 합니다.");
+                    }
+                }
+        );
+
+        log.info("[CSRF 0] /api/auth/csrf Set-Cookie 발급 계약 검증 완료");
     }
 
     /**
