@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Positive;
  *
  * <p>수정 가능 필드만 노출하며, eqpId와 commInterface는 경로/기존 스냅샷으로 고정합니다.</p>
  *
+ * @param commMode 통신 모드
  * @param isDev 개발 장비 여부
  * @param routePartition route partition
  * @param eqpIp 설비 IP
@@ -24,6 +25,9 @@ import jakarta.validation.constraints.Positive;
  * @param socketSettings SOCKET 설정
  */
 public record EqpUpdateRequest(
+
+        @NotBlank(message = "commMode는 필수입니다.")
+        String commMode,
 
         @NotNull(message = "isDev는 필수입니다.")
         Boolean isDev,

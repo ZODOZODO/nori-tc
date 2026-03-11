@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
  * - model_version_key (FK -> tc_model_version.model_version_key, ON DELETE CASCADE)
  *
  * 주요 컬럼:
- * - secs_msg_name : 모델 내 유니크 메시지 이름 (model_version_key + secs_msg_name 유니크)
+ * - secs_msg_name : 모델 내 유니크 메시지 이름 (varchar(1000), model_version_key + secs_msg_name 유니크)
  * - description   : 메시지 설명 (nullable)
  * - data_index    : 데이터 인덱스/식별자 (nullable)
  */

@@ -32,4 +32,31 @@ public record UpsertTcModel(
         String createdBy,
         String updatedBy
 ) {
+
+    public UpsertTcModel {
+        if (modelKey != null && modelKey < 0) {
+            throw new IllegalArgumentException("modelKey compatibility value must be >= 0");
+        }
+        ModelFieldLengthValidator.requireTextWithMax(
+                modelName,
+                "modelName",
+                ModelFieldLengthValidator.MODEL_NAME_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.validateOptionalTextMax(
+                parentModel,
+                "parentModel",
+                ModelFieldLengthValidator.MODEL_NAME_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.requireTextWithMax(
+                modelVersion,
+                "modelVersion",
+                ModelFieldLengthValidator.MODEL_VERSION_MAX_LENGTH
+        );
+        if (commInterface == null) {
+            throw new IllegalArgumentException("commInterface must not be null");
+        }
+        if (status == null) {
+            throw new IllegalArgumentException("status must not be null");
+        }
+    }
 }

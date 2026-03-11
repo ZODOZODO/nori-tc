@@ -8,11 +8,11 @@ import java.time.OffsetDateTime;
  * [DB 스키마 요약]
  * - workflow_key      : bigint PK (IDENTITY)
  * - model_version_key         : bigint FK -> tc_model_version.model_version_key (ON DELETE CASCADE)
- * - workflow_name     : varchar(200) NOT NULL
- * - message_name      : varchar(200) NOT NULL
+ * - workflow_name     : varchar(1000) NOT NULL
+ * - message_name      : varchar(1000) NOT NULL
  * - event_id          : varchar(200) NULL
- * - transaction_id    : varchar(200) NULL
- * - workflow_filter   : varchar(200) NULL
+ * - transaction_id    : varchar(2000) NULL
+ * - workflow_filter   : varchar(4000) NULL
  * - action_name       : varchar(200) NOT NULL
  * - action_data_index : varchar(4000) NULL
  * - updated_at        : timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP

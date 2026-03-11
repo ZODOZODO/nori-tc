@@ -149,6 +149,7 @@ class EqpManagementDbSupportTest {
                 "127.0.0.1",
                 5000,
                 101L,
+                null,
                 true,
                 now,
                 now,

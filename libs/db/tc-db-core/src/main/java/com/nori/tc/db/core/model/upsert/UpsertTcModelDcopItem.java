@@ -19,4 +19,22 @@ public record UpsertTcModelDcopItem(
         DcopCalculationRule calculationRule,
         Integer orderRule
 ) {
+
+    public UpsertTcModelDcopItem {
+        ModelFieldLengthValidator.requireTextWithMax(
+                dcopItemName,
+                "dcopItemName",
+                ModelFieldLengthValidator.DCOP_ITEM_NAME_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.validateOptionalTextMax(
+                workflowName,
+                "workflowName",
+                ModelFieldLengthValidator.WORKFLOW_NAME_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.validateOptionalTextMax(
+                variableId,
+                "variableId",
+                ModelFieldLengthValidator.VARIABLE_ID_MAX_LENGTH
+        );
+    }
 }

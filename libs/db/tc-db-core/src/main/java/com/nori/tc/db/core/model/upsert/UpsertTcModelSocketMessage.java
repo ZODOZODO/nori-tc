@@ -12,4 +12,12 @@ public record UpsertTcModelSocketMessage(
         String dataIndex,
         OffsetDateTime updatedAt
 ) {
+
+    public UpsertTcModelSocketMessage {
+        ModelFieldLengthValidator.requireTextWithMax(
+                socketMsgName,
+                "socketMsgName",
+                ModelFieldLengthValidator.SOCKET_MSG_NAME_MAX_LENGTH
+        );
+    }
 }

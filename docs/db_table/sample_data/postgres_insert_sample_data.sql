@@ -272,18 +272,18 @@ SELECT model_version_key, 'PRESS',NULL, 'EVT_100', 'VID_PRESS','LAST',  'NONE', 
 
 WITH ins AS (
   INSERT INTO tc_eqp(
-    eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key,
+    eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key, applied_param_version,
     enabled, created_at, updated_at, created_by, updated_by
   )
   VALUES
     -- SECS 2대 (A/P)
-    ('EQP_HSMS_A01','SECS','ACTIVE',FALSE,0,'10.10.0.11',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
-    ('EQP_HSMS_P01','SECS','PASSIVE',FALSE,1,'10.10.0.12',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_02' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
+    ('EQP_HSMS_A01','SECS','ACTIVE',FALSE,0,'10.10.0.11',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_01' AND model_version='1.0.0'),'v1', FALSE, now(), now(),'SEED','SEED'),
+    ('EQP_HSMS_P01','SECS','PASSIVE',FALSE,1,'10.10.0.12',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_02' AND model_version='1.0.0'),'v1', FALSE, now(), now(),'SEED','SEED'),
 
     -- SOCKET 3대 (A/P/P)
-    ('EQP_SOCKET_A01','SOCKET','ACTIVE',FALSE,0,'10.10.0.21',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
-    ('EQP_SOCKET_P01','SOCKET','PASSIVE',FALSE,4,'192.168.0.7',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED'),
-    ('DG_SOCKET_P01','SOCKET','PASSIVE',FALSE,2,'192.168.0.14',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED')
+    ('EQP_SOCKET_A01','SOCKET','ACTIVE',FALSE,0,'10.10.0.21',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_01' AND model_version='1.0.0'),'v1', FALSE, now(), now(),'SEED','SEED'),
+    ('EQP_SOCKET_P01','SOCKET','PASSIVE',FALSE,4,'192.168.0.7',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'),'v1', TRUE, now(), now(),'SEED','SEED'),
+    ('DG_SOCKET_P01','SOCKET','PASSIVE',FALSE,2,'192.168.0.14',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'),'v1', TRUE, now(), now(),'SEED','SEED')
   RETURNING eqp_key, eqp_id, comm_interface
 )
 INSERT INTO seed_eqp_map(eqp_key, eqp_id, comm_interface)

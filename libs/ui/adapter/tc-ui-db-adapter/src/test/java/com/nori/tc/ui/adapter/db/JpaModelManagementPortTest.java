@@ -284,6 +284,56 @@ class JpaModelManagementPortTest {
     }
 
     @Test
+    @DisplayName("branch model 생성은 확장된 1000자 modelName 한도까지 허용합니다")
+    void createBranchModelAllowsExtendedModelNameLength() {
+        final Fixture fixture = new Fixture();
+        final String parentModelName = "P".repeat(988);
+        final String suffix = "S".repeat(4);
+        final String currentUser = "tester";
+        final String branchModelName = parentModelName + "_" + suffix + "_" + currentUser;
+        final TcModel parentLatest = model(9401L, 1701L, parentModelName, null, "1.0.0", ProtocolType.SECS, ModelStatus.OPERATE);
+        final TcModel branchCreated = model(9402L, 1702L, branchModelName, parentModelName, "EDIT", ProtocolType.SECS, ModelStatus.DEVELOP);
+        fixture.allModels.add(parentLatest);
+        when(fixture.modelStore.upsert(any())).thenReturn(branchCreated);
+
+        final TcModel result = fixture.port.createBranchModel(new ModelBranchCommandPort.CreateBranchModelCommand(
+                parentLatest.modelKey(),
+                suffix,
+                currentUser
+        ));
+
+        assertEquals(branchCreated, result);
+        verify(fixture.modelStore).upsert(any());
+    }
+
+    @Test
+    @DisplayName("parent commit은 확장된 100자 modelVersion 한도까지 허용합니다")
+    void commitParentAllowsExtendedModelVersionLength() {
+        final Fixture fixture = new Fixture();
+        final TcModel parentLatest = model(9501L, 1801L, "ROOT", null, "1.0.0", ProtocolType.SECS, ModelStatus.OPERATE);
+        final TcModel branchLatest = model(9502L, 1802L, "ROOT_feature_tester", "ROOT", "EDIT", ProtocolType.SECS, ModelStatus.DEVELOP);
+        final String newParentVersion = "V".repeat(100);
+        final TcModel committedParent = model(9503L, parentLatest.modelKey(), "ROOT", null, newParentVersion, ProtocolType.SECS, ModelStatus.OPERATE);
+
+        fixture.allModels.add(parentLatest);
+        fixture.allModels.add(branchLatest);
+        when(fixture.modelStore.upsert(any())).thenAnswer(invocation -> {
+            final UpsertTcModel command = invocation.getArgument(0);
+            if (command.modelKey() == null && newParentVersion.equals(command.modelVersion())) {
+                return committedParent;
+            }
+            return branchLatest;
+        });
+
+        final ModelParentCommitPort.CommitParentResult result = fixture.port.previewOrCommit(
+                new ModelParentCommitPort.CommitParentCommand(branchLatest.modelKey(), true, newParentVersion, "tester")
+        );
+
+        assertTrue(result.committed());
+        assertEquals(committedParent.modelVersionKey(), result.committedParentModelVersionKey());
+    }
+
+    @Test
     @DisplayName("model 삭제는 cascade 대상 branch 버전을 EQP가 참조 중이면 409로 차단합니다")
     void deleteModelRejectsWhenEqpReferencesCascadeTarget() {
         final Fixture fixture = new Fixture();
@@ -376,6 +426,7 @@ class JpaModelManagementPortTest {
                 "127.0.0.1",
                 5000,
                 modelVersionKey,
+                null,
                 true,
                 now,
                 now,

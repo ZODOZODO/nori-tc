@@ -295,6 +295,9 @@ public class EqpManagementService {
         if (command == null) {
             throw new UiBadRequestException("요청 본문이 비어 있습니다.");
         }
+        if (command.commMode() == null || command.commMode().isBlank()) {
+            throw new UiBadRequestException("commMode는 필수입니다.");
+        }
 
         validateEditableFields(
                 command.routePartition(),

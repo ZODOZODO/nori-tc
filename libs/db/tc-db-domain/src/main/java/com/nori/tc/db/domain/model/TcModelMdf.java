@@ -9,7 +9,7 @@ import java.time.OffsetDateTime;
  * 주요 제약은 다음과 같습니다.
  * 1) {@code mdf_key}: PK
  * 2) {@code model_version_key}: FK + UNIQUE(버전당 MDF 1건)
- * 3) {@code mdf_name}: MDF 식별 이름(업무 명칭)
+ * 3) {@code mdf_name}: MDF 식별 이름(업무 명칭, varchar(1000))
  * 4) {@code mdf_file}: MDF XML 원문(byte[])
  * </p>
  */

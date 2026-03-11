@@ -82,6 +82,7 @@ public class TcEqpMybatisStore implements TcEqpStore {
                 command.eqpIp(),
                 command.eqpPort(),
                 command.modelVersionKey(),
+                command.appliedParamVersion(),
                 command.enabled(),
                 null,
                 null,

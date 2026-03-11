@@ -886,6 +886,7 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 "127.0.0.1",
                 5000,
                 TEST_MODEL_VERSION_KEY,
+                null,
                 true,
                 now,
                 now,

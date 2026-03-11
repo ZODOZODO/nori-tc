@@ -104,6 +104,7 @@ class TcEqpSocketMybatisStoreTest {
                 eqpIp,
                 eqpPort,
                 1L,
+                null,
                 true,
                 null,
                 null,

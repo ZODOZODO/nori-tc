@@ -4,6 +4,7 @@ import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 모델 정보 등록/수정 요청 DTO입니다.
@@ -26,9 +27,11 @@ import jakarta.validation.constraints.NotNull;
 public record ModelUpsertRequest(
 
         @NotBlank(message = "modelName은 필수입니다.")
+        @Size(max = 1000, message = "modelName은 1000자 이하여야 합니다.")
         String modelName,
 
         @NotBlank(message = "modelVersion은 필수입니다.")
+        @Size(max = 100, message = "modelVersion은 100자 이하여야 합니다.")
         String modelVersion,
 
         @NotNull(message = "commInterface는 필수입니다.")

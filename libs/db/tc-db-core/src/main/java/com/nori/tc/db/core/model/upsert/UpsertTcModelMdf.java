@@ -17,4 +17,15 @@ public record UpsertTcModelMdf(
         String mdfName,
         byte[] mdfFile
 ) {
+
+    public UpsertTcModelMdf {
+        ModelFieldLengthValidator.requireTextWithMax(
+                mdfName,
+                "mdfName",
+                ModelFieldLengthValidator.MDF_NAME_MAX_LENGTH
+        );
+        if (mdfFile == null || mdfFile.length == 0) {
+            throw new IllegalArgumentException("mdfFile must not be null/empty");
+        }
+    }
 }

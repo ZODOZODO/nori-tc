@@ -98,6 +98,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
                     command.eqpIp().trim(),
                     command.eqpPort(),
                     command.modelVersionKey(),
+                    normalizeOptionalText(command.appliedParamVersion()),
                     true,
                     normalizeActor(command.actor()),
                     normalizeActor(command.actor())
@@ -130,12 +131,13 @@ public class JpaEqpCrudPort implements EqpCrudPort {
             final TcEqp updatedEqp = eqpStore.upsert(new UpsertTcEqp(
                     existing.eqp().eqpId(),
                     existing.eqp().commInterface(),
-                    existing.eqp().commMode(),
+                    normalizeCommMode(command.commMode()),
                     command.isDev(),
                     command.routePartition(),
                     command.eqpIp().trim(),
                     command.eqpPort(),
                     command.modelVersionKey(),
+                    normalizeOptionalText(command.appliedParamVersion()),
                     existing.eqp().enabled(),
                     existing.eqp().createdBy(),
                     normalizeActor(command.actor())
@@ -168,6 +170,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
                     snapshot.eqp().eqpIp(),
                     snapshot.eqp().eqpPort(),
                     snapshot.eqp().modelVersionKey(),
+                    snapshot.eqp().appliedParamVersion(),
                     snapshot.eqp().enabled(),
                     snapshot.eqp().createdBy(),
                     snapshot.eqp().updatedBy()

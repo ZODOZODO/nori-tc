@@ -79,8 +79,8 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     private static final Logger log = LoggerFactory.getLogger(JpaModelManagementPort.class);
 
     private static final int SCAN_PAGE_SIZE = 500;
-    private static final int MODEL_NAME_MAX_LENGTH = 128;
-    private static final int MODEL_VERSION_MAX_LENGTH = 32;
+    private static final int MODEL_NAME_MAX_LENGTH = 1000;
+    private static final int MODEL_VERSION_MAX_LENGTH = 100;
     private static final String EDIT_VERSION = "EDIT";
     private static final String SYSTEM_USER = "SYSTEM";
     private static final List<String> MODEL_PARAMETER_COLUMNS = List.of(
@@ -423,7 +423,7 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     /**
      * branch 이름 규칙을 생성합니다.
      *
-     * <p>최종 길이는 DB 컬럼 제약(model_name 128)을 초과하지 않도록 선검증합니다.</p>
+     * <p>최종 길이는 DB 컬럼 제약(model_name 1000)을 초과하지 않도록 선검증합니다.</p>
      */
     private String buildBranchModelName(final String parentModelName, final String suffix, final String currentUser) {
         final String branchModelName = parentModelName + "_" + suffix + "_" + currentUser;
@@ -1086,7 +1086,7 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     private void validateModelName(final String modelName) {
         final String normalizedModelName = normalizeRequiredText(modelName, "modelName");
         if (normalizedModelName.length() > MODEL_NAME_MAX_LENGTH) {
-            throw new UiBadRequestException("modelName 길이는 128자를 초과할 수 없습니다.");
+            throw new UiBadRequestException("modelName 길이는 1000자를 초과할 수 없습니다.");
         }
     }
 
@@ -1096,7 +1096,7 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     private void validateModelVersion(final String modelVersion) {
         final String normalizedModelVersion = normalizeRequiredText(modelVersion, "modelVersion");
         if (normalizedModelVersion.length() > MODEL_VERSION_MAX_LENGTH) {
-            throw new UiBadRequestException("modelVersion 길이는 32자를 초과할 수 없습니다.");
+            throw new UiBadRequestException("modelVersion 길이는 100자를 초과할 수 없습니다.");
         }
     }
 

@@ -11,12 +11,12 @@ import com.nori.tc.db.domain.common.model.DcopCollectionRule;
  * [DB 스키마 요약]
  * - dcop_item_key    : bigint PK (IDENTITY)
  * - model_version_key        : bigint NOT NULL (FK -> tc_model_version.model_version_key)
- * - dcop_item_name   : varchar(200) NOT NULL
- * - workflow_name    : varchar(200) NULL
+ * - dcop_item_name   : varchar(1000) NOT NULL
+ * - workflow_name    : varchar(1000) NULL
  * - event_id         : varchar(100) NULL
- * - variable_id      : varchar(100) NULL
+ * - variable_id      : varchar(1000) NULL
  * - collection_rule  : varchar(10) NULL (FIRST/LAST)
- * - calculation_rule : varchar(20) NULL (ADD/MULTIPLY/SUBTRACT/NONE)
+ * - calculation_rule : varchar(2000) NULL (ADD/MULTIPLY/SUBTRACT/NONE)
  * - order_rule       : int NULL (>= 0)
  * - updated_at       : timestamptz NOT NULL default CURRENT_TIMESTAMP
  *

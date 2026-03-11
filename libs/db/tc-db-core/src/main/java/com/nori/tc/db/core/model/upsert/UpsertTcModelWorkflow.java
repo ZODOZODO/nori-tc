@@ -25,4 +25,30 @@ public record UpsertTcModelWorkflow(
         String actionName,
         String actionDataIndex
 ) {
+
+    public UpsertTcModelWorkflow {
+        ModelFieldLengthValidator.requireTextWithMax(
+                workflowName,
+                "workflowName",
+                ModelFieldLengthValidator.WORKFLOW_NAME_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.requireTextWithMax(
+                messageName,
+                "messageName",
+                ModelFieldLengthValidator.MESSAGE_NAME_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.validateOptionalTextMax(
+                transactionId,
+                "transactionId",
+                ModelFieldLengthValidator.TRANSACTION_ID_MAX_LENGTH
+        );
+        ModelFieldLengthValidator.validateOptionalTextMax(
+                workflowFilter,
+                "workflowFilter",
+                ModelFieldLengthValidator.WORKFLOW_FILTER_MAX_LENGTH
+        );
+        if (actionName == null || actionName.isBlank()) {
+            throw new IllegalArgumentException("actionName must not be null/blank");
+        }
+    }
 }

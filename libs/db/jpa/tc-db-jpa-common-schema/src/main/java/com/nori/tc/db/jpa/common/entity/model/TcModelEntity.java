@@ -54,7 +54,7 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
     /**
      * 모델 원장 이름입니다.
      */
-    @Column(name = "model_name", length = 128, nullable = false)
+    @Column(name = "model_name", length = 1000, nullable = false)
     private String modelName;
 
     /**
@@ -67,7 +67,7 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
     /**
      * 부모 모델 이름입니다.
      */
-    @Column(name = "parent_model", length = 128)
+    @Column(name = "parent_model", length = 1000)
     private String parentModel;
 
     /**

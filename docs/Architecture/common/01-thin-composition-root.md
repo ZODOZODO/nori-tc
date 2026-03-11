@@ -59,7 +59,7 @@ libs/comm/
 ┌─────────────────────────────────────────────────────────────┐
 │                    Application Layer                        │
 │                                                             │
-│   TcCommGatewayApplication.java                            │
+│   TcCommGatewayApplication.java                             │
 │   ┌─────────────────────────────────────────────────────┐   │
 │   │  @SpringBootApplication                             │   │
 │   │  public class TcCommGatewayApplication {            │   │

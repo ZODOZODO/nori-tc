@@ -21,4 +21,12 @@ public record UpsertTcModelSecsMessage(
         String description,
         String dataIndex
 ) {
+
+    public UpsertTcModelSecsMessage {
+        ModelFieldLengthValidator.requireTextWithMax(
+                secsMsgName,
+                "secsMsgName",
+                ModelFieldLengthValidator.SECS_MSG_NAME_MAX_LENGTH
+        );
+    }
 }

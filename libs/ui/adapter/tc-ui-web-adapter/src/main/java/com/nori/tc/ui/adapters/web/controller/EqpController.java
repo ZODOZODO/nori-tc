@@ -470,6 +470,7 @@ public class EqpController {
     ) {
         return new EqpManagementCommand.Update(
                 resolveCurrentUser(authentication),
+                request.commMode(),
                 request.isDev(),
                 request.routePartition(),
                 request.eqpIp(),
@@ -574,8 +575,8 @@ public class EqpController {
      */
     private static EqpManageDetailResponse toManageDetailResponse(final EqpManagementSnapshot snapshot) {
         final List<EqpManageDetailResponse.ParamVersionOptionResponse> paramVersions = toParamVersionOptions(snapshot);
-        final String appliedParamVersion = paramVersions.isEmpty() ? null : paramVersions.get(0).paramVersion();
-        final String appliedParamDescription = paramVersions.isEmpty() ? null : paramVersions.get(0).description();
+        final String appliedParamVersion = normalizeText(snapshot.eqp().appliedParamVersion());
+        final String appliedParamDescription = resolveAppliedParamDescription(paramVersions, appliedParamVersion);
 
         return new EqpManageDetailResponse(
                 snapshot.eqp().eqpId(),
@@ -699,6 +700,27 @@ public class EqpController {
         return paramVersionDescriptions.entrySet().stream()
                 .map(entry -> new EqpManageDetailResponse.ParamVersionOptionResponse(entry.getKey(), entry.getValue()))
                 .toList();
+    }
+
+    /**
+     * 저장된 적용 버전에 대응하는 설명을 조회합니다.
+     *
+     * @param paramVersions 버전 옵션 목록
+     * @param appliedParamVersion 현재 적용 버전
+     * @return 현재 적용 버전 설명
+     */
+    private static String resolveAppliedParamDescription(
+            final List<EqpManageDetailResponse.ParamVersionOptionResponse> paramVersions,
+            final String appliedParamVersion
+    ) {
+        if (appliedParamVersion == null) {
+            return null;
+        }
+        return paramVersions.stream()
+                .filter(option -> appliedParamVersion.equals(normalizeText(option.paramVersion())))
+                .map(EqpManageDetailResponse.ParamVersionOptionResponse::description)
+                .findFirst()
+                .orElse(null);
     }
 
     /**

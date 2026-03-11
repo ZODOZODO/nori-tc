@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
  *
  * FK:
  * - model_version_key -> tc_model_version.model_version_key ON DELETE CASCADE
+ * - param_name -> varchar(1000)
  *
  * Unique:
  * - (model_version_key, param_name)

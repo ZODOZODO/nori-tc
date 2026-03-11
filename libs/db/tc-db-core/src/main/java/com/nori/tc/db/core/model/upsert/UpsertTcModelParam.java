@@ -14,4 +14,12 @@ public record UpsertTcModelParam(
         String paramValue,
         String description
 ) {
+
+    public UpsertTcModelParam {
+        ModelFieldLengthValidator.requireTextWithMax(
+                paramName,
+                "paramName",
+                ModelFieldLengthValidator.PARAM_NAME_MAX_LENGTH
+        );
+    }
 }

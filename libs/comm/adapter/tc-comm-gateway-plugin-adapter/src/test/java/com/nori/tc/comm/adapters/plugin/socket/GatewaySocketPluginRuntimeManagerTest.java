@@ -191,6 +191,7 @@ class GatewaySocketPluginRuntimeManagerTest {
                 "127.0.0.1",
                 5001,
                 modelKey,
+                null,
                 true,
                 now,
                 now,

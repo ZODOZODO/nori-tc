@@ -36,7 +36,7 @@ public class TcModelMdfEntity extends AbstractUpdatedEntity {
     @Column(name = "model_version_key", nullable = false)
     private Long modelVersionKey;
 
-    @Column(name = "mdf_name", length = 100, nullable = false)
+    @Column(name = "mdf_name", length = 1000, nullable = false)
     private String mdfName;
 
     /**

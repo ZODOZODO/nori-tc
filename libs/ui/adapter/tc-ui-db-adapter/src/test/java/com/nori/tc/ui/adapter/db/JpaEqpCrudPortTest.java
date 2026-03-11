@@ -292,6 +292,70 @@ class JpaEqpCrudPortTest {
     }
 
     @Test
+    @DisplayName("EQP 수정은 commMode와 appliedParamVersion을 공통 row에 반영합니다")
+    void updateEqpPersistsCommModeAndAppliedParamVersion() {
+        final Fixture fixture = new Fixture();
+        final String eqpId = "EQP-UPDATE-001";
+        final EqpManagementCommand.Update command = new EqpManagementCommand.Update(
+                "tester",
+                "PASSIVE",
+                true,
+                2,
+                "10.10.0.2",
+                5100,
+                202L,
+                "v3",
+                null,
+                null,
+                null,
+                new EqpManagementCommand.HsmsSettings(0, 45, 10, 5, 10, 5, true, 60, 10_485_760L),
+                null
+        );
+        final EqpManagementSnapshot existingSnapshot = snapshot(eqp(
+                41L,
+                eqpId,
+                ProtocolType.SECS,
+                "ACTIVE",
+                false,
+                1,
+                "10.10.0.1",
+                5000,
+                101L,
+                "SYSTEM",
+                null
+        ));
+        final TcEqp updatedEqp = eqp(
+                41L,
+                eqpId,
+                ProtocolType.SECS,
+                "PASSIVE",
+                true,
+                2,
+                "10.10.0.2",
+                5100,
+                202L,
+                "tester",
+                "v3"
+        );
+        final EqpManagementSnapshot updatedSnapshot = snapshot(updatedEqp);
+
+        when(fixture.dbSupport.loadSnapshotByEqpId(eqpId))
+                .thenReturn(Optional.of(existingSnapshot), Optional.of(updatedSnapshot));
+        when(fixture.eqpStore.upsert(any())).thenReturn(updatedEqp);
+
+        final EqpManagementSnapshot result = fixture.port.update(eqpId, command);
+
+        assertSame(updatedSnapshot, result);
+
+        final ArgumentCaptor<UpsertTcEqp> eqpCaptor = ArgumentCaptor.forClass(UpsertTcEqp.class);
+        verify(fixture.eqpStore).upsert(eqpCaptor.capture());
+        assertEquals("PASSIVE", eqpCaptor.getValue().commMode());
+        assertEquals("v3", eqpCaptor.getValue().appliedParamVersion());
+        assertEquals(existingSnapshot.eqp().createdBy(), eqpCaptor.getValue().createdBy());
+        assertEquals("tester", eqpCaptor.getValue().updatedBy());
+    }
+
+    @Test
     @DisplayName("SOCKET EQP 생성 초기 상태는 DISCONNECTED/SERVICE_UNAVAILABLE로 생성됩니다")
     void createInitialStateCommandForSocketUsesDisconnectedServiceUnavailable() {
         final OffsetDateTime fixedTimestamp = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
@@ -352,6 +416,34 @@ class JpaEqpCrudPortTest {
             final long modelVersionKey,
             final String actor
     ) {
+        return eqp(
+                eqpKey,
+                eqpId,
+                protocolType,
+                commMode,
+                isDev,
+                routePartition,
+                eqpIp,
+                eqpPort,
+                modelVersionKey,
+                actor,
+                null
+        );
+    }
+
+    private static TcEqp eqp(
+            final long eqpKey,
+            final String eqpId,
+            final ProtocolType protocolType,
+            final String commMode,
+            final boolean isDev,
+            final int routePartition,
+            final String eqpIp,
+            final int eqpPort,
+            final long modelVersionKey,
+            final String actor,
+            final String appliedParamVersion
+    ) {
         final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         return new TcEqp(
                 eqpKey,
@@ -363,6 +455,7 @@ class JpaEqpCrudPortTest {
                 eqpIp,
                 eqpPort,
                 modelVersionKey,
+                appliedParamVersion,
                 true,
                 now,
                 now,

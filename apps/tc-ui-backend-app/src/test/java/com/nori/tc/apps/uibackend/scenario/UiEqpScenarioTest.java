@@ -13,6 +13,7 @@ import com.nori.tc.db.domain.eqp.TcEqpState;
 import com.nori.tc.db.domain.jar.TcJarBusiness;
 import com.nori.tc.db.domain.jar.TcJarGateway;
 import com.nori.tc.db.domain.model.TcModel;
+import com.nori.tc.ui.core.eqp.EqpManagementCommand;
 import com.nori.tc.ui.core.eqp.EqpManagementOptions;
 import com.nori.tc.ui.core.eqp.EqpManagementSnapshot;
 import com.nori.tc.ui.core.model.AsyncResultEntry;
@@ -45,6 +46,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -175,6 +177,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "commMode": "ACTIVE",
                                   "isDev": true,
                                   "routePartition": 1,
                                   "eqpIp": "127.0.0.1",
@@ -212,6 +215,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "commMode": "ACTIVE",
                                   "isDev": false,
                                   "routePartition": 1,
                                   "eqpIp": "127.0.0.1",
@@ -267,11 +271,13 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "commMode": "PASSIVE",
                                   "isDev": true,
                                   "routePartition": 1,
                                   "eqpIp": "127.0.0.1",
                                   "eqpPort": 5000,
                                   "modelVersionKey": 101,
+                                  "appliedParamVersion": "v3",
                                   "gatewayJarFileName": "gateway-next.jar",
                                   "businessJarFileName": "business-next.jar",
                                   "hsmsSettings": {
@@ -301,7 +307,10 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        verify(eqpCrudPort).update(anyString(), any());
+        final ArgumentCaptor<EqpManagementCommand.Update> updateCaptor = ArgumentCaptor.forClass(EqpManagementCommand.Update.class);
+        verify(eqpCrudPort).update(anyString(), updateCaptor.capture());
+        assertEquals("PASSIVE", updateCaptor.getValue().commMode());
+        assertEquals("v3", updateCaptor.getValue().appliedParamVersion());
         verify(gatewayEventPublishPort, times(2)).publish(any());
         verify(businessEventPublishPort, times(2)).publish(any());
     }
@@ -644,6 +653,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         "127.0.0.1",
                         5000,
                         modelVersionKey,
+                        "v2",
                         true,
                         now,
                         now,

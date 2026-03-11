@@ -27,6 +27,7 @@ import jakarta.persistence.Table;
  * - eqp_ip        : varchar(45) NOT NULL
  * - eqp_port      : int NOT NULL
  * - model_version_key     : bigint NOT NULL
+ * - applied_param_version : varchar(100) NULL
  * - enabled       : boolean NOT NULL default true
  * - created_at    : timestamptz NOT NULL
  * - updated_at    : timestamptz NOT NULL
@@ -75,6 +76,9 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
     @Column(name = "model_version_key", nullable = false)
     private Long modelVersionKey;
 
+    @Column(name = "applied_param_version", length = 100)
+    private String appliedParamVersion;
+
     @Column(name = "enabled", nullable = false)
     private Boolean enabled;
 
@@ -111,6 +115,7 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
             String eqpIp,
             Integer eqpPort,
             Long modelVersionKey,
+            String appliedParamVersion,
             Boolean enabled,
             String createdBy,
             String updatedBy
@@ -124,6 +129,7 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
         this.eqpIp = eqpIp;
         this.eqpPort = eqpPort;
         this.modelVersionKey = modelVersionKey;
+        this.appliedParamVersion = appliedParamVersion;
         this.enabled = enabled;
         this.createdBy = createdBy;
         this.updatedBy = updatedBy;
@@ -371,6 +377,24 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      */
     public void setModelVersionKey(Long modelVersionKey) {
         this.modelVersionKey = modelVersionKey;
+    }
+
+    /**
+     * 현재 적용 중인 파라미터 버전을 반환합니다.
+     *
+     * @return tc_eqp.applied_param_version 값
+     */
+    public String getAppliedParamVersion() {
+        return appliedParamVersion;
+    }
+
+    /**
+     * 현재 적용 중인 파라미터 버전을 설정합니다.
+     *
+     * @param appliedParamVersion tc_eqp.applied_param_version 값
+     */
+    public void setAppliedParamVersion(String appliedParamVersion) {
+        this.appliedParamVersion = appliedParamVersion;
     }
 
     

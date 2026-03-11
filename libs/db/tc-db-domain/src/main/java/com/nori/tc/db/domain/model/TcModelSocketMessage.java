@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
  *
  * Unique:
  * - (model_version_key, socket_msg_name)
+ * - socket_msg_name: varchar(1000)
  */
 public record TcModelSocketMessage(
         long socketMsgKey,

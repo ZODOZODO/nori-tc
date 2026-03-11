@@ -28,6 +28,7 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
  * <p>- eqp_ip          : varchar(45)</p>
  * <p>- eqp_port        : int (1~65535)</p>
  * <p>- model_version_key       : bigint FK -> tc_model_version.model_version_key</p>
+ * <p>- applied_param_version   : varchar(100) NULL</p>
  * <p>- enabled         : boolean (default true)</p>
  * <p>- created_at      : timestamptz</p>
  * <p>- updated_at      : timestamptz</p>
@@ -44,6 +45,7 @@ public record TcEqp(
         String eqpIp,
         int eqpPort,
         long modelVersionKey,
+        String appliedParamVersion,
         boolean enabled,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,

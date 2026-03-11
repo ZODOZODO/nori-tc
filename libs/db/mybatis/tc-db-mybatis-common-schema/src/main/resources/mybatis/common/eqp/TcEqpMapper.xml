@@ -19,6 +19,7 @@
             <arg column="eqp_ip" javaType="java.lang.String"/>
             <arg column="eqp_port" javaType="_int"/>
             <arg column="model_version_key" javaType="_long"/>
+            <arg column="applied_param_version" javaType="java.lang.String"/>
             <arg column="enabled" javaType="_boolean"/>
             <arg column="created_at"
                  javaType="java.time.OffsetDateTime"
@@ -32,12 +33,12 @@
     </resultMap>
 
     <sql id="TcEqpColumns">
-        eqp_key, eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key, enabled, created_at, updated_at, created_by, updated_by
+        eqp_key, eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key, applied_param_version, enabled, created_at, updated_at, created_by, updated_by
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_eqp
-            (eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key, enabled, created_by, updated_by)
+            (eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key, applied_param_version, enabled, created_by, updated_by)
         VALUES
             (#{e.eqpId},
              #{e.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
@@ -47,6 +48,7 @@
              #{e.eqpIp},
              #{e.eqpPort},
              #{e.modelVersionKey},
+             #{e.appliedParamVersion, jdbcType=VARCHAR},
              #{e.enabled},
              COALESCE(#{e.createdBy}, 'SYSTEM'),
              COALESCE(#{e.updatedBy}, 'SYSTEM'))
@@ -61,6 +63,7 @@
                eqp_ip        = #{e.eqpIp},
                eqp_port      = #{e.eqpPort},
                model_version_key     = #{e.modelVersionKey},
+               applied_param_version = #{e.appliedParamVersion, jdbcType=VARCHAR},
                enabled       = #{e.enabled},
                updated_at    = CURRENT_TIMESTAMP,
                updated_by    = COALESCE(#{e.updatedBy}, 'SYSTEM')

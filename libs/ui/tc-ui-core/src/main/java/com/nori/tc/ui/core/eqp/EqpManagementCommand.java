@@ -120,6 +120,7 @@ public final class EqpManagementCommand {
      * EQP 수정 명령입니다.
      *
      * @param actor 요청 사용자
+     * @param commMode 통신 모드
      * @param isDev 개발 장비 여부
      * @param routePartition route partition
      * @param eqpIp 설비 ip
@@ -134,6 +135,7 @@ public final class EqpManagementCommand {
      */
     public record Update(
             String actor,
+            String commMode,
             boolean isDev,
             Integer routePartition,
             String eqpIp,

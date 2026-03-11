@@ -16,4 +16,15 @@ public record UpsertTcModelVariableId(
         String variableId,
         String description
 ) {
+
+    public UpsertTcModelVariableId {
+        ModelFieldLengthValidator.requireTextWithMax(
+                variableId,
+                "variableId",
+                ModelFieldLengthValidator.VARIABLE_ID_MAX_LENGTH
+        );
+        if (variableIdType == null) {
+            throw new IllegalArgumentException("variableIdType must not be null");
+        }
+    }
 }
