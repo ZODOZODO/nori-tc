@@ -148,6 +148,25 @@ public class TcModelMybatisStore implements TcModelStore {
         }
     }
 
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>모델 원장(tc_model) 1건을 삭제하며, FK ON DELETE CASCADE로 버전/상세가 함께 삭제됩니다.</p>
+     *
+     * @param modelKey 대상 키 값
+     */
+    @Override
+    @Transactional
+    public void deleteByModelKey(final long modelKey) {
+        try {
+            mapper.deleteByModelKey(modelKey);
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_model deleteByModelKey failed. modelKey=" + modelKey, e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_model deleteByModelKey failed (unexpected). modelKey=" + modelKey, e);
+        }
+    }
+
     
     /**
      * DB MyBatis 계층 규약에 맞게 데이터를 변환/구성합니다.

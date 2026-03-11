@@ -13,18 +13,31 @@ import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
 import com.nori.tc.ui.adapters.web.controller.support.UiPageRequestSupport;
+import com.nori.tc.ui.adapters.web.dto.request.ModelBranchCreateRequest;
+import com.nori.tc.ui.adapters.web.dto.request.ModelInfoUpdateRequest;
+import com.nori.tc.ui.adapters.web.dto.request.ModelParentCommitRequest;
+import com.nori.tc.ui.adapters.web.dto.request.ModelRootCreateRequest;
 import com.nori.tc.ui.adapters.web.dto.request.ModelUpsertRequest;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelDetailDataResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelDetailRowResponse;
+import com.nori.tc.ui.adapters.web.dto.response.ModelDeleteBatchResponse;
+import com.nori.tc.ui.adapters.web.dto.response.ModelDiffItemResponse;
+import com.nori.tc.ui.adapters.web.dto.response.ModelDiffSectionResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelInfoResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelMdfContentResponse;
+import com.nori.tc.ui.adapters.web.dto.response.ModelParentCommitResponse;
+import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.model.PagedResponse;
+import com.nori.tc.ui.core.port.db.ModelBranchCommandPort;
 import com.nori.tc.ui.core.port.db.ModelCrudPort;
 import com.nori.tc.ui.core.port.db.ModelDetailQueryPort;
+import com.nori.tc.ui.core.port.db.ModelParentCommitPort;
+import com.nori.tc.ui.core.port.db.ModelRootCommandPort;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -50,9 +63,14 @@ import java.util.Optional;
  * <ul>
  *   <li>GET /api/model</li>
  *   <li>GET /api/model/{modelVersionKey}</li>
+ *   <li>POST /api/model/roots</li>
+ *   <li>PUT /api/model/{modelKey}/info</li>
+ *   <li>POST /api/model/{modelKey}/branches</li>
+ *   <li>POST /api/model/{modelKey}/commit-parent</li>
+ *   <li>DELETE /api/model/{modelKey}/branches/deprecated</li>
  *   <li>POST /api/model</li>
  *   <li>PUT /api/model/{modelVersionKey}</li>
- *   <li>DELETE /api/model/{modelVersionKey}</li>
+ *   <li>DELETE /api/model/{modelVersionKey} (legacy version delete)</li>
  * </ul>
  */
 @RestController
@@ -112,19 +130,31 @@ public class ModelController {
 
     private final ModelCrudPort modelCrudPort;
     private final ModelDetailQueryPort modelDetailQueryPort;
+    private final ModelRootCommandPort modelRootCommandPort;
+    private final ModelBranchCommandPort modelBranchCommandPort;
+    private final ModelParentCommitPort modelParentCommitPort;
 
     /**
      * 필수 의존성을 초기화합니다.
      *
      * @param modelCrudPort 모델 CRUD 포트
      * @param modelDetailQueryPort 모델 상세 조회 포트
+     * @param modelRootCommandPort root model 관리 포트
+     * @param modelBranchCommandPort branch model 관리 포트
+     * @param modelParentCommitPort parent commit 포트
      */
     public ModelController(
             final ModelCrudPort modelCrudPort,
-            final ModelDetailQueryPort modelDetailQueryPort
+            final ModelDetailQueryPort modelDetailQueryPort,
+            final ModelRootCommandPort modelRootCommandPort,
+            final ModelBranchCommandPort modelBranchCommandPort,
+            final ModelParentCommitPort modelParentCommitPort
     ) {
         this.modelCrudPort = Objects.requireNonNull(modelCrudPort, "modelCrudPort is null");
         this.modelDetailQueryPort = Objects.requireNonNull(modelDetailQueryPort, "modelDetailQueryPort is null");
+        this.modelRootCommandPort = Objects.requireNonNull(modelRootCommandPort, "modelRootCommandPort is null");
+        this.modelBranchCommandPort = Objects.requireNonNull(modelBranchCommandPort, "modelBranchCommandPort is null");
+        this.modelParentCommitPort = Objects.requireNonNull(modelParentCommitPort, "modelParentCommitPort is null");
     }
 
     /**
@@ -293,6 +323,145 @@ public class ModelController {
     }
 
     /**
+     * root model을 생성합니다.
+     *
+     * <p>신규 root는 항상 {@code parentModel=null, modelVersion=EDIT, status=OPERATE} 정책으로 생성됩니다.</p>
+     *
+     * @param request root 생성 요청 본문
+     * @param authentication 현재 로그인 사용자 정보
+     * @return 생성된 root model의 최신 버전 정보
+     */
+    @PostMapping("/roots")
+    public ResponseEntity<ApiResponse<ModelInfoResponse>> createRoot(
+            @Valid @RequestBody final ModelRootCreateRequest request,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        log.info("root model 생성 요청. modelName={}, commInterface={}, currentUser={}",
+                request.modelName(), request.commInterface(), currentUser);
+
+        final TcModel created = modelRootCommandPort.createRootModel(new ModelRootCommandPort.CreateRootModelCommand(
+                request.modelName(),
+                request.commInterface(),
+                request.maker(),
+                currentUser
+        ));
+
+        log.info("root model 생성 완료. modelKey={}, modelName={}", created.modelKey(), created.modelName());
+        return ResponseEntity.ok(ApiResponse.success(toModelInfoResponse(created)));
+    }
+
+    /**
+     * root model의 공통 정보를 수정합니다.
+     *
+     * <p>현재 정책상 modelName은 불변이며 maker만 수정할 수 있습니다.</p>
+     *
+     * @param modelKey 수정 대상 model_key
+     * @param request 수정 요청 본문
+     * @param authentication 현재 로그인 사용자 정보
+     * @return 수정된 root model 최신 버전 정보
+     */
+    @PutMapping("/{modelKey}/info")
+    public ResponseEntity<ApiResponse<ModelInfoResponse>> updateModelInfo(
+            @PathVariable final long modelKey,
+            @Valid @RequestBody final ModelInfoUpdateRequest request,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        log.info("root model 정보 수정 요청. modelKey={}, currentUser={}", modelKey, currentUser);
+
+        final TcModel updated = modelRootCommandPort.updateRootModelInfo(
+                new ModelRootCommandPort.UpdateRootModelInfoCommand(modelKey, request.maker(), currentUser)
+        );
+
+        log.info("root model 정보 수정 완료. modelKey={}, modelName={}", updated.modelKey(), updated.modelName());
+        return ResponseEntity.ok(ApiResponse.success(toModelInfoResponse(updated)));
+    }
+
+    /**
+     * root model에서 branch model을 생성합니다.
+     *
+     * @param modelKey 부모 root model의 model_key
+     * @param request branch 생성 요청 본문
+     * @param authentication 현재 로그인 사용자 정보
+     * @return 생성된 branch 최신 버전 정보
+     */
+    @PostMapping("/{modelKey}/branches")
+    public ResponseEntity<ApiResponse<ModelInfoResponse>> createBranch(
+            @PathVariable final long modelKey,
+            @Valid @RequestBody final ModelBranchCreateRequest request,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        log.info("branch model 생성 요청. parentModelKey={}, suffix={}, currentUser={}",
+                modelKey, request.suffix(), currentUser);
+
+        final TcModel created = modelBranchCommandPort.createBranchModel(
+                new ModelBranchCommandPort.CreateBranchModelCommand(modelKey, request.suffix(), currentUser)
+        );
+
+        log.info("branch model 생성 완료. branchModelKey={}, branchModelName={}", created.modelKey(), created.modelName());
+        return ResponseEntity.ok(ApiResponse.success(toModelInfoResponse(created)));
+    }
+
+    /**
+     * branch 최신 버전과 parent 최신 버전의 diff를 조회하고, 요청 시 실제 commit까지 수행합니다.
+     *
+     * <p>preview 요청은 본문 없이 호출할 수 있습니다.
+     * 실제 commit은 {@code applyCommit=true}와 {@code newParentVersion}을 함께 전달해야 합니다.</p>
+     *
+     * @param modelKey 대상 branch model의 model_key
+     * @param request preview/commit 요청 본문
+     * @param authentication 현재 로그인 사용자 정보
+     * @return diff 및 commit 결과
+     */
+    @PostMapping("/{modelKey}/commit-parent")
+    public ResponseEntity<ApiResponse<ModelParentCommitResponse>> commitParent(
+            @PathVariable final long modelKey,
+            @RequestBody(required = false) final ModelParentCommitRequest request,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        final boolean applyCommit = request != null && Boolean.TRUE.equals(request.applyCommit());
+        final String newParentVersion = request == null ? null : request.newParentVersion();
+
+        log.info("parent commit 요청. branchModelKey={}, applyCommit={}, currentUser={}",
+                modelKey, applyCommit, currentUser);
+
+        final ModelParentCommitPort.CommitParentResult result = modelParentCommitPort.previewOrCommit(
+                new ModelParentCommitPort.CommitParentCommand(modelKey, applyCommit, newParentVersion, currentUser)
+        );
+
+        log.info("parent commit 처리 완료. branchModelKey={}, committed={}", modelKey, result.committed());
+        return ResponseEntity.ok(ApiResponse.success(toCommitParentResponse(result)));
+    }
+
+    /**
+     * 선택된 root model에 연결된 deprecated branch를 일괄 삭제합니다.
+     *
+     * @param modelKey 부모 root model의 model_key
+     * @return 삭제 결과
+     */
+    @DeleteMapping("/{modelKey}/branches/deprecated")
+    public ResponseEntity<ApiResponse<ModelDeleteBatchResponse>> deleteDeprecatedBranches(
+            @PathVariable final long modelKey
+    ) {
+        log.info("deprecated branch 일괄 삭제 요청. parentModelKey={}", modelKey);
+
+        final ModelBranchCommandPort.DeleteDeprecatedBranchesResult result =
+                modelBranchCommandPort.deleteDeprecatedBranches(modelKey);
+
+        log.info("deprecated branch 일괄 삭제 완료. parentModelKey={}, deletedCount={}",
+                modelKey, result.deletedCount());
+
+        return ResponseEntity.ok(ApiResponse.success(new ModelDeleteBatchResponse(
+                result.deletedCount(),
+                result.deletedModelKeys(),
+                result.deletedModelNames()
+        )));
+    }
+
+    /**
      * 모델을 등록합니다.
      *
      * @param request 등록 요청 본문
@@ -371,16 +540,35 @@ public class ModelController {
     /**
      * 모델을 삭제합니다.
      *
-     * @param modelVersionKey 삭제 대상 모델 버전 키
+     * <p>legacy version delete와 신규 model delete가 같은 경로 패턴을 공유하므로,
+     * {@code scope=model} 쿼리 파라미터가 있을 때만 model_key 기준 삭제를 수행합니다.
+     * 파라미터가 없으면 기존과 동일하게 model_version_key 기준 삭제를 유지합니다.</p>
+     *
+     * @param modelIdentifier 삭제 대상 식별자
+     * @param scope 삭제 범위. {@code model} 또는 {@code version}(기본값)
      * @return 삭제 성공 응답
      */
-    @DeleteMapping("/{modelVersionKey}")
+    @DeleteMapping("/{modelIdentifier}")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable final long modelVersionKey
+            @PathVariable final long modelIdentifier,
+            @RequestParam(name = "scope", required = false, defaultValue = "version") final String scope
     ) {
-        log.info("모델 삭제 요청. modelVersionKey={}", modelVersionKey);
-        modelCrudPort.deleteByModelVersionKey(modelVersionKey);
-        log.info("모델 삭제 완료. modelVersionKey={}", modelVersionKey);
+        final String normalizedScope = scope == null ? "version" : scope.trim().toLowerCase(Locale.ROOT);
+
+        if ("model".equals(normalizedScope)) {
+            log.info("model 단위 삭제 요청. modelKey={}", modelIdentifier);
+            modelRootCommandPort.deleteModel(modelIdentifier);
+            log.info("model 단위 삭제 완료. modelKey={}", modelIdentifier);
+            return ResponseEntity.ok(ApiResponse.success(null));
+        }
+
+        if (!"version".equals(normalizedScope)) {
+            throw new UiBadRequestException("scope는 version 또는 model만 허용됩니다.");
+        }
+
+        log.info("version 단위 삭제 요청. modelVersionKey={}", modelIdentifier);
+        modelCrudPort.deleteByModelVersionKey(modelIdentifier);
+        log.info("version 단위 삭제 완료. modelVersionKey={}", modelIdentifier);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -535,5 +723,65 @@ public class ModelController {
                 model.createdBy(),
                 model.updatedBy()
         );
+    }
+
+    /**
+     * core parent commit 결과를 API 응답 DTO로 변환합니다.
+     */
+    private static ModelParentCommitResponse toCommitParentResponse(
+            final ModelParentCommitPort.CommitParentResult result
+    ) {
+        return new ModelParentCommitResponse(
+                result.committed(),
+                result.branchModelKey(),
+                result.parentModelKey(),
+                result.branchModelName(),
+                result.parentModelName(),
+                result.branchLatestVersion(),
+                result.parentLatestVersion(),
+                result.newParentVersion(),
+                result.committedParentModelVersionKey(),
+                result.sections().stream()
+                        .map(ModelController::toDiffSectionResponse)
+                        .toList()
+        );
+    }
+
+    /**
+     * core diff 섹션을 API 응답 DTO로 변환합니다.
+     */
+    private static ModelDiffSectionResponse toDiffSectionResponse(
+            final ModelParentCommitPort.DiffSection section
+    ) {
+        return new ModelDiffSectionResponse(
+                section.detailNode(),
+                section.columns(),
+                section.added().stream().map(ModelController::toDiffItemResponse).toList(),
+                section.changed().stream().map(ModelController::toDiffItemResponse).toList(),
+                section.deleted().stream().map(ModelController::toDiffItemResponse).toList()
+        );
+    }
+
+    /**
+     * core diff 항목을 API 응답 DTO로 변환합니다.
+     */
+    private static ModelDiffItemResponse toDiffItemResponse(
+            final ModelParentCommitPort.DiffItem item
+    ) {
+        return new ModelDiffItemResponse(
+                item.identity(),
+                item.branchValues(),
+                item.parentValues()
+        );
+    }
+
+    /**
+     * 인증 정보에서 현재 사용자 ID를 추출합니다.
+     */
+    private static String resolveCurrentUser(final Authentication authentication) {
+        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+            return "SYSTEM";
+        }
+        return authentication.getName();
     }
 }

@@ -142,4 +142,8 @@
         DELETE FROM tc_model_version WHERE model_version_key = #{modelVersionKey}
     </delete>
 
+    <delete id="deleteByModelKey">
+        DELETE FROM tc_model WHERE model_key = #{modelKey}
+    </delete>
+
 </mapper>

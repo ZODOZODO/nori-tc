@@ -186,62 +186,63 @@ root model, branch model, parent commit을 지원하는 백엔드 API와 서비�
 
 #### T3-1. Model 관리 Port 정의
 
-- [ ] `tc-ui-core`에 root model 관리 Port 추가
-- [ ] `tc-ui-core`에 branch model 생성/삭제 Port 추가
-- [ ] `tc-ui-core`에 parent commit/diff Port 추가
-- [ ] `tc-ui-core`의 Model 응답 모델에 `parentModel` 추가
+- [x] `tc-ui-core`에 root model 관리 Port 추가
+- [x] `tc-ui-core`에 branch model 생성/삭제 Port 추가
+- [x] `tc-ui-core`에 parent commit/diff Port 추가
+- [x] `tc-ui-core`의 Model 응답 모델에 `parentModel` 추가
 
 #### T3-2. root model 생성/수정 API 구현
 
-- [ ] `POST /api/model/roots` 추가
-- [ ] `PUT /api/model/{modelKey}/info` 추가
-- [ ] root model 생성 시 `parent_model = NULL` 고정
-- [ ] root model 생성 시 `model_version = EDIT`, `status = OPERATE` 고정
-- [ ] Model Info Update에서 `modelName` 불변 정책 반영
+- [x] `POST /api/model/roots` 추가
+- [x] `PUT /api/model/{modelKey}/info` 추가
+- [x] root model 생성 시 `parent_model = NULL` 고정
+- [x] root model 생성 시 `model_version = EDIT`, `status = OPERATE` 고정
+- [x] Model Info Update에서 `modelName` 불변 정책 반영
 
 #### T3-3. branch model 생성 구현
 
-- [ ] `POST /api/model/{modelKey}/branches` 추가
-- [ ] branch model 이름 규칙 `{parent}_{suffix}_{userId}` 반영
-- [ ] branch model 생성 시 `parent_model = parent model name` 반영
-- [ ] branch 초기 version을 `EDIT/DEVELOP`로 생성
-- [ ] parent 최신 version 전체 clone 서비스 구현
+- [x] `POST /api/model/{modelKey}/branches` 추가
+- [x] branch model 이름 규칙 `{parent}_{suffix}_{userId}` 반영
+- [x] branch model 생성 시 `parent_model = parent model name` 반영
+- [x] branch 초기 version을 `EDIT/DEVELOP`로 생성
+- [x] parent 최신 version 전체 clone 서비스 구현
 
 #### T3-4. parent commit diff 구현
 
-- [ ] `POST /api/model/{modelKey}/commit-parent` 추가
-- [ ] branch 최신 version vs parent 최신 version diff 계산 구조 정의
-- [ ] `model-parameter` diff 계산 구현
-- [ ] `secs-message` diff 계산 구현
-- [ ] `socket-message` diff 계산 구현
-- [ ] `variableides/reportides/eventides` diff 계산 구현
-- [ ] `workflow` diff 계산 구현
-- [ ] `mdf` diff 계산 구현
-- [ ] `dcop-itemes` diff 계산 구현
-- [ ] 추가/변경/삭제 모두 diff 결과에 포함
+- [x] `POST /api/model/{modelKey}/commit-parent` 추가
+- [x] branch 최신 version vs parent 최신 version diff 계산 구조 정의
+- [x] `model-parameter` diff 계산 구현
+- [x] `secs-message` diff 계산 구현
+- [x] `socket-message` diff 계산 구현
+- [x] `variableides/reportides/eventides` diff 계산 구현
+- [x] `workflow` diff 계산 구현
+- [x] `mdf` diff 계산 구현
+- [x] `dcop-itemes` diff 계산 구현
+- [x] 추가/변경/삭제 모두 diff 결과에 포함
 
 #### T3-5. parent commit 반영 구현
 
-- [ ] 사용자 입력 새 parent version을 받는 요청 모델 정의
-- [ ] parent 새 version 생성 로직 구현
-- [ ] diff 결과를 parent 새 version에 반영
-- [ ] commit 완료 후 branch의 모든 version status를 `DEPRECATED`로 변경
+- [x] 사용자 입력 새 parent version을 받는 요청 모델 정의
+- [x] parent 새 version 생성 로직 구현
+- [x] diff 결과를 parent 새 version에 반영
+- [x] commit 완료 후 branch의 모든 version status를 `DEPRECATED`로 변경
 
 #### T3-6. 삭제/정리 정책 구현
 
-- [ ] `DELETE /api/model/{modelKey}/branches/deprecated` 추가
-- [ ] deprecated branch bulk delete 로직 구현
-- [ ] `DELETE /api/model/{modelKey}`에 parent cascade delete 정책 반영
-- [ ] EQP 참조 중 model version 존재 시 `409 CONFLICT` 반환
-- [ ] branch model delete API/서비스 구현
+- [x] `DELETE /api/model/{modelKey}/branches/deprecated` 추가
+- [x] deprecated branch bulk delete 로직 구현
+- [x] `DELETE /api/model/{modelKey}`에 parent cascade delete 정책 반영
+- [x] EQP 참조 중 model version 존재 시 `409 CONFLICT` 반환
+- [x] branch model delete API/서비스 구현
+  - 기존 `DELETE /api/model/{modelVersionKey}`와 경로 충돌을 피하기 위해 `scope=model` 쿼리 파라미터로 model 단위 삭제를 구분
 
 ### T3 검증
 
-- [ ] root model 생성 시 `parent_model = NULL`과 `EDIT/OPERATE`가 적용되는지 확인
-- [ ] branch model 생성 시 parent 최신 version 전체 clone이 누락 없이 수행되는지 확인
-- [ ] parent commit diff가 추가/변경/삭제를 모두 산출하는지 확인
-- [ ] parent commit 후 branch 전체 status가 `DEPRECATED`로 바뀌는지 확인
-- [ ] parent delete 시 branch cascade와 EQP 참조 충돌 정책이 함께 동작하는지 확인
+- [x] root model 생성 시 `parent_model = NULL`과 `EDIT/OPERATE`가 적용되는지 확인
+- [x] branch model 생성 시 parent 최신 version 전체 clone이 누락 없이 수행되는지 확인
+- [x] parent commit diff가 추가/변경/삭제를 모두 산출하는지 확인
+- [x] parent commit 후 branch 전체 status가 `DEPRECATED`로 바뀌는지 확인
+- [x] parent delete 시 branch cascade와 EQP 참조 충돌 정책이 함께 동작하는지 확인
 
 ---
 

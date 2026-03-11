@@ -170,6 +170,14 @@ public class TcModelJpaStore implements TcModelStore {
              WHERE model_version_key = :modelVersionKey
             """;
 
+    /**
+     * model_key 기준 삭제 SQL입니다.
+     */
+    private static final String DELETE_BY_MODEL_KEY_SQL = """
+            DELETE FROM tc_model
+             WHERE model_key = :modelKey
+            """;
+
     private final EntityManager entityManager;
 
     /**
@@ -401,6 +409,39 @@ public class TcModelJpaStore implements TcModelStore {
             }
         } catch (RuntimeException e) {
             throw new DbAccessException("tc_model deleteByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
+        }
+    }
+
+    /**
+     * model_key 기준으로 tc_model 원장을 삭제합니다.
+     *
+     * <p>tc_model_version 및 하위 상세 테이블은 FK ON DELETE CASCADE로 함께 삭제됩니다.</p>
+     *
+     * @param modelKey 모델 키
+     */
+    @Override
+    @Transactional
+    public void deleteByModelKey(final long modelKey) {
+        if (modelKey <= 0) {
+            throw new IllegalArgumentException("modelKey must be positive");
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("tc_model JPA deleteByModelKey 시작. modelKey={}", modelKey);
+        }
+
+        try {
+            final int deletedRows = entityManager.createNativeQuery(DELETE_BY_MODEL_KEY_SQL)
+                    .setParameter("modelKey", modelKey)
+                    .executeUpdate();
+
+            if (deletedRows == 0) {
+                log.warn("tc_model JPA deleteByModelKey 대상이 없습니다. modelKey={}", modelKey);
+            } else {
+                log.info("tc_model JPA deleteByModelKey 완료. modelKey={}, deletedRows={}", modelKey, deletedRows);
+            }
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_model deleteByModelKey failed. modelKey=" + modelKey, e);
         }
     }
 

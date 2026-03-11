@@ -16,6 +16,8 @@ import com.nori.tc.db.domain.user.TcUserInfo;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.exception.UiConflictException;
 import com.nori.tc.ui.core.model.PagedResponse;
+import com.nori.tc.ui.core.port.db.ModelBranchCommandPort;
+import com.nori.tc.ui.core.port.db.ModelParentCommitPort;
 import com.nori.tc.ui.domain.auth.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -306,6 +308,117 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(true));
 
         log.info("[Phase5-4] Model CRUD 정상 플로우 검증 완료");
+    }
+
+    /**
+     * T3 신규 Model 관리 API(root/branch/commit/delete)를 검증합니다.
+     */
+    @Test
+    @DisplayName("시나리오 5-4A: Model root/branch/commit 관리 API 정상 플로우")
+    void 모델_root_branch_commit_정상_플로우() throws Exception {
+        log.info("[Phase5-4A] Model root/branch/commit 관리 API 정상 플로우 검증 시작");
+
+        final TcModel rootModel = sampleModel();
+        final TcModel branchModel = sampleBranchModel();
+
+        when(modelRootCommandPort.createRootModel(any())).thenReturn(rootModel);
+        when(modelRootCommandPort.updateRootModelInfo(any())).thenReturn(rootModel);
+        when(modelBranchCommandPort.createBranchModel(any())).thenReturn(branchModel);
+        when(modelParentCommitPort.previewOrCommit(any()))
+                .thenReturn(sampleCommitResult(false, null))
+                .thenReturn(sampleCommitResult(true, 2002L));
+        when(modelBranchCommandPort.deleteDeprecatedBranches(rootModel.modelKey()))
+                .thenReturn(new ModelBranchCommandPort.DeleteDeprecatedBranchesResult(
+                        1,
+                        List.of(branchModel.modelKey()),
+                        List.of(branchModel.modelName())
+                ));
+
+        mockMvc.perform(post("/api/model/roots")
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "modelName":"ROOT-PHASE7",
+                                  "commInterface":"SECS",
+                                  "maker":"NORI"
+                                }
+                                """))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.modelKey").value(rootModel.modelKey()));
+
+        mockMvc.perform(put("/api/model/{modelKey}/info", rootModel.modelKey())
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "maker":"NORI-UPDATED"
+                                }
+                                """))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(post("/api/model/{modelKey}/branches", rootModel.modelKey())
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "suffix":"feature"
+                                }
+                                """))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.parentModel").value(rootModel.modelName()));
+
+        mockMvc.perform(post("/api/model/{modelKey}/commit-parent", branchModel.modelKey())
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.committed").value(false));
+
+        mockMvc.perform(post("/api/model/{modelKey}/commit-parent", branchModel.modelKey())
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "applyCommit": true,
+                                  "newParentVersion": "2.0.0"
+                                }
+                                """))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.committed").value(true))
+                .andExpect(jsonPath("$.data.committedParentModelVersionKey").value(2002));
+
+        mockMvc.perform(delete("/api/model/{modelKey}/branches/deprecated", rootModel.modelKey())
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deletedCount").value(1));
+
+        mockMvc.perform(delete("/api/model/{modelKey}", rootModel.modelKey())
+                        .param("scope", "model")
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        log.info("[Phase5-4A] Model root/branch/commit 관리 API 정상 플로우 검증 완료");
     }
 
     /**
@@ -778,6 +891,63 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 now,
                 "SYSTEM",
                 "SYSTEM"
+        );
+    }
+
+    /**
+     * branch 모델 응답 픽스처를 생성합니다.
+     *
+     * @return 테스트용 branch TcModel
+     */
+    private static TcModel sampleBranchModel() {
+        final OffsetDateTime now = OffsetDateTime.now();
+        return new TcModel(
+                1101L,
+                601L,
+                "MODEL-PHASE5_feature_testuser",
+                "MODEL-PHASE5",
+                "EDIT",
+                ProtocolType.SECS,
+                ModelStatus.DEVELOP,
+                null,
+                "NORI",
+                now,
+                now,
+                "SYSTEM",
+                "SYSTEM"
+        );
+    }
+
+    /**
+     * parent commit 응답 픽스처를 생성합니다.
+     *
+     * @param committed 실제 commit 수행 여부
+     * @param committedParentModelVersionKey 생성된 parent model_version_key
+     * @return 테스트용 commit 결과
+     */
+    private static ModelParentCommitPort.CommitParentResult sampleCommitResult(
+            final boolean committed,
+            final Long committedParentModelVersionKey
+    ) {
+        return new ModelParentCommitPort.CommitParentResult(
+                committed,
+                601L,
+                501L,
+                "MODEL-PHASE5_feature_testuser",
+                "MODEL-PHASE5",
+                "EDIT",
+                "v1",
+                committed ? "2.0.0" : null,
+                committedParentModelVersionKey,
+                List.of(
+                        new ModelParentCommitPort.DiffSection(
+                                "model-parameter",
+                                List.of("Parameter Name", "Parameter Value", "Description"),
+                                List.of(new ModelParentCommitPort.DiffItem("SITE", List.of("SITE", "DEV", ""), List.of())),
+                                List.of(),
+                                List.of()
+                        )
+                )
         );
     }
 

@@ -78,4 +78,14 @@ public interface TcModelMapper {
      * @return DB MyBatis 계층 처리 결과
      */
     int deleteByModelVersionKey(@Param("modelVersionKey") long modelVersionKey);
+
+    /**
+     * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
+     *
+     * <p>모델 원장(tc_model) 1건을 삭제하며, FK ON DELETE CASCADE로 하위 버전/상세가 함께 삭제됩니다.</p>
+     *
+     * @param modelKey 대상 모델 키
+     * @return DB MyBatis 계층 처리 결과
+     */
+    int deleteByModelKey(@Param("modelKey") long modelKey);
 }

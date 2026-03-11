@@ -3,6 +3,7 @@ package com.nori.tc.ui.adapters.web.controller.support;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.exception.UiConflictException;
+import com.nori.tc.ui.core.exception.UiNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
  * <p>핵심 매핑 정책:</p>
  * <ul>
  *   <li>{@link UiBadRequestException} → 400 INVALID_REQUEST</li>
+ *   <li>{@link UiNotFoundException} → 404 NOT_FOUND</li>
  *   <li>{@link UiConflictException} → 409 CONFLICT</li>
  *   <li>검증/역직렬화 실패 → 400 INVALID_REQUEST</li>
  *   <li>그 외 예외 → 500 INTERNAL_ERROR</li>
@@ -71,6 +73,24 @@ public class UiApiExceptionHandler {
                 resolveMethod(request), resolveRequestUri(request), exception.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("CONFLICT", exception.getMessage()));
+    }
+
+    /**
+     * 미존재 예외를 404로 변환합니다.
+     *
+     * @param exception 변환 대상 예외
+     * @param request 현재 HTTP 요청
+     * @return 404 응답
+     */
+    @ExceptionHandler(UiNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUiNotFound(
+            final UiNotFoundException exception,
+            final HttpServletRequest request
+    ) {
+        log.warn("요청 대상 없음. method={}, uri={}, message={}",
+                resolveMethod(request), resolveRequestUri(request), exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("NOT_FOUND", exception.getMessage()));
     }
 
     /**
@@ -200,4 +220,3 @@ public class UiApiExceptionHandler {
         return request.getMethod();
     }
 }
-

@@ -68,4 +68,13 @@ public interface TcModelStore {
      * @param modelVersionKey 모델 버전 키
      */
     void deleteByModelVersionKey(long modelVersionKey);
+
+    /**
+     * model_key 기준으로 모델 원장을 삭제합니다.
+     *
+     * <p>{@code tc_model_version}와 상세 하위 테이블은 FK ON DELETE CASCADE로 함께 삭제됩니다.</p>
+     *
+     * @param modelKey 모델 키
+     */
+    void deleteByModelKey(long modelKey);
 }
