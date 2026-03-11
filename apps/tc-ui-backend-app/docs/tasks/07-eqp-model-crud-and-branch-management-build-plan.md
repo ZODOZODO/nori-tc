@@ -256,35 +256,35 @@ EQP/Model 신규 관리 UI가 사용할 공통 타입, API, UI primitive를 준�
 
 #### T4-1. 타입 전환
 
-- [ ] 프론트 `ProtocolType` literal을 `SECS`, `SOCKET`으로 전환
-- [ ] 프론트 `ModelStatus` literal을 `DEVELOP`, `OPERATE`, `DEPRECATED`로 전환
-- [ ] 프론트 `ModelInfo`에 `parentModel` 추가
-- [ ] 프론트 `EqpInfo`에 `isDev` 추가
+- [x] 프론트 `ProtocolType` literal을 `SECS`, `SOCKET`으로 전환
+- [x] 프론트 `ModelStatus` literal을 `DEVELOP`, `OPERATE`, `DEPRECATED`로 전환
+- [x] 프론트 `ModelInfo`에 `parentModel` 추가
+- [x] 프론트 `EqpInfo`에 `isDev` 추가
 
 #### T4-2. API 계층 확장
 
-- [ ] EQP manage API 추가
-- [ ] EQP options API 추가
-- [ ] EQP create/update 요청 DTO에 `isDev` 반영
-- [ ] Model root/branch/commit API 추가
-- [ ] deprecated branch bulk delete API 추가
+- [x] EQP manage API 추가
+- [x] EQP options API 추가
+- [x] EQP create/update 요청 DTO에 `isDev` 반영
+- [x] Model root/branch/commit API 추가
+- [x] deprecated branch bulk delete API 추가
 
 #### T4-3. 공통 UI primitive 추가
 
-- [ ] `Select` primitive 추가
-- [ ] `DropdownMenu` primitive 추가
-- [ ] `ContextMenu` primitive 추가
-- [ ] `ConfirmDialog` primitive 추가
+- [x] `Select` primitive 추가
+- [x] `DropdownMenu` primitive 추가
+- [x] `ContextMenu` primitive 추가
+- [x] `ConfirmDialog` primitive 추가
 
 #### T4-4. query/cache 정책 정리
 
-- [ ] EQP create/update/delete 후 invalidate 범위 정의
-- [ ] Model create/update/branch/commit/delete 후 invalidate 범위 정의
-- [ ] branch commit 후 sidebar/detail/tab 상태 정리 규칙 정의
+- [x] EQP create/update/delete 후 invalidate 범위 정의
+- [x] Model create/update/branch/commit/delete 후 invalidate 범위 정의
+- [x] branch commit 후 sidebar/detail/tab 상태 정리 규칙 정의
 
 ### T4 검증
 
-- [ ] 기존 page와 충돌 없이 신규 타입이 연결되는지 확인
+- [x] 기존 page와 충돌 없이 신규 타입이 연결되는지 확인
 - [ ] EQP/Model 양쪽에서 context menu와 select가 공통으로 재사용되는지 확인
 - [ ] create/update/delete/commit 후 query invalidate가 누락 없이 동작하는지 확인
 
