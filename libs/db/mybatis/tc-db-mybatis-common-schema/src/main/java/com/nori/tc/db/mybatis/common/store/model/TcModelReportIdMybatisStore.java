@@ -60,6 +60,7 @@ public class TcModelReportIdMybatisStore implements TcModelReportIdStore {
                 reportId,
                 command.variableId(),
                 command.enabled(),
+                command.description(),
                 null
         );
 

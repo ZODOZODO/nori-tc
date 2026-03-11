@@ -11,6 +11,7 @@ package com.nori.tc.db.core.model.upsert;
 public record UpsertTcModelParam(
         long modelVersionKey,
         String paramName,
-        String paramValue
+        String paramValue,
+        String description
 ) {
 }

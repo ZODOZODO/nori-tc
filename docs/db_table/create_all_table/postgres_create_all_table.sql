@@ -108,6 +108,7 @@ CREATE TABLE public.tc_model_param (
     model_version_key BIGINT NOT NULL,
     param_name      VARCHAR(128) NOT NULL,
     param_value     VARCHAR(2000) NULL,
+    description     VARCHAR(2000) NULL,
     updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_tc_model_param PRIMARY KEY (model_param_key),
@@ -176,6 +177,7 @@ CREATE TABLE public.tc_model_reportid (
     report_id   VARCHAR(100) NOT NULL,
     variable_id VARCHAR(1000) NULL,
     enabled     BOOLEAN NOT NULL DEFAULT FALSE,
+    description VARCHAR(2000) NULL,
     updated_at  TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_tc_model_reportid PRIMARY KEY (report_key),
@@ -194,6 +196,7 @@ CREATE TABLE public.tc_model_eventid (
     event_id   VARCHAR(100) NOT NULL,
     report_id  VARCHAR(1000) NULL,
     enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+    description VARCHAR(2000) NULL,
     updated_at TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_tc_model_eventid PRIMARY KEY (event_key),

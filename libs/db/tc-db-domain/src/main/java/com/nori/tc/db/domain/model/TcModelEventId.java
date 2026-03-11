@@ -23,6 +23,7 @@ public record TcModelEventId(
         String eventId,
         String reportId,
         boolean enabled,
+        String description,
         OffsetDateTime updatedAt
 ) {
 }

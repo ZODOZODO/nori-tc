@@ -169,10 +169,10 @@ FROM ins_model m
 JOIN ins_model_version v ON v.model_key = m.model_key;
 
 -- model_param (모든 모델 버전에 2개씩)
-INSERT INTO tc_model_param(model_version_key, param_name, param_value, updated_at)
-SELECT model_version_key, 'SITE', 'DEV', now() FROM seed_model_map
+INSERT INTO tc_model_param(model_version_key, param_name, param_value, description, updated_at)
+SELECT model_version_key, 'SITE', 'DEV', 'Site code', now() FROM seed_model_map
 UNION ALL
-SELECT model_version_key, 'REVISION', 'A', now() FROM seed_model_map;
+SELECT model_version_key, 'REVISION', 'A', 'Model revision', now() FROM seed_model_map;
 
 -- HSMS 모델: 버전별 2개 이상 (1:N 관계 검증)
 INSERT INTO tc_model_secs_message(model_version_key, secs_msg_name, description, data_index, updated_at)
@@ -203,16 +203,16 @@ UNION ALL
 SELECT model_version_key, 'VID_STATE', 'CEID', 'State event', now() FROM seed_model_map;
 
 -- reportid (각 모델 버전 2개)
-INSERT INTO tc_model_reportid(model_version_key, report_id, variable_id, enabled, updated_at)
-SELECT model_version_key, 'RPT_01', 'VID_TEMP,VID_PRESS', FALSE, now() FROM seed_model_map
+INSERT INTO tc_model_reportid(model_version_key, report_id, variable_id, enabled, description, updated_at)
+SELECT model_version_key, 'RPT_01', 'VID_TEMP,VID_PRESS', FALSE, 'Temperature/Pressure report', now() FROM seed_model_map
 UNION ALL
-SELECT model_version_key, 'RPT_02', 'VID_STATE',          TRUE,  now() FROM seed_model_map;
+SELECT model_version_key, 'RPT_02', 'VID_STATE',          TRUE,  'State report', now() FROM seed_model_map;
 
 -- eventid (각 모델 버전 2개)
-INSERT INTO tc_model_eventid(model_version_key, event_id, report_id, enabled, updated_at)
-SELECT model_version_key, 'EVT_100', 'RPT_01', TRUE,  now() FROM seed_model_map
+INSERT INTO tc_model_eventid(model_version_key, event_id, report_id, enabled, description, updated_at)
+SELECT model_version_key, 'EVT_100', 'RPT_01', TRUE,  'Trigger report RPT_01', now() FROM seed_model_map
 UNION ALL
-SELECT model_version_key, 'EVT_200', 'RPT_02', FALSE, now() FROM seed_model_map;
+SELECT model_version_key, 'EVT_200', 'RPT_02', FALSE, 'Trigger report RPT_02', now() FROM seed_model_map;
 
 -- workflow (각 모델 버전 3개, (model_version_key, workflow_name, message_name) 유니크 보장)
 INSERT INTO tc_model_workflow(
@@ -276,15 +276,14 @@ WITH ins AS (
     enabled, created_at, updated_at, created_by, updated_by
   )
   VALUES
-    -- HSMS 3대 (A/P/A)
+    -- HSMS 2대 (A/P)
     ('EQP_HSMS_A01','HSMS','ACTIVE', 0,'10.10.0.11',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
     ('EQP_HSMS_P01','HSMS','PASSIVE',1,'10.10.0.12',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_02' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
-    ('EQP_HSMS_A02','HSMS','ACTIVE', 2,'10.10.0.13',5001,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_03' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
 
     -- SOCKET 3대 (A/P/P)
-    ('EQP_SOCKET_A01','SOCKET','ACTIVE', 3,'10.10.0.21',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
+    ('EQP_SOCKET_A01','SOCKET','ACTIVE', 0,'10.10.0.21',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
     ('EQP_SOCKET_P01','SOCKET','PASSIVE',4,'192.168.0.7',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED'),
-    ('DG_SOCKET_P01','SOCKET','PASSIVE',5,'192.168.0.14',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED')
+    ('DG_SOCKET_P01','SOCKET','PASSIVE',2,'192.168.0.14',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED')
   RETURNING eqp_key, eqp_id, comm_interface
 )
 INSERT INTO seed_eqp_map(eqp_key, eqp_id, comm_interface)

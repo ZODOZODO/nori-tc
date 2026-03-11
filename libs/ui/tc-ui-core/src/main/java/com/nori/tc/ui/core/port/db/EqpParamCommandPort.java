@@ -57,7 +57,7 @@ public interface EqpParamCommandPort {
      * </ol>
      *
      * @param eqpId 설비 비즈니스 ID
-     * @param sourceVersion 복사 기준 버전 (예: "v1.0")
+     * @param sourceVersion 복사 기준 버전 (예: "v1.0"). null 또는 빈 문자열이면 빈 EDIT 버전 생성
      * @param currentUser 체크아웃을 수행하는 사용자 ID (Spring Security에서 추출)
      * @return 생성된 EDIT 파라미터 목록
      * @throws com.nori.tc.ui.core.exception.EqpAlreadyCheckedOutException EDIT 버전이 이미 존재하는 경우

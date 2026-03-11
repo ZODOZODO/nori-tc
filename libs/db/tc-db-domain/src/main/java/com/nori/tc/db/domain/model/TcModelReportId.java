@@ -18,6 +18,7 @@ public record TcModelReportId(
         String reportId,
         String variableId,
         boolean enabled,
+        String description,
         OffsetDateTime updatedAt
 ) {
 }

@@ -66,7 +66,7 @@ public class TcModelReportIdJpaStore implements TcModelReportIdStore {
 
         try {
             TcModelReportIdEntity entity = repository.findByModelVersionKeyAndReportId(command.modelVersionKey(), command.reportId())
-                    .orElseGet(TcModelReportIdEntity::new);
+                    .orElseGet(() -> TcModelReportIdEntity.newEntity(command.modelVersionKey(), command.reportId()));
 
             // Mapper 메서드명 updateEntity로 변경 적용
             mapper.updateEntity(command, entity);

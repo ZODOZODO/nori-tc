@@ -7,6 +7,7 @@ public record UpsertTcModelReportId(
         long modelVersionKey,
         String reportId,
         String variableId,
-        boolean enabled
+        boolean enabled,
+        String description
 ) {
 }

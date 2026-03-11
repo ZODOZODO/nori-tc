@@ -12,6 +12,7 @@ import com.nori.tc.ui.core.port.db.EqpParamCommandPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
@@ -63,37 +64,34 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
      * @return 생성된 EDIT 파라미터 목록
      */
     @Override
+    @Transactional
     public List<EqpParamView> checkout(final String eqpId, final String sourceVersion, final String currentUser) {
         validateEqpId(eqpId);
-        if (sourceVersion == null || sourceVersion.isBlank()) {
-            throw new UiBadRequestException("sourceVersion은 비어 있을 수 없습니다.");
-        }
         if (currentUser == null || currentUser.isBlank()) {
             throw new UiBadRequestException("currentUser는 비어 있을 수 없습니다.");
         }
 
-        log.info("설비 파라미터 체크아웃 시작. eqpId={}, sourceVersion={}, currentUser={}", eqpId, sourceVersion, currentUser);
+        // sourceVersion이 null 또는 blank이면 파라미터 없는 빈 EDIT 버전으로 체크아웃
+        final boolean hasSourceVersion = sourceVersion != null && !sourceVersion.isBlank();
+        log.info("설비 파라미터 체크아웃 시작. eqpId={}, sourceVersion={}, currentUser={}", eqpId, hasSourceVersion ? sourceVersion : "(empty)", currentUser);
 
         final TcEqp eqp = resolveEqp(eqpId);
         final long eqpKey = eqp.eqpKey();
 
         // EDIT 버전이 이미 존재하면 체크아웃 중 → 409 Conflict
         if (eqpParamStore.existsByEqpKeyAndVersion(eqpKey, EDIT_VERSION)) {
-            final List<TcEqpParam> editParams = eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, EDIT_VERSION);
-            final String checkedOutBy = editParams.stream()
-                    .map(TcEqpParam::createdBy)
-                    .filter(by -> by != null && !by.isBlank())
-                    .findFirst()
-                    .orElse("알 수 없음");
+            final String checkedOutBy = resolveCheckedOutBy(eqpKey);
             log.warn("설비 파라미터 이미 체크아웃 중. eqpId={}, checkedOutBy={}", eqpId, checkedOutBy);
             throw new EqpAlreadyCheckedOutException(eqpId, checkedOutBy);
         }
 
-        // sourceVersion 파라미터를 조회해 EDIT 버전으로 복사
-        final List<TcEqpParam> sourceParams = eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, sourceVersion);
+        // sourceVersion이 있으면 해당 버전 파라미터를 EDIT으로 복사, 없으면 빈 EDIT 버전 생성
+        final List<TcEqpParam> sourceParams = hasSourceVersion
+                ? eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, sourceVersion)
+                : List.of();
         if (sourceParams.isEmpty()) {
-            log.warn("체크아웃 기준 버전에 파라미터가 없습니다. eqpId={}, sourceVersion={}", eqpId, sourceVersion);
-            // 빈 EDIT 버전 허용 (파라미터 없는 버전 체크아웃 시 빈 목록 반환)
+            log.warn("체크아웃 기준 버전에 파라미터가 없습니다. eqpId={}, sourceVersion={}", eqpId, hasSourceVersion ? sourceVersion : "(empty)");
+            // 빈 EDIT 버전 허용 (파라미터 없는 신규 설비 또는 빈 버전 체크아웃)
         }
 
         try {
@@ -110,8 +108,10 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
             }
         } catch (DbDuplicateKeyException e) {
             // 레이스 컨디션: 동시 체크아웃 요청이 DB 중복 키 오류를 발생시킨 경우
-            log.warn("설비 파라미터 체크아웃 중 중복 키 발생 - 동시 체크아웃 시도로 판단. eqpId={}", eqpId);
-            throw new EqpAlreadyCheckedOutException("동시 체크아웃 요청으로 인해 체크아웃에 실패했습니다. 잠시 후 다시 시도해주세요.", e);
+            // EDIT 행을 재조회해 실제 체크아웃 사용자를 식별하고 409 충돌로 통일합니다.
+            log.warn("설비 파라미터 체크아웃 중 중복 키 발생. eqpId={}", eqpId, e);
+            final String checkedOutBy = resolveCheckedOutBy(eqpKey);
+            throw new EqpAlreadyCheckedOutException(eqpId, checkedOutBy);
         }
 
         final List<TcEqpParam> editParams = eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, EDIT_VERSION);
@@ -235,6 +235,26 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
             throw new UiBadRequestException("설비를 찾을 수 없습니다. eqpId=" + eqpId);
         }
         return optionalEqp.get();
+    }
+
+    /**
+     * EDIT 버전 파라미터에서 체크아웃 사용자를 추출합니다.
+     *
+     * <p>경합 상황에서 재조회가 실패하더라도 409 충돌 응답 흐름을 유지하기 위해
+     * "알 수 없음"으로 폴백합니다.</p>
+     */
+    private String resolveCheckedOutBy(final long eqpKey) {
+        try {
+            final List<TcEqpParam> editParams = eqpParamStore.findAllByEqpKeyAndVersion(eqpKey, EDIT_VERSION);
+            return editParams.stream()
+                    .map(TcEqpParam::createdBy)
+                    .filter(by -> by != null && !by.isBlank())
+                    .findFirst()
+                    .orElse("알 수 없음");
+        } catch (RuntimeException e) {
+            log.warn("체크아웃 사용자 재조회 실패. eqpKey={}", eqpKey, e);
+            return "알 수 없음";
+        }
     }
 
     /**

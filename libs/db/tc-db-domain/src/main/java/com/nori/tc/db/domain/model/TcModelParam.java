@@ -19,6 +19,7 @@ public record TcModelParam(
         long modelVersionKey,
         String paramName,
         String paramValue,
+        String description,
         OffsetDateTime updatedAt
 ) {
 }

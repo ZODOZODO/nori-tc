@@ -12,6 +12,7 @@ public record UpsertTcModelEventId(
         Long modelVersionKey,
         String eventId,
         String reportId,
+        String description,
         Boolean enabled
 ) {
 }

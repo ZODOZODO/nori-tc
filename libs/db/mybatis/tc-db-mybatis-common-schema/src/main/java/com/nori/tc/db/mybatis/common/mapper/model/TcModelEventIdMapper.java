@@ -1,5 +1,6 @@
 package com.nori.tc.db.mybatis.common.mapper.model;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.apache.ibatis.annotations.Param;
@@ -55,6 +56,22 @@ public interface TcModelEventIdMapper {
     Optional<TcModelEventId> findByModelVersionKeyAndEventId(
             @Param("modelVersionKey") long modelVersionKey,
             @Param("eventId") String eventId
+    );
+
+    
+    /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelVersionKey 대상 키 값
+     * @param offset 페이징/조회 범위 조건
+     * @param limit 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
+    List<TcModelEventId> findAllByModelVersionKey(
+            @Param("modelVersionKey") long modelVersionKey,
+            @Param("offset") int offset,
+            @Param("limit") int limit
     );
 
     

@@ -1,5 +1,6 @@
 package com.nori.tc.db.jpa.common.store.model;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -7,6 +8,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.model.store.TcModelEventIdStore;
@@ -120,6 +122,40 @@ public class TcModelEventIdJpaStore implements TcModelEventIdStore {
 
     
     /**
+     * DB JPA 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelVersionKey 대상 키 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcModelEventId> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be positive");
+        }
+        final PageRequest resolvedPage = (page == null) ? PageRequest.defaultPage() : page;
+
+        try {
+            final int pageNumber = resolvedPage.limit() == 0 ? 0 : resolvedPage.offset() / resolvedPage.limit();
+            final int offsetRemainder = resolvedPage.limit() == 0 ? 0 : resolvedPage.offset() % resolvedPage.limit();
+            final int fetchSize = resolvedPage.limit() + offsetRemainder;
+            final org.springframework.data.domain.PageRequest pageable =
+                    org.springframework.data.domain.PageRequest.of(pageNumber, fetchSize);
+
+            return repository.findAllByModelVersionKeyOrderByEventKeyAsc(modelVersionKey, pageable).stream()
+                    .skip(offsetRemainder)
+                    .limit(resolvedPage.limit())
+                    .map(mapper::toDomain)
+                    .toList();
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_model_eventid] findAllByModelVersionKey failed: modelVersionKey=" + modelVersionKey, e);
+        }
+    }
+
+    
+    /**
      * DB JPA 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
@@ -179,6 +215,7 @@ public class TcModelEventIdJpaStore implements TcModelEventIdStore {
                 command.modelVersionKey(),
                 command.eventId(),
                 command.reportId(),
+                command.description(),
                 command.enabled() == null ? Boolean.FALSE : command.enabled()
         );
     }

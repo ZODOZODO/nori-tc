@@ -1,8 +1,34 @@
-<insert id="insert">
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelReportIdMapper">
+
+    <resultMap id="TcModelReportIdMap" type="com.nori.tc.db.domain.model.TcModelReportId">
+        <constructor>
+            <idArg column="report_key" javaType="long"/>
+            <arg column="model_version_key" javaType="long"/>
+            <arg column="report_id" javaType="java.lang.String"/>
+            <arg column="variable_id" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="boolean"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcModelReportIdColumns">
+        report_key, model_version_key, report_id, variable_id, enabled, description, updated_at
+    </sql>
+
+    <insert id="insert">
         INSERT INTO tc_model_reportid (
-            model_version_key, report_id, variable_id, enabled
+            model_version_key, report_id, variable_id, enabled, description
         ) VALUES (
-            #{r.modelVersionKey}, #{r.reportId}, #{r.variableId}, #{r.enabled}
+            #{r.modelVersionKey}, #{r.reportId}, #{r.variableId}, #{r.enabled}, #{r.description}
         )
     </insert>
 
@@ -10,6 +36,7 @@
         UPDATE tc_model_reportid
            SET variable_id = #{r.variableId},
                enabled     = #{r.enabled},
+               description = #{r.description},
                updated_at  = CURRENT_TIMESTAMP
          WHERE model_version_key = #{r.modelVersionKey}
            AND report_id = #{r.reportId}

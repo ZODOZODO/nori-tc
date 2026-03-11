@@ -1,5 +1,6 @@
 package com.nori.tc.db.mybatis.common.store.model;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataAccessException;
@@ -7,6 +8,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbAccessException;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.model.store.TcModelEventIdStore;
@@ -57,6 +59,7 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
                 eventId,
                 normalized.reportId(),
                 normalized.enabled(),
+                normalized.description(),
                 null
         );
 
@@ -125,6 +128,33 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
 
     
     /**
+     * DB MyBatis 계층에서 필요한 데이터를 조회합니다.
+     *
+     * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
+     * @param modelVersionKey 대상 키 값
+     * @param page 페이징/조회 범위 조건
+     * @return 조회/처리 결과 목록
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TcModelEventId> findAllByModelVersionKey(long modelVersionKey, PageRequest page) {
+        final PageRequest resolvedPage = (page == null) ? PageRequest.defaultPage() : page;
+
+        try {
+            return mapper.findAllByModelVersionKey(
+                    modelVersionKey,
+                    resolvedPage.offset(),
+                    resolvedPage.limit()
+            );
+        } catch (DataAccessException e) {
+            throw new DbAccessException("tc_model_eventid findAllByModelVersionKey failed. modelVersionKey=" + modelVersionKey, e);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("tc_model_eventid findAllByModelVersionKey failed (unexpected). modelVersionKey=" + modelVersionKey, e);
+        }
+    }
+
+    
+    /**
      * DB MyBatis 계층 데이터 정리 또는 삭제를 처리합니다.
      *
      * <p>매퍼 SQL 파라미터/결과 매핑 규칙을 기준으로 처리합니다.</p>
@@ -181,6 +211,7 @@ public class TcModelEventIdMybatisStore implements TcModelEventIdStore {
                 command.modelVersionKey(),
                 command.eventId(),
                 command.reportId(),
+                command.description(),
                 command.enabled() == null ? Boolean.FALSE : command.enabled()
         );
     }

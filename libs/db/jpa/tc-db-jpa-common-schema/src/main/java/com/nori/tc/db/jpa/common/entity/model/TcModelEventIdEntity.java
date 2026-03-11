@@ -20,6 +20,7 @@ import jakarta.persistence.UniqueConstraint;
  * - event_id   : varchar(100) NOT NULL
  * - report_id  : varchar(1000) NULL
  * - enabled    : boolean NOT NULL default false
+ * - description: varchar(2000) NULL
  * - updated_at : timestamptz NOT NULL
  * - Constraints: UNIQUE (model_version_key, event_id)
  *
@@ -56,6 +57,9 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     @Column(name = "enabled", nullable = false)
     private Boolean enabled;
 
+    @Column(name = "description", length = 2000)
+    private String description;
+
     // =========================================================================
     // Constructors (MapStruct & JPA)
     // =========================================================================
@@ -69,12 +73,20 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
     /**
      * 전체 인자 생성자
      */
-    public TcModelEventIdEntity(Long eventKey, Long modelVersionKey, String eventId, String reportId, Boolean enabled) {
+    public TcModelEventIdEntity(
+            Long eventKey,
+            Long modelVersionKey,
+            String eventId,
+            String reportId,
+            Boolean enabled,
+            String description
+    ) {
         this.eventKey = eventKey;
         this.modelVersionKey = modelVersionKey;
         this.eventId = eventId;
         this.reportId = reportId;
         this.enabled = enabled;
+        this.description = description;
     }
 
     // =========================================================================
@@ -232,5 +244,13 @@ public class TcModelEventIdEntity extends AbstractUpdatedEntity {
      */
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

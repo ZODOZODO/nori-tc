@@ -55,6 +55,7 @@ public class TcModelParamMybatisStore implements TcModelParamStore {
                 modelVersionKey,
                 paramName,
                 command.paramValue(),
+                command.description(),
                 null
         );
 

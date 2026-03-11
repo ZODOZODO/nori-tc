@@ -4,7 +4,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelParamMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelParamMapper">
 
     <resultMap id="TcModelParamMap" type="com.nori.tc.db.domain.model.TcModelParam">
         <constructor>
@@ -12,6 +12,7 @@
             <arg column="model_version_key" javaType="long"/>
             <arg column="param_name" javaType="java.lang.String"/>
             <arg column="param_value" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
             <arg column="updated_at"
                  javaType="java.time.OffsetDateTime"
                  typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
@@ -19,21 +20,23 @@
     </resultMap>
 
     <sql id="TcModelParamColumns">
-        model_param_key, model_version_key, param_name, param_value, updated_at
+        model_param_key, model_version_key, param_name, param_value, description, updated_at
     </sql>
 
     <insert id="insert">
         INSERT INTO tc_model_param
-            (model_version_key, param_name, param_value)
+            (model_version_key, param_name, param_value, description)
         VALUES
             (#{m.modelVersionKey},
              #{m.paramName},
-             #{m.paramValue})
+             #{m.paramValue},
+             #{m.description})
     </insert>
 
     <update id="updateByUniqueKey">
         UPDATE tc_model_param
            SET param_value = #{m.paramValue},
+               description = #{m.description},
                updated_at  = CURRENT_TIMESTAMP
          WHERE model_version_key = #{m.modelVersionKey}
            AND param_name = #{m.paramName}

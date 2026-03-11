@@ -18,6 +18,7 @@ import jakarta.persistence.UniqueConstraint;
  * - model_version_key       : bigint NOT NULL (FK -> tc_model_version.model_version_key)
  * - param_name      : varchar(128) NOT NULL
  * - param_value     : varchar(2000) NULL
+ * - description     : varchar(2000) NULL
  * - updated_at      : timestamptz NOT NULL default CURRENT_TIMESTAMP
  * - Constraints     : UNIQUE (model_version_key, param_name)
  */
@@ -47,6 +48,9 @@ public class TcModelParamEntity extends AbstractUpdatedEntity {
     @Column(name = "param_value", length = 2000)
     private String paramValue;
 
+    @Column(name = "description", length = 2000)
+    private String description;
+
     // =========================================================================
     // Constructors (MapStruct & JPA)
     // =========================================================================
@@ -62,11 +66,18 @@ public class TcModelParamEntity extends AbstractUpdatedEntity {
     /**
      * 전체 인자 생성자
      */
-    public TcModelParamEntity(Long modelParamKey, Long modelVersionKey, String paramName, String paramValue) {
+    public TcModelParamEntity(
+            Long modelParamKey,
+            Long modelVersionKey,
+            String paramName,
+            String paramValue,
+            String description
+    ) {
         this.modelParamKey = modelParamKey;
         this.modelVersionKey = modelVersionKey;
         this.paramName = paramName;
         this.paramValue = paramValue;
+        this.description = description;
     }
 
     // =========================================================================
@@ -181,5 +192,13 @@ public class TcModelParamEntity extends AbstractUpdatedEntity {
      */
     public void setParamValue(String paramValue) {
         this.paramValue = paramValue;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }
