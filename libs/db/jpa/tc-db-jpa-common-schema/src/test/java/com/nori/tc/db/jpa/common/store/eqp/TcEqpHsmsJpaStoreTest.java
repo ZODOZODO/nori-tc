@@ -53,7 +53,7 @@ class TcEqpHsmsJpaStoreTest {
         final TcEqpEntity currentParent = passiveEqp(
                 400L,
                 "EQP-HSMS-400",
-                ProtocolType.HSMS,
+                ProtocolType.SECS,
                 1,
                 "192.168.0.50",
                 5000
@@ -61,7 +61,7 @@ class TcEqpHsmsJpaStoreTest {
         final TcEqpEntity peerParent = passiveEqp(
                 401L,
                 "EQP-HSMS-401",
-                ProtocolType.HSMS,
+                ProtocolType.SECS,
                 3,
                 "192.168.0.50",
                 5000

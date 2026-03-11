@@ -233,7 +233,7 @@ public class GatewayCommandDispatcher {
                 return;
             }
 
-            if (envelope.interfaceType() == CommInterfaceType.HSMS) {
+            if (envelope.interfaceType() == CommInterfaceType.SECS) {
                 // 현재 Phase 범위에서는 HSMS business command 송신 경로를 구현하지 않았으므로 DLQ로 전환합니다.
                 log.info("HSMS business command is not implemented yet. eqpId={}, traceId={}, eventType={}",
                         envelope.eqpId(),

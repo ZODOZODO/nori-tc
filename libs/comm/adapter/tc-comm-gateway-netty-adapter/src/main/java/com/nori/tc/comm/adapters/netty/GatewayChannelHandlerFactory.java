@@ -76,7 +76,7 @@ public class GatewayChannelHandlerFactory {
         this.hsmsExtractor = new HsmsEqpIdExtractor(frameExtractor, secs2Decoder);
         this.socketExtractor = new SocketEqpIdExtractor(socketProperties, nettyProperties, socketTypeRegistry);
 
-        log.info("GatewayChannelHandlerFactory initialized. supportedInterfaces=[HSMS, SOCKET]");
+        log.info("GatewayChannelHandlerFactory initialized. supportedInterfaces=[SECS, SOCKET]");
     }
 
     /**

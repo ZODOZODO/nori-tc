@@ -157,8 +157,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                                 {
                                   "modelName":"MODEL-A",
                                   "modelVersion":"v1",
-                                  "commInterface":"HSMS",
-                                  "status":"ACTIVE",
+                                  "commInterface":"SECS",
+                                  "status":"OPERATE",
                                   "maker":"NORI",
                                   "createdBy":"SYSTEM",
                                   "updatedBy":"SYSTEM"
@@ -217,7 +217,7 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "interfaceType":"HSMS"
+                                  "interfaceType":"SECS"
                                 }
                                 """))
                 .andDo(print())
@@ -260,8 +260,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                                 {
                                   "modelName":"MODEL-PHASE5",
                                   "modelVersion":"v1",
-                                  "commInterface":"HSMS",
-                                  "status":"ACTIVE",
+                                  "commInterface":"SECS",
+                                  "status":"OPERATE",
                                   "maker":"NORI",
                                   "createdBy":"SYSTEM",
                                   "updatedBy":"SYSTEM"
@@ -327,8 +327,8 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                                 {
                                   "modelName":"MODEL-DUP",
                                   "modelVersion":"v1",
-                                  "commInterface":"HSMS",
-                                  "status":"ACTIVE",
+                                  "commInterface":"SECS",
+                                  "status":"OPERATE",
                                   "maker":"NORI"
                                 }
                                 """))
@@ -742,8 +742,9 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
         return new TcEqp(
                 10L,
                 TEST_EQP_ID,
-                ProtocolType.HSMS,
+                ProtocolType.SECS,
                 "ACTIVE",
+                false,
                 1,
                 "127.0.0.1",
                 5000,
@@ -767,9 +768,10 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
                 TEST_MODEL_VERSION_KEY,
                 501L,
                 "MODEL-PHASE5",
+                null,
                 "v1",
-                ProtocolType.HSMS,
-                ModelStatus.ACTIVE,
+                ProtocolType.SECS,
+                ModelStatus.OPERATE,
                 null,
                 "NORI",
                 now,

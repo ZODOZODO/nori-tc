@@ -99,6 +99,7 @@ class TcEqpSocketMybatisStoreTest {
                 eqpId,
                 protocolType,
                 commMode,
+                false,
                 routePartition,
                 eqpIp,
                 eqpPort,
@@ -134,4 +135,3 @@ class TcEqpSocketMybatisStoreTest {
         );
     }
 }
-

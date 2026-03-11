@@ -5,7 +5,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!-- tc_eqp_hsms Mapper XML (FIX) -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpHsmsMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpHsmsMapper">
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpHsms">
         <constructor>

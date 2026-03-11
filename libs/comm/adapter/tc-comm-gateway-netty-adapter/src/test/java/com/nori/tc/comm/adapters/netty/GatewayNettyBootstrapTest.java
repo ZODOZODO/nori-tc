@@ -121,7 +121,7 @@ class GatewayNettyBootstrapTest {
         final GatewayEquipmentInfo eqpA = new GatewayEquipmentInfo(
                 1L,
                 "EQP_A",
-                CommInterfaceType.HSMS,
+                CommInterfaceType.SECS,
                 null,
                 10,
                 "127.0.0.1",
@@ -134,7 +134,7 @@ class GatewayNettyBootstrapTest {
         final GatewayEquipmentInfo eqpB = new GatewayEquipmentInfo(
                 2L,
                 "EQP_B",
-                CommInterfaceType.HSMS,
+                CommInterfaceType.SECS,
                 null,
                 11,
                 "127.0.0.1",
@@ -299,7 +299,7 @@ class GatewayNettyBootstrapTest {
             final GatewayEquipmentInfo activeEqp = new GatewayEquipmentInfo(
                     10L,
                     "ACTIVE_EQP",
-                    CommInterfaceType.HSMS,
+                    CommInterfaceType.SECS,
                     null,
                     22,
                     "127.0.0.1",

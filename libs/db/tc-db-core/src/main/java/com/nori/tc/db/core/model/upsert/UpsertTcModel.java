@@ -23,6 +23,7 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
 public record UpsertTcModel(
         Long modelKey,
         String modelName,
+        String parentModel,
         String modelVersion,
         ProtocolType commInterface,
         ModelStatus status,

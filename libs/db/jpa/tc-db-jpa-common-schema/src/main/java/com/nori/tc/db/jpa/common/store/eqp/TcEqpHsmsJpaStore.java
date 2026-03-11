@@ -126,7 +126,7 @@ public class TcEqpHsmsJpaStore implements TcEqpHsmsStore {
                 return;
             }
 
-            if (parent.getCommInterface() != ProtocolType.HSMS) {
+            if (parent.getCommInterface() != ProtocolType.SECS) {
                 throw new IllegalStateException("tc_eqp_hsms upsert 대상의 parent comm_interface가 HSMS가 아닙니다. eqpKey="
                         + command.eqpKey() + ", commInterface=" + parent.getCommInterface());
             }
@@ -196,7 +196,7 @@ public class TcEqpHsmsJpaStore implements TcEqpHsmsStore {
      */
     private boolean isPassiveHsmsCandidate(final TcEqpEntity current, final TcEqpEntity peer) {
         return peer != null
-                && peer.getCommInterface() == ProtocolType.HSMS
+                && peer.getCommInterface() == ProtocolType.SECS
                 && PASSIVE_MODE.equals(peer.getCommMode())
                 && sameText(current.getEqpIp(), peer.getEqpIp())
                 && Objects.equals(current.getEqpPort(), peer.getEqpPort());

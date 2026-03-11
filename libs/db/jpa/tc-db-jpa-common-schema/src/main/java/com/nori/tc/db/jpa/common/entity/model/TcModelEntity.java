@@ -28,7 +28,8 @@ import jakarta.persistence.UniqueConstraint;
  * <ul>
  *     <li>{@code model_key}: PK, IDENTITY</li>
  *     <li>{@code model_name}: 모델 원장 이름(UNIQUE)</li>
- *     <li>{@code comm_interface}: HSMS/SOCKET</li>
+ *     <li>{@code comm_interface}: SECS/SOCKET</li>
+ *     <li>{@code parent_model}: root는 null, branch는 부모 model_name</li>
  *     <li>{@code maker}: 제조사/공급사 식별 문자열(선택)</li>
  *     <li>{@code created_by}, {@code updated_by}: 감사용 사용자 식별자</li>
  * </ul>
@@ -64,6 +65,12 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
     private ProtocolType commInterface;
 
     /**
+     * 부모 모델 이름입니다.
+     */
+    @Column(name = "parent_model", length = 128)
+    private String parentModel;
+
+    /**
      * 제조사/공급사 문자열입니다.
      */
     @Column(name = "maker", length = 32)
@@ -93,6 +100,7 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
      * @param modelKey tc_model PK
      * @param modelName 모델 원장 이름
      * @param commInterface 통신 인터페이스
+     * @param parentModel 부모 모델 이름
      * @param maker 제조사/공급사
      * @param createdBy 생성 사용자
      * @param updatedBy 최종 수정 사용자
@@ -101,6 +109,7 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
             Long modelKey,
             String modelName,
             ProtocolType commInterface,
+            String parentModel,
             String maker,
             String createdBy,
             String updatedBy
@@ -108,6 +117,7 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
         this.modelKey = modelKey;
         this.modelName = modelName;
         this.commInterface = commInterface;
+        this.parentModel = parentModel;
         this.maker = maker;
         this.createdBy = createdBy;
         this.updatedBy = updatedBy;
@@ -191,6 +201,20 @@ public class TcModelEntity extends AbstractCreatedUpdatedEntity {
      */
     public void setCommInterface(ProtocolType commInterface) {
         this.commInterface = commInterface;
+    }
+
+    /**
+     * 부모 모델 이름을 반환합니다.
+     */
+    public String getParentModel() {
+        return parentModel;
+    }
+
+    /**
+     * 부모 모델 이름을 설정합니다.
+     */
+    public void setParentModel(String parentModel) {
+        this.parentModel = parentModel;
     }
 
     /**

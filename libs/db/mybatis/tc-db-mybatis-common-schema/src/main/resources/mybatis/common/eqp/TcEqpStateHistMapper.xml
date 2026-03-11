@@ -5,14 +5,14 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!-- tc_eqp_state_hist Mapper XML (FIX) -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpStateHistMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpStateHistMapper">
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpStateHist">
         <constructor>
             <idArg column="state_hist_key" javaType="long"/>
             <arg column="eqp_key" javaType="long"/>
             <arg column="state_type"
-                 javaType="com.nori.tc.db.domain.common.EqpStateType"
+                 javaType="com.nori.tc.db.domain.common.eqp.EqpStateType"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="from_state" javaType="java.lang.String"/>
             <arg column="to_state" javaType="java.lang.String"/>

@@ -5,7 +5,7 @@ package com.nori.tc.comm.gateway.domain.type;
  *
  * 배경/목적
  * - 차세대 TC에서는 "protocolType" 대신 "comm_interface" / "comm_interface_type" 용어를 표준으로 사용합니다.
- * - 값은 HSMS / SOCKET 두 종류만 존재합니다.
+ * - 값은 SECS / SOCKET 두 종류만 존재합니다.
  *
  * 사용 위치(예시)
  * - 통합 tc-comm-gateway의 처리 파이프라인 분기(HSMS 처리 vs SOCKET 처리)
@@ -16,14 +16,14 @@ package com.nori.tc.comm.gateway.domain.type;
  * - 대소문자/공백 차이는 허용하되, 의미가 다른 값은 즉시 예외로 실패시켜 운영 사고를 줄입니다.
  */
 public enum CommInterfaceType {
-    HSMS,
+    SECS,
     SOCKET;
 
     /**
      * 문자열을 CommInterfaceType으로 변환합니다.
      *
      * 허용 예)
-     * - "HSMS", "hsms", "  HSMS  "
+     * - "SECS", "secs", "  SECS  "
      * - "SOCKET", "socket"
      *
      * @param text 외부 입력 문자열
@@ -42,7 +42,7 @@ public enum CommInterfaceType {
         }
 
         return switch (normalized) {
-            case "HSMS" -> HSMS;
+            case "SECS" -> SECS;
             case "SOCKET" -> SOCKET;
             default -> throw new IllegalArgumentException("Unknown commInterfaceType: " + text);
         };

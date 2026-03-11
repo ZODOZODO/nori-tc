@@ -124,22 +124,22 @@ VALUES
 
 WITH ins_model AS (
   INSERT INTO tc_model (
-    model_name, comm_interface, maker,
+    model_name, comm_interface, parent_model, maker,
     created_at, updated_at, created_by, updated_by
   )
   VALUES
-    -- HSMS 5
-    ('MODEL_HSMS_01','HSMS','ACME', now(), now(),'SEED','SEED'),
-    ('MODEL_HSMS_02','HSMS','ACME', now(), now(),'SEED','SEED'),
-    ('MODEL_HSMS_03','HSMS','ACME', now(), now(),'SEED','SEED'),
-    ('MODEL_HSMS_04','HSMS','ACME', now(), now(),'SEED','SEED'),
-    ('MODEL_HSMS_05','HSMS','ACME', now(), now(),'SEED','SEED'),
+    -- SECS 5
+    ('MODEL_HSMS_01','SECS',NULL,'ACME', now(), now(),'SEED','SEED'),
+    ('MODEL_HSMS_02','SECS',NULL,'ACME', now(), now(),'SEED','SEED'),
+    ('MODEL_HSMS_03','SECS',NULL,'ACME', now(), now(),'SEED','SEED'),
+    ('MODEL_HSMS_04','SECS',NULL,'ACME', now(), now(),'SEED','SEED'),
+    ('MODEL_HSMS_05','SECS',NULL,'ACME', now(), now(),'SEED','SEED'),
     -- SOCKET 5
-    ('MODEL_SOCKET_01','SOCKET','BETA', now(), now(),'SEED','SEED'),
-    ('MODEL_SOCKET_02','SOCKET','BETA', now(), now(),'SEED','SEED'),
-    ('MODEL_SOCKET_03','SOCKET','BETA', now(), now(),'SEED','SEED'),
-    ('MODEL_SOCKET_04','SOCKET','BETA', now(), now(),'SEED','SEED'),
-    ('MODEL_SOCKET_05','SOCKET','BETA', now(), now(),'SEED','SEED')
+    ('MODEL_SOCKET_01','SOCKET',NULL,'BETA', now(), now(),'SEED','SEED'),
+    ('MODEL_SOCKET_02','SOCKET',NULL,'BETA', now(), now(),'SEED','SEED'),
+    ('MODEL_SOCKET_03','SOCKET',NULL,'BETA', now(), now(),'SEED','SEED'),
+    ('MODEL_SOCKET_04','SOCKET',NULL,'BETA', now(), now(),'SEED','SEED'),
+    ('MODEL_SOCKET_05','SOCKET',NULL,'BETA', now(), now(),'SEED','SEED')
   RETURNING model_key, model_name, comm_interface
 ),
 ins_model_version AS (
@@ -150,9 +150,9 @@ ins_model_version AS (
   SELECT m.model_key,
          '1.0.0',
          CASE
-           WHEN m.model_name LIKE '%_03' THEN 'DRAFT'
+           WHEN m.model_name LIKE '%_03' THEN 'DEVELOP'
            WHEN m.model_name LIKE '%_04' THEN 'DEPRECATED'
-           ELSE 'ACTIVE'
+           ELSE 'OPERATE'
          END,
          'Seed model version for ' || m.model_name,
          now(), now(), 'SEED', 'SEED'
@@ -178,11 +178,11 @@ SELECT model_version_key, 'REVISION', 'A', 'Model revision', now() FROM seed_mod
 INSERT INTO tc_model_secs_message(model_version_key, secs_msg_name, description, data_index, updated_at)
 SELECT m.model_version_key, 'S1F1', 'Are you there', NULL, now()
 FROM seed_model_map m
-WHERE m.comm_interface='HSMS'
+WHERE m.comm_interface='SECS'
 UNION ALL
 SELECT m.model_version_key, 'S2F41', 'Remote command', NULL, now()
 FROM seed_model_map m
-WHERE m.comm_interface='HSMS';
+WHERE m.comm_interface='SECS';
 
 -- SOCKET 모델: 버전별 2개 이상 (1:N 관계 검증)
 INSERT INTO tc_model_socket_message(model_version_key, socket_msg_name, description, data_index, updated_at)
@@ -233,17 +233,17 @@ JOIN LATERAL (
   VALUES
     -- BASIC 2개 + ALARM 1개 (message_name만 다르게)
     ('BASIC',
-      CASE WHEN m.comm_interface='HSMS' THEN 'S6F11' ELSE 'CMD=START' END,
+      CASE WHEN m.comm_interface='SECS' THEN 'S6F11' ELSE 'CMD=START' END,
       NULL, NULL, NULL,
       'ACTION_START', NULL
     ),
     ('BASIC',
-      CASE WHEN m.comm_interface='HSMS' THEN 'S2F41' ELSE 'CMD=STOP' END,
+      CASE WHEN m.comm_interface='SECS' THEN 'S2F41' ELSE 'CMD=STOP' END,
       NULL, NULL, NULL,
       'ACTION_STOP', NULL
     ),
     ('ALARM',
-      CASE WHEN m.comm_interface='HSMS' THEN 'S1F1' ELSE 'CMD=PING' END,
+      CASE WHEN m.comm_interface='SECS' THEN 'S1F1' ELSE 'CMD=PING' END,
       NULL, NULL, NULL,
       'ACTION_PING', NULL
     )
@@ -272,18 +272,18 @@ SELECT model_version_key, 'PRESS',NULL, 'EVT_100', 'VID_PRESS','LAST',  'NONE', 
 
 WITH ins AS (
   INSERT INTO tc_eqp(
-    eqp_id, comm_interface, comm_mode, route_partition, eqp_ip, eqp_port, model_version_key,
+    eqp_id, comm_interface, comm_mode, is_dev, route_partition, eqp_ip, eqp_port, model_version_key,
     enabled, created_at, updated_at, created_by, updated_by
   )
   VALUES
-    -- HSMS 2대 (A/P)
-    ('EQP_HSMS_A01','HSMS','ACTIVE', 0,'10.10.0.11',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
-    ('EQP_HSMS_P01','HSMS','PASSIVE',1,'10.10.0.12',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_02' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
+    -- SECS 2대 (A/P)
+    ('EQP_HSMS_A01','SECS','ACTIVE',FALSE,0,'10.10.0.11',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
+    ('EQP_HSMS_P01','SECS','PASSIVE',FALSE,1,'10.10.0.12',5000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_HSMS_02' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
 
     -- SOCKET 3대 (A/P/P)
-    ('EQP_SOCKET_A01','SOCKET','ACTIVE', 0,'10.10.0.21',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
-    ('EQP_SOCKET_P01','SOCKET','PASSIVE',4,'192.168.0.7',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED'),
-    ('DG_SOCKET_P01','SOCKET','PASSIVE',2,'192.168.0.14',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED')
+    ('EQP_SOCKET_A01','SOCKET','ACTIVE',FALSE,0,'10.10.0.21',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_01' AND model_version='1.0.0'), FALSE, now(), now(),'SEED','SEED'),
+    ('EQP_SOCKET_P01','SOCKET','PASSIVE',FALSE,4,'192.168.0.7',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED'),
+    ('DG_SOCKET_P01','SOCKET','PASSIVE',FALSE,2,'192.168.0.14',6000,(SELECT model_version_key FROM seed_model_map WHERE model_name='MODEL_SOCKET_02' AND model_version='1.0.0'), TRUE, now(), now(),'SEED','SEED')
   RETURNING eqp_key, eqp_id, comm_interface
 )
 INSERT INTO seed_eqp_map(eqp_key, eqp_id, comm_interface)
@@ -307,7 +307,7 @@ SELECT e.eqp_key,
        TRUE, 60, 10485760,
        now(), now()
 FROM seed_eqp_map e
-WHERE e.comm_interface='HSMS';
+WHERE e.comm_interface='SECS';
 
 -- SOCKET 설정(SOCKET 설비만)
 INSERT INTO tc_eqp_socket(

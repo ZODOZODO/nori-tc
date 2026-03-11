@@ -4,7 +4,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpParamMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpParamMapper">
 
     <resultMap id="TcEqpParamMap" type="com.nori.tc.db.domain.eqp.TcEqpParam">
         <constructor>

@@ -5,7 +5,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!-- tc_eqp_log Mapper XML (FIX) -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpLogMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpLogMapper">
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpLog">
         <constructor>

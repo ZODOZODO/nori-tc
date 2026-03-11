@@ -10,8 +10,9 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
  * <p>- {@code eqp_id}가 UNIQUE 키이므로 생성/수정을 분리하지 않고 upsert 입력 모델로 사용합니다.</p>
  *
  * <p>입력 규칙:</p>
- * <p>- {@code commInterface}는 DB {@code comm_interface} 컬럼(HSMS/SOCKET)을 의미합니다.</p>
+ * <p>- {@code commInterface}는 DB {@code comm_interface} 컬럼(SECS/SOCKET)을 의미합니다.</p>
  * <p>- {@code commMode}는 DB {@code comm_mode} 컬럼(ACTIVE/PASSIVE)을 의미합니다.</p>
+ * <p>- {@code isDev}는 DB {@code is_dev} 컬럼이며 개발 장비 여부를 의미합니다.</p>
  * <p>- {@code routePartition}은 Gateway 대상 토픽 고정 라우팅 partition이며 U3 시점 기준 nullable 허용입니다.</p>
  * <p>- {@code routePartition}가 null인 경우는 아직 라우팅 partition이 배정되지 않은 초기/전환 상태를 의미합니다.</p>
  * <p>- created_at/updated_at은 DB(또는 구현체)가 관리하는 것을 권장합니다.</p>
@@ -25,6 +26,7 @@ public record UpsertTcEqp(
         String eqpId,
         ProtocolType commInterface,
         String commMode,
+        boolean isDev,
         Integer routePartition,
         String eqpIp,
         int eqpPort,

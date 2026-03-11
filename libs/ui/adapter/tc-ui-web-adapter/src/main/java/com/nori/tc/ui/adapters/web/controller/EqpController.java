@@ -787,6 +787,7 @@ public class EqpController {
                 eqp.eqpId(),
                 eqp.commInterface(),
                 eqp.commMode(),
+                eqp.isDev(),
                 eqp.routePartition(),
                 eqp.eqpIp(),
                 eqp.eqpPort(),

@@ -5,16 +5,16 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!-- tc_eqp_state Mapper XML (FIX) -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcEqpStateMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpStateMapper">
 
     <resultMap id="Map" type="com.nori.tc.db.domain.eqp.TcEqpState">
         <constructor>
             <idArg column="eqp_key" javaType="long"/>
             <arg column="control_state"
-                 javaType="com.nori.tc.db.domain.common.ControlState"
+                 javaType="com.nori.tc.db.domain.common.eqp.ControlState"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="eqp_state"
-                 javaType="com.nori.tc.db.domain.common.EqpState"
+                 javaType="com.nori.tc.db.domain.common.eqp.EqpState"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="since_at"
                  javaType="java.time.OffsetDateTime"

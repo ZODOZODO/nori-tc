@@ -21,8 +21,9 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
  * <p>[DB 스키마 요약]</p>
  * <p>- eqp_key         : bigint PK (IDENTITY)</p>
  * <p>- eqp_id          : varchar(64) UNIQUE (비즈니스 키)</p>
- * <p>- comm_interface  : varchar(16) (HSMS, SOCKET)</p>
+ * <p>- comm_interface  : varchar(16) (SECS, SOCKET)</p>
  * <p>- comm_mode       : varchar(10) (ACTIVE, PASSIVE)</p>
+ * <p>- is_dev          : boolean (개발 장비 여부)</p>
  * <p>- route_partition : int nullable (Gateway 대상 토픽 고정 라우팅 partition)</p>
  * <p>- eqp_ip          : varchar(45)</p>
  * <p>- eqp_port        : int (1~65535)</p>
@@ -38,6 +39,7 @@ public record TcEqp(
         String eqpId,
         ProtocolType commInterface,
         String commMode,
+        boolean isDev,
         Integer routePartition,
         String eqpIp,
         int eqpPort,

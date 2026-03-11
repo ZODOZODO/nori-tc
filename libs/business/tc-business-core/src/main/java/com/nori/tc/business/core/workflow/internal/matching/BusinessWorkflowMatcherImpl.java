@@ -128,7 +128,7 @@ public class BusinessWorkflowMatcherImpl implements BusinessWorkflowMatcher {
             return List.of();
         }
 
-        if (modelRuntime.protocolType() != ProtocolType.HSMS) {
+        if (modelRuntime.protocolType() != ProtocolType.SECS) {
             return byMessageName;
         }
 

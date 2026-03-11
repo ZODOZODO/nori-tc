@@ -46,4 +46,24 @@ public record UiCommandReply(
             throw new IllegalArgumentException(fieldName + " is required");
         }
     }
+
+    /**
+     * 응답이 성공으로 처리되었는지 반환합니다.
+     *
+     * <p>호출부가 상태 enum 비교를 반복하지 않도록 PASS 여부를 명시적인 메서드로 제공합니다.</p>
+     *
+     * @return 상태가 PASS이면 true
+     */
+    public boolean isSuccess() {
+        return status == UiTaskStatus.PASS;
+    }
+
+    /**
+     * 응답이 실패로 처리되었는지 반환합니다.
+     *
+     * @return 상태가 FAIL이면 true
+     */
+    public boolean isFailed() {
+        return status == UiTaskStatus.FAIL;
+    }
 }

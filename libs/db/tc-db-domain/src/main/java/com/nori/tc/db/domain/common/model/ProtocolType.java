@@ -4,7 +4,7 @@ package com.nori.tc.db.domain.common.model;
  * 프로토콜 타입 (tc_eqp.comm_interface, tc_model.protocol_type)
  *
  * DB Check Constraint:
- * - HSMS
+ * - SECS
  * - SOCKET
  *
  * 주의:
@@ -12,6 +12,6 @@ package com.nori.tc.db.domain.common.model;
  * - JPA/MyBatis가 사용하는 값 매핑은 Adapter 계층에서 책임집니다.
  */
 public enum ProtocolType {
-    HSMS,
+    SECS,
     SOCKET
 }

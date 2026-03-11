@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
  * @param eqpId 설비 비즈니스 ID
  * @param commInterface 통신 인터페이스 타입
  * @param commMode 통신 모드
+ * @param isDev 개발 장비 여부
  * @param routePartition Gateway 라우팅 파티션
  * @param eqpIp 설비 IP
  * @param eqpPort 설비 포트
@@ -32,6 +33,7 @@ public record EqpInfoResponse(
         String eqpId,
         ProtocolType commInterface,
         String commMode,
+        boolean isDev,
         Integer routePartition,
         String eqpIp,
         int eqpPort,
@@ -43,4 +45,3 @@ public record EqpInfoResponse(
         String updatedBy
 ) {
 }
-

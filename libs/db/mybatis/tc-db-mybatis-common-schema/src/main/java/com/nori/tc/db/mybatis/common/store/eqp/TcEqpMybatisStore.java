@@ -77,6 +77,7 @@ public class TcEqpMybatisStore implements TcEqpStore {
                 eqpId,
                 command.commInterface(),
                 command.commMode(),
+                command.isDev(),
                 command.routePartition(),
                 command.eqpIp(),
                 command.eqpPort(),

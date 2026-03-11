@@ -25,7 +25,7 @@ public class BusinessCoreSecsActionExecutor extends AbstractSecsActionExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessCoreSecsActionExecutor.class);
     private static final String DEFAULT_EQP_EVENT_TYPE = "EQP_COMMAND";
-    private static final String INTERFACE_TYPE_HSMS = "HSMS";
+    private static final String INTERFACE_TYPE_HSMS = "SECS";
     private static final String ACTION_NAME_PUBLISH_EQP_COMMAND = "PUBLISH_EQP_COMMAND";
 
     private final BusinessEqpCommandPublishPort eqpCommandPublishPort;

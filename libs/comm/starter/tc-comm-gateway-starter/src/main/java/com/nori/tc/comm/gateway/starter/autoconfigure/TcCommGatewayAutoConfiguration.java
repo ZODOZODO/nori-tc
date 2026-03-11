@@ -64,7 +64,7 @@ public class TcCommGatewayAutoConfiguration {
 
             GatewayObservationLogger.logBootReady(
                     appName,
-                    "HSMS,SOCKET",
+                    "SECS,SOCKET",
                     consumeTopics,
                     produceTopics,
                     runtimeProperties.getWorkerThreads(),

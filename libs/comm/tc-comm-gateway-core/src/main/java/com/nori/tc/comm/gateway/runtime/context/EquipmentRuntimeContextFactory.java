@@ -128,7 +128,7 @@ public class EquipmentRuntimeContextFactory {
                 "socketType", socketType
         );
 
-        if (interfaceType == CommInterfaceType.HSMS) {
+        if (interfaceType == CommInterfaceType.SECS) {
             final int deviceId = (info.hsmsDeviceId() == null)
                     ? hsmsProperties.getDeviceId()
                     : info.hsmsDeviceId();

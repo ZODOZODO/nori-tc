@@ -9,11 +9,13 @@ package com.nori.tc.db.domain.common.eqp;
  * - DOWN
  * - MAINTENANCE
  * - PAUSE
+ * - SERVICE_UNAVAILABLE
  */
 public enum EqpState {
     IDLE,
     RUN,
     DOWN,
     MAINTENANCE,
-    PAUSE
+    PAUSE,
+    SERVICE_UNAVAILABLE
 }

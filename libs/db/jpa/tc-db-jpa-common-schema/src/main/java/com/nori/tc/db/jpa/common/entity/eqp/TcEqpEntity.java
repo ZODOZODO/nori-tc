@@ -22,6 +22,7 @@ import jakarta.persistence.Table;
  * - eqp_id        : varchar(64) NOT NULL (UNIQUE)
  * - comm_interface: varchar(16) NOT NULL
  * - comm_mode     : varchar(10) NOT NULL (ACTIVE/PASSIVE)
+ * - is_dev        : boolean NOT NULL default false
  * - route_partition: int NULL (Gateway 대상 토픽 고정 라우팅 partition)
  * - eqp_ip        : varchar(45) NOT NULL
  * - eqp_port      : int NOT NULL
@@ -58,6 +59,9 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
 
     @Column(name = "comm_mode", length = 10, nullable = false)
     private String commMode;
+
+    @Column(name = "is_dev", nullable = false)
+    private Boolean isDev;
 
     @Column(name = "route_partition")
     private Integer routePartition;
@@ -102,6 +106,7 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
             String eqpId,
             ProtocolType commInterface,
             String commMode,
+            Boolean isDev,
             Integer routePartition,
             String eqpIp,
             Integer eqpPort,
@@ -114,6 +119,7 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
         this.eqpId = eqpId;
         this.commInterface = commInterface;
         this.commMode = commMode;
+        this.isDev = isDev;
         this.routePartition = routePartition;
         this.eqpIp = eqpIp;
         this.eqpPort = eqpPort;
@@ -148,6 +154,9 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
     private void applyDefaults() {
         if (this.enabled == null) {
             this.enabled = Boolean.TRUE;
+        }
+        if (this.isDev == null) {
+            this.isDev = Boolean.FALSE;
         }
         if (this.createdBy == null || this.createdBy.isBlank()) {
             this.createdBy = "SYSTEM";
@@ -258,6 +267,24 @@ public class TcEqpEntity extends AbstractCreatedUpdatedEntity {
      */
     public void setCommMode(String commMode) {
         this.commMode = commMode;
+    }
+
+    /**
+     * 개발 장비 여부를 반환합니다.
+     *
+     * @return tc_eqp.is_dev 값
+     */
+    public Boolean getIsDev() {
+        return isDev;
+    }
+
+    /**
+     * 개발 장비 여부를 설정합니다.
+     *
+     * @param isDev tc_eqp.is_dev 값
+     */
+    public void setIsDev(Boolean isDev) {
+        this.isDev = isDev;
     }
 
     /**

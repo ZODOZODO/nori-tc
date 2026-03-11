@@ -68,6 +68,7 @@ CREATE TABLE public.tc_model (
     model_name     VARCHAR(128) NOT NULL,
     comm_interface VARCHAR(16)  NOT NULL,
     maker          VARCHAR(32)  NULL,
+    parent_model   VARCHAR(128) NULL,
     created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by     VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
@@ -75,11 +76,14 @@ CREATE TABLE public.tc_model (
 
     CONSTRAINT pk_tc_model PRIMARY KEY (model_key),
     CONSTRAINT uk_tc_model_model_name UNIQUE (model_name),
-    CONSTRAINT ck_tc_model_comm_interface CHECK (comm_interface IN ('HSMS','SOCKET'))
+    CONSTRAINT fk_tc_model_parent_model__tc_model
+        FOREIGN KEY (parent_model) REFERENCES public.tc_model(model_name) ON DELETE CASCADE,
+    CONSTRAINT ck_tc_model_comm_interface CHECK (comm_interface IN ('SECS','SOCKET'))
 );
 
 CREATE INDEX ix_tc_model_model_name     ON public.tc_model (model_name);
 CREATE INDEX ix_tc_model_comm_interface ON public.tc_model (comm_interface);
+CREATE INDEX ix_tc_model_parent_model   ON public.tc_model (parent_model);
 CREATE INDEX ix_tc_model_maker          ON public.tc_model (maker);
 
 CREATE TABLE public.tc_model_version (
@@ -97,7 +101,7 @@ CREATE TABLE public.tc_model_version (
     CONSTRAINT fk_tc_model_version_model_key__tc_model
         FOREIGN KEY (model_key) REFERENCES public.tc_model(model_key) ON DELETE CASCADE,
     CONSTRAINT uk_tc_model_version_model_key_model_version UNIQUE (model_key, model_version),
-    CONSTRAINT ck_tc_model_version_status CHECK (status IN ('DRAFT','ACTIVE','DEPRECATED'))
+    CONSTRAINT ck_tc_model_version_status CHECK (status IN ('DEVELOP','OPERATE','DEPRECATED'))
 );
 
 CREATE INDEX ix_tc_model_version_model_key ON public.tc_model_version (model_key);
@@ -288,6 +292,7 @@ CREATE TABLE public.tc_eqp (
     eqp_id           VARCHAR(64) NOT NULL,
     comm_interface   VARCHAR(16) NOT NULL,
     comm_mode        VARCHAR(10) NOT NULL,
+    is_dev           BOOLEAN NOT NULL DEFAULT FALSE,
     route_partition  INTEGER NULL,
     eqp_ip           VARCHAR(45) NOT NULL,
     eqp_port         INT NOT NULL,
@@ -302,8 +307,9 @@ CREATE TABLE public.tc_eqp (
     CONSTRAINT uk_tc_eqp_eqp_id UNIQUE (eqp_id),
     CONSTRAINT fk_tc_eqp_model_version_key__tc_model_version
         FOREIGN KEY (model_version_key) REFERENCES public.tc_model_version(model_version_key),
-    CONSTRAINT ck_tc_eqp_comm_interface CHECK (comm_interface IN ('HSMS','SOCKET')),
+    CONSTRAINT ck_tc_eqp_comm_interface CHECK (comm_interface IN ('SECS','SOCKET')),
     CONSTRAINT ck_tc_eqp_comm_mode CHECK (comm_mode IN ('ACTIVE','PASSIVE')),
+    CONSTRAINT ck_tc_eqp_is_dev CHECK (is_dev IN (TRUE, FALSE)),
     CONSTRAINT ck_tc_eqp_route_partition CHECK (route_partition IS NULL OR route_partition >= 0),
     CONSTRAINT ck_tc_eqp_eqp_port CHECK (eqp_port BETWEEN 1 AND 65535),
     CONSTRAINT ck_tc_eqp_enabled CHECK (enabled IN (TRUE, FALSE))
@@ -411,8 +417,8 @@ CREATE TABLE public.tc_eqp_state (
     CONSTRAINT pk_tc_eqp_state PRIMARY KEY (eqp_key),
     CONSTRAINT fk_tc_eqp_state_eqp_key__tc_eqp
         FOREIGN KEY (eqp_key) REFERENCES public.tc_eqp(eqp_key) ON DELETE CASCADE,
-    CONSTRAINT ck_tc_eqp_state_control_state CHECK (control_state IS NULL OR control_state IN ('OFFLINE','LOCAL','REMOTE')),
-    CONSTRAINT ck_tc_eqp_state_eqp_state CHECK (eqp_state IS NULL OR eqp_state IN ('IDLE','RUN','DOWN','MAINTENANCE','PAUSE'))
+    CONSTRAINT ck_tc_eqp_state_control_state CHECK (control_state IS NULL OR control_state IN ('OFFLINE','LOCAL','REMOTE','DOWN','DISCONNECTED')),
+    CONSTRAINT ck_tc_eqp_state_eqp_state CHECK (eqp_state IS NULL OR eqp_state IN ('IDLE','RUN','DOWN','MAINTENANCE','PAUSE','SERVICE_UNAVAILABLE'))
 );
 
 CREATE TABLE public.tc_eqp_state_hist (

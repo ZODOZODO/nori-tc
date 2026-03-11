@@ -24,6 +24,7 @@ import com.nori.tc.ui.core.port.db.EqpQueryPort;
 import com.nori.tc.ui.core.port.db.GroupCrudPort;
 import com.nori.tc.ui.core.port.db.GroupPermissionMappingPort;
 import com.nori.tc.ui.core.port.db.ModelCrudPort;
+import com.nori.tc.ui.core.port.db.ModelDetailQueryPort;
 import com.nori.tc.ui.core.port.db.PasswordVerifierPort;
 import com.nori.tc.ui.core.port.db.PermissionPort;
 import com.nori.tc.ui.core.port.db.PermissionCrudPort;
@@ -236,6 +237,9 @@ abstract class UiBackendScenarioTestSupport {
 
     @MockitoBean
     ModelCrudPort modelCrudPort;
+
+    @MockitoBean
+    ModelDetailQueryPort modelDetailQueryPort;
 
     @MockitoBean
     UserCrudPort userCrudPort;

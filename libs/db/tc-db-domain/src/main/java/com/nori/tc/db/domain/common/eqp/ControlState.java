@@ -7,9 +7,13 @@ package com.nori.tc.db.domain.common.eqp;
  * - OFFLINE
  * - LOCAL
  * - REMOTE
+ * - DOWN
+ * - DISCONNECTED
  */
 public enum ControlState {
     OFFLINE,
     LOCAL,
-    REMOTE
+    REMOTE,
+    DOWN,
+    DISCONNECTED
 }

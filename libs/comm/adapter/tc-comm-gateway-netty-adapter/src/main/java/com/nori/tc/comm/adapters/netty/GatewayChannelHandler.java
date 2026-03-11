@@ -320,7 +320,7 @@ public final class GatewayChannelHandler extends ChannelInboundHandlerAdapter {
         try {
             unboundInbox.drainToBuffer();
             extractedEqpIdOpt = switch (interfaceType) {
-                case HSMS -> hsmsExtractor.tryExtractEqpId(unboundInbox.buffer());
+                case SECS -> hsmsExtractor.tryExtractEqpId(unboundInbox.buffer());
                 case SOCKET -> socketExtractor.tryExtractEqpId(unboundInbox.buffer(), socketType);
             };
         } catch (Exception ex) {

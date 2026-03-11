@@ -39,7 +39,7 @@ public final class ProtocolInboundPipelineRouter implements InboundPipelinePort 
         this.hsmsInboundPipeline = Objects.requireNonNull(hsmsInboundPipeline, "hsmsInboundPipeline is null");
         this.socketInboundPipeline = Objects.requireNonNull(socketInboundPipeline, "socketInboundPipeline is null");
 
-        log.info("ProtocolInboundPipelineRouter initialized. supportedProtocols=[HSMS, SOCKET]");
+        log.info("ProtocolInboundPipelineRouter initialized. supportedProtocols=[SECS, SOCKET]");
     }
 
     /**

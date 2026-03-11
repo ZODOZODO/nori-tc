@@ -50,6 +50,7 @@ dependencies {
      */
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mybatis.core)
+    testImplementation("com.h2database:h2")
     /*
      * Store 구현체를 테스트에서 직접 인스턴스화할 때 @Repository/@Transactional/DataAccessException 타입이
      * 런타임 클래스패스에 필요합니다. 운영 starter를 올리지 않으므로 최소 Spring 모듈만 테스트에 추가합니다.

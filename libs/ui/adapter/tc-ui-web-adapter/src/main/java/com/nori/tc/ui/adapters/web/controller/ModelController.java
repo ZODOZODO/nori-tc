@@ -308,6 +308,7 @@ public class ModelController {
         final UpsertTcModel command = new UpsertTcModel(
                 null,
                 request.modelName(),
+                null,
                 request.modelVersion(),
                 request.commInterface(),
                 request.status(),
@@ -339,15 +340,18 @@ public class ModelController {
         log.info("모델 수정 요청. modelVersionKey={}, modelName={}, modelVersion={}",
                 modelVersionKey, request.modelName(), request.modelVersion());
 
-        if (modelCrudPort.findByModelVersionKey(modelVersionKey).isEmpty()) {
+        final Optional<TcModel> existingModel = modelCrudPort.findByModelVersionKey(modelVersionKey);
+        if (existingModel.isEmpty()) {
             log.warn("모델 수정 대상 없음. modelVersionKey={}", modelVersionKey);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error("NOT_FOUND", "수정할 모델을 찾을 수 없습니다."));
         }
+        final TcModel existing = existingModel.get();
 
         final UpsertTcModel command = new UpsertTcModel(
                 modelVersionKey,
                 request.modelName(),
+                existing.parentModel(),
                 request.modelVersion(),
                 request.commInterface(),
                 request.status(),
@@ -520,6 +524,7 @@ public class ModelController {
                 model.modelVersionKey(),
                 model.modelKey(),
                 model.modelName(),
+                model.parentModel(),
                 model.modelVersion(),
                 model.commInterface(),
                 model.status(),

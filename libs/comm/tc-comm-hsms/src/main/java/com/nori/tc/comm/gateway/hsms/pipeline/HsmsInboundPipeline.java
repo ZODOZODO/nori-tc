@@ -136,7 +136,7 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
                 parsedMessages.add(new ParsedMessage(
                         profile.equipmentId(),
                         traceId,
-                        CommInterfaceType.HSMS,
+                        CommInterfaceType.SECS,
                         null,
                         new MessageName(secs.messageName()),
                         nowMs,
@@ -205,7 +205,7 @@ public final class HsmsInboundPipeline implements InboundPipelinePort {
 
         return new OutboundRawFrame(
                 profile.equipmentId(),
-                CommInterfaceType.HSMS,
+                CommInterfaceType.SECS,
                 null,
                 bytes,
                 nowMs,

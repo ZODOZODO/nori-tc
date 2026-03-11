@@ -76,7 +76,7 @@ class UiCommandKafkaSubscriberTest {
                 ),
                 new KafkaUiTaskReplyMessage.KafkaUiTaskReplyData(
                         "EQP-001",
-                        "HSMS",
+                        "SECS",
                         "PASS",
                         null,
                         null

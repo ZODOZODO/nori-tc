@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
  * @param modelVersionKey 모델 버전 키
  * @param modelKey 모델 키
  * @param modelName 모델 이름
+ * @param parentModel 부모 모델 이름
  * @param modelVersion 모델 버전
  * @param commInterface 통신 인터페이스
  * @param status 모델 상태
@@ -25,6 +26,7 @@ public record ModelInfoResponse(
         long modelVersionKey,
         long modelKey,
         String modelName,
+        String parentModel,
         String modelVersion,
         ProtocolType commInterface,
         ModelStatus status,

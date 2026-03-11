@@ -4,19 +4,20 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.TcModelMapper">
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelMapper">
 
     <resultMap id="TcModelMap" type="com.nori.tc.db.domain.model.TcModel">
         <constructor>
-            <idArg column="model_version_key" javaType="long"/>
-            <idArg column="model_key" javaType="long"/>
+            <idArg column="model_version_key" javaType="_long"/>
+            <idArg column="model_key" javaType="_long"/>
             <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="parent_model" javaType="java.lang.String"/>
             <arg column="model_version" javaType="java.lang.String"/>
             <arg column="comm_interface"
-                 javaType="com.nori.tc.db.domain.common.ProtocolType"
+                 javaType="com.nori.tc.db.domain.common.model.ProtocolType"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="status"
-                 javaType="com.nori.tc.db.domain.common.ModelStatus"
+                 javaType="com.nori.tc.db.domain.common.model.ModelStatus"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="maker" javaType="java.lang.String"/>
@@ -35,6 +36,7 @@
         mv.model_version_key,
         m.model_key,
         m.model_name,
+        m.parent_model,
         mv.model_version,
         m.comm_interface,
         mv.status,
@@ -49,16 +51,18 @@
     <insert id="insert">
         WITH upsert_model AS (
             INSERT INTO tc_model
-                (model_name, comm_interface, maker, created_by, updated_by)
+                (model_name, comm_interface, parent_model, maker, created_by, updated_by)
             VALUES
                 (#{m.modelName},
                  #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                 #{m.parentModel},
                  #{m.maker},
                  #{m.createdBy},
                  #{m.updatedBy})
             ON CONFLICT (model_name)
             DO UPDATE
                    SET comm_interface = EXCLUDED.comm_interface,
+                       parent_model = EXCLUDED.parent_model,
                        maker = EXCLUDED.maker,
                        updated_by = EXCLUDED.updated_by,
                        updated_at = CURRENT_TIMESTAMP
@@ -93,6 +97,7 @@
             UPDATE tc_model
                SET model_name = #{m.modelName},
                    comm_interface = #{m.commInterface, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                   parent_model = #{m.parentModel},
                    maker = #{m.maker},
                    updated_by = #{m.updatedBy},
                    updated_at = CURRENT_TIMESTAMP

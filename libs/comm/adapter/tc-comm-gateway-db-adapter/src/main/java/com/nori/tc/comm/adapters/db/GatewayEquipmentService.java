@@ -272,7 +272,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
             final TcEqpSocket socket = socketStore.findByEqpKey(eqpKey)
                     .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_socket for eqpId=" + eqp.eqpId()));
             socketType = socket.socketProtocolType();
-        } else if (commInterfaceType == CommInterfaceType.HSMS) {
+        } else if (commInterfaceType == CommInterfaceType.SECS) {
             final TcEqpHsms hsms = hsmsStore.findByEqpKey(eqpKey)
                     .orElseThrow(() -> new IllegalStateException("Missing tc_eqp_hsms for eqpId=" + eqp.eqpId()));
             hsmsDeviceId = hsms.deviceId();
@@ -533,7 +533,7 @@ public class GatewayEquipmentService implements EquipmentInfoProvider, Equipment
             throw new IllegalStateException("commInterface is null");
         }
         return switch (protocolType) {
-            case HSMS -> CommInterfaceType.HSMS;
+            case SECS -> CommInterfaceType.SECS;
             case SOCKET -> CommInterfaceType.SOCKET;
         };
     }

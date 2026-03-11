@@ -29,7 +29,7 @@ class BusinessWorkflowMatcherImplTest {
     void shouldMatchHsmsWorkflowByMessageAndSecsKeysAndFilter() {
         final BusinessWorkflowMatcherImpl matcher = createMatcher();
         final TcModelRuntime runtime = createRuntime(
-                ProtocolType.HSMS,
+                ProtocolType.SECS,
                 List.of(
                         workflow(1L, 100L, "WF-READY", "S6F11", "E1", "T1", filterEq("data.status", "READY")),
                         workflow(2L, 100L, "WF-BLOCK", "S6F11", "E1", "T1", filterEq("data.status", "BLOCK")),
@@ -130,9 +130,10 @@ class BusinessWorkflowMatcherImplTest {
                 100L,
                 100L,
                 "MODEL-100",
+                null,
                 "v1",
                 protocolType,
-                ModelStatus.ACTIVE,
+                ModelStatus.OPERATE,
                 null,
                 "NORI",
                 now,

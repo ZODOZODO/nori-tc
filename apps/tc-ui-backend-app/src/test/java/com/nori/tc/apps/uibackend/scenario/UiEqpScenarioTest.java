@@ -114,7 +114,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"eqpId":"EQP-CREATE-001","interfaceType":"HSMS"}
+                                {"eqpId":"EQP-CREATE-001","interfaceType":"SECS"}
                                 """))
                 .andExpect(request().asyncStarted())
                 .andReturn();
@@ -175,7 +175,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"eqpId":"EQP-CREATE-ASYNC-001","interfaceType":"HSMS"}
+                                {"eqpId":"EQP-CREATE-ASYNC-001","interfaceType":"SECS"}
                                 """))
                 .andExpect(request().asyncStarted())
                 .andReturn();
@@ -220,7 +220,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         log.info("[시나리오 6-b] DELETE 쿼리 기반 호출(본문 없음) 200 검증 시작");
 
         final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
-                        .queryParam("interfaceType", "HSMS")
+                        .queryParam("interfaceType", "SECS")
                         .cookie(authCookie())
                         .with(csrf()))
                 .andExpect(request().asyncStarted())
@@ -311,7 +311,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"interfaceType":"HSMS"}
+                                {"interfaceType":"SECS"}
                                 """))
                 .andDo(print())
                 .andExpect(status().isAccepted())
@@ -363,7 +363,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 DualResponseRegistry.SOURCE_GATEWAY,
                 "EQP_START_REP",
                 TEST_EQP_ID,
-                "HSMS",
+                "SECS",
                 UiTaskStatus.PASS,
                 null,
                 null
@@ -502,7 +502,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"interfaceType":"HSMS"}
+                                {"interfaceType":"SECS"}
                                 """))
                 .andDo(print())
                 .andExpect(status().isInternalServerError())
@@ -528,7 +528,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"eqpId":"EQP-COMP-001","interfaceType":"HSMS"}
+                                {"eqpId":"EQP-COMP-001","interfaceType":"SECS"}
                                 """))
                 .andExpect(request().asyncStarted())
                 .andReturn();
@@ -570,7 +570,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"eqpId":"EQP-COMP-FAIL-001","interfaceType":"HSMS"}
+                                {"eqpId":"EQP-COMP-FAIL-001","interfaceType":"SECS"}
                                 """))
                 .andExpect(request().asyncStarted())
                 .andReturn();

@@ -58,7 +58,7 @@ class TcEqpHsmsMybatisStoreTest {
         final TcEqp currentParent = tcEqp(
                 200L,
                 "EQP-HSMS-200",
-                ProtocolType.HSMS,
+                ProtocolType.SECS,
                 "PASSIVE",
                 1,
                 "192.168.0.30",
@@ -69,7 +69,7 @@ class TcEqpHsmsMybatisStoreTest {
         final TcEqp peerParent = tcEqp(
                 201L,
                 "EQP-HSMS-201",
-                ProtocolType.HSMS,
+                ProtocolType.SECS,
                 "PASSIVE",
                 2,
                 "192.168.0.30",
@@ -133,6 +133,7 @@ class TcEqpHsmsMybatisStoreTest {
                 eqpId,
                 protocolType,
                 commMode,
+                false,
                 routePartition,
                 eqpIp,
                 eqpPort,

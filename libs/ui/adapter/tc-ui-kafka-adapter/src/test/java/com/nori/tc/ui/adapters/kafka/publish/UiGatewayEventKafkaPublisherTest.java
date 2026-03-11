@@ -62,7 +62,7 @@ class UiGatewayEventKafkaPublisherTest {
                 "trace-oversize",
                 "TC-UI-BACKEND",
                 "EQP-OVERSIZE",
-                "HSMS",
+                "SECS",
                 "X".repeat(1024),
                 null
         );

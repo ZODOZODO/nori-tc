@@ -230,7 +230,7 @@ public class GatewayEqpEventKafkaPublisher implements KafkaPublisherPort {
             );
         }
 
-        if (message.commInterfaceType() == CommInterfaceType.HSMS) {
+        if (message.commInterfaceType() == CommInterfaceType.SECS) {
             final String rawBodyBase64 = resolveHsmsRawBodyBase64(message.body());
             final String systemBytes = normalizeText(message.attributes().get("systemBytes"));
             final String eventId = normalizeText(message.attributes().get("eventId"));
@@ -271,7 +271,7 @@ public class GatewayEqpEventKafkaPublisher implements KafkaPublisherPort {
             return extractSocketEventTypeFromMessageName(message.messageName().value());
         }
 
-        if (message.commInterfaceType() == CommInterfaceType.HSMS) {
+        if (message.commInterfaceType() == CommInterfaceType.SECS) {
             return normalizeText(message.messageName().value());
         }
 

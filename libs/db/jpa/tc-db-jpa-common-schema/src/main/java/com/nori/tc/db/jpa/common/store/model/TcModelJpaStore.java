@@ -49,6 +49,7 @@ public class TcModelJpaStore implements TcModelStore {
             mv.model_version_key,
             m.model_key,
             m.model_name,
+            m.parent_model,
             mv.model_version,
             m.comm_interface,
             mv.status,
@@ -101,12 +102,13 @@ public class TcModelJpaStore implements TcModelStore {
     private static final String UPSERT_INSERT_SQL = """
             WITH upsert_model AS (
                 INSERT INTO tc_model
-                    (model_name, comm_interface, maker, created_by, updated_by)
+                    (model_name, comm_interface, parent_model, maker, created_by, updated_by)
                 VALUES
-                    (:modelName, :commInterface, :maker, :createdBy, :updatedBy)
+                    (:modelName, :commInterface, :parentModel, :maker, :createdBy, :updatedBy)
                 ON CONFLICT (model_name)
                 DO UPDATE
                        SET comm_interface = EXCLUDED.comm_interface,
+                           parent_model = EXCLUDED.parent_model,
                            maker = EXCLUDED.maker,
                            updated_by = EXCLUDED.updated_by,
                            updated_at = CURRENT_TIMESTAMP
@@ -144,6 +146,7 @@ public class TcModelJpaStore implements TcModelStore {
                 UPDATE tc_model
                    SET model_name = :modelName,
                        comm_interface = :commInterface,
+                       parent_model = :parentModel,
                        maker = :maker,
                        updated_by = :updatedBy,
                        updated_at = CURRENT_TIMESTAMP
@@ -217,6 +220,7 @@ public class TcModelJpaStore implements TcModelStore {
                         .setParameter("modelName", command.modelName())
                         .setParameter("modelVersion", command.modelVersion())
                         .setParameter("commInterface", command.commInterface().name())
+                        .setParameter("parentModel", command.parentModel())
                         .setParameter("status", command.status().name())
                         .setParameter("description", command.description())
                         .setParameter("maker", command.maker())
@@ -233,6 +237,7 @@ public class TcModelJpaStore implements TcModelStore {
                         .setParameter("modelName", command.modelName())
                         .setParameter("modelVersion", command.modelVersion())
                         .setParameter("commInterface", command.commInterface().name())
+                        .setParameter("parentModel", command.parentModel())
                         .setParameter("status", command.status().name())
                         .setParameter("description", command.description())
                         .setParameter("maker", command.maker())
@@ -425,7 +430,7 @@ public class TcModelJpaStore implements TcModelStore {
      * SQL 행(Object[])을 TcModel 도메인으로 변환합니다.
      */
     private TcModel mapRow(Object[] row) {
-        if (row.length < 12) {
+        if (row.length < 13) {
             throw new DbAccessException("tc_model native query row column count is invalid: " + row.length);
         }
 
@@ -433,15 +438,16 @@ public class TcModelJpaStore implements TcModelStore {
                 toLong(row[0], "model_version_key"),
                 toLong(row[1], "model_key"),
                 toRequiredString(row[2], "model_name"),
-                toRequiredString(row[3], "model_version"),
-                toProtocolType(row[4]),
-                toModelStatus(row[5]),
-                toOptionalString(row[6]),
+                toOptionalString(row[3]),
+                toRequiredString(row[4], "model_version"),
+                toProtocolType(row[5]),
+                toModelStatus(row[6]),
                 toOptionalString(row[7]),
-                toOffsetDateTime(row[8], "created_at"),
-                toOffsetDateTime(row[9], "updated_at"),
-                toRequiredString(row[10], "created_by"),
-                toRequiredString(row[11], "updated_by")
+                toOptionalString(row[8]),
+                toOffsetDateTime(row[9], "created_at"),
+                toOffsetDateTime(row[10], "updated_at"),
+                toRequiredString(row[11], "created_by"),
+                toRequiredString(row[12], "updated_by")
         );
     }
 

@@ -33,7 +33,7 @@ public enum BusinessWorkflowActionMessageType {
             return MES;
         }
         if (record.messageType() == BusinessMessageType.EQP) {
-            return modelRuntime.protocolType() == ProtocolType.HSMS ? SECS : SOCKET;
+            return modelRuntime.protocolType() == ProtocolType.SECS ? SECS : SOCKET;
         }
         throw new IllegalArgumentException("Unsupported messageType for workflow action dispatch: " + record.messageType());
     }
