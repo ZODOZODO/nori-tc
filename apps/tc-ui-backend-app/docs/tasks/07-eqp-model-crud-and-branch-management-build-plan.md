@@ -374,59 +374,59 @@ parent/branch 트리와 branch commit 관리 UI를 구현합니다.
 
 #### T6-1. Sidebar 트리 재구성
 
-- [ ] 기존 대표 1행 sidebar 구조 제거
-- [ ] `SECS -> parent -> branch` 트리 구조 구현
-- [ ] `Socket -> parent -> branch` 트리 구조 구현
-- [ ] root/branch/deprecated 상태 표시 추가
+- [x] 기존 대표 1행 sidebar 구조 제거
+- [x] `SECS -> parent -> branch` 트리 구조 구현
+- [x] `Socket -> parent -> branch` 트리 구조 구현
+- [x] root/branch/deprecated 상태 표시 추가
 
 #### T6-2. Sidebar 우클릭 메뉴
 
-- [ ] SECS 루트에 `SECS Model Create` 메뉴 추가
-- [ ] Socket 루트에 `Socket Model Create` 메뉴 추가
-- [ ] root model에 `Model Info Update` 메뉴 추가
-- [ ] root model에 `Branch Model Create` 메뉴 추가
-- [ ] root model에 `Branch Deprecated Model Delete` 메뉴 추가
-- [ ] root model에 `Model Delete` 메뉴 추가
-- [ ] branch model에 `Parent Model Commit` 메뉴 추가
-- [ ] branch model에 `Branch Model Delete` 메뉴 추가
+- [x] SECS 루트에 `SECS Model Create` 메뉴 추가
+- [x] Socket 루트에 `Socket Model Create` 메뉴 추가
+- [x] root model에 `Model Info Update` 메뉴 추가
+- [x] root model에 `Branch Model Create` 메뉴 추가
+- [x] root model에 `Branch Deprecated Model Delete` 메뉴 추가
+- [x] root model에 `Model Delete` 메뉴 추가
+- [x] branch model에 `Parent Model Commit` 메뉴 추가
+- [x] branch model에 `Branch Model Delete` 메뉴 추가
 
 #### T6-3. Model create/update modal
 
-- [ ] `ModelCreateOrUpdateModal` 생성
-- [ ] root create에서 `Model Name`, `Maker` 입력 UI 구현
-- [ ] update 모드에서 `Model Name` 읽기 전용 처리
-- [ ] SECS/Socket root create 분기 처리
+- [x] `ModelCreateOrUpdateModal` 생성
+- [x] root create에서 `Model Name`, `Maker` 입력 UI 구현
+- [x] update 모드에서 `Model Name` 읽기 전용 처리
+- [x] SECS/Socket root create 분기 처리
 
 #### T6-4. Branch create modal
 
-- [ ] `BranchModelCreateModal` 생성
-- [ ] 부모 model 고정값 표시
-- [ ] suffix 입력 UI 추가
-- [ ] 현재 로그인 `userId` 표시 또는 내부 반영
-- [ ] 최종 model name preview 표시
+- [x] `BranchModelCreateModal` 생성
+- [x] 부모 model 고정값 표시
+- [x] suffix 입력 UI 추가
+- [x] 현재 로그인 `userId` 표시 또는 내부 반영
+- [x] 최종 model name preview 표시
 
 #### T6-5. Parent commit modal
 
-- [ ] `ParentModelCommitModal` 생성
-- [ ] 새 parent version 입력 UI 추가
-- [ ] diff 섹션별 렌더링 구성
-- [ ] 추가 항목 렌더링
-- [ ] 변경 항목 렌더링
-- [ ] 삭제 항목 렌더링
-- [ ] Commit/Cancel 동작 구현
+- [x] `ParentModelCommitModal` 생성
+- [x] 새 parent version 입력 UI 추가
+- [x] diff 섹션별 렌더링 구성
+- [x] 추가 항목 렌더링
+- [x] 변경 항목 렌더링
+- [x] 삭제 항목 렌더링
+- [x] Commit/Cancel 동작 구현
 
 #### T6-6. Delete/정리 dialog
 
-- [ ] `ModelDeleteConfirmDialog` 생성
-- [ ] branch delete confirm 흐름 구현
-- [ ] parent delete confirm 흐름 구현
-- [ ] deprecated branch bulk delete confirm 흐름 구현
+- [x] `ModelDeleteConfirmDialog` 생성
+- [x] branch delete confirm 흐름 구현
+- [x] parent delete confirm 흐름 구현
+- [x] deprecated branch bulk delete confirm 흐름 구현
 
 #### T6-7. 기존 편집 흐름 공존
 
-- [ ] 기존 `Check Out / Check In` 상세 흐름 유지
-- [ ] branch 관리 액션과 기존 편집 상태 충돌 방지
-- [ ] branch commit 후 상세 탭/선택 상태 정리 규칙 반영
+- [x] 기존 `Check Out / Check In` 상세 흐름 유지
+- [x] branch 관리 액션과 기존 편집 상태 충돌 방지
+- [x] branch commit 후 상세 탭/선택 상태 정리 규칙 반영
 
 ### T6 검증
 
