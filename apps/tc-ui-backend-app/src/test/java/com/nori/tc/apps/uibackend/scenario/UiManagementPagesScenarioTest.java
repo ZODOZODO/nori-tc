@@ -465,6 +465,30 @@ class UiManagementPagesScenarioTest extends UiBackendScenarioTestSupport {
     }
 
     /**
+     * root model 삭제 시 EQP 참조 충돌이 409로 변환되는지 검증합니다.
+     */
+    @Test
+    @DisplayName("시나리오 5-5A: EQP 참조 중 model scope delete → 409")
+    void 모델_scope_delete_참조충돌_409() throws Exception {
+        log.info("[Phase5-5A] EQP 참조 중 model scope delete 409 검증 시작");
+
+        final TcModel rootModel = sampleModel();
+        doThrow(new UiConflictException("참조 중인 설비가 존재합니다."))
+                .when(modelRootCommandPort).deleteModel(rootModel.modelKey());
+
+        mockMvc.perform(delete("/api/model/{modelKey}", rootModel.modelKey())
+                        .param("scope", "model")
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andDo(print())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
+
+        log.info("[Phase5-5A] EQP 참조 중 model scope delete 409 검증 완료");
+    }
+
+    /**
      * User CRUD + 비밀번호 초기화 + 사용자-그룹 매핑 CRUD를 검증합니다.
      */
     @Test

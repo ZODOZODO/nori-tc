@@ -44,11 +44,13 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,6 +82,50 @@ class JpaModelManagementPortTest {
         assertEquals("EDIT", captor.getValue().modelVersion());
         assertEquals(ModelStatus.OPERATE, captor.getValue().status());
         assertEquals("tester", captor.getValue().createdBy());
+        assertEquals("tester", captor.getValue().updatedBy());
+    }
+
+    @Test
+    @DisplayName("root model 수정은 modelName/parent/status를 유지하고 maker만 변경합니다")
+    void updateRootModelInfoKeepsImmutableFieldsAndUpdatesMaker() {
+        final Fixture fixture = new Fixture();
+        final TcModel latestRoot = model(1101L, 511L, "ROOT-SECS", null, "EDIT", ProtocolType.SECS, ModelStatus.OPERATE);
+        final TcModel updatedRoot = new TcModel(
+                latestRoot.modelVersionKey(),
+                latestRoot.modelKey(),
+                latestRoot.modelName(),
+                latestRoot.parentModel(),
+                latestRoot.modelVersion(),
+                latestRoot.commInterface(),
+                latestRoot.status(),
+                latestRoot.description(),
+                "NORI-UPDATED",
+                latestRoot.createdAt(),
+                latestRoot.updatedAt(),
+                latestRoot.createdBy(),
+                "tester"
+        );
+        fixture.allModels.add(latestRoot);
+        when(fixture.modelStore.upsert(any())).thenReturn(updatedRoot);
+
+        final TcModel result = fixture.port.updateRootModelInfo(new ModelRootCommandPort.UpdateRootModelInfoCommand(
+                latestRoot.modelKey(),
+                "NORI-UPDATED",
+                "tester"
+        ));
+
+        final ArgumentCaptor<UpsertTcModel> captor = ArgumentCaptor.forClass(UpsertTcModel.class);
+        verify(fixture.modelStore).upsert(captor.capture());
+
+        assertEquals(updatedRoot, result);
+        assertEquals(latestRoot.modelVersionKey(), captor.getValue().modelKey());
+        assertEquals(latestRoot.modelName(), captor.getValue().modelName());
+        assertNull(captor.getValue().parentModel());
+        assertEquals(latestRoot.modelVersion(), captor.getValue().modelVersion());
+        assertEquals(latestRoot.commInterface(), captor.getValue().commInterface());
+        assertEquals(latestRoot.status(), captor.getValue().status());
+        assertEquals("NORI-UPDATED", captor.getValue().maker());
+        assertEquals(latestRoot.createdBy(), captor.getValue().createdBy());
         assertEquals("tester", captor.getValue().updatedBy());
     }
 
@@ -237,6 +283,24 @@ class JpaModelManagementPortTest {
         verify(fixture.modelStore).deleteByModelKey(deprecatedBranchLatest.modelKey());
     }
 
+    @Test
+    @DisplayName("model 삭제는 cascade 대상 branch 버전을 EQP가 참조 중이면 409로 차단합니다")
+    void deleteModelRejectsWhenEqpReferencesCascadeTarget() {
+        final Fixture fixture = new Fixture();
+        final TcModel rootLatest = model(9301L, 1501L, "ROOT", null, "1.0.0", ProtocolType.SECS, ModelStatus.OPERATE);
+        final TcModel branchLatest = model(9302L, 1601L, "ROOT_feature_tester", "ROOT", "EDIT", ProtocolType.SECS, ModelStatus.DEVELOP);
+        fixture.allModels.add(rootLatest);
+        fixture.allModels.add(branchLatest);
+        fixture.allEqps.add(eqp(1L, "EQP-REF-001", branchLatest.modelVersionKey()));
+
+        assertThrows(
+                com.nori.tc.ui.core.exception.UiConflictException.class,
+                () -> fixture.port.deleteModel(rootLatest.modelKey())
+        );
+
+        verify(fixture.modelStore, never()).deleteByModelKey(anyLong());
+    }
+
     private static TcModel model(
             final long modelVersionKey,
             final long modelKey,
@@ -298,6 +362,26 @@ class JpaModelManagementPortTest {
 
     private static TcModelDcopItem dcop(final long modelVersionKey, final String name) {
         return new TcModelDcopItem(1L, modelVersionKey, name, "FLOW_01", "EVT_01", "VID_TEMP", null, null, 1, OffsetDateTime.parse("2026-03-11T10:15:30+09:00"));
+    }
+
+    private static TcEqp eqp(final long eqpKey, final String eqpId, final long modelVersionKey) {
+        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
+        return new TcEqp(
+                eqpKey,
+                eqpId,
+                ProtocolType.SECS,
+                "ACTIVE",
+                false,
+                1,
+                "127.0.0.1",
+                5000,
+                modelVersionKey,
+                true,
+                now,
+                now,
+                "SYSTEM",
+                "SYSTEM"
+        );
     }
 
     /**

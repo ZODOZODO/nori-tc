@@ -448,27 +448,27 @@ parent/branch 트리와 branch commit 관리 UI를 구현합니다.
 
 #### T7-1. 백엔드 단위/통합 테스트
 
-- [ ] schema/domain 매핑 테스트 추가
-- [ ] enum 저장값 전환 회귀 테스트 추가
-- [ ] EQP create 테스트 추가
-- [ ] EQP update 테스트 추가
-- [ ] EQP delete 테스트 추가
-- [ ] EQP rollback/보상 테스트 추가
-- [ ] EQP options/manage 조회 테스트 추가
-- [ ] Model root create/update 테스트 추가
-- [ ] Model branch create/clone 테스트 추가
-- [ ] parent commit diff/commit 테스트 추가
-- [ ] deprecated branch bulk delete 테스트 추가
-- [ ] model delete `409` 테스트 추가
+- [x] schema/domain 매핑 테스트 추가
+- [x] enum 저장값 전환 회귀 테스트 추가
+- [x] EQP create 테스트 추가
+- [x] EQP update 테스트 추가
+- [x] EQP delete 테스트 추가
+- [x] EQP rollback/보상 테스트 추가
+- [x] EQP options/manage 조회 테스트 추가
+- [x] Model root create/update 테스트 추가
+- [x] Model branch create/clone 테스트 추가
+- [x] parent commit diff/commit 테스트 추가
+- [x] deprecated branch bulk delete 테스트 추가
+- [x] model delete `409` 테스트 추가
 
 #### T7-2. 시나리오 테스트
 
-- [ ] EQP create -> DB 저장 -> runtime sync 성공 흐름 검증
-- [ ] EQP update -> jar 변경 -> reload 흐름 검증
-- [ ] EQP delete -> END 선행 -> delete 성공 흐름 검증
-- [ ] root model create/update/delete 흐름 검증
-- [ ] branch create -> commit -> deprecated 전환 흐름 검증
-- [ ] EQP 참조 중 model delete `409` 흐름 검증
+- [x] EQP create -> DB 저장 -> runtime sync 성공 흐름 검증
+- [x] EQP update -> jar 변경 -> reload 흐름 검증
+- [x] EQP delete -> END 선행 -> delete 성공 흐름 검증
+- [x] root model create/update/delete 흐름 검증
+- [x] branch create -> commit -> deprecated 전환 흐름 검증
+- [x] EQP 참조 중 model delete `409` 흐름 검증
 
 #### T7-3. 프론트 검증
 
@@ -483,17 +483,17 @@ parent/branch 트리와 branch commit 관리 UI를 구현합니다.
 
 - [ ] EQP page에서 생성/수정/삭제/model 연결/parameter 버전 변경이 가능해야 함
 - [ ] Model page에서 root create, branch create, parent commit, deprecated branch 정리, 삭제가 가능해야 함
-- [ ] `is_dev`와 model status 규칙 위반은 저장 전에 차단되어야 함
-- [ ] parent commit은 삭제 diff까지 반영해야 함
-- [ ] 기존 Model `Check Out / Check In` 흐름은 계속 동작해야 함
+- [x] `is_dev`와 model status 규칙 위반은 저장 전에 차단되어야 함
+- [x] parent commit은 삭제 diff까지 반영해야 함
+- [x] 기존 Model `Check Out / Check In` 흐름은 계속 동작해야 함
 
 ---
 
 ## 완료 기준
 
 - [ ] 스키마/enum/type 변경이 DB부터 프론트까지 일관되게 반영됨
-- [ ] EQP CRUD가 DB 저장과 runtime 동기화를 함께 처리함
-- [ ] Model branch/commit 관리가 parent/branch 구조로 동작함
+- [x] EQP CRUD가 DB 저장과 runtime 동기화를 함께 처리함
+- [x] Model branch/commit 관리가 parent/branch 구조로 동작함
 - [ ] 신규 API/DTO/프론트 타입에 `parentModel`, `isDev`가 반영됨
 - [ ] 문서 기준 acceptance criteria를 테스트로 확인함
 

@@ -245,6 +245,68 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
     }
 
     @Test
+    @DisplayName("EQP 수정에서 jar가 변경되면 update 후 jar reload까지 수행하고 200을 반환합니다")
+    void EQP_UPDATE_jar변경시_reload까지_200() throws Exception {
+        when(eqpCrudPort.findSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, true, false, true)));
+        when(modelCrudPort.findByModelVersionKey(101L))
+                .thenReturn(Optional.of(sampleModel(101L, ProtocolType.SECS, ModelStatus.DEVELOP)));
+        when(eqpCrudPort.update(anyString(), any()))
+                .thenReturn(sampleManagementSnapshotWithJarNames(
+                        TEST_EQP_ID,
+                        ProtocolType.SECS,
+                        true,
+                        false,
+                        "gateway-next.jar",
+                        "business-next.jar"
+                ));
+
+        final MvcResult mvcResult = mockMvc.perform(put("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "isDev": true,
+                                  "routePartition": 1,
+                                  "eqpIp": "127.0.0.1",
+                                  "eqpPort": 5000,
+                                  "modelVersionKey": 101,
+                                  "gatewayJarFileName": "gateway-next.jar",
+                                  "businessJarFileName": "business-next.jar",
+                                  "hsmsSettings": {
+                                    "deviceId": 0,
+                                    "t3Timeout": 45,
+                                    "t5Timeout": 10,
+                                    "t6Timeout": 5,
+                                    "t7Timeout": 10,
+                                    "t8Timeout": 5,
+                                    "linkTestEnabled": true,
+                                    "linkTestInterval": 60,
+                                    "maxMsgBytes": 10485760
+                                  }
+                                }
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        final String updateTraceId = captureDualTraceId();
+        completeDualSuccess(updateTraceId);
+
+        final String jarReloadTraceId = captureDualTraceIds(2).get(1);
+        completeDualSuccess(jarReloadTraceId);
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(eqpCrudPort).update(anyString(), any());
+        verify(gatewayEventPublishPort, times(2)).publish(any());
+        verify(businessEventPublishPort, times(2)).publish(any());
+    }
+
+    @Test
     @DisplayName("EQP 생성에서 runtime sync가 실패하면 runtime delete와 DB delete로 보상합니다")
     void EQP_CREATE_runtimeSync실패시_보상수행() throws Exception {
         final String eqpId = "EQP-CREATE-ROLLBACK";
@@ -550,6 +612,24 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
             final boolean alreadyStopped,
             final boolean includeJars
     ) {
+        return sampleManagementSnapshotWithJarNames(
+                eqpId,
+                protocolType,
+                isDev,
+                alreadyStopped,
+                includeJars ? "gateway-main.jar" : null,
+                includeJars ? "business-main.jar" : null
+        );
+    }
+
+    private EqpManagementSnapshot sampleManagementSnapshotWithJarNames(
+            final String eqpId,
+            final ProtocolType protocolType,
+            final boolean isDev,
+            final boolean alreadyStopped,
+            final String gatewayJarFileName,
+            final String businessJarFileName
+    ) {
         final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         final long modelVersionKey = isDev ? 101L : 201L;
 
@@ -609,10 +689,10 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         new TcEqpParam(12L, 1L, "PARAM_B", "v2", "30", "latest", "SYSTEM", now),
                         new TcEqpParam(13L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
                 ),
-                includeJars
+                gatewayJarFileName != null
                         ? new TcJarGateway(
                         1L,
-                        "gateway-main.jar",
+                        gatewayJarFileName,
                         new byte[]{1},
                         now,
                         now,
@@ -620,10 +700,10 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         "SYSTEM"
                 )
                         : null,
-                includeJars
+                businessJarFileName != null
                         ? new TcJarBusiness(
                         1L,
-                        "business-main.jar",
+                        businessJarFileName,
                         new byte[]{2},
                         now,
                         now,
