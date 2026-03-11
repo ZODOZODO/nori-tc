@@ -1,8 +1,22 @@
 package com.nori.tc.apps.uibackend.scenario;
 
+import com.nori.tc.db.domain.common.eqp.ControlState;
+import com.nori.tc.db.domain.common.eqp.EqpState;
+import com.nori.tc.db.domain.common.eqp.LogLevel;
+import com.nori.tc.db.domain.common.model.ModelStatus;
+import com.nori.tc.db.domain.common.model.ProtocolType;
+import com.nori.tc.db.domain.eqp.TcEqp;
+import com.nori.tc.db.domain.eqp.TcEqpHsms;
+import com.nori.tc.db.domain.eqp.TcEqpLog;
+import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpState;
+import com.nori.tc.db.domain.jar.TcJarBusiness;
+import com.nori.tc.db.domain.jar.TcJarGateway;
+import com.nori.tc.db.domain.model.TcModel;
+import com.nori.tc.ui.core.eqp.EqpManagementOptions;
+import com.nori.tc.ui.core.eqp.EqpManagementSnapshot;
 import com.nori.tc.ui.core.model.AsyncResultEntry;
 import com.nori.tc.ui.core.model.UiCommandReply;
-import com.nori.tc.ui.core.model.UiCommandEventType;
 import com.nori.tc.ui.core.model.UiCommandMessage;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
 import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
@@ -17,254 +31,159 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Phase 10 시나리오 검증: 설비(Equipment) 관리 API 흐름 테스트입니다.
+ * EQP 관리 시나리오 테스트입니다.
  *
- * <p>검증 시나리오:</p>
- * <ol start="6">
- *   <li>POST /api/eqp (EQP_CREATE) → Gateway + Business 동시 발행 → DualResponse 수신 → 200</li>
- *   <li>POST /api/eqp/{id}/start (EQP_START) → 202 즉시 반환 + traceId</li>
- *   <li>GET /api/async/{traceId} → Gateway reply 조회 → 200 + PASS 결과 (polling 검증)</li>
- *   <li>route_partition 미배정 eqpId → Gateway 발행 차단 → 500 PUBLISH_FAILED (U13)</li>
- * </ol>
- *
- * <p>DualResponse 테스트 전략 (시나리오 6):</p>
- * <p>{@link DualResponseRegistry}는 {@code @MockitoSpyBean}으로 실제 동작을 유지합니다.
- * {@link ArgumentCaptor}로 EqpController 내부에서 생성된 traceId를 캡처하고,
- * Redis 조회 결과를 주입하고 {@link DualResponseRegistry#completeFromRedis(String)}를 호출하여
- * Gateway/Business 완료 신호를 시뮬레이션합니다.</p>
- *
- * <p>DeferredResult 비동기 패턴 (MockMvc):</p>
- * <ol>
- *   <li>{@code mockMvc.perform(...).andExpect(request().asyncStarted()).andReturn()}
- *       — 비동기 요청 시작, MvcResult 획득</li>
- *   <li>ArgumentCaptor로 traceId 캡처 → {@code completeFromRedis()} 호출로 DeferredResult 완료</li>
- *   <li>{@code mockMvc.perform(asyncDispatch(mvcResult))} — 완료된 DeferredResult 응답 검증</li>
- * </ol>
+ * <p>T2 기준 CRUD orchestration과 manage/options 조회, 기존 START/END polling 공존을 검증합니다.</p>
  */
-@DisplayName("Phase 10 시나리오 6~7, 7-a, 10: EQP 설비 관리 흐름 검증")
+@DisplayName("T2 EQP 관리 시나리오")
 class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
     private static final Logger log = LoggerFactory.getLogger(UiEqpScenarioTest.class);
 
-    /**
-     * EQP 시나리오 공통 사전 설정입니다.
-     *
-     * <p>EQP 관련 API는 인증된 사용자 컨텍스트에서 호출됩니다.
-     * 현재 정책은 closed by default 이므로 EQP_MANAGE 권한을 가진 사용자로 테스트를 수행합니다.</p>
-     */
     @BeforeEach
     void setUpValidToken() {
-        // 유효한 인증 쿠키 토큰으로 모든 EQP 요청에 인증이 통과하도록 설정합니다.
-        // lenient()를 사용하여 특정 테스트에서 토큰을 사용하지 않더라도 불필요한 Stubbing 경고를 방지합니다.
         lenient().when(tokenCachePort.get(TEST_TOKEN))
                 .thenReturn(Optional.of(principalWithPermission(EQP_MANAGE_PERM)));
     }
 
-    // ─────────────────────────────────────────────────────────
-    // 시나리오 6: POST /api/eqp (EQP_CREATE) → DualResponse → 200
-    // ─────────────────────────────────────────────────────────
-
-    /**
-     * 시나리오 6: POST /api/eqp (EQP_CREATE) — Gateway + Business 양방향 발행 후 DualResponse 수신 시 200을 반환합니다.
-     *
-     * <p>처리 흐름:</p>
-     * <ol>
-     *   <li>POST /api/eqp 요청 → EqpController.create()가 DeferredResult 반환 (비동기 시작)</li>
-     *   <li>EqpController는 Kafka 발행 이전에 DualResponseRegistry.register(traceId)를 먼저 호출하여
-     *       응답 유실 엣지 케이스를 방어합니다</li>
-     *   <li>Gateway 토픽({@code tc.ui.events.gateway}) + Business 토픽({@code tc.ui.events.business}) 동시 발행</li>
-     *   <li>ArgumentCaptor로 내부 생성된 traceId를 캡처</li>
-     *   <li>DualResponse Redis 조회 결과를 주입</li>
-     *   <li>{@link DualResponseRegistry#completeFromRedis(String)} 호출로 CompletableFuture 완료</li>
-     *   <li>asyncDispatch → 200 OK 검증</li>
-     * </ol>
-     */
     @Test
-    @DisplayName("시나리오 6: POST /api/eqp → Gateway+Business DualResponse 수신 → 200")
-    void EQP_CREATE_DualResponse_성공_200() throws Exception {
-        log.info("[시나리오 6] POST /api/eqp → DualResponse → 200 검증 시작");
-
-        // when: POST /api/eqp 비동기 요청 시작 — DeferredResult 반환, Spring async 처리 중
-        // gatewayEventPublishPort.publish()와 businessEventPublishPort.publish()는 @MockitoBean no-op으로 동작합니다.
-        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .cookie(authCookie())
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"eqpId":"EQP-CREATE-001","interfaceType":"SECS"}
-                                """))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        // then-1: Kafka 발행 확인 — Gateway와 Business 토픽 양쪽에 발행되어야 합니다.
-        // EqpController.submitDualRequest()는 두 포트를 순서대로 호출하므로 각각 1회씩 검증합니다.
-        verify(gatewayEventPublishPort).publish(any());
-        verify(businessEventPublishPort).publish(any());
-
-        // then-2: traceId 캡처 — EqpController가 Kafka 발행 직전에 register()를 먼저 호출하므로
-        // async 시작 시점에 이미 register() 인자가 기록됩니다.
-        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
-        verify(dualResponseRegistry).register(traceIdCaptor.capture(), anyLong());
-        final String capturedTraceId = traceIdCaptor.getValue();
-
-        log.debug("[시나리오 6] 캡처된 traceId={}", capturedTraceId);
-
-        // then-3: Redis 조회 결과 + 완료 신호 시뮬레이션
-        final UiTaskResult gatewayResult =
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY);
-        final UiTaskResult businessResult =
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS);
-        when(dualResponseRedisPort.getResult(capturedTraceId))
-                .thenReturn(Optional.of(new UiDualTaskFinalResult(
-                        capturedTraceId,
-                        true,
-                        gatewayResult,
-                        businessResult
-                )));
-        dualResponseRegistry.completeFromRedis(capturedTraceId);
-
-        // then-4: DeferredResult 완료 후 비동기 응답 검증
-        mockMvc.perform(asyncDispatch(mvcResult))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-
-        log.info("[시나리오 6] EQP_CREATE DualResponse 200 확인 완료. traceId={}", capturedTraceId);
-    }
-
-    /**
-     * 시나리오 6-a: DeferredResult 비동기 재디스패치에서 토큰 재검증이 중복 호출되지 않아야 합니다.
-     *
-     * <p>검증 포인트:</p>
-     * <ul>
-     *   <li>초기 요청 시 토큰 검증 1회 수행</li>
-     *   <li>asyncDispatch 재디스패치에서는 기존 SecurityContext를 재사용하여 토큰 재검증 생략</li>
-     *   <li>{@code tokenCachePort.get(TEST_TOKEN)} 호출 횟수 = 1회</li>
-     * </ul>
-     */
-    @Test
-    @DisplayName("시나리오 6-a: DeferredResult 재디스패치에서 토큰 재검증 1회 유지")
-    void DeferredResult_재디스패치_토큰_이중검증_방지() throws Exception {
-        log.info("[시나리오 6-a] DeferredResult 재디스패치 토큰 이중검증 방지 검증 시작");
+    @DisplayName("EQP 생성은 DB 저장 후 DualResponse 성공 시 200을 반환합니다")
+    void EQP_CREATE_관리요청_성공_200() throws Exception {
+        when(modelCrudPort.findByModelVersionKey(101L))
+                .thenReturn(Optional.of(sampleModel(101L, ProtocolType.SECS, ModelStatus.DEVELOP)));
+        when(eqpCrudPort.create(any()))
+                .thenReturn(sampleManagementSnapshot("EQP-CREATE-001", ProtocolType.SECS, true, true, false));
 
         final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
                         .cookie(authCookie())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"eqpId":"EQP-CREATE-ASYNC-001","interfaceType":"SECS"}
-                                """))
+                        .content(createRequestJsonWithoutJars("EQP-CREATE-001")))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
-        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
-        verify(dualResponseRegistry).register(traceIdCaptor.capture(), anyLong());
-        final String capturedTraceId = traceIdCaptor.getValue();
+        verify(gatewayEventPublishPort, timeout(1000)).publish(any());
+        verify(businessEventPublishPort, timeout(1000)).publish(any());
 
-        final UiTaskResult gatewayResult =
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY);
-        final UiTaskResult businessResult =
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS);
-        when(dualResponseRedisPort.getResult(capturedTraceId))
-                .thenReturn(Optional.of(new UiDualTaskFinalResult(
-                        capturedTraceId,
-                        true,
-                        gatewayResult,
-                        businessResult
-                )));
-        dualResponseRegistry.completeFromRedis(capturedTraceId);
-
-        mockMvc.perform(asyncDispatch(mvcResult))
-                .andDo(print())
-                .andExpect(status().isOk());
-
-        verify(tokenCachePort, times(1)).get(TEST_TOKEN);
-        log.info("[시나리오 6-a] 토큰 재검증 1회 유지 확인 완료");
-    }
-
-    /**
-     * 시나리오 6-b: DELETE /api/eqp/{eqpId}는 본문 없이 쿼리 파라미터만으로 정상 처리되어야 합니다.
-     *
-     * <p>검증 목적:</p>
-     * <ul>
-     *   <li>DELETE 요청 본문 의존 제거(API-01) 이후에도 정상 DualResponse 완료</li>
-     *   <li>필수 입력(interfaceType)을 query param으로 전달하면 200 응답</li>
-     * </ul>
-     */
-    @Test
-    @DisplayName("시나리오 6-b: DELETE /api/eqp/{eqpId}?interfaceType=... (본문 없음) → 200")
-    void EQP_DELETE_쿼리기반_본문없음_200() throws Exception {
-        log.info("[시나리오 6-b] DELETE 쿼리 기반 호출(본문 없음) 200 검증 시작");
-
-        final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
-                        .queryParam("interfaceType", "SECS")
-                        .cookie(authCookie())
-                        .with(csrf()))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        verify(gatewayEventPublishPort).publish(any());
-        verify(businessEventPublishPort).publish(any());
-
-        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
-        verify(dualResponseRegistry).register(traceIdCaptor.capture(), anyLong());
-        final String capturedTraceId = traceIdCaptor.getValue();
-
-        final UiTaskResult gatewayResult =
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_GATEWAY);
-        final UiTaskResult businessResult =
-                UiTaskResult.pass(capturedTraceId, DualResponseRegistry.SOURCE_BUSINESS);
-        when(dualResponseRedisPort.getResult(capturedTraceId))
-                .thenReturn(Optional.of(new UiDualTaskFinalResult(
-                        capturedTraceId,
-                        true,
-                        gatewayResult,
-                        businessResult
-                )));
-        dualResponseRegistry.completeFromRedis(capturedTraceId);
+        final String traceId = captureDualTraceId();
+        completeDualSuccess(traceId);
 
         mockMvc.perform(asyncDispatch(mvcResult))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        log.info("[시나리오 6-b] DELETE 쿼리 기반 200 확인 완료");
+        verify(eqpCrudPort).create(any());
     }
 
-    /**
-     * 시나리오 6-c: DELETE 필수 쿼리 파라미터(interfaceType) 누락 시 400을 반환해야 합니다.
-     */
     @Test
-    @DisplayName("시나리오 6-c: DELETE /api/eqp/{eqpId} interfaceType 누락 → 400")
-    void EQP_DELETE_interfaceType_누락_400() throws Exception {
-        log.info("[시나리오 6-c] DELETE interfaceType 누락 400 검증 시작");
+    @DisplayName("EQP 관리 상세 조회는 공통/로그/model/param 정보를 함께 반환합니다")
+    void EQP_MANAGE_상세조회_200() throws Exception {
+        when(eqpManageQueryPort.findManageSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, false, false, true)));
 
-        final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
+        mockMvc.perform(get("/api/eqp/{eqpId}/manage", TEST_EQP_ID)
                         .cookie(authCookie())
                         .with(csrf()))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.eqpId").value(TEST_EQP_ID))
+                .andExpect(jsonPath("$.data.commInterface").value("SECS"))
+                .andExpect(jsonPath("$.data.logPolicy.logLevel").value("INFO"))
+                .andExpect(jsonPath("$.data.jars.gatewayJarFileName").value("gateway-main.jar"))
+                .andExpect(jsonPath("$.data.modelBinding.modelName").value("MODEL-SECS-01"))
+                .andExpect(jsonPath("$.data.appliedParamVersion").value("v2"))
+                .andExpect(jsonPath("$.data.paramVersions[0].paramVersion").value("v2"));
+    }
+
+    @Test
+    @DisplayName("EQP 관리 옵션 조회는 jar/socket/model 드롭다운 데이터를 반환합니다")
+    void EQP_OPTIONS_조회_200() throws Exception {
+        when(eqpOptionsQueryPort.loadOptions()).thenReturn(new EqpManagementOptions(
+                List.of("JSON", "XML"),
+                List.of("gateway-main.jar"),
+                List.of("business-main.jar"),
+                List.of(new EqpManagementOptions.ModelOption(
+                        101L,
+                        11L,
+                        "MODEL-SECS-01",
+                        null,
+                        "EDIT",
+                        ProtocolType.SECS,
+                        ModelStatus.DEVELOP
+                )),
+                List.of(new EqpManagementOptions.ModelOption(
+                        201L,
+                        21L,
+                        "MODEL-SECS-OPS",
+                        null,
+                        "EDIT",
+                        ProtocolType.SECS,
+                        ModelStatus.OPERATE
+                ))
+        ));
+
+        mockMvc.perform(get("/api/eqp/options")
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.socketProtocolTypes[0]").value("JSON"))
+                .andExpect(jsonPath("$.data.gatewayJarFileNames[0]").value("gateway-main.jar"))
+                .andExpect(jsonPath("$.data.businessJarFileNames[0]").value("business-main.jar"))
+                .andExpect(jsonPath("$.data.developModelOptions[0].modelName").value("MODEL-SECS-01"))
+                .andExpect(jsonPath("$.data.operateModelOptions[0].status").value("OPERATE"));
+    }
+
+    @Test
+    @DisplayName("SECS EQP 수정 요청에 hsmsSettings가 없으면 400이고 runtime 재발행이 없어야 합니다")
+    void EQP_UPDATE_입력검증실패_runtime재발행없음() throws Exception {
+        when(eqpCrudPort.findSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, false, false, true)));
+
+        final MvcResult mvcResult = mockMvc.perform(put("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "isDev": true,
+                                  "routePartition": 1,
+                                  "eqpIp": "127.0.0.1",
+                                  "eqpPort": 5000,
+                                  "modelVersionKey": 101,
+                                  "gatewayJarFileName": "gateway-main.jar",
+                                  "businessJarFileName": "business-main.jar"
+                                }
+                                """))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
@@ -274,38 +193,160 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
+        verify(eqpCrudPort, never()).update(anyString(), any());
         verify(gatewayEventPublishPort, never()).publish(any());
         verify(businessEventPublishPort, never()).publish(any());
-
-        log.info("[시나리오 6-c] 400 응답 확인 완료");
     }
 
-    // ─────────────────────────────────────────────────────────
-    // 시나리오 7: EQP_START → 202 즉시 반환 + traceId
-    // ─────────────────────────────────────────────────────────
-
-    /**
-     * 시나리오 7: POST /api/eqp/{eqpId}/start (EQP_START) — 202 Accepted와 traceId를 즉시 반환합니다.
-     *
-     * <p>EQP_START는 Gateway 단독 처리이므로 Business 토픽에는 발행하지 않습니다.
-     * DeferredResult 없이 ResponseEntity를 즉시 반환하는 동기 흐름입니다.
-     * 클라이언트는 반환된 traceId로 {@code GET /api/async/{traceId}}를 polling하여 결과를 확인합니다.</p>
-     *
-     * <p>검증 포인트:</p>
-     * <ul>
-     *   <li>HTTP 202 Accepted</li>
-     *   <li>data.traceId 비어있지 않음 (UUID 형식)</li>
-     *   <li>gatewayEventPublishPort.publish() 1회 호출됨</li>
-     *   <li>businessEventPublishPort.publish() 호출 안 됨 (Gateway 단독 처리 설계)</li>
-     * </ul>
-     */
     @Test
-    @DisplayName("시나리오 7: POST /api/eqp/{id}/start → 202 즉시 반환 + traceId")
-    void EQP_START_202_즉시반환_traceId() throws Exception {
-        log.info("[시나리오 7] POST /api/eqp/{}/start → 202 + traceId 검증 시작", TEST_EQP_ID);
+    @DisplayName("EQP 수정에서 isDev와 모델 상태가 불일치하면 400이고 DB 저장이 수행되지 않습니다")
+    void EQP_UPDATE_isDev_모델상태불일치_400() throws Exception {
+        when(eqpCrudPort.findSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, false, false, false)));
+        when(modelCrudPort.findByModelVersionKey(101L))
+                .thenReturn(Optional.of(sampleModel(101L, ProtocolType.SECS, ModelStatus.DEVELOP)));
 
-        // when + then: EQP_START 요청 → 202 즉시 반환
-        // EqpController.publishLifecycleAndAccept()는 DeferredResult 없이 즉시 응답합니다.
+        final MvcResult mvcResult = mockMvc.perform(put("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "isDev": false,
+                                  "routePartition": 1,
+                                  "eqpIp": "127.0.0.1",
+                                  "eqpPort": 5000,
+                                  "modelVersionKey": 101,
+                                  "hsmsSettings": {
+                                    "deviceId": 0,
+                                    "t3Timeout": 45,
+                                    "t5Timeout": 10,
+                                    "t6Timeout": 5,
+                                    "t7Timeout": 10,
+                                    "t8Timeout": 5,
+                                    "linkTestEnabled": true,
+                                    "linkTestInterval": 60,
+                                    "maxMsgBytes": 10485760
+                                  }
+                                }
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+
+        verify(eqpCrudPort, never()).update(anyString(), any());
+        verify(gatewayEventPublishPort, never()).publish(any());
+        verify(businessEventPublishPort, never()).publish(any());
+    }
+
+    @Test
+    @DisplayName("EQP 생성에서 runtime sync가 실패하면 runtime delete와 DB delete로 보상합니다")
+    void EQP_CREATE_runtimeSync실패시_보상수행() throws Exception {
+        final String eqpId = "EQP-CREATE-ROLLBACK";
+
+        when(modelCrudPort.findByModelVersionKey(101L))
+                .thenReturn(Optional.of(sampleModel(101L, ProtocolType.SECS, ModelStatus.DEVELOP)));
+        when(eqpCrudPort.create(any()))
+                .thenReturn(sampleManagementSnapshot(eqpId, ProtocolType.SECS, true, true, false));
+
+        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createRequestJsonWithoutJars(eqpId)))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        final String createTraceId = captureDualTraceIds(1).getFirst();
+        completeDualFailure(createTraceId, "SYNC_FAILED", "runtime sync failed");
+
+        final String rollbackTraceId = captureDualTraceIds(2).get(1);
+        completeDualSuccess(rollbackTraceId);
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("SYNC_FAILED"));
+
+        verify(eqpCrudPort).create(any());
+        verify(eqpCrudPort).delete(eqpId);
+        verify(gatewayEventPublishPort, times(2)).publish(any());
+        verify(businessEventPublishPort, times(2)).publish(any());
+    }
+
+    @Test
+    @DisplayName("EQP 삭제는 END 성공 후 DB 삭제와 DualResponse 성공 시 200을 반환합니다")
+    void EQP_DELETE_END후_삭제_200() throws Exception {
+        when(eqpCrudPort.findSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, false, false, true)));
+        when(asyncResultStorePort.getWithStatus(anyString()))
+                .thenAnswer(invocation -> Optional.of(AsyncResultEntry.completed(
+                        invocation.getArgument(0),
+                        new UiCommandReply(
+                                invocation.getArgument(0),
+                                DualResponseRegistry.SOURCE_GATEWAY,
+                                "EQP_END_REP",
+                                TEST_EQP_ID,
+                                "SECS",
+                                UiTaskStatus.PASS,
+                                null,
+                                null
+                        )
+                )));
+
+        final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        final String traceId = captureDualTraceId();
+        completeDualSuccess(traceId);
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(eqpCrudPort).delete(TEST_EQP_ID);
+        verify(gatewayEventPublishPort, times(2)).publish(any());
+        verify(businessEventPublishPort, times(1)).publish(any());
+    }
+
+    @Test
+    @DisplayName("EQP 삭제에서 END가 타임아웃이면 DB 삭제와 보상 발행을 중단합니다")
+    void EQP_DELETE_END_타임아웃이면_삭제중단() throws Exception {
+        when(eqpCrudPort.findSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, false, false, true)));
+        when(asyncResultStorePort.getWithStatus(anyString()))
+                .thenAnswer(invocation -> Optional.of(AsyncResultEntry.timeout(invocation.getArgument(0))));
+
+        final MvcResult mvcResult = mockMvc.perform(delete("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isGatewayTimeout())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("TIMEOUT"));
+
+        verify(eqpCrudPort, never()).delete(anyString());
+        verify(gatewayEventPublishPort, times(1)).publish(any());
+        verify(businessEventPublishPort, never()).publish(any());
+    }
+
+    @Test
+    @DisplayName("EQP_START는 202와 traceId를 즉시 반환합니다")
+    void EQP_START_202_즉시반환_traceId() throws Exception {
         mockMvc.perform(post("/api/eqp/{eqpId}/start", TEST_EQP_ID)
                         .cookie(authCookie())
                         .with(csrf())
@@ -316,47 +357,15 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andDo(print())
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.success").value(true))
-                // traceId는 EqpController.generateTraceId()가 UUID v4로 생성합니다.
                 .andExpect(jsonPath("$.data.traceId").isNotEmpty());
 
-        // EQP_START는 Gateway 단독 처리이므로:
-        // - gatewayEventPublishPort는 반드시 1회 호출되어야 합니다.
-        // - businessEventPublishPort는 호출되어서는 안 됩니다 (Business Core 미관여).
         verify(gatewayEventPublishPort).publish(any());
         verify(businessEventPublishPort, never()).publish(any());
-
-        log.info("[시나리오 7] 202 즉시 반환 + traceId 확인 완료");
     }
 
-    // ─────────────────────────────────────────────────────────
-    // 시나리오 7-a: GET /api/async/{traceId} → Gateway reply polling → 200
-    // ─────────────────────────────────────────────────────────
-
-    /**
-     * 시나리오 7-a: GET /api/async/{traceId} — Gateway reply가 Redis에 저장된 경우 200 + 결과를 반환합니다.
-     *
-     * <p>EQP_START 흐름 중 polling 단계 검증입니다:</p>
-     * <ol>
-     *   <li>Gateway가 tc.ui.commands 토픽에 EQP_START_REP 발행</li>
-     *   <li>UiCommandIngressService 수신 → AsyncResultStorePort.markCompleted(traceId, reply) 저장</li>
-     *   <li>클라이언트가 GET /api/async/{traceId} 호출 → 200 + PASS 결과 반환</li>
-     * </ol>
-     *
-     * <p>검증 포인트:</p>
-     * <ul>
-     *   <li>HTTP 200 OK</li>
-     *   <li>data.status = "PASS"</li>
-     *   <li>data.eqpId = TEST_EQP_ID</li>
-     *   <li>결과 없을 때 (처리 중) → 404 Not Found</li>
-     * </ul>
-     */
     @Test
-    @DisplayName("시나리오 7-a: GET /api/async/{traceId} → Gateway reply 조회 → 200 + PASS")
+    @DisplayName("GET /api/async/{traceId}는 완료된 START 결과를 반환합니다")
     void ASYNC_POLLING_결과있음_200() throws Exception {
-        log.info("[시나리오 7-a] GET /api/async/{{traceId}} → polling → 200 + PASS 검증 시작");
-
-        // given: Gateway가 EQP_START 처리 완료 후 tc.ui.commands에 EQP_START_REP를 발행하고
-        // UiCommandIngressService가 수신하여 Redis에 저장한 상태를 시뮬레이션합니다.
         final String traceId = "test-trace-id-eqp-start-001";
         final UiCommandReply reply = new UiCommandReply(
                 traceId,
@@ -371,7 +380,6 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
         when(asyncResultStorePort.getWithStatus(traceId))
                 .thenReturn(Optional.of(AsyncResultEntry.completed(traceId, reply)));
 
-        // when + then: polling → 200 + PASS 결과
         mockMvc.perform(get("/api/async/{traceId}", traceId)
                         .cookie(authCookie())
                         .with(csrf()))
@@ -381,27 +389,15 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.data.traceId").value(traceId))
                 .andExpect(jsonPath("$.data.eqpId").value(TEST_EQP_ID))
                 .andExpect(jsonPath("$.data.status").value("PASS"));
-
-        log.info("[시나리오 7-a] polling 200 + PASS 확인 완료. traceId={}", traceId);
     }
 
-    /**
-     * 시나리오 7-a (대기 중): GET /api/async/{traceId} — Gateway reply가 아직 없을 때 202를 반환합니다.
-     *
-     * <p>상태 모델 도입 후 PENDING은 202 Accepted로 구분되며,
-     * 클라이언트는 동일 traceId로 polling을 지속합니다.</p>
-     */
     @Test
-    @DisplayName("시나리오 7-a (대기): GET /api/async/{traceId} → PENDING → 202")
+    @DisplayName("GET /api/async/{traceId}는 PENDING 상태를 202로 반환합니다")
     void ASYNC_POLLING_대기상태_202() throws Exception {
-        log.info("[시나리오 7-a 대기] GET /api/async/{{traceId}} → PENDING 202 검증 시작");
-
-        // given: 아직 처리 중인 traceId 상태(PENDING)
         final String traceId = "pending-trace-id";
         when(asyncResultStorePort.getWithStatus(traceId))
                 .thenReturn(Optional.of(AsyncResultEntry.pending(traceId, System.currentTimeMillis() + 30_000L)));
 
-        // when + then: 처리 중 상태 → 202
         mockMvc.perform(get("/api/async/{traceId}", traceId)
                         .cookie(authCookie())
                         .with(csrf()))
@@ -409,18 +405,11 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("PENDING"));
-
-        log.info("[시나리오 7-a 대기] 202 확인 완료");
     }
 
-    /**
-     * 시나리오 7-a (타임아웃): GET /api/async/{traceId} — TIMEOUT 상태는 408을 반환합니다.
-     */
     @Test
-    @DisplayName("시나리오 7-a (타임아웃): GET /api/async/{traceId} → TIMEOUT → 408")
+    @DisplayName("GET /api/async/{traceId}는 TIMEOUT 상태를 408로 반환합니다")
     void ASYNC_POLLING_타임아웃_408() throws Exception {
-        log.info("[시나리오 7-a 타임아웃] GET /api/async/{{traceId}} → TIMEOUT 408 검증 시작");
-
         final String traceId = "timeout-trace-id";
         when(asyncResultStorePort.getWithStatus(traceId))
                 .thenReturn(Optional.of(AsyncResultEntry.timeout(traceId)));
@@ -432,71 +421,14 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(status().isRequestTimeout())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("TIMEOUT"));
-
-        log.info("[시나리오 7-a 타임아웃] 408 확인 완료");
     }
 
-    /**
-     * 시나리오 7-a (없는 traceId): GET /api/async/{traceId} — 존재하지 않는 traceId는 404를 반환합니다.
-     */
     @Test
-    @DisplayName("시나리오 7-a (없는 traceId): GET /api/async/{traceId} → 404")
-    void ASYNC_POLLING_없는_traceId_404() throws Exception {
-        log.info("[시나리오 7-a 없음] GET /api/async/{{traceId}} → 404 검증 시작");
-
-        when(asyncResultStorePort.getWithStatus(anyString())).thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/api/async/{traceId}", "not-found-trace-id")
-                        .cookie(authCookie())
-                        .with(csrf()))
-                .andDo(print())
-                .andExpect(status().isNotFound());
-
-        log.info("[시나리오 7-a 없음] 404 확인 완료");
-    }
-
-    // ─────────────────────────────────────────────────────────
-    // 시나리오 10 (U13): route_partition 미배정 → 발행 차단 + 500
-    // ─────────────────────────────────────────────────────────
-
-    /**
-     * 시나리오 10 (U13): route_partition이 배정되지 않은 eqpId로 EQP_START 발행 시도 시 500을 반환합니다.
-     *
-     * <p>U13 규칙: {@code tc_eqp.route_partition}이 미배정인 eqpId는 Gateway 발행을 차단합니다.
-     * 잘못된 파티션으로 발행하면 해당 설비를 담당하는 Gateway 인스턴스가 메시지를 수신하지 못하므로
-     * 발행 자체를 거부하고 ERROR 로그를 남겨 운영자가 인지할 수 있도록 합니다.</p>
-     *
-     * <p>@WebMvcTest 환경에서의 U13 시뮬레이션:</p>
-     * <p>{@code @WebMvcTest}에서 {@link com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort}는
-     * {@code @MockitoBean}으로 교체되어 있어 {@code UiGatewayEventKafkaPublisher}의 실제 U13 검증
-     * (route_partition 조회 → empty → ERROR 로그 → IllegalStateException)이 직접 수행되지 않습니다.
-     * 따라서 {@code doThrow(IllegalStateException)}으로 U13 차단 동작을 시뮬레이션합니다.</p>
-     *
-     * <p>EqpController.publishLifecycleAndAccept()는 발행 실패 예외를 catch하여
-     * ERROR 로그를 남기고 500 PUBLISH_FAILED를 반환합니다.</p>
-     *
-     * <p>검증 포인트:</p>
-     * <ul>
-     *   <li>HTTP 500 Internal Server Error</li>
-     *   <li>success=false</li>
-     *   <li>errorCode=PUBLISH_FAILED</li>
-     * </ul>
-     */
-    @Test
-    @DisplayName("시나리오 10 (U13): route_partition 미배정 eqpId → Gateway 발행 차단 → 500 PUBLISH_FAILED")
+    @DisplayName("route_partition 미배정으로 Gateway 발행이 실패하면 START는 500을 반환합니다")
     void U13_route_partition_미배정_발행차단_500() throws Exception {
-        log.info("[시나리오 10] route_partition 미배정 eqpId → 발행 차단 검증 시작");
+        doThrow(new IllegalStateException("ROUTE_PARTITION_NOT_ASSIGNED"))
+                .when(gatewayEventPublishPort).publish(any());
 
-        // given: UiGatewayEventKafkaPublisher의 U13 차단 동작을 시뮬레이션합니다.
-        // 실제 구현에서 routePartitionLookupPort.findRoutePartition(eqpId)가 빈 Optional을 반환하면
-        // UiGatewayEventKafkaPublisher.publish()가 ERROR 로그를 남기고 IllegalStateException을 던집니다.
-        doThrow(new IllegalStateException(
-                "Gateway 발행 실패: eqpId=NO-ROUTE-EQP의 route_partition이 배정되지 않았습니다. "
-                        + "reason=ROUTE_PARTITION_NOT_ASSIGNED"
-        )).when(gatewayEventPublishPort).publish(any());
-
-        // when + then: route_partition 미배정 설비로 EQP_START 시도 → 발행 차단 → 500
-        // EqpController.publishLifecycleAndAccept()의 catch 블록에서 ERROR 로그 후 500 PUBLISH_FAILED 반환
         mockMvc.perform(post("/api/eqp/{eqpId}/start", "NO-ROUTE-EQP")
                         .cookie(authCookie())
                         .with(csrf())
@@ -508,81 +440,197 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("PUBLISH_FAILED"));
-
-        log.info("[시나리오 10] 발행 차단 → 500 PUBLISH_FAILED 확인 완료");
     }
 
-    /**
-     * 시나리오 10-a: Gateway 발행 성공 후 Business 발행 실패 시 보상 삭제 이벤트를 발행합니다.
-     */
-    @Test
-    @DisplayName("시나리오 10-a: Business 발행 실패 시 Gateway 보상 이벤트(EQP_DELETE) 발행")
-    void Business_발행_실패_보상_이벤트_발행() throws Exception {
-        log.info("[시나리오 10-a] Business 발행 실패 시 보상 이벤트 발행 검증 시작");
-
-        doThrow(new RuntimeException("business broker unavailable"))
-                .when(businessEventPublishPort).publish(any());
-
-        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .cookie(authCookie())
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"eqpId":"EQP-COMP-001","interfaceType":"SECS"}
-                                """))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        mockMvc.perform(asyncDispatch(mvcResult))
-                .andDo(print())
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.errorCode").value("PUBLISH_FAILED"));
-
-        final ArgumentCaptor<UiCommandMessage> gatewayCaptor = ArgumentCaptor.forClass(UiCommandMessage.class);
-        verify(gatewayEventPublishPort, times(2)).publish(gatewayCaptor.capture());
-        verify(businessEventPublishPort, times(1)).publish(any());
-
-        final UiCommandMessage compensation = gatewayCaptor.getAllValues().get(1);
-        org.junit.jupiter.api.Assertions.assertEquals(UiCommandEventType.EQP_DELETE, compensation.eventType());
-        org.junit.jupiter.api.Assertions.assertTrue(compensation.uiMessage().startsWith("ROLLBACK|"));
-
-        log.info("[시나리오 10-a] 보상 이벤트 발행 확인 완료");
+    private String captureDualTraceId() {
+        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
+        verify(dualResponseRegistry, timeout(1000)).register(traceIdCaptor.capture(), anyLong());
+        return traceIdCaptor.getValue();
     }
 
-    /**
-     * 시나리오 10-b: 보상 이벤트 발행도 실패해도 최종 응답은 500으로 정상 종료합니다.
-     */
-    @Test
-    @DisplayName("시나리오 10-b: 보상 이벤트 발행 실패 시에도 요청은 500으로 정상 종료")
-    void 보상_이벤트_발행_실패_흐름_검증() throws Exception {
-        log.info("[시나리오 10-b] 보상 이벤트 발행 실패 흐름 검증 시작");
+    private List<String> captureDualTraceIds(final int expectedCount) {
+        final ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.forClass(String.class);
+        verify(dualResponseRegistry, timeout(1000).times(expectedCount)).register(traceIdCaptor.capture(), anyLong());
+        return traceIdCaptor.getAllValues();
+    }
 
-        // 1차 gateway 발행(원본)은 성공, 2차 gateway 발행(보상)은 실패로 시뮬레이션합니다.
-        doNothing()
-                .doThrow(new RuntimeException("rollback publish failed"))
-                .when(gatewayEventPublishPort).publish(any());
-        doThrow(new RuntimeException("business publish failed"))
-                .when(businessEventPublishPort).publish(any());
+    private void completeDualSuccess(final String traceId) {
+        final UiTaskResult gatewayResult = UiTaskResult.pass(traceId, DualResponseRegistry.SOURCE_GATEWAY);
+        final UiTaskResult businessResult = UiTaskResult.pass(traceId, DualResponseRegistry.SOURCE_BUSINESS);
+        when(dualResponseRedisPort.getResult(traceId))
+                .thenReturn(Optional.of(new UiDualTaskFinalResult(
+                        traceId,
+                        true,
+                        gatewayResult,
+                        businessResult
+                )));
+        dualResponseRegistry.completeFromRedis(traceId);
+    }
 
-        final MvcResult mvcResult = mockMvc.perform(post("/api/eqp")
-                        .cookie(authCookie())
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"eqpId":"EQP-COMP-FAIL-001","interfaceType":"SECS"}
-                                """))
-                .andExpect(request().asyncStarted())
-                .andReturn();
+    private void completeDualFailure(
+            final String traceId,
+            final String errorCode,
+            final String errorMessage
+    ) {
+        final UiTaskResult gatewayResult = UiTaskResult.pass(traceId, DualResponseRegistry.SOURCE_GATEWAY);
+        final UiTaskResult businessResult = UiTaskResult.fail(
+                traceId,
+                DualResponseRegistry.SOURCE_BUSINESS,
+                errorCode,
+                errorMessage
+        );
+        when(dualResponseRedisPort.getResult(traceId))
+                .thenReturn(Optional.of(new UiDualTaskFinalResult(
+                        traceId,
+                        false,
+                        gatewayResult,
+                        businessResult
+                )));
+        dualResponseRegistry.completeFromRedis(traceId);
+    }
 
-        mockMvc.perform(asyncDispatch(mvcResult))
-                .andDo(print())
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.errorCode").value("PUBLISH_FAILED"));
+    private String createRequestJsonWithoutJars(final String eqpId) {
+        return """
+                {
+                  "eqpId": "%s",
+                  "interfaceType": "SECS",
+                  "commMode": "ACTIVE",
+                  "isDev": true,
+                  "routePartition": 1,
+                  "eqpIp": "127.0.0.1",
+                  "eqpPort": 5000,
+                  "modelVersionKey": 101,
+                  "logSettings": {
+                    "logLevel": "INFO",
+                    "logRetentionDays": 7,
+                    "logPath": "/var/log/eqp"
+                  },
+                  "hsmsSettings": {
+                    "deviceId": 0,
+                    "t3Timeout": 45,
+                    "t5Timeout": 10,
+                    "t6Timeout": 5,
+                    "t7Timeout": 10,
+                    "t8Timeout": 5,
+                    "linkTestEnabled": true,
+                    "linkTestInterval": 60,
+                    "maxMsgBytes": 10485760
+                  }
+                }
+                """.formatted(eqpId);
+    }
 
-        verify(gatewayEventPublishPort, times(2)).publish(any());
-        verify(businessEventPublishPort, times(1)).publish(any());
+    private TcModel sampleModel(
+            final long modelVersionKey,
+            final ProtocolType protocolType,
+            final ModelStatus status
+    ) {
+        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
+        return new TcModel(
+                modelVersionKey,
+                modelVersionKey + 100,
+                "MODEL-SECS-01",
+                null,
+                "EDIT",
+                protocolType,
+                status,
+                "test model",
+                "NORI",
+                now,
+                now,
+                "SYSTEM",
+                "SYSTEM"
+        );
+    }
 
-        log.info("[시나리오 10-b] 보상 발행 실패 시에도 500 응답 유지 확인 완료");
+    private EqpManagementSnapshot sampleManagementSnapshot(
+            final String eqpId,
+            final ProtocolType protocolType,
+            final boolean isDev,
+            final boolean alreadyStopped,
+            final boolean includeJars
+    ) {
+        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
+        final long modelVersionKey = isDev ? 101L : 201L;
+
+        return new EqpManagementSnapshot(
+                new TcEqp(
+                        1L,
+                        eqpId,
+                        protocolType,
+                        "ACTIVE",
+                        isDev,
+                        1,
+                        "127.0.0.1",
+                        5000,
+                        modelVersionKey,
+                        true,
+                        now,
+                        now,
+                        "SYSTEM",
+                        "SYSTEM"
+                ),
+                sampleModel(modelVersionKey, protocolType, isDev ? ModelStatus.DEVELOP : ModelStatus.OPERATE),
+                protocolType == ProtocolType.SECS ? new TcEqpHsms(
+                        1L,
+                        0,
+                        45,
+                        10,
+                        5,
+                        10,
+                        5,
+                        true,
+                        60,
+                        10_485_760L,
+                        now,
+                        now
+                ) : null,
+                null,
+                new TcEqpLog(
+                        1L,
+                        LogLevel.INFO,
+                        7,
+                        "/var/log/eqp",
+                        now
+                ),
+                new TcEqpState(
+                        1L,
+                        alreadyStopped ? ControlState.DOWN : ControlState.REMOTE,
+                        alreadyStopped ? EqpState.DOWN : EqpState.RUN,
+                        now,
+                        "TEST",
+                        "test state",
+                        now
+                ),
+                alreadyStopped ? "DISCONNECTED" : "CONNECTED",
+                List.of(),
+                List.of(
+                        new TcEqpParam(11L, 1L, "PARAM_A", "v2", "20", "latest", "SYSTEM", now),
+                        new TcEqpParam(12L, 1L, "PARAM_B", "v2", "30", "latest", "SYSTEM", now),
+                        new TcEqpParam(13L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
+                ),
+                includeJars
+                        ? new TcJarGateway(
+                        1L,
+                        "gateway-main.jar",
+                        new byte[]{1},
+                        now,
+                        now,
+                        "SYSTEM",
+                        "SYSTEM"
+                )
+                        : null,
+                includeJars
+                        ? new TcJarBusiness(
+                        1L,
+                        "business-main.jar",
+                        new byte[]{2},
+                        now,
+                        now,
+                        "SYSTEM",
+                        "SYSTEM"
+                )
+                        : null
+        );
     }
 }

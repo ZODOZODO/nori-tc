@@ -105,7 +105,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
 
             final long eqpKey = createdEqp.eqpKey();
             upsertProtocolDetails(eqpKey, command.interfaceType(), command.hsmsSettings(), command.socketSettings());
-            upsertLogPolicy(eqpKey, command.logSettings());
+            upsertLogPolicy(eqpKey, resolveCreateLogSettings(command.logSettings()));
             upsertInitialState(eqpKey, command.interfaceType());
             upsertJars(eqpKey, command.gatewayJarFileName(), command.businessJarFileName(), command.actor(), true);
 
@@ -143,7 +143,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
 
             final long eqpKey = updatedEqp.eqpKey();
             upsertProtocolDetails(eqpKey, existing.eqp().commInterface(), command.hsmsSettings(), command.socketSettings());
-            upsertLogPolicy(eqpKey, command.logSettings());
+            upsertLogPolicy(eqpKey, resolveUpdateLogSettings(command.logSettings(), existing.logPolicy()));
             upsertJars(eqpKey, command.gatewayJarFileName(), command.businessJarFileName(), command.actor(), false);
 
             return requireSnapshot(eqpId);
@@ -278,12 +278,11 @@ public class JpaEqpCrudPort implements EqpCrudPort {
     }
 
     private void upsertLogPolicy(final long eqpKey, final EqpManagementCommand.LogSettings logSettings) {
-        final EqpManagementCommand.LogSettings resolved = resolveLogSettings(logSettings);
         eqpLogStore.upsert(new UpsertTcEqpLog(
                 eqpKey,
-                resolved.logLevel(),
-                resolved.logRetentionDays(),
-                resolved.logPath()
+                logSettings.logLevel(),
+                logSettings.logRetentionDays(),
+                logSettings.logPath()
         ));
     }
 
@@ -544,15 +543,45 @@ public class JpaEqpCrudPort implements EqpCrudPort {
         );
     }
 
-    private EqpManagementCommand.LogSettings resolveLogSettings(final EqpManagementCommand.LogSettings input) {
-        if (input == null) {
-            return new EqpManagementCommand.LogSettings(LogLevel.INFO, 30, null);
-        }
+    private EqpManagementCommand.LogSettings resolveCreateLogSettings(final EqpManagementCommand.LogSettings input) {
         return new EqpManagementCommand.LogSettings(
-                input.logLevel() == null ? LogLevel.INFO : input.logLevel(),
-                input.logRetentionDays() == null ? 30 : input.logRetentionDays(),
-                normalizeOptionalText(input.logPath())
+                input == null || input.logLevel() == null ? LogLevel.INFO : input.logLevel(),
+                input == null || input.logRetentionDays() == null ? 7 : input.logRetentionDays(),
+                resolveLogPath(input == null ? null : input.logPath(), "\\")
         );
+    }
+
+    private EqpManagementCommand.LogSettings resolveUpdateLogSettings(
+            final EqpManagementCommand.LogSettings input,
+            final com.nori.tc.db.domain.eqp.TcEqpLog existingLogPolicy
+    ) {
+        final LogLevel fallbackLogLevel = existingLogPolicy == null || existingLogPolicy.logLevel() == null
+                ? LogLevel.INFO
+                : existingLogPolicy.logLevel();
+        final int fallbackRetentionDays = existingLogPolicy == null ? 7 : existingLogPolicy.logRetentionDays();
+        final String fallbackLogPath = resolveLogPath(existingLogPolicy == null ? null : existingLogPolicy.logPath(), "\\");
+
+        if (input == null) {
+            return new EqpManagementCommand.LogSettings(
+                    fallbackLogLevel,
+                    fallbackRetentionDays,
+                    fallbackLogPath
+            );
+        }
+
+        return new EqpManagementCommand.LogSettings(
+                input.logLevel() == null ? fallbackLogLevel : input.logLevel(),
+                input.logRetentionDays() == null ? fallbackRetentionDays : input.logRetentionDays(),
+                resolveLogPath(input.logPath(), fallbackLogPath)
+        );
+    }
+
+    private String resolveLogPath(final String value, final String fallback) {
+        final String normalized = normalizeOptionalText(value);
+        if (normalized == null) {
+            return fallback;
+        }
+        return normalized;
     }
 
     private String normalizeOptionalText(final String value) {

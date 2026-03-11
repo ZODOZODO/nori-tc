@@ -100,79 +100,79 @@ EQP create/update/delete와 관리 modal 조회를 지원하는 백엔드 계약
 
 #### T2-1. EQP 관리 Port 정의
 
-- [ ] `tc-ui-core`에 EQP CRUD Port 추가
-- [ ] `tc-ui-core`에 EQP 관리 상세 Query Port 추가
-- [ ] `tc-ui-core`에 EQP 옵션 Query Port 추가
-- [ ] EQP create/update/delete 요청 모델에 `isDev` 반영
-- [ ] EQP 관리 상세 응답 모델에 공통/SECS/Socket/log/jar/model/param 정보를 정의
+- [x] `tc-ui-core`에 EQP CRUD Port 추가
+- [x] `tc-ui-core`에 EQP 관리 상세 Query Port 추가
+- [x] `tc-ui-core`에 EQP 옵션 Query Port 추가
+- [x] EQP create/update/delete 요청 모델에 `isDev` 반영
+- [x] EQP 관리 상세 응답 모델에 공통/SECS/Socket/log/jar/model/param 정보를 정의
 
 #### T2-2. EQP DB adapter 구현
 
-- [ ] UI DB adapter에 EQP CRUD Port 구현체 추가
-- [ ] UI DB adapter에 EQP 관리 상세 Query 구현체 추가
-- [ ] UI DB adapter에 EQP 옵션 Query 구현체 추가
-- [ ] `tc_eqp`, `tc_eqp_hsms`, `tc_eqp_socket`, `tc_eqp_log`, `tc_eqp_state`, `tc_jar_gateway`, `tc_jar_business`를 한 흐름으로 조회하는 구조 정의
-- [ ] socket protocol type 전체 목록 조회 경로 연결
-- [ ] gateway/business jar filename distinct 조회 경로 연결
+- [x] UI DB adapter에 EQP CRUD Port 구현체 추가
+- [x] UI DB adapter에 EQP 관리 상세 Query 구현체 추가
+- [x] UI DB adapter에 EQP 옵션 Query 구현체 추가
+- [x] `tc_eqp`, `tc_eqp_hsms`, `tc_eqp_socket`, `tc_eqp_log`, `tc_eqp_state`, `tc_jar_gateway`, `tc_jar_business`를 한 흐름으로 조회하는 구조 정의
+- [x] socket protocol type 전체 목록 조회 경로 연결
+- [x] gateway/business jar filename distinct 조회 경로 연결
 
 #### T2-3. EQP orchestration service 구현
 
-- [ ] create/update/delete 공통 orchestration service 추가
-- [ ] DB 저장 전 입력 검증 분기 정의
-- [ ] DB 저장 후 Gateway/Business runtime 동기화 호출 연결
-- [ ] create 실패 시 DB 롤백 정책 구현
-- [ ] update 실패 시 이전 스냅샷 복구 정책 구현
-- [ ] delete 실패 시 삭제 전 스냅샷 복구 정책 구현
+- [x] create/update/delete 공통 orchestration service 추가
+- [x] DB 저장 전 입력 검증 분기 정의
+- [x] DB 저장 후 Gateway/Business runtime 동기화 호출 연결
+- [x] create 실패 시 DB 롤백 정책 구현
+- [x] update 실패 시 이전 스냅샷 복구 정책 구현
+- [x] delete 실패 시 삭제 전 스냅샷 복구 정책 구현
 
 #### T2-4. EQP 생성 규칙 구현
 
-- [ ] `SECS Eqp Create` 기본값 반영
-- [ ] `Socket Eqp Create` 기본값 반영
-- [ ] create 시 `tc_eqp_state` 초기 row 생성 구현
-- [ ] create 시 `tc_eqp_log` 초기 row 생성 구현
-- [ ] create 시 `modelVersionKey` 필수 연결 규칙 반영
-- [ ] create 시 `enabled=true` 기본값 반영
+- [x] `SECS Eqp Create` 기본값 반영
+- [x] `Socket Eqp Create` 기본값 반영
+- [x] create 시 `tc_eqp_state` 초기 row 생성 구현
+- [x] create 시 `tc_eqp_log` 초기 row 생성 구현
+- [x] create 시 `modelVersionKey` 필수 연결 규칙 반영
+- [x] create 시 `enabled=true` 기본값 반영
 
 #### T2-5. EQP 수정 규칙 구현
 
-- [ ] `Eqp Info Update` 요청 모델에 수정 가능 필드만 반영
-- [ ] `eqp_id`, `comm_interface` 읽기 전용 정책 유지
-- [ ] `is_dev` 변경 허용 정책 반영
-- [ ] `is_dev`와 현재 model status 불일치 시 저장 차단
-- [ ] jar filename 변경 시 후속 runtime reload 필요 여부 판단 로직 반영
+- [x] `Eqp Info Update` 요청 모델에 수정 가능 필드만 반영
+- [x] `eqp_id`, `comm_interface` 읽기 전용 정책 유지
+- [x] `is_dev` 변경 허용 정책 반영
+- [x] `is_dev`와 현재 model status 불일치 시 저장 차단
+- [x] jar filename 변경 시 후속 runtime reload 필요 여부 판단 로직 반영
 
 #### T2-6. EQP 삭제 규칙 구현
 
-- [ ] delete 전에 `EQP_END` 선행 호출 구현
-- [ ] 이미 종료 상태면 성공으로 간주하는 분기 구현
-- [ ] 종료 실패/타임아웃이면 삭제 중단
-- [ ] DB 삭제 후 runtime sync 호출 구현
-- [ ] delete rollback 시 관련 하위 row까지 복구되도록 구현
+- [x] delete 전에 `EQP_END` 선행 호출 구현
+- [x] 이미 종료 상태면 성공으로 간주하는 분기 구현
+- [x] 종료 실패/타임아웃이면 삭제 중단
+- [x] DB 삭제 후 runtime sync 호출 구현
+- [x] delete rollback 시 관련 하위 row까지 복구되도록 구현
 
 #### T2-7. jar / 옵션 정책 구현
 
-- [ ] jar dropdown은 filename만 응답하도록 API 설계
-- [ ] 동일 filename 다중 row일 때 최신 `updated_at` row 선택 정책 반영
-- [ ] jar 미선택 시 기존값 유지/미생성 정책 반영
-- [ ] socket protocol dropdown이 전체 목록을 반환하는지 구현
+- [x] jar dropdown은 filename만 응답하도록 API 설계
+- [x] 동일 filename 다중 row일 때 최신 `updated_at` row 선택 정책 반영
+- [x] jar 미선택 시 기존값 유지/미생성 정책 반영
+- [x] socket protocol dropdown이 전체 목록을 반환하는지 구현
 
 #### T2-8. Web controller/API 확장
 
-- [ ] `GET /api/eqp/{eqpId}/manage` 추가
-- [ ] `GET /api/eqp/options` 추가
-- [ ] 기존 `POST /api/eqp`를 DB insert + runtime sync 의미로 확장
-- [ ] 기존 `PUT /api/eqp/{eqpId}`를 DB update + runtime sync 의미로 확장
-- [ ] 기존 `DELETE /api/eqp/{eqpId}`를 END 선행 + DB delete + runtime sync 의미로 확장
-- [ ] EQP 응답 DTO에 `isDev` 추가
+- [x] `GET /api/eqp/{eqpId}/manage` 추가
+- [x] `GET /api/eqp/options` 추가
+- [x] 기존 `POST /api/eqp`를 DB insert + runtime sync 의미로 확장
+- [x] 기존 `PUT /api/eqp/{eqpId}`를 DB update + runtime sync 의미로 확장
+- [x] 기존 `DELETE /api/eqp/{eqpId}`를 END 선행 + DB delete + runtime sync 의미로 확장
+- [x] EQP 응답 DTO에 `isDev` 추가
 
 ### T2 검증
 
-- [ ] EQP create 시 공통/SECS/Socket 저장이 모두 반영되는지 확인
-- [ ] EQP create 시 `tc_eqp_state`, `tc_eqp_log` 초기 row가 생성되는지 확인
-- [ ] EQP update 시 `is_dev`와 model status 검증이 동작하는지 확인
-- [ ] EQP delete 시 END 선행 실패이면 삭제가 중단되는지 확인
-- [ ] runtime sync 실패 시 create/update/delete 보상 로직이 동작하는지 확인
-- [ ] jar dropdown 선택 결과가 filename 기준으로 올바른 row를 복사하는지 확인
+- [x] EQP create 시 공통/SECS/Socket 저장이 모두 반영되는지 확인
+- [x] EQP create 시 `tc_eqp_state`, `tc_eqp_log` 초기 row가 생성되는지 확인
+- [x] EQP update 시 `is_dev`와 model status 검증이 동작하는지 확인
+- [x] EQP delete 시 END 선행 실패이면 삭제가 중단되는지 확인
+- [x] runtime sync 실패 시 create/update/delete 보상 로직이 동작하는지 확인
+- [x] jar dropdown 선택 결과가 filename 기준으로 올바른 row를 복사하는지 확인
 
 ---
 

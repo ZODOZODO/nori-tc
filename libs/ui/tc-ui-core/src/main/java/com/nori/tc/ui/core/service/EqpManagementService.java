@@ -200,12 +200,14 @@ public class EqpManagementService {
         }
 
         final EqpManagementSnapshot existingSnapshot = existingOptional.get();
+        boolean persisted = false;
 
         try {
             validateUpdateCommand(command, existingSnapshot);
             validateModelBinding(existingSnapshot.eqp().commInterface(), command.isDev(), command.modelVersionKey());
 
             final EqpManagementSnapshot updatedSnapshot = eqpCrudPort.update(eqpId, command);
+            persisted = true;
             awaitDualSuccess(UiCommandEventType.EQP_UPDATE, updatedSnapshot, timeoutMs);
 
             if (requiresJarReload(existingSnapshot, updatedSnapshot)) {
@@ -214,10 +216,12 @@ public class EqpManagementService {
 
             return EqpCommandResult.ok();
         } catch (Exception exception) {
-            safeRestore(existingSnapshot);
-            safeRuntimeUpdate(existingSnapshot, timeoutMs);
-            if (hasAnyJar(existingSnapshot)) {
-                safeJarReload(existingSnapshot, timeoutMs);
+            if (persisted) {
+                safeRestore(existingSnapshot);
+                safeRuntimeUpdate(existingSnapshot, timeoutMs);
+                if (hasAnyJar(existingSnapshot)) {
+                    safeJarReload(existingSnapshot, timeoutMs);
+                }
             }
             return toCommandResult(exception);
         }
@@ -235,6 +239,7 @@ public class EqpManagementService {
         }
 
         final EqpManagementSnapshot snapshot = existingOptional.get();
+        boolean deletedFromDb = false;
 
         try {
             if (!isAlreadyStopped(snapshot)) {
@@ -242,14 +247,17 @@ public class EqpManagementService {
             }
 
             eqpCrudPort.delete(eqpId);
+            deletedFromDb = true;
             awaitDualSuccess(UiCommandEventType.EQP_DELETE, snapshot, timeoutMs);
 
             return EqpCommandResult.ok();
         } catch (Exception exception) {
-            safeRestore(snapshot);
-            safeRuntimeCreate(snapshot, timeoutMs);
-            if (hasAnyJar(snapshot)) {
-                safeJarReload(snapshot, timeoutMs);
+            if (deletedFromDb) {
+                safeRestore(snapshot);
+                safeRuntimeCreate(snapshot, timeoutMs);
+                if (hasAnyJar(snapshot)) {
+                    safeJarReload(snapshot, timeoutMs);
+                }
             }
             return toCommandResult(exception);
         }

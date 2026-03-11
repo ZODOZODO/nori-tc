@@ -20,6 +20,9 @@ import com.nori.tc.ui.adapters.web.security.UiApiPermissionCache;
 import com.nori.tc.ui.adapters.web.security.UiAuthenticationEntryPoint;
 import com.nori.tc.ui.adapters.web.security.UiSecurityConfig;
 import com.nori.tc.ui.adapters.web.security.UiTokenAuthenticationFilter;
+import com.nori.tc.ui.core.port.db.EqpCrudPort;
+import com.nori.tc.ui.core.port.db.EqpManageQueryPort;
+import com.nori.tc.ui.core.port.db.EqpOptionsQueryPort;
 import com.nori.tc.ui.core.port.db.EqpQueryPort;
 import com.nori.tc.ui.core.port.db.GroupCrudPort;
 import com.nori.tc.ui.core.port.db.GroupPermissionMappingPort;
@@ -43,6 +46,7 @@ import com.nori.tc.ui.core.port.redis.GatewayDlqPort;
 import com.nori.tc.ui.core.port.redis.TokenCachePort;
 import com.nori.tc.ui.core.properties.UiAuthProperties;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
+import com.nori.tc.ui.core.service.EqpManagementService;
 import com.nori.tc.ui.core.service.UiCommandIngressService;
 import com.nori.tc.ui.core.usecase.LoginUseCase;
 import com.nori.tc.ui.core.usecase.LogoutUseCase;
@@ -119,6 +123,7 @@ import static org.mockito.Mockito.lenient;
         LoginUseCase.class,
         ValidateTokenUseCase.class,
         LogoutUseCase.class,
+        EqpManagementService.class,
         DualResponseRegistry.class,
         UiCommandIngressService.class,
         UiBackendScenarioTestSupport.TestJacksonConfig.class
@@ -234,6 +239,15 @@ abstract class UiBackendScenarioTestSupport {
 
     @MockitoBean
     EqpQueryPort eqpQueryPort;
+
+    @MockitoBean
+    EqpCrudPort eqpCrudPort;
+
+    @MockitoBean
+    EqpManageQueryPort eqpManageQueryPort;
+
+    @MockitoBean
+    EqpOptionsQueryPort eqpOptionsQueryPort;
 
     @MockitoBean
     ModelCrudPort modelCrudPort;
