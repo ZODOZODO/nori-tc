@@ -300,57 +300,57 @@ EQP sidebar/context menu/modal 기반 관리 기능을 화면에 반영합니다
 
 #### T5-1. Sidebar 우클릭 메뉴
 
-- [ ] EQP 노드에 context menu 추가
-- [ ] EQP 노드 메뉴 `Eqp Info Update` 추가
-- [ ] EQP 노드 메뉴 `Model Info Update` 추가
-- [ ] EQP 노드 메뉴 `Eqp Parameter Update` 추가
-- [ ] EQP 노드 메뉴 `Eqp Delete` 추가
-- [ ] Gateway 루트에 context menu 추가
-- [ ] Gateway 메뉴 `SECS Eqp Create` 추가
-- [ ] Gateway 메뉴 `Socket Eqp Create` 추가
+- [x] EQP 노드에 context menu 추가
+- [x] EQP 노드 메뉴 `Eqp Info Update` 추가
+- [x] EQP 노드 메뉴 `Model Info Update` 추가
+- [x] EQP 노드 메뉴 `Eqp Parameter Update` 추가
+- [x] EQP 노드 메뉴 `Eqp Delete` 추가
+- [x] Gateway 루트에 context menu 추가
+- [x] Gateway 메뉴 `SECS Eqp Create` 추가
+- [x] Gateway 메뉴 `Socket Eqp Create` 추가
 
 #### T5-2. Eqp create/update modal
 
-- [ ] `EqpManageFormModal` 생성
-- [ ] create 모드에서 읽기 전용 없는 공통 폼 구성
-- [ ] update 모드에서 `eqp_id`, `comm_interface` 읽기 전용 처리
-- [ ] create 모드에서 `comm_mode` 선택 UI 추가
-- [ ] create/update 모드에서 `is_dev` 토글 UI 추가
-- [ ] SECS 전용 필드 섹션 추가
-- [ ] Socket 전용 필드 섹션 추가
-- [ ] Gateway Jar dropdown 연결
-- [ ] Socket Protocol Type dropdown 연결
+- [x] `EqpManageFormModal` 생성
+- [x] create 모드에서 읽기 전용 없는 공통 폼 구성
+- [x] update 모드에서 `eqp_id`, `comm_interface` 읽기 전용 처리
+- [x] create 모드에서 `comm_mode` 선택 UI 추가
+- [x] create/update 모드에서 `is_dev` 토글 UI 추가
+- [x] SECS 전용 필드 섹션 추가
+- [x] Socket 전용 필드 섹션 추가
+- [x] Gateway Jar dropdown 연결
+- [x] Socket Protocol Type dropdown 연결
 
 #### T5-3. Model Info Update modal
 
-- [ ] `EqpModelBindingModal` 생성
-- [ ] model name dropdown 연결
-- [ ] model version dropdown 연결
-- [ ] business jar dropdown 연결
-- [ ] `is_dev` 기준 model/version 필터 적용
+- [x] `EqpModelBindingModal` 생성
+- [x] model name dropdown 연결
+- [x] model version dropdown 연결
+- [x] business jar dropdown 연결
+- [x] `is_dev` 기준 model/version 필터 적용
 
 #### T5-4. Eqp Parameter Update modal
 
-- [ ] `EqpParamVersionModal` 생성
-- [ ] 현재 적용 version/description 표시
-- [ ] 변경 대상 param version dropdown 연결
-- [ ] 선택 버전 description 연동 표시
-- [ ] Save/Cancel 동작 구현
+- [x] `EqpParamVersionModal` 생성
+- [x] 현재 적용 version/description 표시
+- [x] 변경 대상 param version dropdown 연결
+- [x] 선택 버전 description 연동 표시
+- [x] Save/Cancel 동작 구현
 
 #### T5-5. Delete confirm UI
 
-- [ ] `EqpDeleteConfirmDialog` 생성
-- [ ] 삭제 전 확인 문구 표시
-- [ ] delete pending 상태 UI 처리
-- [ ] 성공 후 선택 상태 초기화 처리
+- [x] `EqpDeleteConfirmDialog` 생성
+- [x] 삭제 전 확인 문구 표시
+- [x] delete pending 상태 UI 처리
+- [x] 성공 후 선택 상태 초기화 처리
 
 #### T5-6. 저장 후 상태 갱신
 
-- [ ] EQP 목록 invalidate
-- [ ] EQP 상세 invalidate
-- [ ] EQP runtime state invalidate
-- [ ] EQP param version invalidate
-- [ ] EQP manage/options invalidate
+- [x] EQP 목록 invalidate
+- [x] EQP 상세 invalidate
+- [x] EQP runtime state invalidate
+- [x] EQP param version invalidate
+- [x] EQP manage/options invalidate
 
 ### T5 검증
 
