@@ -17,10 +17,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.time.Clock;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,6 +36,9 @@ import static org.mockito.Mockito.when;
  * {@link JpaEqpParamCommandPort}의 checkout 경쟁 제어와 충돌 메시지 정규화를 검증합니다.
  */
 class JpaEqpParamCommandPortTest {
+
+    private static final ZoneId PARAM_VERSION_ZONE_ID = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter PARAM_VERSION_DATE_FORMATTER = DateTimeFormatter.ofPattern("yy.MM.dd");
 
     @Test
     @DisplayName("checkout은 설비 잠금 조회 뒤 source version을 EDIT로 복사합니다")
@@ -173,17 +176,15 @@ class JpaEqpParamCommandPortTest {
     @Test
     @DisplayName("checkin은 오늘 생성된 마지막 버전 다음 값으로 자동 증가합니다")
     void checkinGeneratesNextDailyVersion() {
-        final Fixture fixture = new Fixture(Clock.fixed(
-                Instant.parse("2025-03-12T01:15:30Z"),
-                ZoneId.of("Asia/Seoul")
-        ));
+        final LocalDate currentDate = LocalDate.of(2025, 3, 12);
+        final Fixture fixture = new Fixture(currentDate);
         final TcEqp eqp = eqp(1L, "EQP-01");
 
         when(fixture.eqpStore.findByEqpIdForUpdate("EQP-01")).thenReturn(Optional.of(eqp));
         when(fixture.eqpParamStore.findAllByEqpKey(eqp.eqpKey(), PageRequest.of(0, 500))).thenReturn(List.of(
-                param(11L, eqp.eqpKey(), "TEMP", "25.03.12.0000", "100", "old", "SYSTEM"),
-                param(12L, eqp.eqpKey(), "PRESS", "25.03.12.0001", "200", "old", "SYSTEM"),
-                param(13L, eqp.eqpKey(), "FLOW", "25.03.11.0009", "300", "old", "SYSTEM"),
+                param(11L, eqp.eqpKey(), "TEMP", versionText(currentDate, 0), "100", "old", "SYSTEM"),
+                param(12L, eqp.eqpKey(), "PRESS", versionText(currentDate, 1), "200", "old", "SYSTEM"),
+                param(13L, eqp.eqpKey(), "FLOW", versionText(currentDate.minusDays(1), 9), "300", "old", "SYSTEM"),
                 param(14L, eqp.eqpKey(), "LEGACY", "v1", "400", "old", "SYSTEM")
         ));
         when(fixture.eqpParamStore.findAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT")).thenReturn(List.of(
@@ -194,12 +195,12 @@ class JpaEqpParamCommandPortTest {
 
         final ArgumentCaptor<UpsertTcEqpParam> captor = ArgumentCaptor.forClass(UpsertTcEqpParam.class);
         verify(fixture.eqpParamStore).upsert(captor.capture());
-        assertEquals("25.03.12.0002", captor.getValue().paramVersion());
+        assertEquals(versionText(currentDate, 2), captor.getValue().paramVersion());
         assertEquals("edit", captor.getValue().description());
 
         final ArgumentCaptor<UpsertTcEqpParamVersion> versionCaptor = ArgumentCaptor.forClass(UpsertTcEqpParamVersion.class);
         verify(fixture.eqpParamVersionStore).upsert(versionCaptor.capture());
-        assertEquals("25.03.12.0002", versionCaptor.getValue().paramVersion());
+        assertEquals(versionText(currentDate, 2), versionCaptor.getValue().paramVersion());
         assertEquals("version-desc", versionCaptor.getValue().versionDescription());
         verify(fixture.eqpParamStore).deleteAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT");
     }
@@ -207,15 +208,13 @@ class JpaEqpParamCommandPortTest {
     @Test
     @DisplayName("checkin은 날짜가 바뀌면 시퀀스를 0000부터 다시 시작합니다")
     void checkinResetsDailySequenceOnNextDay() {
-        final Fixture fixture = new Fixture(Clock.fixed(
-                Instant.parse("2025-03-13T01:15:30Z"),
-                ZoneId.of("Asia/Seoul")
-        ));
+        final LocalDate currentDate = LocalDate.of(2025, 3, 13);
+        final Fixture fixture = new Fixture(currentDate);
         final TcEqp eqp = eqp(1L, "EQP-01");
 
         when(fixture.eqpStore.findByEqpIdForUpdate("EQP-01")).thenReturn(Optional.of(eqp));
         when(fixture.eqpParamStore.findAllByEqpKey(eqp.eqpKey(), PageRequest.of(0, 500))).thenReturn(List.of(
-                param(11L, eqp.eqpKey(), "TEMP", "25.03.12.0007", "100", "old", "SYSTEM"),
+                param(11L, eqp.eqpKey(), "TEMP", versionText(currentDate.minusDays(1), 7), "100", "old", "SYSTEM"),
                 param(12L, eqp.eqpKey(), "PRESS", "v1", "200", "old", "SYSTEM")
         ));
         when(fixture.eqpParamStore.findAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT")).thenReturn(List.of(
@@ -226,11 +225,11 @@ class JpaEqpParamCommandPortTest {
 
         final ArgumentCaptor<UpsertTcEqpParam> captor = ArgumentCaptor.forClass(UpsertTcEqpParam.class);
         verify(fixture.eqpParamStore).upsert(captor.capture());
-        assertEquals("25.03.13.0000", captor.getValue().paramVersion());
+        assertEquals(versionText(currentDate, 0), captor.getValue().paramVersion());
 
         final ArgumentCaptor<UpsertTcEqpParamVersion> versionCaptor = ArgumentCaptor.forClass(UpsertTcEqpParamVersion.class);
         verify(fixture.eqpParamVersionStore).upsert(versionCaptor.capture());
-        assertEquals("25.03.13.0000", versionCaptor.getValue().paramVersion());
+        assertEquals(versionText(currentDate, 0), versionCaptor.getValue().paramVersion());
         assertEquals(null, versionCaptor.getValue().versionDescription());
     }
 
@@ -245,15 +244,21 @@ class JpaEqpParamCommandPortTest {
         private final JpaEqpParamCommandPort port;
 
         private Fixture() {
-            this(Clock.fixed(
-                    Instant.parse("2025-03-12T01:15:30Z"),
-                    ZoneId.of("Asia/Seoul")
-            ));
+            this(LocalDate.of(2025, 3, 12));
         }
 
-        private Fixture(final Clock clock) {
-            this.port = new JpaEqpParamCommandPort(eqpStore, eqpParamStore, eqpParamVersionStore, clock);
+        private Fixture(final LocalDate currentDate) {
+            this.port = new JpaEqpParamCommandPort(eqpStore, eqpParamStore, eqpParamVersionStore) {
+                @Override
+                LocalDate resolveCurrentVersionDate() {
+                    return currentDate;
+                }
+            };
         }
+    }
+
+    private static String versionText(final LocalDate date, final int sequence) {
+        return date.format(PARAM_VERSION_DATE_FORMATTER) + "." + String.format("%04d", sequence);
     }
 
     private static TcEqp eqp(final long eqpKey, final String eqpId) {

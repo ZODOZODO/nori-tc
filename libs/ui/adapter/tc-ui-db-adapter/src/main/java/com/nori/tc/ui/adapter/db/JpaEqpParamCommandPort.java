@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -46,7 +45,6 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
     private final TcEqpStore eqpStore;
     private final TcEqpParamStore eqpParamStore;
     private final TcEqpParamVersionStore eqpParamVersionStore;
-    private final Clock versionClock;
 
     /**
      * 필수 의존성을 초기화합니다.
@@ -60,19 +58,9 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
             final TcEqpParamStore eqpParamStore,
             final TcEqpParamVersionStore eqpParamVersionStore
     ) {
-        this(eqpStore, eqpParamStore, eqpParamVersionStore, Clock.system(PARAM_VERSION_ZONE_ID));
-    }
-
-    JpaEqpParamCommandPort(
-            final TcEqpStore eqpStore,
-            final TcEqpParamStore eqpParamStore,
-            final TcEqpParamVersionStore eqpParamVersionStore,
-            final Clock versionClock
-    ) {
         this.eqpStore = Objects.requireNonNull(eqpStore, "eqpStore is null");
         this.eqpParamStore = Objects.requireNonNull(eqpParamStore, "eqpParamStore is null");
         this.eqpParamVersionStore = Objects.requireNonNull(eqpParamVersionStore, "eqpParamVersionStore is null");
-        this.versionClock = Objects.requireNonNull(versionClock, "versionClock is null");
         log.info("JpaEqpParamCommandPort initialized.");
     }
 
@@ -338,7 +326,7 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
      * 기존 legacy 버전 문자열은 무시하고 오늘 형식과 일치하는 값만 시퀀스 계산에 사용합니다.</p>
      */
     private String generateNextVersion(final long eqpKey) {
-        final String versionPrefix = LocalDate.now(versionClock).format(PARAM_VERSION_DATE_FORMATTER) + ".";
+        final String versionPrefix = resolveCurrentVersionDate().format(PARAM_VERSION_DATE_FORMATTER) + ".";
         int maxSequence = -1;
         int offset = 0;
 
@@ -363,6 +351,16 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
 
         final int nextSequence = maxSequence + 1;
         return versionPrefix + String.format("%0" + PARAM_VERSION_SEQUENCE_DIGITS + "d", nextSequence);
+    }
+
+    /**
+     * 자동 버전 생성 기준 날짜를 반환합니다.
+     *
+     * <p>운영 환경에서는 Asia/Seoul 기준 현재 날짜를 사용하고,
+     * 단위 테스트에서는 동일 패키지 오버라이드로 고정 날짜를 사용할 수 있습니다.</p>
+     */
+    LocalDate resolveCurrentVersionDate() {
+        return LocalDate.now(PARAM_VERSION_ZONE_ID);
     }
 
     /**
