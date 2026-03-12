@@ -64,6 +64,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -72,6 +73,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static org.mockito.Mockito.lenient;
 
@@ -162,6 +164,32 @@ abstract class UiBackendScenarioTestSupport {
         @Bean
         ObjectMapper objectMapper() {
             return new ObjectMapper();
+        }
+
+        /**
+         * 테스트 컨텍스트용 EQP 관리 executor입니다.
+         *
+         * <p>{@code @WebMvcTest} 슬라이스는 starter auto-configuration의 executor bean을
+         * 함께 로드하지 않으므로, 서비스 생성자 의존성을 맞추기 위해 동일한 bean name으로
+         * 테스트 전용 executor를 제공합니다.</p>
+         *
+         * <p>EQP 관리 API는 DualResponse 완료 전까지 worker 스레드에서 대기하므로,
+         * 테스트도 실제 런타임과 동일하게 별도 스레드에서 비동기 실행되어야
+         * traceId 캡처 후 완료 신호를 주입하는 시나리오가 성립합니다.</p>
+         *
+         * @return 테스트용 비동기 executor
+         */
+        @Bean(name = EqpManagementService.EQP_MANAGEMENT_EXECUTOR_BEAN_NAME)
+        Executor uiEqpManagementExecutor() {
+            final ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+            executor.setCorePoolSize(1);
+            executor.setMaxPoolSize(1);
+            executor.setQueueCapacity(16);
+            executor.setThreadNamePrefix("test-ui-eqp-management-");
+            executor.setWaitForTasksToCompleteOnShutdown(true);
+            executor.setAwaitTerminationSeconds(5);
+            executor.initialize();
+            return executor;
         }
     }
 

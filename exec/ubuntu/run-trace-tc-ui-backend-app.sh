@@ -28,8 +28,19 @@ TRACE_ROOT="${TRACE_BASE}/${APP_ID}"
 TRACE_HEAP="${TRACE_ROOT}/heap"
 TRACE_GC="${TRACE_ROOT}/gc"
 TRACE_JFR="${TRACE_ROOT}/jfr"
+TRACE_CONSOLE="${TRACE_ROOT}/console"
+TRACE_TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
+TRACE_STDOUT_LOG="${TRACE_CONSOLE}/${APP_ID}-${TRACE_TIMESTAMP}-stdout.log"
+TRACE_STDERR_LOG="${TRACE_CONSOLE}/${APP_ID}-${TRACE_TIMESTAMP}-stderr.log"
 CONFIG_DIR="${REPO_ROOT}/config"
-SPRING_CONFIG_IMPORTS="optional:file:config/tc-db.properties,optional:file:${APP_DIR}/config/tc-messaging.properties,optional:file:${APP_DIR}/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:${APP_DIR}/config/tc-ui-backend.properties,optional:file:${APP_DIR}/config/tc-ui-backend-${SPRING_PROFILES_ACTIVE}.properties"
+SPRING_CONFIG_IMPORTS="optional:file:config/tc-db.properties,optional:file:${APP_DIR}/config/tc-messaging.properties,optional:file:${APP_DIR}/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:${APP_DIR}/config/tc-ui-backend.properties"
+
+if [[ -n "$SPRING_PROFILES_ACTIVE" ]]; then
+  SPRING_CONFIG_IMPORTS="${SPRING_CONFIG_IMPORTS},optional:file:${APP_DIR}/config/tc-ui-backend-${SPRING_PROFILES_ACTIVE}.properties"
+  SPRING_PROFILE_OPTS=("-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}")
+else
+  SPRING_PROFILE_OPTS=()
+fi
 
 if [[ ! -f "$REPO_ROOT/gradlew" ]]; then
   echo "[ERROR] gradlew was not found in repo root."
@@ -48,6 +59,11 @@ if ! command -v java >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v tee >/dev/null 2>&1; then
+  echo "[ERROR] tee was not found in PATH."
+  exit 1
+fi
+
 # Root settings precheck. Root Gradle task cannot run when module include is missing.
 if ! grep -Fq "tc-ui-backend-app" "$REPO_ROOT/settings.gradle.kts"; then
   echo "[ERROR] tc-ui-backend-app is not included in settings.gradle.kts."
@@ -62,11 +78,26 @@ if ! grep -Fq "TcUiBackendApplication" "$REPO_ROOT/apps/tc-ui-backend-app/build.
   echo "[WARN] TcUiBackendApplication was not found in apps/tc-ui-backend-app/build.gradle.kts mainClass setting."
 fi
 
-mkdir -p "$TRACE_HEAP" "$TRACE_GC" "$TRACE_JFR" || {
+mkdir -p "$TRACE_HEAP" "$TRACE_GC" "$TRACE_JFR" "$TRACE_CONSOLE" || {
   echo "[ERROR] Failed to create trace directories under $TRACE_ROOT."
   exit 1
 }
 
+: > "$TRACE_STDOUT_LOG" || {
+  echo "[ERROR] Failed to initialize stdout trace log: $TRACE_STDOUT_LOG"
+  exit 1
+}
+
+: > "$TRACE_STDERR_LOG" || {
+  echo "[ERROR] Failed to initialize stderr trace log: $TRACE_STDERR_LOG"
+  exit 1
+}
+
+# 실행 스크립트와 애플리케이션의 표준 출력/표준 에러를 모두 파일에도 남깁니다.
+exec > >(tee -a "$TRACE_STDOUT_LOG") 2> >(tee -a "$TRACE_STDERR_LOG" >&2)
+
+echo "[INFO] Stdout trace log: $TRACE_STDOUT_LOG"
+echo "[INFO] Stderr trace log: $TRACE_STDERR_LOG"
 echo "[INFO] Building ${APP_ID} bootJar..."
 "$REPO_ROOT/gradlew" "$APP_TASK" --no-daemon || {
   echo "[ERROR] bootJar build failed."
@@ -90,7 +121,11 @@ echo "[INFO] Jar: $APP_JAR"
 echo "[INFO] Trace root: $TRACE_ROOT"
 echo "[INFO] Working dir: $REPO_ROOT"
 echo "[INFO] Config dir (spring.config.import file:config/...): $CONFIG_DIR"
-echo "[INFO] Active profile: $SPRING_PROFILES_ACTIVE"
+if [[ -n "$SPRING_PROFILES_ACTIVE" ]]; then
+  echo "[INFO] Active profile: $SPRING_PROFILES_ACTIVE"
+else
+  echo "[INFO] Active profile: <default>"
+fi
 echo "[INFO] spring.config.import override: $SPRING_CONFIG_IMPORTS"
 echo "[INFO] Stop app with Ctrl+C. JFR will be dumped on exit."
 echo
@@ -98,7 +133,7 @@ echo
 # Keep working directory at repo root so file:config/... resolves correctly.
 java \
   -Duser.timezone=Asia/Seoul \
-  "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}" \
+  "${SPRING_PROFILE_OPTS[@]}" \
   "-Dspring.config.import=${SPRING_CONFIG_IMPORTS}" \
   -XX:+HeapDumpOnOutOfMemoryError \
   "-XX:HeapDumpPath=${TRACE_HEAP}" \

@@ -32,6 +32,7 @@ import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
 import com.nori.tc.ui.domain.task.UiTaskResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -44,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -54,6 +56,8 @@ import java.util.concurrent.TimeoutException;
  */
 @Service
 public class EqpManagementService {
+
+    public static final String EQP_MANAGEMENT_EXECUTOR_BEAN_NAME = "uiEqpManagementExecutor";
 
     private static final Logger log = LoggerFactory.getLogger(EqpManagementService.class);
 
@@ -73,6 +77,7 @@ public class EqpManagementService {
     private final UiGatewayEventPublishPort gatewayEventPublishPort;
     private final UiBusinessEventPublishPort businessEventPublishPort;
     private final AsyncResultStorePort asyncResultStorePort;
+    private final Executor eqpManagementExecutor;
 
     /**
      * 필수 의존성을 초기화합니다.
@@ -85,7 +90,8 @@ public class EqpManagementService {
             final DualResponseRegistry dualResponseRegistry,
             final UiGatewayEventPublishPort gatewayEventPublishPort,
             final UiBusinessEventPublishPort businessEventPublishPort,
-            final AsyncResultStorePort asyncResultStorePort
+            final AsyncResultStorePort asyncResultStorePort,
+            @Qualifier(EQP_MANAGEMENT_EXECUTOR_BEAN_NAME) final Executor eqpManagementExecutor
     ) {
         this.eqpCrudPort = Objects.requireNonNull(eqpCrudPort, "eqpCrudPort is null");
         this.eqpManageQueryPort = Objects.requireNonNull(eqpManageQueryPort, "eqpManageQueryPort is null");
@@ -95,6 +101,7 @@ public class EqpManagementService {
         this.gatewayEventPublishPort = Objects.requireNonNull(gatewayEventPublishPort, "gatewayEventPublishPort is null");
         this.businessEventPublishPort = Objects.requireNonNull(businessEventPublishPort, "businessEventPublishPort is null");
         this.asyncResultStorePort = Objects.requireNonNull(asyncResultStorePort, "asyncResultStorePort is null");
+        this.eqpManagementExecutor = Objects.requireNonNull(eqpManagementExecutor, "eqpManagementExecutor is null");
     }
 
     /**
@@ -128,7 +135,7 @@ public class EqpManagementService {
             final EqpManagementCommand.Create command,
             final long timeoutMs
     ) {
-        return CompletableFuture.supplyAsync(() -> doCreate(command, timeoutMs));
+        return CompletableFuture.supplyAsync(() -> doCreate(command, timeoutMs), eqpManagementExecutor);
     }
 
     /**
@@ -144,7 +151,7 @@ public class EqpManagementService {
             final EqpManagementCommand.Update command,
             final long timeoutMs
     ) {
-        return CompletableFuture.supplyAsync(() -> doUpdate(eqpId, command, timeoutMs));
+        return CompletableFuture.supplyAsync(() -> doUpdate(eqpId, command, timeoutMs), eqpManagementExecutor);
     }
 
     /**
@@ -158,7 +165,7 @@ public class EqpManagementService {
             final String eqpId,
             final long timeoutMs
     ) {
-        return CompletableFuture.supplyAsync(() -> doDelete(eqpId, timeoutMs));
+        return CompletableFuture.supplyAsync(() -> doDelete(eqpId, timeoutMs), eqpManagementExecutor);
     }
 
     private EqpCommandResult doCreate(

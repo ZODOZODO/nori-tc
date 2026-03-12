@@ -27,6 +27,10 @@ TRACE_ROOT="${TRACE_BASE}/${DISPLAY_APP_ID}"
 TRACE_HEAP="${TRACE_ROOT}/heap"
 TRACE_GC="${TRACE_ROOT}/gc"
 TRACE_JFR="${TRACE_ROOT}/jfr"
+TRACE_CONSOLE="${TRACE_ROOT}/console"
+TRACE_TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
+TRACE_STDOUT_LOG="${TRACE_CONSOLE}/${DISPLAY_APP_ID}-${TRACE_TIMESTAMP}-stdout.log"
+TRACE_STDERR_LOG="${TRACE_CONSOLE}/${DISPLAY_APP_ID}-${TRACE_TIMESTAMP}-stderr.log"
 CONFIG_DIR="${REPO_ROOT}/config"
 SPRING_CONFIG_IMPORTS="optional:file:config/tc-db.properties,optional:file:${APP_DIR}/config/tc-messaging.properties,optional:file:${APP_DIR}/config/tc-redis.properties,optional:file:config/tc-log.properties,optional:file:${APP_DIR}/config/tc-business-core.properties"
 
@@ -53,11 +57,31 @@ if ! command -v java >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$TRACE_HEAP" "$TRACE_GC" "$TRACE_JFR" || {
+if ! command -v tee >/dev/null 2>&1; then
+  echo "[ERROR] tee was not found in PATH."
+  exit 1
+fi
+
+mkdir -p "$TRACE_HEAP" "$TRACE_GC" "$TRACE_JFR" "$TRACE_CONSOLE" || {
   echo "[ERROR] Failed to create trace directories under $TRACE_ROOT."
   exit 1
 }
 
+: > "$TRACE_STDOUT_LOG" || {
+  echo "[ERROR] Failed to initialize stdout trace log: $TRACE_STDOUT_LOG"
+  exit 1
+}
+
+: > "$TRACE_STDERR_LOG" || {
+  echo "[ERROR] Failed to initialize stderr trace log: $TRACE_STDERR_LOG"
+  exit 1
+}
+
+# 실행 스크립트와 애플리케이션의 표준 출력/표준 에러를 모두 파일에도 남깁니다.
+exec > >(tee -a "$TRACE_STDOUT_LOG") 2> >(tee -a "$TRACE_STDERR_LOG" >&2)
+
+echo "[INFO] Stdout trace log: $TRACE_STDOUT_LOG"
+echo "[INFO] Stderr trace log: $TRACE_STDERR_LOG"
 echo "[INFO] Building ${DISPLAY_APP_ID} using module ${MODULE_APP_ID} ..."
 "$REPO_ROOT/gradlew" "$APP_TASK" --no-daemon || {
   echo "[ERROR] bootJar build failed."

@@ -6,9 +6,11 @@ import com.nori.tc.ui.adapters.kafka.config.UiKafkaTopicProperties;
 import com.nori.tc.ui.adapters.redis.config.UiRedisAdapterAutoConfiguration;
 import com.nori.tc.ui.adapters.redis.config.UiRedisProperties;
 import com.nori.tc.ui.adapters.web.config.UiWebAdapterAutoConfiguration;
+import com.nori.tc.ui.core.service.EqpManagementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -16,7 +18,12 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * tc-ui-backend-starter 자동 구성 진입점입니다.
@@ -51,6 +58,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class TcUiBackendAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(TcUiBackendAutoConfiguration.class);
+    private static final int EQP_MANAGEMENT_EXECUTOR_CORE_POOL_SIZE = 4;
+    private static final int EQP_MANAGEMENT_EXECUTOR_MAX_POOL_SIZE = 4;
+    private static final int EQP_MANAGEMENT_EXECUTOR_QUEUE_CAPACITY = 128;
+    private static final int EQP_MANAGEMENT_EXECUTOR_AWAIT_TERMINATION_SECONDS = 10;
+    private static final String EQP_MANAGEMENT_EXECUTOR_THREAD_PREFIX = "ui-eqp-management-";
 
     /**
      * AutoConfiguration 클래스 인스턴스화 시점에 기동 시작 로그를 출력합니다.
@@ -82,6 +94,42 @@ public class TcUiBackendAutoConfiguration {
     @ConditionalOnMissingBean(ObjectMapper.class)
     public ObjectMapper uiObjectMapper() {
         return new ObjectMapper();
+    }
+
+    /**
+     * EQP 관리용 비동기 executor를 등록합니다.
+     *
+     * <p>기존 구현은 {@code CompletableFuture.supplyAsync(...)} 기본 executor를 사용해
+     * {@code ForkJoinPool.commonPool}에서 작업이 실행되었습니다.
+     * fat jar(java -jar) 환경에서는 common pool worker의 context classloader가
+     * nested jar를 올바르게 보지 못해 Kafka producer 초기화 중
+     * 클래스 로딩 오류가 발생할 수 있으므로, Spring이 관리하는 전용 executor로 고정합니다.</p>
+     *
+     * <p>또한 TaskDecorator로 MDC와 context classloader를 함께 전파해
+     * 비동기 worker에서도 traceId 로그와 Kafka 동적 클래스 로딩이
+     * 요청 스레드와 동일한 컨텍스트를 사용하도록 보장합니다.</p>
+     *
+     * @return EQP 관리 비동기 처리 전용 executor
+     */
+    @Bean(name = EqpManagementService.EQP_MANAGEMENT_EXECUTOR_BEAN_NAME)
+    public Executor uiEqpManagementExecutor() {
+        final ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(EQP_MANAGEMENT_EXECUTOR_CORE_POOL_SIZE);
+        executor.setMaxPoolSize(EQP_MANAGEMENT_EXECUTOR_MAX_POOL_SIZE);
+        executor.setQueueCapacity(EQP_MANAGEMENT_EXECUTOR_QUEUE_CAPACITY);
+        executor.setThreadNamePrefix(EQP_MANAGEMENT_EXECUTOR_THREAD_PREFIX);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(EQP_MANAGEMENT_EXECUTOR_AWAIT_TERMINATION_SECONDS);
+        executor.setTaskDecorator(copyMdcAndContextClassLoaderTaskDecorator());
+        executor.initialize();
+
+        log.info("EQP 관리 비동기 executor 초기화 완료. beanName={}, corePoolSize={}, maxPoolSize={}, queueCapacity={}",
+                EqpManagementService.EQP_MANAGEMENT_EXECUTOR_BEAN_NAME,
+                EQP_MANAGEMENT_EXECUTOR_CORE_POOL_SIZE,
+                EQP_MANAGEMENT_EXECUTOR_MAX_POOL_SIZE,
+                EQP_MANAGEMENT_EXECUTOR_QUEUE_CAPACITY);
+
+        return executor;
     }
 
     /**
@@ -159,5 +207,40 @@ public class TcUiBackendAutoConfiguration {
         }
         final String host = (node.getHost() == null || node.getHost().isBlank()) ? "N/A" : node.getHost();
         return host + ":" + node.getPort();
+    }
+
+    /**
+     * 비동기 worker에 MDC와 context classloader를 전파하는 decorator를 생성합니다.
+     *
+     * @return MDC/classloader 전파 task decorator
+     */
+    private static TaskDecorator copyMdcAndContextClassLoaderTaskDecorator() {
+        return runnable -> {
+            final Map<String, String> capturedMdcContext = MDC.getCopyOfContextMap();
+            final ClassLoader capturedContextClassLoader = Thread.currentThread().getContextClassLoader();
+
+            return () -> {
+                final Thread currentThread = Thread.currentThread();
+                final Map<String, String> previousMdcContext = MDC.getCopyOfContextMap();
+                final ClassLoader previousContextClassLoader = currentThread.getContextClassLoader();
+
+                try {
+                    if (capturedMdcContext == null || capturedMdcContext.isEmpty()) {
+                        MDC.clear();
+                    } else {
+                        MDC.setContextMap(capturedMdcContext);
+                    }
+                    currentThread.setContextClassLoader(capturedContextClassLoader);
+                    runnable.run();
+                } finally {
+                    if (previousMdcContext == null || previousMdcContext.isEmpty()) {
+                        MDC.clear();
+                    } else {
+                        MDC.setContextMap(previousMdcContext);
+                    }
+                    currentThread.setContextClassLoader(previousContextClassLoader);
+                }
+            };
+        };
     }
 }
