@@ -14,6 +14,7 @@ import com.nori.tc.ui.core.eqp.EqpManagementCommand;
 import com.nori.tc.ui.core.eqp.EqpManagementOptions;
 import com.nori.tc.ui.core.eqp.EqpManagementSnapshot;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
+import com.nori.tc.ui.core.exception.UiConflictException;
 import com.nori.tc.ui.core.model.AsyncResultEntry;
 import com.nori.tc.ui.core.model.AsyncStatus;
 import com.nori.tc.ui.core.model.UiCommandEventType;
@@ -728,6 +729,10 @@ public class EqpManagementService {
                     commandFailureException.errorCode(),
                     commandFailureException.getMessage()
             );
+        }
+
+        if (exception instanceof UiConflictException uiConflictException) {
+            return EqpCommandResult.error(CONFLICT_STATUS, "CONFLICT", uiConflictException.getMessage());
         }
 
         log.error("EQP 관리 명령 처리 중 예기치 못한 오류가 발생했습니다.", exception);

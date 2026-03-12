@@ -27,6 +27,7 @@ import com.nori.tc.ui.core.port.db.EqpQueryPort;
 import com.nori.tc.ui.core.port.messaging.UiGatewayEventPublishPort;
 import com.nori.tc.ui.core.port.redis.AsyncResultStorePort;
 import com.nori.tc.ui.core.service.EqpManagementService;
+import com.nori.tc.ui.domain.auth.UserPrincipal;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -831,7 +832,15 @@ public class EqpController {
      * @return 사용자 ID 또는 SYSTEM
      */
     private static String resolveCurrentUser(final Authentication authentication) {
-        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+        if (authentication == null) {
+            return "SYSTEM";
+        }
+        if (authentication.getPrincipal() instanceof UserPrincipal principal
+                && principal.userId() != null
+                && !principal.userId().isBlank()) {
+            return principal.userId();
+        }
+        if (authentication.getName() == null || authentication.getName().isBlank()) {
             return "SYSTEM";
         }
         return authentication.getName();

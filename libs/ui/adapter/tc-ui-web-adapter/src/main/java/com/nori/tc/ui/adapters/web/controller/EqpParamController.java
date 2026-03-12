@@ -10,6 +10,7 @@ import com.nori.tc.ui.adapters.web.dto.response.EqpParamResponse;
 import com.nori.tc.ui.core.exception.EqpAlreadyCheckedOutException;
 import com.nori.tc.ui.core.port.db.EqpParamCommandPort;
 import com.nori.tc.ui.core.port.db.EqpQueryPort;
+import com.nori.tc.ui.domain.auth.UserPrincipal;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +44,8 @@ import java.util.Optional;
  *
  * <p>체크아웃 잠금 메커니즘: {@code tc_eqp_param.param_version='EDIT'} 존재 여부 = 체크아웃 상태</p>
  *
- * <p>현재 사용자 ID: Spring Security {@link Authentication#getName()}에서 추출합니다.</p>
+ * <p>현재 사용자 ID: 인증 principal의 {@link UserPrincipal#userId()}를 우선 사용하고,
+ * 비표준 principal일 때만 {@link Authentication#getName()}으로 fallback 합니다.</p>
  */
 @RestController
 @RequestMapping("/api/eqp")
@@ -218,7 +220,15 @@ public class EqpParamController {
      * @return 사용자 ID (인증 정보가 없으면 "ANONYMOUS")
      */
     private static String resolveCurrentUser(final Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
+        if (authentication == null) {
+            return "ANONYMOUS";
+        }
+        if (authentication.getPrincipal() instanceof UserPrincipal principal
+                && principal.userId() != null
+                && !principal.userId().isBlank()) {
+            return principal.userId();
+        }
+        if (authentication.getName() == null || authentication.getName().isBlank()) {
             return "ANONYMOUS";
         }
         return authentication.getName();

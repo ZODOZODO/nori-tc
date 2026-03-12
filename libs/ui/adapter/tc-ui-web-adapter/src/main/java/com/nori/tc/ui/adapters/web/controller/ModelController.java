@@ -34,6 +34,7 @@ import com.nori.tc.ui.core.port.db.ModelCrudPort;
 import com.nori.tc.ui.core.port.db.ModelDetailQueryPort;
 import com.nori.tc.ui.core.port.db.ModelParentCommitPort;
 import com.nori.tc.ui.core.port.db.ModelRootCommandPort;
+import com.nori.tc.ui.domain.auth.UserPrincipal;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -779,7 +780,15 @@ public class ModelController {
      * 인증 정보에서 현재 사용자 ID를 추출합니다.
      */
     private static String resolveCurrentUser(final Authentication authentication) {
-        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+        if (authentication == null) {
+            return "SYSTEM";
+        }
+        if (authentication.getPrincipal() instanceof UserPrincipal principal
+                && principal.userId() != null
+                && !principal.userId().isBlank()) {
+            return principal.userId();
+        }
+        if (authentication.getName() == null || authentication.getName().isBlank()) {
             return "SYSTEM";
         }
         return authentication.getName();

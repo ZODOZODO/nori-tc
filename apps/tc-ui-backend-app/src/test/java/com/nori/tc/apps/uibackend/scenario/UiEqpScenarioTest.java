@@ -16,6 +16,7 @@ import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.ui.core.eqp.EqpManagementCommand;
 import com.nori.tc.ui.core.eqp.EqpManagementOptions;
 import com.nori.tc.ui.core.eqp.EqpManagementSnapshot;
+import com.nori.tc.ui.core.exception.UiConflictException;
 import com.nori.tc.ui.core.model.AsyncResultEntry;
 import com.nori.tc.ui.core.model.UiCommandReply;
 import com.nori.tc.ui.core.model.UiCommandMessage;
@@ -354,10 +355,60 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
 
         final ArgumentCaptor<EqpManagementCommand.Update> updateCaptor = ArgumentCaptor.forClass(EqpManagementCommand.Update.class);
         verify(eqpCrudPort).update(anyString(), updateCaptor.capture());
+        assertEquals(TEST_USER_ID, updateCaptor.getValue().actor());
         assertEquals("PASSIVE", updateCaptor.getValue().commMode());
         assertEquals("v3", updateCaptor.getValue().appliedParamVersion());
         verify(gatewayEventPublishPort, times(2)).publish(any());
         verify(businessEventPublishPort, times(2)).publish(any());
+    }
+
+    @Test
+    @DisplayName("EQP 수정에서 DB 충돌이 발생하면 409와 충돌 메시지를 반환합니다")
+    void EQP_UPDATE_db충돌_409() throws Exception {
+        when(eqpCrudPort.findSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, true, false, true)));
+        when(modelCrudPort.findByModelVersionKey(101L))
+                .thenReturn(Optional.of(sampleModel(101L, ProtocolType.SECS, ModelStatus.DEVELOP)));
+        when(eqpCrudPort.update(anyString(), any()))
+                .thenThrow(new UiConflictException("EQP 수정 중 충돌이 발생했습니다."));
+
+        final MvcResult mvcResult = mockMvc.perform(put("/api/eqp/{eqpId}", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "commMode": "PASSIVE",
+                                  "isDev": true,
+                                  "routePartition": 1,
+                                  "eqpIp": "127.0.0.1",
+                                  "eqpPort": 5000,
+                                  "modelVersionKey": 101,
+                                  "appliedParamVersion": "v3",
+                                  "gatewayJarFileName": "gateway-next.jar",
+                                  "businessJarFileName": "business-next.jar",
+                                  "hsmsSettings": {
+                                    "deviceId": 0,
+                                    "t3Timeout": 45,
+                                    "t5Timeout": 10,
+                                    "t6Timeout": 5,
+                                    "t7Timeout": 10,
+                                    "t8Timeout": 5,
+                                    "linkTestEnabled": true,
+                                    "linkTestInterval": 60,
+                                    "maxMsgBytes": 10485760
+                                  }
+                                }
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andDo(print())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"))
+                .andExpect(jsonPath("$.errorMsg").value("EQP 수정 중 충돌이 발생했습니다."));
     }
 
     @Test
