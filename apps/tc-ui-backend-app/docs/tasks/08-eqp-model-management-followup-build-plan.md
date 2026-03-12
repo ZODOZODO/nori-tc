@@ -168,35 +168,35 @@ Model page를 root read-only, branch explicit checkout 중심 흐름으로 재�
 
 #### T4-1. Sidebar 단순화
 
-- [ ] sidebar에서 `최신 버전:` 문구 제거
-- [ ] `ROOT` badge 제거
-- [ ] `DEPRECATED` badge만 유지
-- [ ] model name 중심 표시/검색으로 정리
+- [x] sidebar에서 `최신 버전:` 문구 제거
+- [x] `ROOT` badge 제거
+- [x] `DEPRECATED` badge만 유지
+- [x] model name 중심 표시/검색으로 정리
 
 #### T4-2. `ModelCreateOrUpdateModal` 정리
 
-- [ ] `Comm Interface` 표시 제거
-- [ ] `Model Version` 표시 제거
-- [ ] `Status` 표시 제거
+- [x] `Comm Interface` 표시 제거
+- [x] `Model Version` 표시 제거
+- [x] `Status` 표시 제거
 
 #### T4-3. root / branch 편집 상태 정비
 
-- [ ] root model detail을 항상 읽기 전용으로 처리
-- [ ] root model에서 `Check Out / Check In` 버튼을 숨기거나 비활성화
-- [ ] branch model도 명시적 checkout 전에는 읽기 전용으로 유지
-- [ ] 활성 tab만으로 edit mode에 진입하지 않도록 UI 상태 조건을 수정
+- [x] root model detail을 항상 읽기 전용으로 처리
+- [x] root model에서 `Check Out / Check In` 버튼을 숨기거나 비활성화
+- [x] branch model도 명시적 checkout 전에는 읽기 전용으로 유지
+- [x] 활성 tab만으로 edit mode에 진입하지 않도록 UI 상태 조건을 수정
 
 #### T4-4. branch explicit checkout 흐름 정비
 
-- [ ] 새 전용 백엔드 API 없이 기존 `EDIT` 생성 흐름을 유지
-- [ ] checkout 직전 최신 목록을 재조회하는 흐름 추가
-- [ ] 409 conflict 발생 시 owner 정보를 정규화해 사용자 메시지로 노출
+- [x] 새 전용 백엔드 API 없이 기존 `EDIT` 생성 흐름을 유지
+- [x] checkout 직전 최신 목록을 재조회하는 흐름 추가
+- [x] 409 conflict 발생 시 owner 정보를 정규화해 사용자 메시지로 노출
 
 #### T4-5. Branch Model Create 사전 검증
 
-- [ ] `${parent}_${suffix}_${userId}` 기준 최종 이름 길이를 프론트에서 계산
-- [ ] 1000자 초과 여부를 저장 전에 안내
-- [ ] 남은 길이 또는 초과 상태를 사용자가 즉시 확인할 수 있게 표시
+- [x] `${parent}_${suffix}_${userId}` 기준 최종 이름 길이를 프론트에서 계산
+- [x] 1000자 초과 여부를 저장 전에 안내
+- [x] 남은 길이 또는 초과 상태를 사용자가 즉시 확인할 수 있게 표시
 
 ### T4 검증
 
