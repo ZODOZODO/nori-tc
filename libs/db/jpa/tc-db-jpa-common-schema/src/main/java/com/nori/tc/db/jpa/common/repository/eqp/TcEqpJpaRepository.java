@@ -2,7 +2,11 @@ package com.nori.tc.db.jpa.common.repository.eqp;
 
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nori.tc.db.jpa.common.entity.eqp.TcEqpEntity;
 
@@ -20,6 +24,16 @@ public interface TcEqpJpaRepository extends JpaRepository<TcEqpEntity, Long> {
      * @return 조회 결과(Optional)
      */
     Optional<TcEqpEntity> findByEqpId(String eqpId);
+
+    /**
+     * 설비 단위 경쟁 구간 직렬화를 위해 tc_eqp 행을 배타 잠금으로 조회합니다.
+     *
+     * @param eqpId 설비 식별 정보
+     * @return 잠금 조회 결과
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM TcEqpEntity e WHERE e.eqpId = :eqpId")
+    Optional<TcEqpEntity> findByEqpIdForUpdate(@Param("eqpId") String eqpId);
 
     
     /**

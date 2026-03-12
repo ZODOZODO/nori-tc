@@ -107,8 +107,20 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
     @Test
     @DisplayName("EQP 관리 상세 조회는 공통/로그/model/param 정보를 함께 반환합니다")
     void EQP_MANAGE_상세조회_200() throws Exception {
+        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         when(eqpManageQueryPort.findManageSnapshotByEqpId(TEST_EQP_ID))
-                .thenReturn(Optional.of(sampleManagementSnapshot(TEST_EQP_ID, ProtocolType.SECS, false, false, true)));
+                .thenReturn(Optional.of(sampleManagementSnapshot(
+                        TEST_EQP_ID,
+                        ProtocolType.SECS,
+                        false,
+                        false,
+                        true,
+                        "v1",
+                        List.of(
+                                new TcEqpParam(11L, 1L, "PARAM_A", "v2", "20", "latest", "SYSTEM", now),
+                                new TcEqpParam(12L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
+                        )
+                )));
 
         mockMvc.perform(get("/api/eqp/{eqpId}/manage", TEST_EQP_ID)
                         .cookie(authCookie())
@@ -121,8 +133,41 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.data.logPolicy.logLevel").value("INFO"))
                 .andExpect(jsonPath("$.data.jars.gatewayJarFileName").value("gateway-main.jar"))
                 .andExpect(jsonPath("$.data.modelBinding.modelName").value("MODEL-SECS-01"))
-                .andExpect(jsonPath("$.data.appliedParamVersion").value("v2"))
+                .andExpect(jsonPath("$.data.appliedParamVersion").value("v1"))
+                .andExpect(jsonPath("$.data.appliedParamDescription").value("previous"))
                 .andExpect(jsonPath("$.data.paramVersions[0].paramVersion").value("v2"));
+    }
+
+    @Test
+    @DisplayName("EQP 관리 상세 조회는 applied_param_version이 없으면 legacy summary 첫 버전으로 fallback하고 EDIT는 제외합니다")
+    void EQP_MANAGE_상세조회_legacyFallbackAndExcludeEdit() throws Exception {
+        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
+        when(eqpManageQueryPort.findManageSnapshotByEqpId(TEST_EQP_ID))
+                .thenReturn(Optional.of(sampleManagementSnapshot(
+                        TEST_EQP_ID,
+                        ProtocolType.SECS,
+                        false,
+                        false,
+                        true,
+                        null,
+                        List.of(
+                                new TcEqpParam(11L, 1L, "PARAM_A", "v3", "30", "latest", "SYSTEM", now),
+                                new TcEqpParam(12L, 1L, "PARAM_B", "EDIT", "999", "editing", "tester", now),
+                                new TcEqpParam(13L, 1L, "PARAM_A", "v2", "20", "previous", "SYSTEM", now)
+                        )
+                )));
+
+        mockMvc.perform(get("/api/eqp/{eqpId}/manage", TEST_EQP_ID)
+                        .cookie(authCookie())
+                        .with(csrf()))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.appliedParamVersion").value("v3"))
+                .andExpect(jsonPath("$.data.appliedParamDescription").value("latest"))
+                .andExpect(jsonPath("$.data.paramVersions.length()").value(2))
+                .andExpect(jsonPath("$.data.paramVersions[0].paramVersion").value("v3"))
+                .andExpect(jsonPath("$.data.paramVersions[1].paramVersion").value("v2"));
     }
 
     @Test
@@ -621,13 +666,36 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
             final boolean alreadyStopped,
             final boolean includeJars
     ) {
-        return sampleManagementSnapshotWithJarNames(
+        return sampleManagementSnapshot(
                 eqpId,
                 protocolType,
                 isDev,
                 alreadyStopped,
                 includeJars ? "gateway-main.jar" : null,
-                includeJars ? "business-main.jar" : null
+                includeJars ? "business-main.jar" : null,
+                "v2",
+                null
+        );
+    }
+
+    private EqpManagementSnapshot sampleManagementSnapshot(
+            final String eqpId,
+            final ProtocolType protocolType,
+            final boolean isDev,
+            final boolean alreadyStopped,
+            final boolean includeJars,
+            final String appliedParamVersion,
+            final List<TcEqpParam> params
+    ) {
+        return sampleManagementSnapshot(
+                eqpId,
+                protocolType,
+                isDev,
+                alreadyStopped,
+                includeJars ? "gateway-main.jar" : null,
+                includeJars ? "business-main.jar" : null,
+                appliedParamVersion,
+                params
         );
     }
 
@@ -639,8 +707,37 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
             final String gatewayJarFileName,
             final String businessJarFileName
     ) {
+        return sampleManagementSnapshot(
+                eqpId,
+                protocolType,
+                isDev,
+                alreadyStopped,
+                gatewayJarFileName,
+                businessJarFileName,
+                "v2",
+                null
+        );
+    }
+
+    private EqpManagementSnapshot sampleManagementSnapshot(
+            final String eqpId,
+            final ProtocolType protocolType,
+            final boolean isDev,
+            final boolean alreadyStopped,
+            final String gatewayJarFileName,
+            final String businessJarFileName,
+            final String appliedParamVersion,
+            final List<TcEqpParam> params
+    ) {
         final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         final long modelVersionKey = isDev ? 101L : 201L;
+        final List<TcEqpParam> resolvedParams = params == null
+                ? List.of(
+                new TcEqpParam(11L, 1L, "PARAM_A", "v2", "20", "latest", "SYSTEM", now),
+                new TcEqpParam(12L, 1L, "PARAM_B", "v2", "30", "latest", "SYSTEM", now),
+                new TcEqpParam(13L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
+        )
+                : params;
 
         return new EqpManagementSnapshot(
                 new TcEqp(
@@ -653,7 +750,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         "127.0.0.1",
                         5000,
                         modelVersionKey,
-                        "v2",
+                        appliedParamVersion,
                         true,
                         now,
                         now,
@@ -694,11 +791,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 ),
                 alreadyStopped ? "DISCONNECTED" : "CONNECTED",
                 List.of(),
-                List.of(
-                        new TcEqpParam(11L, 1L, "PARAM_A", "v2", "20", "latest", "SYSTEM", now),
-                        new TcEqpParam(12L, 1L, "PARAM_B", "v2", "30", "latest", "SYSTEM", now),
-                        new TcEqpParam(13L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
-                ),
+                resolvedParams,
                 gatewayJarFileName != null
                         ? new TcJarGateway(
                         1L,

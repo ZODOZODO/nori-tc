@@ -85,33 +85,33 @@ EQP update 저장 범위, applied param version 조회 기준, checkout 충돌 �
 
 #### T2-1. EQP update 저장 경로 정비
 
-- [ ] EQP update 경로에서 `commMode` 저장이 가능하도록 service/db adapter를 수정
-- [ ] EQP update 경로에서 `appliedParamVersion` 저장이 가능하도록 service/db adapter를 수정
-- [ ] `Comm Interface`, `EQP ID` 읽기 전용 정책이 유지되는지 확인
+- [x] EQP update 경로에서 `commMode` 저장이 가능하도록 service/db adapter를 수정
+- [x] EQP update 경로에서 `appliedParamVersion` 저장이 가능하도록 service/db adapter를 수정
+- [x] `Comm Interface`, `EQP ID` 읽기 전용 정책이 유지되는지 확인
 
 #### T2-2. EQP manage detail 조회 기준 정비
 
-- [ ] manage detail 응답에서 `tc_eqp.applied_param_version`을 우선 반환
-- [ ] 컬럼 값이 비어 있을 때만 legacy fallback을 허용
-- [ ] fallback 적용 여부가 응답/서비스 코드에서 혼동되지 않도록 계산 책임을 한 곳으로 모음
+- [x] manage detail 응답에서 `tc_eqp.applied_param_version`을 우선 반환
+- [x] 컬럼 값이 비어 있을 때만 legacy fallback을 허용
+- [x] fallback 적용 여부가 응답/서비스 코드에서 혼동되지 않도록 계산 책임을 한 곳으로 모음
 
 #### T2-3. Param version 목록/상세 정책 정비
 
-- [ ] param version summary 목록에서 `EDIT` 버전을 제외
-- [ ] 선택 version 상세는 기존 `GET /api/eqp/{eqpId}/params?version=` API 재사용 기준으로 정리
-- [ ] version summary와 상세 param 조회 책임을 분리해 프론트가 table을 안정적으로 구성할 수 있게 함
+- [x] param version summary 목록에서 `EDIT` 버전을 제외
+- [x] 선택 version 상세는 기존 `GET /api/eqp/{eqpId}/params?version=` API 재사용 기준으로 정리
+- [x] version summary와 상세 param 조회 책임을 분리해 프론트가 table을 안정적으로 구성할 수 있게 함
 
 #### T2-4. EQP checkout race 보강
 
-- [ ] `JpaEqpParamCommandPort.checkout()`의 경쟁 구간을 분석해 설비 단위 직렬화 또는 row lock 적용
-- [ ] duplicate key 발생 시 재조회 실패하더라도 사용자 메시지를 정규화
-- [ ] 로그에 원인 추적용 key 정보가 충분히 남는지 확인
+- [x] `JpaEqpParamCommandPort.checkout()`의 경쟁 구간을 분석해 설비 단위 직렬화 또는 row lock 적용
+- [x] duplicate key 발생 시 재조회 실패하더라도 사용자 메시지를 정규화
+- [x] 로그에 원인 추적용 key 정보가 충분히 남는지 확인
 
 ### T2 검증
 
 - [ ] EQP update 후 `comm_mode`, `applied_param_version`이 실제 DB에 반영되는지 확인
-- [ ] manage detail이 컬럼 우선 / fallback 보조 정책을 지키는지 확인
-- [ ] checkout 동시 요청 시 duplicate key가 raw 오류로 노출되지 않는지 확인
+- [x] manage detail이 컬럼 우선 / fallback 보조 정책을 지키는지 확인
+- [x] checkout 동시 요청 시 duplicate key가 raw 오류로 노출되지 않는지 확인
 
 ---
 
@@ -125,28 +125,28 @@ EQP modal의 수정 가능 항목과 applied param version UX를 후속 정책�
 
 #### T3-1. `EqpManageFormModal` 정비
 
-- [ ] update 모드에서도 `Comm Mode`를 수정 가능하게 변경
-- [ ] `Log Level` 수정 가능 상태가 회귀되지 않았는지 확인
-- [ ] socket EQP에서 `Socket Protocol Type` 수정 가능 상태가 회귀되지 않았는지 확인
-- [ ] `Gateway Jar`는 계속 `Eqp Info Update`에 유지
+- [x] update 모드에서도 `Comm Mode`를 수정 가능하게 변경
+- [x] `Log Level` 수정 가능 상태가 회귀되지 않았는지 확인
+- [x] socket EQP에서 `Socket Protocol Type` 수정 가능 상태가 회귀되지 않았는지 확인
+- [x] `Gateway Jar`는 계속 `Eqp Info Update`에 유지
 
 #### T3-2. `EqpParamVersionModal` 재구성
 
-- [ ] `변경 대상 Param Version`을 선택 가능한 dropdown으로 유지/보완
-- [ ] `선택 Version Description`을 textarea 대신 단일 text field로 변경
-- [ ] description 아래에 `param name / param value` data table 추가
-- [ ] version 변경 시 상세 param 조회를 다시 수행하도록 상태 흐름 수정
+- [x] `변경 대상 Param Version`을 선택 가능한 dropdown으로 유지/보완
+- [x] `선택 Version Description`을 textarea 대신 단일 text field로 변경
+- [x] description 아래에 `param name / param value` data table 추가
+- [x] version 변경 시 상세 param 조회를 다시 수행하도록 상태 흐름 수정
 
 #### T3-3. EQP create modal 정책 동기화
 
-- [ ] `SECS Eqp Create`와 `Socket Eqp Create`가 update modal과 동일한 선택 정책을 사용하도록 정리
-- [ ] `is_dev`에 따른 model/version 필터가 create에서도 일관되게 동작하는지 확인
-- [ ] model/version/business jar 선택 흐름이 create/update에서 다르게 보이지 않도록 정리
+- [x] `SECS Eqp Create`와 `Socket Eqp Create`가 update modal과 동일한 선택 정책을 사용하도록 정리
+- [x] `is_dev`에 따른 model/version 필터가 create에서도 일관되게 동작하는지 확인
+- [x] model/version/business jar 선택 흐름이 create/update에서 다르게 보이지 않도록 정리
 
 #### T3-4. modal 레이아웃 버그 수정
 
-- [ ] scroll 영역과 footer를 구조적으로 분리
-- [ ] footer 액션 영역이 shrink되지 않도록 수정
+- [x] scroll 영역과 footer를 구조적으로 분리
+- [x] footer 액션 영역이 shrink되지 않도록 수정
 - [ ] 마우스 휠 스크롤 시 footer 아래 공백이 생기지 않는지 확인
 
 ### T3 검증

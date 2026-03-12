@@ -75,13 +75,15 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
         final boolean hasSourceVersion = sourceVersion != null && !sourceVersion.isBlank();
         log.info("설비 파라미터 체크아웃 시작. eqpId={}, sourceVersion={}, currentUser={}", eqpId, hasSourceVersion ? sourceVersion : "(empty)", currentUser);
 
-        final TcEqp eqp = resolveEqp(eqpId);
+        // 같은 설비에 대한 동시 체크아웃은 tc_eqp 행 잠금으로 직렬화해 race 구간을 줄입니다.
+        final TcEqp eqp = resolveEqpForCheckout(eqpId);
         final long eqpKey = eqp.eqpKey();
 
         // EDIT 버전이 이미 존재하면 체크아웃 중 → 409 Conflict
         if (eqpParamStore.existsByEqpKeyAndVersion(eqpKey, EDIT_VERSION)) {
             final String checkedOutBy = resolveCheckedOutBy(eqpKey);
-            log.warn("설비 파라미터 이미 체크아웃 중. eqpId={}, checkedOutBy={}", eqpId, checkedOutBy);
+            log.warn("설비 파라미터 이미 체크아웃 중. eqpId={}, eqpKey={}, sourceVersion={}, currentUser={}, checkedOutBy={}",
+                    eqpId, eqpKey, hasSourceVersion ? sourceVersion : "(empty)", currentUser, checkedOutBy);
             throw new EqpAlreadyCheckedOutException(eqpId, checkedOutBy);
         }
 
@@ -107,10 +109,11 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
                 eqpParamStore.upsert(command);
             }
         } catch (DbDuplicateKeyException e) {
-            // 레이스 컨디션: 동시 체크아웃 요청이 DB 중복 키 오류를 발생시킨 경우
-            // EDIT 행을 재조회해 실제 체크아웃 사용자를 식별하고 409 충돌로 통일합니다.
-            log.warn("설비 파라미터 체크아웃 중 중복 키 발생. eqpId={}", eqpId, e);
+            // 설비 잠금 이후에도 기존 데이터 이상이나 교차 트랜잭션 타이밍으로 중복 키가 날 수 있다.
+            // 이 경우에도 사용자에게는 동일한 409 메시지로 정규화해 노출한다.
             final String checkedOutBy = resolveCheckedOutBy(eqpKey);
+            log.warn("설비 파라미터 체크아웃 중 중복 키 발생. eqpId={}, eqpKey={}, sourceVersion={}, currentUser={}, checkedOutBy={}",
+                    eqpId, eqpKey, hasSourceVersion ? sourceVersion : "(empty)", currentUser, checkedOutBy, e);
             throw new EqpAlreadyCheckedOutException(eqpId, checkedOutBy);
         }
 
@@ -238,10 +241,25 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
     }
 
     /**
+     * checkout 경쟁 구간 직렬화를 위해 설비 행을 잠금 조회합니다.
+     *
+     * @param eqpId 설비 비즈니스 ID
+     * @return 잠금 조회된 설비
+     */
+    private TcEqp resolveEqpForCheckout(final String eqpId) {
+        final Optional<TcEqp> optionalEqp = eqpStore.findByEqpIdForUpdate(eqpId);
+        if (optionalEqp.isEmpty()) {
+            log.warn("체크아웃 대상 설비를 찾을 수 없습니다. eqpId={}", eqpId);
+            throw new UiBadRequestException("설비를 찾을 수 없습니다. eqpId=" + eqpId);
+        }
+        return optionalEqp.get();
+    }
+
+    /**
      * EDIT 버전 파라미터에서 체크아웃 사용자를 추출합니다.
      *
      * <p>경합 상황에서 재조회가 실패하더라도 409 충돌 응답 흐름을 유지하기 위해
-     * "알 수 없음"으로 폴백합니다.</p>
+     * 사용자 식별값은 null을 반환하고, 최종 메시지 문구는 예외 계층에서 정규화합니다.</p>
      */
     private String resolveCheckedOutBy(final long eqpKey) {
         try {
@@ -250,10 +268,10 @@ public class JpaEqpParamCommandPort implements EqpParamCommandPort {
                     .map(TcEqpParam::createdBy)
                     .filter(by -> by != null && !by.isBlank())
                     .findFirst()
-                    .orElse("알 수 없음");
+                    .orElse(null);
         } catch (RuntimeException e) {
             log.warn("체크아웃 사용자 재조회 실패. eqpKey={}", eqpKey, e);
-            return "알 수 없음";
+            return null;
         }
     }
 

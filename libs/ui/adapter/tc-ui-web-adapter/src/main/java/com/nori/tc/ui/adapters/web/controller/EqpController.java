@@ -66,6 +66,7 @@ public class EqpController {
 
     private static final Logger log = LoggerFactory.getLogger(EqpController.class);
     private static final String TRACE_ID_MDC_KEY = "traceId";
+    private static final String EDIT_PARAM_VERSION = "EDIT";
 
     private final EqpQueryPort eqpQueryPort;
     private final EqpManagementService eqpManagementService;
@@ -575,8 +576,10 @@ public class EqpController {
      */
     private static EqpManageDetailResponse toManageDetailResponse(final EqpManagementSnapshot snapshot) {
         final List<EqpManageDetailResponse.ParamVersionOptionResponse> paramVersions = toParamVersionOptions(snapshot);
-        final String appliedParamVersion = normalizeText(snapshot.eqp().appliedParamVersion());
-        final String appliedParamDescription = resolveAppliedParamDescription(paramVersions, appliedParamVersion);
+        final AppliedParamVersionView appliedParamView = resolveAppliedParamVersionView(
+                snapshot.eqp().appliedParamVersion(),
+                paramVersions
+        );
 
         return new EqpManageDetailResponse(
                 snapshot.eqp().eqpId(),
@@ -641,8 +644,8 @@ public class EqpController {
                         snapshot.socket().maxFrameSizeBytes(),
                         snapshot.socket().keepAliveEnabled()
                 ),
-                appliedParamVersion,
-                appliedParamDescription,
+                appliedParamView.version(),
+                appliedParamView.description(),
                 paramVersions,
                 snapshot.portStatuses().stream()
                         .map(portStatus -> new EqpManageDetailResponse.PortStatusResponse(
@@ -691,7 +694,8 @@ public class EqpController {
 
         snapshot.params().forEach(param -> {
             final String normalizedVersion = normalizeText(param.paramVersion());
-            if (normalizedVersion == null) {
+            // EDIT 버전은 내부 체크아웃 잠금용이므로 관리 summary/dropdown에 노출하지 않습니다.
+            if (normalizedVersion == null || EDIT_PARAM_VERSION.equals(normalizedVersion)) {
                 return;
             }
             paramVersionDescriptions.putIfAbsent(normalizedVersion, normalizeText(param.description()));
@@ -703,19 +707,54 @@ public class EqpController {
     }
 
     /**
-     * 저장된 적용 버전에 대응하는 설명을 조회합니다.
+     * applied_param_version 저장 컬럼과 legacy fallback 규칙을 한 곳에서 계산합니다.
      *
-     * @param paramVersions 버전 옵션 목록
+     * <p>정책:</p>
+     * <ul>
+     *   <li>저장 컬럼 값이 있으면 그 값을 그대로 사용</li>
+     *   <li>컬럼 값이 비어 있으면 legacy 호환을 위해 첫 번째 summary version으로 fallback</li>
+     * </ul>
+     *
+     * @param storedAppliedParamVersion tc_eqp.applied_param_version 저장값
+     * @param paramVersions 버전 summary 목록
+     * @return 현재 적용 버전/설명 뷰
+     */
+    private static AppliedParamVersionView resolveAppliedParamVersionView(
+            final String storedAppliedParamVersion,
+            final List<EqpManageDetailResponse.ParamVersionOptionResponse> paramVersions
+    ) {
+        final String appliedParamVersion = normalizeText(storedAppliedParamVersion);
+        if (appliedParamVersion != null) {
+            return new AppliedParamVersionView(
+                    appliedParamVersion,
+                    resolveAppliedParamDescription(paramVersions, appliedParamVersion)
+            );
+        }
+
+        final EqpManageDetailResponse.ParamVersionOptionResponse fallback = paramVersions.stream()
+                .findFirst()
+                .orElse(null);
+        if (fallback == null) {
+            return new AppliedParamVersionView(null, null);
+        }
+
+        return new AppliedParamVersionView(
+                normalizeText(fallback.paramVersion()),
+                normalizeText(fallback.description())
+        );
+    }
+
+    /**
+     * 적용 버전에 대응하는 설명을 summary 목록에서 조회합니다.
+     *
+     * @param paramVersions 버전 summary 목록
      * @param appliedParamVersion 현재 적용 버전
-     * @return 현재 적용 버전 설명
+     * @return 적용 버전 설명
      */
     private static String resolveAppliedParamDescription(
             final List<EqpManageDetailResponse.ParamVersionOptionResponse> paramVersions,
             final String appliedParamVersion
     ) {
-        if (appliedParamVersion == null) {
-            return null;
-        }
         return paramVersions.stream()
                 .filter(option -> appliedParamVersion.equals(normalizeText(option.paramVersion())))
                 .map(EqpManageDetailResponse.ParamVersionOptionResponse::description)
@@ -851,5 +890,14 @@ public class EqpController {
             }
             MDC.put(TRACE_ID_MDC_KEY, previousTraceId);
         }
+    }
+
+    /**
+     * 현재 적용 param version과 설명을 함께 보관하는 내부 뷰입니다.
+     */
+    private record AppliedParamVersionView(
+            String version,
+            String description
+    ) {
     }
 }

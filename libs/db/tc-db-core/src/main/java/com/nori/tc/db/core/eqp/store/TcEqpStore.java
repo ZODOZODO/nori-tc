@@ -48,6 +48,22 @@ public interface TcEqpStore {
     Optional<TcEqp> findByEqpId(String eqpId);
 
     /**
+     * eqpId(비즈니스 키)로 tc_eqp 단건을 배타 잠금으로 조회합니다.
+     *
+     * <p>주요 사용처:</p>
+     * <p>- 설비별 단일 편집/체크아웃처럼 경쟁 구간을 직렬화해야 하는 트랜잭션</p>
+     *
+     * <p>기본 구현은 일반 조회로 폴백합니다.</p>
+     * <p>잠금이 가능한 저장 구현체(JPA 등)는 override하여 row lock을 제공해야 합니다.</p>
+     *
+     * @param eqpId 설비 식별자(비즈니스 키)
+     * @return 조회 결과(Optional). 없으면 {@link Optional#empty()}
+     */
+    default Optional<TcEqp> findByEqpIdForUpdate(final String eqpId) {
+        return findByEqpId(eqpId);
+    }
+
+    /**
      * tc_eqp 전체 목록을 페이징 조회합니다.
      *
      * <p>주의:</p>

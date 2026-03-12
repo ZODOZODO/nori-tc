@@ -131,6 +131,27 @@ public class TcEqpJpaStore implements TcEqpStore {
         }
     }
 
+    /**
+     * 설비 단위 경쟁 구간 직렬화를 위해 tc_eqp를 배타 잠금으로 조회합니다.
+     *
+     * <p>현재는 EQP 파라미터 checkout 경합 구간에서 사용합니다.</p>
+     *
+     * @param eqpId 설비 식별 정보
+     * @return 잠금 조회 결과
+     */
+    @Override
+    @Transactional
+    public Optional<TcEqp> findByEqpIdForUpdate(final String eqpId) {
+        if (eqpId == null || eqpId.isBlank()) {
+            throw new IllegalArgumentException("eqpId must not be null/blank");
+        }
+        try {
+            return repository.findByEqpIdForUpdate(eqpId).map(mapper::toDomain);
+        } catch (RuntimeException e) {
+            throw new DbAccessException("[tc_eqp] findByEqpIdForUpdate failed: eqpId=" + eqpId, e);
+        }
+    }
+
     
     /**
      * DB JPA 계층에서 필요한 데이터를 조회합니다.
