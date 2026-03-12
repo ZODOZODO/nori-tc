@@ -283,8 +283,10 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
         final String suffix = normalizeRequiredText(command.suffix(), "suffix");
 
         try {
-            final TcModel parentLatest = requireLatestModel(command.parentModelKey());
+            final List<TcModel> allModels = loadAllModels();
+            final TcModel parentLatest = requireLatestModel(command.parentModelKey(), allModels);
             ensureRootModel(parentLatest);
+            final TcModel sourceModel = resolveBranchSourceModel(command, parentLatest, allModels);
 
             final String branchModelName = buildBranchModelName(parentLatest.modelName(), suffix, currentUser);
             if (existsModelName(branchModelName)) {
@@ -296,18 +298,18 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
                     branchModelName,
                     parentLatest.modelName(),
                     EDIT_VERSION,
-                    parentLatest.commInterface(),
+                    sourceModel.commInterface(),
                     ModelStatus.DEVELOP,
-                    parentLatest.description(),
-                    parentLatest.maker(),
+                    sourceModel.description(),
+                    sourceModel.maker(),
                     currentUser,
                     currentUser
             ));
 
-            cloneModelDetails(parentLatest.modelVersionKey(), branchCreated.modelVersionKey());
+            cloneModelDetails(sourceModel.modelVersionKey(), branchCreated.modelVersionKey());
 
-            log.info("branch model 생성 완료. parentModelKey={}, branchModelKey={}, branchModelName={}",
-                    parentLatest.modelKey(), branchCreated.modelKey(), branchCreated.modelName());
+            log.info("branch model 생성 완료. parentModelKey={}, sourceModelVersionKey={}, branchModelKey={}, branchModelName={}",
+                    parentLatest.modelKey(), sourceModel.modelVersionKey(), branchCreated.modelKey(), branchCreated.modelName());
             return branchCreated;
         } catch (RuntimeException e) {
             throw translateException(e, "branch model 생성 중 충돌이 발생했습니다.", "branch model 생성 입력이 올바르지 않습니다.");
@@ -694,6 +696,35 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     }
 
     /**
+     * branch 생성 시 복제할 root source 버전을 결정합니다.
+     *
+     * <p>sourceModelVersionKey가 없으면 현재 최신 root 버전을 사용하고,
+     * 값이 있으면 같은 root model_key에 속한 지정 버전을 사용합니다.</p>
+     */
+    private TcModel resolveBranchSourceModel(
+            final CreateBranchModelCommand command,
+            final TcModel parentLatest,
+            final List<TcModel> allModels
+    ) {
+        if (command.sourceModelVersionKey() == null) {
+            return parentLatest;
+        }
+
+        final long sourceModelVersionKey = command.sourceModelVersionKey();
+        final TcModel sourceModel = allModels.stream()
+                .filter(model -> model.modelVersionKey() == sourceModelVersionKey)
+                .findFirst()
+                .orElseThrow(() -> new UiNotFoundException("복제할 모델 버전을 찾을 수 없습니다."));
+
+        if (sourceModel.modelKey() != parentLatest.modelKey()) {
+            throw new UiBadRequestException("선택한 복제 기준 버전이 현재 root model에 속하지 않습니다.");
+        }
+
+        ensureRootModel(sourceModel);
+        return sourceModel;
+    }
+
+    /**
      * root model 여부를 검증합니다.
      */
     private void ensureRootModel(final TcModel model) {
@@ -1056,6 +1087,9 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
         }
         validatePositiveModelKey(command.parentModelKey());
         normalizeRequiredText(command.suffix(), "suffix");
+        if (command.sourceModelVersionKey() != null && command.sourceModelVersionKey() <= 0) {
+            throw new UiBadRequestException("sourceModelVersionKey는 1 이상이어야 합니다.");
+        }
     }
 
     /**

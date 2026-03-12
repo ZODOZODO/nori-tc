@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.eqp.TcEqpParamVersionMapper">
+
+    <resultMap id="TcEqpParamVersionMap" type="com.nori.tc.db.domain.eqp.TcEqpParamVersion">
+        <constructor>
+            <idArg column="eqp_param_version_key" javaType="long"/>
+            <arg column="eqp_key" javaType="long"/>
+            <arg column="param_version" javaType="java.lang.String"/>
+            <arg column="version_description" javaType="java.lang.String"/>
+            <arg column="created_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="updated_at"
+                 javaType="java.time.OffsetDateTime"
+                 typeHandler="com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="TcEqpParamVersionColumns">
+        eqp_param_version_key,
+        eqp_key,
+        param_version,
+        version_description,
+        created_at,
+        updated_at,
+        created_by,
+        updated_by
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO tc_eqp_param_version
+            (eqp_key, param_version, version_description, created_by, updated_by)
+        VALUES
+            (#{e.eqpKey},
+             #{e.paramVersion},
+             #{e.versionDescription},
+             COALESCE(#{e.createdBy}, 'SYSTEM'),
+             COALESCE(#{e.updatedBy}, 'SYSTEM'))
+    </insert>
+
+    <update id="updateByUniqueKey">
+        UPDATE tc_eqp_param_version
+           SET version_description = #{e.versionDescription},
+               updated_by          = COALESCE(#{e.updatedBy}, 'SYSTEM'),
+               updated_at          = CURRENT_TIMESTAMP
+         WHERE eqp_key = #{e.eqpKey}
+           AND param_version = #{e.paramVersion}
+    </update>
+
+    <select id="findByEqpKeyAndParamVersion" resultMap="TcEqpParamVersionMap">
+        SELECT <include refid="TcEqpParamVersionColumns"/>
+          FROM tc_eqp_param_version
+         WHERE eqp_key = #{eqpKey}
+           AND param_version = #{paramVersion}
+    </select>
+
+    <select id="findAllByEqpKey" resultMap="TcEqpParamVersionMap">
+        SELECT <include refid="TcEqpParamVersionColumns"/>
+          FROM tc_eqp_param_version
+         WHERE eqp_key = #{eqpKey}
+         ORDER BY eqp_param_version_key ASC
+        <if test="limit > 0">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <delete id="deleteAllByEqpKey">
+        DELETE FROM tc_eqp_param_version WHERE eqp_key = #{eqpKey}
+    </delete>
+
+</mapper>

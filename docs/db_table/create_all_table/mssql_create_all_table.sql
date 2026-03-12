@@ -40,6 +40,7 @@ IF OBJECT_ID('dbo.tc_work_param', 'U') IS NOT NULL DROP TABLE dbo.tc_work_param;
 IF OBJECT_ID('dbo.tc_work', 'U') IS NOT NULL DROP TABLE dbo.tc_work;
 
 IF OBJECT_ID('dbo.tc_eqp_global', 'U') IS NOT NULL DROP TABLE dbo.tc_eqp_global;
+IF OBJECT_ID('dbo.tc_eqp_param_version', 'U') IS NOT NULL DROP TABLE dbo.tc_eqp_param_version;
 IF OBJECT_ID('dbo.tc_eqp_param', 'U') IS NOT NULL DROP TABLE dbo.tc_eqp_param;
 IF OBJECT_ID('dbo.tc_eqp_port_status', 'U') IS NOT NULL DROP TABLE dbo.tc_eqp_port_status;
 IF OBJECT_ID('dbo.tc_eqp_log', 'U') IS NOT NULL DROP TABLE dbo.tc_eqp_log;
@@ -517,6 +518,26 @@ GO
 
 CREATE INDEX ix_tc_eqp_param_eqp_key    ON dbo.tc_eqp_param (eqp_key);
 CREATE INDEX ix_tc_eqp_param_param_name ON dbo.tc_eqp_param (param_name);
+GO
+
+CREATE TABLE dbo.tc_eqp_param_version (
+  eqp_param_version_key BIGINT IDENTITY(1,1) NOT NULL,
+  eqp_key               BIGINT NOT NULL,
+  param_version         NVARCHAR(100) NOT NULL,
+  version_description   NVARCHAR(2000) NULL,
+  created_at            DATETIME2(3) NOT NULL CONSTRAINT df_tc_eqp_param_version_created_at DEFAULT (SYSUTCDATETIME()),
+  updated_at            DATETIME2(3) NOT NULL CONSTRAINT df_tc_eqp_param_version_updated_at DEFAULT (SYSUTCDATETIME()),
+  created_by            NVARCHAR(50) NOT NULL CONSTRAINT df_tc_eqp_param_version_created_by DEFAULT (N'SYSTEM'),
+  updated_by            NVARCHAR(50) NOT NULL CONSTRAINT df_tc_eqp_param_version_updated_by DEFAULT (N'SYSTEM'),
+
+  CONSTRAINT pk_tc_eqp_param_version PRIMARY KEY (eqp_param_version_key),
+  CONSTRAINT fk_tc_eqp_param_version_eqp_key__tc_eqp
+    FOREIGN KEY (eqp_key) REFERENCES dbo.tc_eqp(eqp_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_eqp_param_version_eqp_key_param_version UNIQUE (eqp_key, param_version)
+);
+GO
+
+CREATE INDEX ix_tc_eqp_param_version_eqp_key ON dbo.tc_eqp_param_version (eqp_key);
 GO
 
 

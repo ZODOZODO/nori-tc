@@ -362,6 +362,14 @@ SELECT eqp_key, 'CFG', 'v1', '{"seed":true}', 'Equipment config parameter', 'SEE
 UNION ALL
 SELECT eqp_key, 'LIMIT', 'v1', '{"max":100}', 'Equipment limit parameter', 'SEED', now() FROM seed_eqp_map;
 
+INSERT INTO tc_eqp_param_version(
+  eqp_key, param_version, version_description,
+  created_at, updated_at, created_by, updated_by
+)
+SELECT eqp_key, 'v1', 'Seed parameter version',
+       now(), now(), 'SEED', 'SEED'
+FROM seed_eqp_map;
+
 -- 설비 글로벌(설비당 1개)
 INSERT INTO tc_eqp_global(eqp_key, param_name, param_value, updated_at)
 SELECT eqp_key, 'SITE_MODE', '{"mode":"DEV"}', now() FROM seed_eqp_map;

@@ -3,6 +3,7 @@ package com.nori.tc.ui.adapter.db;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
 import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
 import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamVersionStore;
 import com.nori.tc.db.core.eqp.store.TcEqpPortStatusStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
@@ -388,6 +389,7 @@ class JpaEqpCrudPortTest {
         private final TcEqpStateStore eqpStateStore = mock(TcEqpStateStore.class);
         private final TcEqpPortStatusStore eqpPortStatusStore = mock(TcEqpPortStatusStore.class);
         private final TcEqpParamStore eqpParamStore = mock(TcEqpParamStore.class);
+        private final TcEqpParamVersionStore eqpParamVersionStore = mock(TcEqpParamVersionStore.class);
         private final TcJarGatewayStore jarGatewayStore = mock(TcJarGatewayStore.class);
         private final TcJarBusinessStore jarBusinessStore = mock(TcJarBusinessStore.class);
         private final JpaEqpCrudPort port = new JpaEqpCrudPort(
@@ -399,6 +401,7 @@ class JpaEqpCrudPortTest {
                 eqpStateStore,
                 eqpPortStatusStore,
                 eqpParamStore,
+                eqpParamVersionStore,
                 jarGatewayStore,
                 jarBusinessStore
         );
@@ -473,6 +476,7 @@ class JpaEqpCrudPortTest {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of(),
                 List.of(),
                 null,

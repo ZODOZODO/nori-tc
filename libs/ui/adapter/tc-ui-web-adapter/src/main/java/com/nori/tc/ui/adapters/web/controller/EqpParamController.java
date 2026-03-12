@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,6 +39,7 @@ import java.util.Optional;
  *   <li>GET  /api/eqp/{eqpId}/checkout-status — 체크아웃 상태 조회</li>
  *   <li>GET  /api/eqp/{eqpId}/params/{version} — 특정 버전 파라미터 목록 조회</li>
  *   <li>POST /api/eqp/{eqpId}/checkout         — 체크아웃 (EDIT 버전 생성)</li>
+ *   <li>DELETE /api/eqp/{eqpId}/checkout       — 체크아웃 되돌리기 (EDIT 버전 삭제)</li>
  *   <li>PUT  /api/eqp/{eqpId}/edit-params       — EDIT 파라미터 저장</li>
  *   <li>POST /api/eqp/{eqpId}/checkin           — 체크인 (EDIT → 신규 버전, EDIT 삭제)</li>
  * </ul>
@@ -164,10 +166,13 @@ public class EqpParamController {
     /**
      * EDIT 버전의 파라미터를 저장합니다.
      *
+     * <p>현재 EDIT 전체를 요청 목록 기준으로 다시 저장하므로
+     * paramName 변경, description 수정, 행 추가/삭제를 한 번에 반영할 수 있습니다.</p>
+     *
      * @param eqpId 설비 비즈니스 ID
      * @param request 저장할 파라미터 목록
      * @param authentication 현재 로그인 사용자 정보
-     * @return 204 No Content
+     * @return 200 OK
      */
     @PutMapping("/{eqpId}/edit-params")
     public ResponseEntity<ApiResponse<Void>> saveEditParams(
@@ -189,12 +194,35 @@ public class EqpParamController {
     }
 
     /**
+     * 체크아웃을 되돌립니다.
+     *
+     * <p>현재 설비의 EDIT 버전 파라미터를 모두 삭제하여 편집 잠금을 해제합니다.</p>
+     *
+     * @param eqpId 설비 비즈니스 ID
+     * @param authentication 현재 로그인 사용자 정보
+     * @return 200 OK
+     */
+    @DeleteMapping("/{eqpId}/checkout")
+    public ResponseEntity<ApiResponse<Void>> undoCheckout(
+            @PathVariable final String eqpId,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        log.info("설비 파라미터 체크아웃 되돌리기 요청. eqpId={}, currentUser={}", eqpId, currentUser);
+
+        eqpParamCommandPort.undoCheckout(eqpId, currentUser);
+
+        log.info("설비 파라미터 체크아웃 되돌리기 완료. eqpId={}", eqpId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
      * 체크인을 수행합니다.
      *
      * <p>EDIT 버전을 신규 버전으로 저장하고 EDIT 버전을 삭제합니다.</p>
      *
      * @param eqpId 설비 비즈니스 ID
-     * @param request 체크인 요청 (newVersion 필수, description 선택)
+     * @param request 체크인 요청 (description 선택)
      * @param authentication 현재 로그인 사용자 정보
      * @return 200 OK
      */
@@ -205,11 +233,11 @@ public class EqpParamController {
             final Authentication authentication
     ) {
         final String currentUser = resolveCurrentUser(authentication);
-        log.info("설비 파라미터 체크인 요청. eqpId={}, newVersion={}, currentUser={}", eqpId, request.newVersion(), currentUser);
+        log.info("설비 파라미터 체크인 요청. eqpId={}, currentUser={}", eqpId, currentUser);
 
-        eqpParamCommandPort.checkin(eqpId, request.newVersion(), request.description(), currentUser);
+        eqpParamCommandPort.checkin(eqpId, request.description(), currentUser);
 
-        log.info("설비 파라미터 체크인 완료. eqpId={}, newVersion={}", eqpId, request.newVersion());
+        log.info("설비 파라미터 체크인 완료. eqpId={}", eqpId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

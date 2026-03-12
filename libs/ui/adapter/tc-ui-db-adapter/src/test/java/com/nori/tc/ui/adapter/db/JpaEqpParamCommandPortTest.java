@@ -1,17 +1,26 @@
 package com.nori.tc.ui.adapter.db;
 
+import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.exception.DbDuplicateKeyException;
 import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamVersionStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpParam;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpParamVersion;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
 import com.nori.tc.ui.core.exception.EqpAlreadyCheckedOutException;
+import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.port.db.EqpParamCommandPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -94,6 +103,137 @@ class JpaEqpParamCommandPortTest {
         );
     }
 
+    @Test
+    @DisplayName("saveEditParams는 EDIT 전체를 재구성하여 이름 변경과 삭제를 함께 반영합니다")
+    void saveEditParamsRebuildsEditRows() {
+        final Fixture fixture = new Fixture();
+        final TcEqp eqp = eqp(1L, "EQP-01");
+
+        when(fixture.eqpStore.findByEqpId("EQP-01")).thenReturn(Optional.of(eqp));
+
+        fixture.port.saveEditParams(
+                "EQP-01",
+                List.of(
+                        new EqpParamCommandPort.EqpParamEdit("TEMP_RENAMED", "120", "renamed"),
+                        new EqpParamCommandPort.EqpParamEdit("PRESS", "220", "new row")
+                ),
+                "tester"
+        );
+
+        verify(fixture.eqpParamStore).deleteAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT");
+
+        final ArgumentCaptor<UpsertTcEqpParam> captor = ArgumentCaptor.forClass(UpsertTcEqpParam.class);
+        verify(fixture.eqpParamStore, org.mockito.Mockito.times(2)).upsert(captor.capture());
+
+        final List<UpsertTcEqpParam> commands = captor.getAllValues();
+        assertEquals("TEMP_RENAMED", commands.get(0).paramName());
+        assertEquals("PRESS", commands.get(1).paramName());
+        assertEquals("tester", commands.get(0).createdBy());
+        assertEquals("tester", commands.get(1).createdBy());
+    }
+
+    @Test
+    @DisplayName("saveEditParams는 중복된 paramName을 거부합니다")
+    void saveEditParamsRejectsDuplicatedParamName() {
+        final Fixture fixture = new Fixture();
+
+        final UiBadRequestException exception = assertThrows(
+                UiBadRequestException.class,
+                () -> fixture.port.saveEditParams(
+                        "EQP-01",
+                        List.of(
+                                new EqpParamCommandPort.EqpParamEdit("TEMP", "100", "row1"),
+                                new EqpParamCommandPort.EqpParamEdit(" TEMP ", "200", "row2")
+                        ),
+                        "tester"
+                )
+        );
+
+        assertEquals("중복된 paramName은 저장할 수 없습니다. paramName=TEMP", exception.getMessage());
+        verify(fixture.eqpStore, never()).findByEqpId("EQP-01");
+        verify(fixture.eqpParamStore, never()).deleteAllByEqpKeyAndVersion(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+    }
+
+    @Test
+    @DisplayName("undoCheckout은 EDIT 버전을 모두 삭제합니다")
+    void undoCheckoutDeletesAllEditRows() {
+        final Fixture fixture = new Fixture();
+        final TcEqp eqp = eqp(1L, "EQP-01");
+
+        when(fixture.eqpStore.findByEqpId("EQP-01")).thenReturn(Optional.of(eqp));
+
+        fixture.port.undoCheckout("EQP-01", "tester");
+
+        verify(fixture.eqpParamStore).deleteAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT");
+    }
+
+    @Test
+    @DisplayName("checkin은 오늘 생성된 마지막 버전 다음 값으로 자동 증가합니다")
+    void checkinGeneratesNextDailyVersion() {
+        final Fixture fixture = new Fixture(Clock.fixed(
+                Instant.parse("2025-03-12T01:15:30Z"),
+                ZoneId.of("Asia/Seoul")
+        ));
+        final TcEqp eqp = eqp(1L, "EQP-01");
+
+        when(fixture.eqpStore.findByEqpIdForUpdate("EQP-01")).thenReturn(Optional.of(eqp));
+        when(fixture.eqpParamStore.findAllByEqpKey(eqp.eqpKey(), PageRequest.of(0, 500))).thenReturn(List.of(
+                param(11L, eqp.eqpKey(), "TEMP", "25.03.12.0000", "100", "old", "SYSTEM"),
+                param(12L, eqp.eqpKey(), "PRESS", "25.03.12.0001", "200", "old", "SYSTEM"),
+                param(13L, eqp.eqpKey(), "FLOW", "25.03.11.0009", "300", "old", "SYSTEM"),
+                param(14L, eqp.eqpKey(), "LEGACY", "v1", "400", "old", "SYSTEM")
+        ));
+        when(fixture.eqpParamStore.findAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT")).thenReturn(List.of(
+                param(21L, eqp.eqpKey(), "TEMP", "EDIT", "110", "edit", "tester")
+        ));
+
+        fixture.port.checkin("EQP-01", "version-desc", "tester");
+
+        final ArgumentCaptor<UpsertTcEqpParam> captor = ArgumentCaptor.forClass(UpsertTcEqpParam.class);
+        verify(fixture.eqpParamStore).upsert(captor.capture());
+        assertEquals("25.03.12.0002", captor.getValue().paramVersion());
+        assertEquals("edit", captor.getValue().description());
+
+        final ArgumentCaptor<UpsertTcEqpParamVersion> versionCaptor = ArgumentCaptor.forClass(UpsertTcEqpParamVersion.class);
+        verify(fixture.eqpParamVersionStore).upsert(versionCaptor.capture());
+        assertEquals("25.03.12.0002", versionCaptor.getValue().paramVersion());
+        assertEquals("version-desc", versionCaptor.getValue().versionDescription());
+        verify(fixture.eqpParamStore).deleteAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT");
+    }
+
+    @Test
+    @DisplayName("checkin은 날짜가 바뀌면 시퀀스를 0000부터 다시 시작합니다")
+    void checkinResetsDailySequenceOnNextDay() {
+        final Fixture fixture = new Fixture(Clock.fixed(
+                Instant.parse("2025-03-13T01:15:30Z"),
+                ZoneId.of("Asia/Seoul")
+        ));
+        final TcEqp eqp = eqp(1L, "EQP-01");
+
+        when(fixture.eqpStore.findByEqpIdForUpdate("EQP-01")).thenReturn(Optional.of(eqp));
+        when(fixture.eqpParamStore.findAllByEqpKey(eqp.eqpKey(), PageRequest.of(0, 500))).thenReturn(List.of(
+                param(11L, eqp.eqpKey(), "TEMP", "25.03.12.0007", "100", "old", "SYSTEM"),
+                param(12L, eqp.eqpKey(), "PRESS", "v1", "200", "old", "SYSTEM")
+        ));
+        when(fixture.eqpParamStore.findAllByEqpKeyAndVersion(eqp.eqpKey(), "EDIT")).thenReturn(List.of(
+                param(21L, eqp.eqpKey(), "TEMP", "EDIT", "110", "edit", "tester")
+        ));
+
+        fixture.port.checkin("EQP-01", "", "tester");
+
+        final ArgumentCaptor<UpsertTcEqpParam> captor = ArgumentCaptor.forClass(UpsertTcEqpParam.class);
+        verify(fixture.eqpParamStore).upsert(captor.capture());
+        assertEquals("25.03.13.0000", captor.getValue().paramVersion());
+
+        final ArgumentCaptor<UpsertTcEqpParamVersion> versionCaptor = ArgumentCaptor.forClass(UpsertTcEqpParamVersion.class);
+        verify(fixture.eqpParamVersionStore).upsert(versionCaptor.capture());
+        assertEquals("25.03.13.0000", versionCaptor.getValue().paramVersion());
+        assertEquals(null, versionCaptor.getValue().versionDescription());
+    }
+
     /**
      * 테스트용 mock fixture입니다.
      */
@@ -101,7 +241,19 @@ class JpaEqpParamCommandPortTest {
 
         private final TcEqpStore eqpStore = mock(TcEqpStore.class);
         private final TcEqpParamStore eqpParamStore = mock(TcEqpParamStore.class);
-        private final JpaEqpParamCommandPort port = new JpaEqpParamCommandPort(eqpStore, eqpParamStore);
+        private final TcEqpParamVersionStore eqpParamVersionStore = mock(TcEqpParamVersionStore.class);
+        private final JpaEqpParamCommandPort port;
+
+        private Fixture() {
+            this(Clock.fixed(
+                    Instant.parse("2025-03-12T01:15:30Z"),
+                    ZoneId.of("Asia/Seoul")
+            ));
+        }
+
+        private Fixture(final Clock clock) {
+            this.port = new JpaEqpParamCommandPort(eqpStore, eqpParamStore, eqpParamVersionStore, clock);
+        }
     }
 
     private static TcEqp eqp(final long eqpKey, final String eqpId) {

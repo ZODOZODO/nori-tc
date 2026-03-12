@@ -3,6 +3,7 @@ package com.nori.tc.ui.adapter.db;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
 import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
 import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamVersionStore;
 import com.nori.tc.db.core.eqp.store.TcEqpPortStatusStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketProtocolTypeStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketStore;
@@ -117,6 +118,7 @@ class EqpManagementDbSupportTest {
         private final TcEqpStateHistStore eqpStateHistStore = mock(TcEqpStateHistStore.class);
         private final TcEqpPortStatusStore eqpPortStatusStore = mock(TcEqpPortStatusStore.class);
         private final TcEqpParamStore eqpParamStore = mock(TcEqpParamStore.class);
+        private final TcEqpParamVersionStore eqpParamVersionStore = mock(TcEqpParamVersionStore.class);
         private final TcJarGatewayStore jarGatewayStore = mock(TcJarGatewayStore.class);
         private final TcJarBusinessStore jarBusinessStore = mock(TcJarBusinessStore.class);
         private final TcModelStore modelStore = mock(TcModelStore.class);
@@ -130,6 +132,7 @@ class EqpManagementDbSupportTest {
                 eqpStateHistStore,
                 eqpPortStatusStore,
                 eqpParamStore,
+                eqpParamVersionStore,
                 jarGatewayStore,
                 jarBusinessStore,
                 modelStore,

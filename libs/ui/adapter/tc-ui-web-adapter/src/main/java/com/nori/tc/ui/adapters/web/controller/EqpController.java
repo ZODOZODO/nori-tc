@@ -693,12 +693,24 @@ public class EqpController {
     ) {
         final LinkedHashMap<String, String> paramVersionDescriptions = new LinkedHashMap<>();
 
+        snapshot.paramVersionMetas().forEach(paramVersionMeta -> {
+            final String normalizedVersion = normalizeText(paramVersionMeta.paramVersion());
+            if (normalizedVersion == null || EDIT_PARAM_VERSION.equals(normalizedVersion)) {
+                return;
+            }
+            paramVersionDescriptions.putIfAbsent(
+                    normalizedVersion,
+                    normalizeText(paramVersionMeta.versionDescription())
+            );
+        });
+
         snapshot.params().forEach(param -> {
             final String normalizedVersion = normalizeText(param.paramVersion());
             // EDIT 버전은 내부 체크아웃 잠금용이므로 관리 summary/dropdown에 노출하지 않습니다.
             if (normalizedVersion == null || EDIT_PARAM_VERSION.equals(normalizedVersion)) {
                 return;
             }
+            // 신규 메타 테이블이 비어 있는 legacy 데이터셋은 tc_eqp_param.description을 fallback으로만 사용합니다.
             paramVersionDescriptions.putIfAbsent(normalizedVersion, normalizeText(param.description()));
         });
 

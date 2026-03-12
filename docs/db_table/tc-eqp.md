@@ -25,6 +25,14 @@
 - PK/FK: `eqp_key -> tc_eqp.eqp_key` (`ON DELETE CASCADE`)
 - FK: `socket_protocol_type -> tc_eqp_socket_protocol_type.socket_protocol_type`
 
+### 2-4. `tc_eqp_param_version`
+
+- PK: `eqp_param_version_key`
+- FK: `eqp_key -> tc_eqp.eqp_key` (`ON DELETE CASCADE`)
+- Unique: `(eqp_key, param_version)`
+- 주요 컬럼: `param_version`, `version_description`, `created_at`, `updated_at`, `created_by`, `updated_by`
+- 비고: `tc_eqp_param.description`은 개별 파라미터 설명이고, 버전 전체 설명은 `tc_eqp_param_version.version_description`에 저장합니다.
+
 ## 3. 관계 요약
 
 ```text
@@ -37,12 +45,20 @@ tc_model_version.model_version_key
   ├─(CASCADE)→ tc_eqp_socket.eqp_key
   ├─(CASCADE)→ tc_eqp_log.eqp_key
   ├─(CASCADE)→ tc_eqp_param.eqp_key
+  ├─(CASCADE)→ tc_eqp_param_version.eqp_key
   ├─(CASCADE)→ tc_eqp_port_status.eqp_key
   ├─(CASCADE)→ tc_eqp_state.eqp_key
   ├─(CASCADE)→ tc_eqp_state_hist.eqp_key
   ├─(CASCADE)→ tc_jar_business.eqp_key
   ├─(CASCADE)→ tc_jar_gateway.eqp_key
   └─(RESTRICT)→ tc_work.eqp_key
+
+tc_eqp_param_version.(eqp_key, param_version)
+  └─(논리 연동)→ tc_eqp_param.(eqp_key, param_version)
+
+NOTE:
+- `tc_eqp_param`에는 체크아웃 중간 상태인 `EDIT` 버전이 존재할 수 있으므로
+  `tc_eqp_param_version`과의 물리 FK는 두지 않고 애플리케이션 레이어에서 정합성을 유지합니다.
 ```
 
 ## 4. 조회 예시

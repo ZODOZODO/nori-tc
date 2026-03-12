@@ -394,11 +394,16 @@ public class ModelController {
             final Authentication authentication
     ) {
         final String currentUser = resolveCurrentUser(authentication);
-        log.info("branch model 생성 요청. parentModelKey={}, suffix={}, currentUser={}",
-                modelKey, request.suffix(), currentUser);
+        log.info("branch model 생성 요청. parentModelKey={}, sourceModelVersionKey={}, suffix={}, currentUser={}",
+                modelKey, request.sourceModelVersionKey(), request.suffix(), currentUser);
 
         final TcModel created = modelBranchCommandPort.createBranchModel(
-                new ModelBranchCommandPort.CreateBranchModelCommand(modelKey, request.suffix(), currentUser)
+                new ModelBranchCommandPort.CreateBranchModelCommand(
+                        modelKey,
+                        request.suffix(),
+                        request.sourceModelVersionKey(),
+                        currentUser
+                )
         );
 
         log.info("branch model 생성 완료. branchModelKey={}, branchModelName={}", created.modelKey(), created.modelName());

@@ -4,6 +4,7 @@ import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
 import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
 import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamVersionStore;
 import com.nori.tc.db.core.eqp.store.TcEqpPortStatusStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketProtocolTypeStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketStore;
@@ -18,6 +19,7 @@ import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpHsms;
 import com.nori.tc.db.domain.eqp.TcEqpLog;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpParamVersion;
 import com.nori.tc.db.domain.eqp.TcEqpPortStatus;
 import com.nori.tc.db.domain.eqp.TcEqpSocket;
 import com.nori.tc.db.domain.eqp.TcEqpSocketProtocolType;
@@ -55,6 +57,7 @@ class EqpManagementDbSupport {
     private final TcEqpStateHistStore eqpStateHistStore;
     private final TcEqpPortStatusStore eqpPortStatusStore;
     private final TcEqpParamStore eqpParamStore;
+    private final TcEqpParamVersionStore eqpParamVersionStore;
     private final TcJarGatewayStore jarGatewayStore;
     private final TcJarBusinessStore jarBusinessStore;
     private final TcModelStore modelStore;
@@ -69,6 +72,7 @@ class EqpManagementDbSupport {
             final TcEqpStateHistStore eqpStateHistStore,
             final TcEqpPortStatusStore eqpPortStatusStore,
             final TcEqpParamStore eqpParamStore,
+            final TcEqpParamVersionStore eqpParamVersionStore,
             final TcJarGatewayStore jarGatewayStore,
             final TcJarBusinessStore jarBusinessStore,
             final TcModelStore modelStore,
@@ -82,6 +86,7 @@ class EqpManagementDbSupport {
         this.eqpStateHistStore = Objects.requireNonNull(eqpStateHistStore, "eqpStateHistStore is null");
         this.eqpPortStatusStore = Objects.requireNonNull(eqpPortStatusStore, "eqpPortStatusStore is null");
         this.eqpParamStore = Objects.requireNonNull(eqpParamStore, "eqpParamStore is null");
+        this.eqpParamVersionStore = Objects.requireNonNull(eqpParamVersionStore, "eqpParamVersionStore is null");
         this.jarGatewayStore = Objects.requireNonNull(jarGatewayStore, "jarGatewayStore is null");
         this.jarBusinessStore = Objects.requireNonNull(jarBusinessStore, "jarBusinessStore is null");
         this.modelStore = Objects.requireNonNull(modelStore, "modelStore is null");
@@ -105,6 +110,7 @@ class EqpManagementDbSupport {
         final String connectionState = resolveLatestConnectionState(eqpKey);
         final List<TcEqpPortStatus> portStatuses = loadAllPortStatuses(eqpKey);
         final List<TcEqpParam> params = loadAllParams(eqpKey);
+        final List<TcEqpParamVersion> paramVersionMetas = loadAllParamVersionMetas(eqpKey);
         final TcJarGateway gatewayJar = jarGatewayStore.findByEqpKey(eqpKey).orElse(null);
         final TcJarBusiness businessJar = jarBusinessStore.findByEqpKey(eqpKey).orElse(null);
 
@@ -118,6 +124,7 @@ class EqpManagementDbSupport {
                 connectionState,
                 portStatuses,
                 params,
+                paramVersionMetas,
                 gatewayJar,
                 businessJar
         ));
@@ -144,6 +151,12 @@ class EqpManagementDbSupport {
                 .sorted(Comparator
                         .comparing(TcEqpParam::paramVersion, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(TcEqpParam::paramName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                .toList();
+    }
+
+    List<TcEqpParamVersion> loadAllParamVersionMetas(final long eqpKey) {
+        return scanAllPages(pageRequest -> eqpParamVersionStore.findAllByEqpKey(eqpKey, pageRequest)).stream()
+                .sorted(Comparator.comparing(TcEqpParamVersion::paramVersion, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
     }
 

@@ -4,6 +4,7 @@ import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpHsms;
 import com.nori.tc.db.domain.eqp.TcEqpLog;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpParamVersion;
 import com.nori.tc.db.domain.eqp.TcEqpPortStatus;
 import com.nori.tc.db.domain.eqp.TcEqpSocket;
 import com.nori.tc.db.domain.eqp.TcEqpState;
@@ -29,6 +30,7 @@ public record EqpManagementSnapshot(
         String connectionState,
         List<TcEqpPortStatus> portStatuses,
         List<TcEqpParam> params,
+        List<TcEqpParamVersion> paramVersionMetas,
         TcJarGateway gatewayJar,
         TcJarBusiness businessJar
 ) {
@@ -40,5 +42,6 @@ public record EqpManagementSnapshot(
         Objects.requireNonNull(eqp, "eqp is null");
         portStatuses = portStatuses == null ? List.of() : List.copyOf(portStatuses);
         params = params == null ? List.of() : List.copyOf(params);
+        paramVersionMetas = paramVersionMetas == null ? List.of() : List.copyOf(paramVersionMetas);
     }
 }

@@ -99,6 +99,7 @@ public class TcModelReportIdEntity extends AbstractUpdatedEntity {
      */
     @PrePersist
     protected void onCreate() {
+        super.onCreate();
         if (this.enabled == null) {
             this.enabled = Boolean.FALSE;
         }

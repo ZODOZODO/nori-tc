@@ -3,6 +3,7 @@ package com.nori.tc.ui.adapter.db;
 import com.nori.tc.db.core.eqp.store.TcEqpHsmsStore;
 import com.nori.tc.db.core.eqp.store.TcEqpLogStore;
 import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamVersionStore;
 import com.nori.tc.db.core.eqp.store.TcEqpPortStatusStore;
 import com.nori.tc.db.core.eqp.store.TcEqpSocketStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
@@ -11,6 +12,7 @@ import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpHsms;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpLog;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpParam;
+import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpParamVersion;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpPortStatus;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpSocket;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqpState;
@@ -24,6 +26,7 @@ import com.nori.tc.db.domain.common.eqp.LogLevel;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpParamVersion;
 import com.nori.tc.db.domain.eqp.TcEqpPortStatus;
 import com.nori.tc.db.domain.jar.TcJarBusiness;
 import com.nori.tc.db.domain.jar.TcJarGateway;
@@ -57,6 +60,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
     private final TcEqpStateStore eqpStateStore;
     private final TcEqpPortStatusStore eqpPortStatusStore;
     private final TcEqpParamStore eqpParamStore;
+    private final TcEqpParamVersionStore eqpParamVersionStore;
     private final TcJarGatewayStore jarGatewayStore;
     private final TcJarBusinessStore jarBusinessStore;
 
@@ -69,6 +73,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
             final TcEqpStateStore eqpStateStore,
             final TcEqpPortStatusStore eqpPortStatusStore,
             final TcEqpParamStore eqpParamStore,
+            final TcEqpParamVersionStore eqpParamVersionStore,
             final TcJarGatewayStore jarGatewayStore,
             final TcJarBusinessStore jarBusinessStore
     ) {
@@ -80,6 +85,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
         this.eqpStateStore = Objects.requireNonNull(eqpStateStore, "eqpStateStore is null");
         this.eqpPortStatusStore = Objects.requireNonNull(eqpPortStatusStore, "eqpPortStatusStore is null");
         this.eqpParamStore = Objects.requireNonNull(eqpParamStore, "eqpParamStore is null");
+        this.eqpParamVersionStore = Objects.requireNonNull(eqpParamVersionStore, "eqpParamVersionStore is null");
         this.jarGatewayStore = Objects.requireNonNull(jarGatewayStore, "jarGatewayStore is null");
         this.jarBusinessStore = Objects.requireNonNull(jarBusinessStore, "jarBusinessStore is null");
     }
@@ -183,6 +189,7 @@ public class JpaEqpCrudPort implements EqpCrudPort {
             restoreJars(eqpKey, snapshot);
             restorePortStatuses(eqpKey, snapshot.portStatuses());
             restoreParams(eqpKey, snapshot.params());
+            restoreParamVersionMetas(eqpKey, snapshot.paramVersionMetas());
         } catch (RuntimeException exception) {
             throw toUiException("EQP 복구", exception);
         }
@@ -506,6 +513,20 @@ public class JpaEqpCrudPort implements EqpCrudPort {
                     param.paramValue(),
                     param.description(),
                     param.createdBy()
+            ));
+        }
+    }
+
+    private void restoreParamVersionMetas(final long eqpKey, final List<TcEqpParamVersion> snapshotParamVersionMetas) {
+        eqpParamVersionStore.deleteAllByEqpKey(eqpKey);
+
+        for (TcEqpParamVersion paramVersionMeta : snapshotParamVersionMetas) {
+            eqpParamVersionStore.upsert(new UpsertTcEqpParamVersion(
+                    eqpKey,
+                    paramVersionMeta.paramVersion(),
+                    paramVersionMeta.versionDescription(),
+                    paramVersionMeta.createdBy(),
+                    paramVersionMeta.updatedBy()
             ));
         }
     }

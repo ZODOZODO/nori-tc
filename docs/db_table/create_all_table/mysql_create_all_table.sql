@@ -40,6 +40,7 @@ DROP TABLE IF EXISTS tc_work_param;
 DROP TABLE IF EXISTS tc_work;
 
 DROP TABLE IF EXISTS tc_eqp_global;
+DROP TABLE IF EXISTS tc_eqp_param_version;
 DROP TABLE IF EXISTS tc_eqp_param;
 DROP TABLE IF EXISTS tc_eqp_port_status;
 DROP TABLE IF EXISTS tc_eqp_log;
@@ -476,6 +477,24 @@ CREATE TABLE tc_eqp_param (
 
 CREATE INDEX ix_tc_eqp_param_eqp_key    ON tc_eqp_param (eqp_key);
 CREATE INDEX ix_tc_eqp_param_param_name ON tc_eqp_param (param_name);
+
+CREATE TABLE tc_eqp_param_version (
+  eqp_param_version_key BIGINT AUTO_INCREMENT NOT NULL,
+  eqp_key               BIGINT NOT NULL,
+  param_version         VARCHAR(100) NOT NULL,
+  version_description   VARCHAR(2000) NULL,
+  created_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_by            VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
+  updated_by            VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
+
+  CONSTRAINT pk_tc_eqp_param_version PRIMARY KEY (eqp_param_version_key),
+  CONSTRAINT fk_tc_eqp_param_version_eqp_key__tc_eqp
+    FOREIGN KEY (eqp_key) REFERENCES tc_eqp(eqp_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_eqp_param_version_eqp_key_param_version UNIQUE (eqp_key, param_version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_tc_eqp_param_version_eqp_key ON tc_eqp_param_version (eqp_key);
 
 
 CREATE TABLE tc_eqp_global (

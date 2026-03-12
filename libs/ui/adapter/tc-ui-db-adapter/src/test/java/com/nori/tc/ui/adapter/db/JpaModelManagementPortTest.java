@@ -13,6 +13,7 @@ import com.nori.tc.db.core.model.store.TcModelStore;
 import com.nori.tc.db.core.model.store.TcModelVariableIdStore;
 import com.nori.tc.db.core.model.store.TcModelWorkflowStore;
 import com.nori.tc.db.core.model.upsert.UpsertTcModel;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelParam;
 import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.common.model.VariableIdType;
@@ -152,6 +153,7 @@ class JpaModelManagementPortTest {
         final TcModel result = fixture.port.createBranchModel(new ModelBranchCommandPort.CreateBranchModelCommand(
                 parentLatest.modelKey(),
                 "feature",
+                null,
                 "tester"
         ));
 
@@ -172,6 +174,60 @@ class JpaModelManagementPortTest {
         verify(fixture.modelWorkflowStore, times(1)).upsert(any());
         verify(fixture.modelMdfStore, times(1)).upsert(any());
         verify(fixture.modelDcopItemStore, times(1)).upsert(any());
+    }
+
+    @Test
+    @DisplayName("branch model 생성은 선택한 root source 버전 내용을 복제합니다")
+    void createBranchModelClonesSelectedSourceVersion() {
+        final Fixture fixture = new Fixture();
+        final TcModel sourceVersion = model(
+                2101L,
+                611L,
+                "ROOT_MODEL",
+                null,
+                "1.0.0",
+                ProtocolType.SECS,
+                ModelStatus.OPERATE,
+                "source-desc",
+                "SOURCE-MAKER"
+        );
+        final TcModel parentLatest = model(
+                2102L,
+                611L,
+                "ROOT_MODEL",
+                null,
+                "2.0.0",
+                ProtocolType.SOCKET,
+                ModelStatus.OPERATE,
+                "latest-desc",
+                "LATEST-MAKER"
+        );
+        final TcModel branchCreated = model(3101L, 711L, "ROOT_MODEL_feature_tester", "ROOT_MODEL", "EDIT", ProtocolType.SECS, ModelStatus.DEVELOP);
+
+        fixture.allModels.add(sourceVersion);
+        fixture.allModels.add(parentLatest);
+        fixture.paramsByVersion.put(sourceVersion.modelVersionKey(), List.of(param(sourceVersion.modelVersionKey(), "SITE", "OLD")));
+        fixture.paramsByVersion.put(parentLatest.modelVersionKey(), List.of(param(parentLatest.modelVersionKey(), "SITE", "NEW")));
+
+        when(fixture.modelStore.upsert(any())).thenReturn(branchCreated);
+
+        final TcModel result = fixture.port.createBranchModel(new ModelBranchCommandPort.CreateBranchModelCommand(
+                parentLatest.modelKey(),
+                "feature",
+                sourceVersion.modelVersionKey(),
+                "tester"
+        ));
+
+        final ArgumentCaptor<UpsertTcModel> modelCaptor = ArgumentCaptor.forClass(UpsertTcModel.class);
+        final ArgumentCaptor<UpsertTcModelParam> paramCaptor = ArgumentCaptor.forClass(UpsertTcModelParam.class);
+        verify(fixture.modelStore).upsert(modelCaptor.capture());
+        verify(fixture.modelParamStore).upsert(paramCaptor.capture());
+
+        assertEquals(branchCreated, result);
+        assertEquals(sourceVersion.commInterface(), modelCaptor.getValue().commInterface());
+        assertEquals(sourceVersion.description(), modelCaptor.getValue().description());
+        assertEquals(sourceVersion.maker(), modelCaptor.getValue().maker());
+        assertEquals("OLD", paramCaptor.getValue().paramValue());
     }
 
     @Test
@@ -299,6 +355,7 @@ class JpaModelManagementPortTest {
         final TcModel result = fixture.port.createBranchModel(new ModelBranchCommandPort.CreateBranchModelCommand(
                 parentLatest.modelKey(),
                 suffix,
+                null,
                 currentUser
         ));
 
@@ -361,6 +418,21 @@ class JpaModelManagementPortTest {
             final ModelStatus modelStatus
     ) {
         final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
+        return model(modelVersionKey, modelKey, modelName, parentModel, modelVersion, protocolType, modelStatus, "desc", "NORI");
+    }
+
+    private static TcModel model(
+            final long modelVersionKey,
+            final long modelKey,
+            final String modelName,
+            final String parentModel,
+            final String modelVersion,
+            final ProtocolType protocolType,
+            final ModelStatus modelStatus,
+            final String description,
+            final String maker
+    ) {
+        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         return new TcModel(
                 modelVersionKey,
                 modelKey,
@@ -369,8 +441,8 @@ class JpaModelManagementPortTest {
                 modelVersion,
                 protocolType,
                 modelStatus,
-                "desc",
-                "NORI",
+                description,
+                maker,
                 now,
                 now,
                 "SYSTEM",

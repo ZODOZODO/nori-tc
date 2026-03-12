@@ -9,6 +9,7 @@ import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpHsms;
 import com.nori.tc.db.domain.eqp.TcEqpLog;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpParamVersion;
 import com.nori.tc.db.domain.eqp.TcEqpState;
 import com.nori.tc.db.domain.jar.TcJarBusiness;
 import com.nori.tc.db.domain.jar.TcJarGateway;
@@ -118,8 +119,12 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         true,
                         "v1",
                         List.of(
-                                new TcEqpParam(11L, 1L, "PARAM_A", "v2", "20", "latest", "SYSTEM", now),
-                                new TcEqpParam(12L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
+                                new TcEqpParam(11L, 1L, "PARAM_A", "v2", "20", "param latest", "SYSTEM", now),
+                                new TcEqpParam(12L, 1L, "PARAM_A", "v1", "10", "param previous", "SYSTEM", now)
+                        ),
+                        List.of(
+                                new TcEqpParamVersion(11L, 1L, "v2", "latest version", now, now, "SYSTEM", "SYSTEM"),
+                                new TcEqpParamVersion(12L, 1L, "v1", "previous version", now, now, "SYSTEM", "SYSTEM")
                         )
                 )));
 
@@ -135,8 +140,9 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 .andExpect(jsonPath("$.data.jars.gatewayJarFileName").value("gateway-main.jar"))
                 .andExpect(jsonPath("$.data.modelBinding.modelName").value("MODEL-SECS-01"))
                 .andExpect(jsonPath("$.data.appliedParamVersion").value("v1"))
-                .andExpect(jsonPath("$.data.appliedParamDescription").value("previous"))
-                .andExpect(jsonPath("$.data.paramVersions[0].paramVersion").value("v2"));
+                .andExpect(jsonPath("$.data.appliedParamDescription").value("previous version"))
+                .andExpect(jsonPath("$.data.paramVersions[0].paramVersion").value("v2"))
+                .andExpect(jsonPath("$.data.paramVersions[0].description").value("latest version"));
     }
 
     @Test
@@ -155,7 +161,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                                 new TcEqpParam(11L, 1L, "PARAM_A", "v3", "30", "latest", "SYSTEM", now),
                                 new TcEqpParam(12L, 1L, "PARAM_B", "EDIT", "999", "editing", "tester", now),
                                 new TcEqpParam(13L, 1L, "PARAM_A", "v2", "20", "previous", "SYSTEM", now)
-                        )
+                        ),
+                        List.of()
                 )));
 
         mockMvc.perform(get("/api/eqp/{eqpId}/manage", TEST_EQP_ID)
@@ -631,6 +638,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         gatewayResult,
                         businessResult
                 )));
+        awaitPendingTraceId(traceId);
         dualResponseRegistry.completeFromRedis(traceId);
     }
 
@@ -653,7 +661,33 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                         gatewayResult,
                         businessResult
                 )));
+        awaitPendingTraceId(traceId);
         dualResponseRegistry.completeFromRedis(traceId);
+    }
+
+    /**
+     * 비동기 worker가 해당 traceId를 registry에 등록할 때까지 잠시 대기합니다.
+     *
+     * <p>테스트 스레드가 완료 신호를 너무 빨리 주면 registry 등록 전에 신호가 도착해
+     * 시나리오 테스트가 간헐적으로 timeout 될 수 있으므로 race를 제거합니다.</p>
+     */
+    private void awaitPendingTraceId(final String traceId) {
+        final long deadlineNanos = System.nanoTime() + 1_000_000_000L;
+
+        while (System.nanoTime() < deadlineNanos) {
+            if (dualResponseRegistry.isPending(traceId)) {
+                return;
+            }
+
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("DualResponse traceId 대기 중 인터럽트가 발생했습니다. traceId=" + traceId, interruptedException);
+            }
+        }
+
+        throw new IllegalStateException("DualResponse traceId가 registry에 등록되지 않았습니다. traceId=" + traceId);
     }
 
     private String createRequestJsonWithoutJars(final String eqpId) {
@@ -725,6 +759,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 includeJars ? "gateway-main.jar" : null,
                 includeJars ? "business-main.jar" : null,
                 "v2",
+                null,
                 null
         );
     }
@@ -746,7 +781,31 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 includeJars ? "gateway-main.jar" : null,
                 includeJars ? "business-main.jar" : null,
                 appliedParamVersion,
-                params
+                params,
+                null
+        );
+    }
+
+    private EqpManagementSnapshot sampleManagementSnapshot(
+            final String eqpId,
+            final ProtocolType protocolType,
+            final boolean isDev,
+            final boolean alreadyStopped,
+            final boolean includeJars,
+            final String appliedParamVersion,
+            final List<TcEqpParam> params,
+            final List<TcEqpParamVersion> paramVersionMetas
+    ) {
+        return sampleManagementSnapshot(
+                eqpId,
+                protocolType,
+                isDev,
+                alreadyStopped,
+                includeJars ? "gateway-main.jar" : null,
+                includeJars ? "business-main.jar" : null,
+                appliedParamVersion,
+                params,
+                paramVersionMetas
         );
     }
 
@@ -766,6 +825,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 gatewayJarFileName,
                 businessJarFileName,
                 "v2",
+                null,
                 null
         );
     }
@@ -778,7 +838,8 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
             final String gatewayJarFileName,
             final String businessJarFileName,
             final String appliedParamVersion,
-            final List<TcEqpParam> params
+            final List<TcEqpParam> params,
+            final List<TcEqpParamVersion> paramVersionMetas
     ) {
         final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         final long modelVersionKey = isDev ? 101L : 201L;
@@ -789,6 +850,12 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 new TcEqpParam(13L, 1L, "PARAM_A", "v1", "10", "previous", "SYSTEM", now)
         )
                 : params;
+        final List<TcEqpParamVersion> resolvedParamVersionMetas = paramVersionMetas == null
+                ? List.of(
+                new TcEqpParamVersion(11L, 1L, "v2", "latest", now, now, "SYSTEM", "SYSTEM"),
+                new TcEqpParamVersion(12L, 1L, "v1", "previous", now, now, "SYSTEM", "SYSTEM")
+        )
+                : paramVersionMetas;
 
         return new EqpManagementSnapshot(
                 new TcEqp(
@@ -843,6 +910,7 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 alreadyStopped ? "DISCONNECTED" : "CONNECTED",
                 List.of(),
                 resolvedParams,
+                resolvedParamVersionMetas,
                 gatewayJarFileName != null
                         ? new TcJarGateway(
                         1L,

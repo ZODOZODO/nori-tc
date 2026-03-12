@@ -20,11 +20,13 @@ public interface ModelBranchCommandPort {
      *
      * @param parentModelKey 부모 root model의 model_key
      * @param suffix branch 이름에 사용할 사용자 입력 suffix
+     * @param sourceModelVersionKey 복제 기준 root model_version_key (null이면 최신 버전)
      * @param currentUser 현재 로그인 사용자 ID
      */
     record CreateBranchModelCommand(
             long parentModelKey,
             String suffix,
+            Long sourceModelVersionKey,
             String currentUser
     ) {
     }

@@ -2,12 +2,14 @@ package com.nori.tc.ui.adapter.db;
 
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpParamStore;
+import com.nori.tc.db.core.eqp.store.TcEqpParamVersionStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStateHistStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStateStore;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.domain.common.eqp.EqpStateType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.eqp.TcEqpParam;
+import com.nori.tc.db.domain.eqp.TcEqpParamVersion;
 import com.nori.tc.db.domain.eqp.TcEqpState;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.model.PagedResponse;
@@ -50,6 +52,7 @@ public class JpaEqpQueryPort implements EqpQueryPort {
 
     private final TcEqpStore eqpStore;
     private final TcEqpParamStore eqpParamStore;
+    private final TcEqpParamVersionStore eqpParamVersionStore;
     private final TcEqpStateStore eqpStateStore;
     private final TcEqpStateHistStore eqpStateHistStore;
 
@@ -64,11 +67,13 @@ public class JpaEqpQueryPort implements EqpQueryPort {
     public JpaEqpQueryPort(
             final TcEqpStore eqpStore,
             final TcEqpParamStore eqpParamStore,
+            final TcEqpParamVersionStore eqpParamVersionStore,
             final TcEqpStateStore eqpStateStore,
             final TcEqpStateHistStore eqpStateHistStore
     ) {
         this.eqpStore = Objects.requireNonNull(eqpStore, "eqpStore is null");
         this.eqpParamStore = Objects.requireNonNull(eqpParamStore, "eqpParamStore is null");
+        this.eqpParamVersionStore = Objects.requireNonNull(eqpParamVersionStore, "eqpParamVersionStore is null");
         this.eqpStateStore = Objects.requireNonNull(eqpStateStore, "eqpStateStore is null");
         this.eqpStateHistStore = Objects.requireNonNull(eqpStateHistStore, "eqpStateHistStore is null");
         log.info("JpaEqpQueryPort initialized. source=tc_eqp");
@@ -160,12 +165,13 @@ public class JpaEqpQueryPort implements EqpQueryPort {
     }
 
     /**
-     * 설비 ID(eqpId)에 매핑된 tc_eqp_param 버전 목록을 조회합니다.
+     * 설비 ID(eqpId)에 매핑된 설비 파라미터 버전 목록을 조회합니다.
      *
      * <p>조회 절차:</p>
      * <ol>
      *   <li>eqpId로 tc_eqp를 조회해 eqpKey를 확보</li>
-     *   <li>tc_eqp_param을 페이지 단위로 스캔하며 paramVersion을 수집</li>
+     *   <li>tc_eqp_param_version을 먼저 스캔해 버전 메타데이터를 수집</li>
+     *   <li>legacy 호환을 위해 tc_eqp_param도 페이지 단위로 스캔하며 누락된 paramVersion을 보강</li>
      *   <li>'EDIT' 버전은 체크아웃 잠금용이므로 결과에서 제외</li>
      *   <li>중복 제거 후 내림차순 정렬하여 반환</li>
      * </ol>
@@ -194,7 +200,25 @@ public class JpaEqpQueryPort implements EqpQueryPort {
 
             final long eqpKey = optionalEqp.get().eqpKey();
             final Set<String> versionSet = new HashSet<>();
+            int versionMetaOffset = 0;
             int offset = 0;
+
+            while (versionMetaOffset < PARAM_VERSION_SCAN_MAX_ROWS) {
+                final PageRequest pageRequest = PageRequest.of(versionMetaOffset, PARAM_VERSION_PAGE_LIMIT);
+                final List<TcEqpParamVersion> pageMetas = eqpParamVersionStore.findAllByEqpKey(eqpKey, pageRequest);
+                final List<String> pageVersions = pageMetas.stream()
+                        .map(meta -> meta.paramVersion() == null ? null : meta.paramVersion().trim())
+                        .filter(version -> version != null && !version.isBlank() && !EDIT_VERSION.equals(version))
+                        .toList();
+
+                versionSet.addAll(pageVersions);
+
+                if (pageMetas.size() < PARAM_VERSION_PAGE_LIMIT) {
+                    break;
+                }
+
+                versionMetaOffset += PARAM_VERSION_PAGE_LIMIT;
+            }
 
             while (offset < PARAM_VERSION_SCAN_MAX_ROWS) {
                 final PageRequest pageRequest = PageRequest.of(offset, PARAM_VERSION_PAGE_LIMIT);
