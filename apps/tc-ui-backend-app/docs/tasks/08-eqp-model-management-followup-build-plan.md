@@ -217,16 +217,16 @@ Model page를 root read-only, branch explicit checkout 중심 흐름으로 재�
 
 #### T5-1. 백엔드 테스트
 
-- [ ] `applied_param_version` 매핑 테스트 추가/수정
-- [ ] 문자열 길이 확장 대상 컬럼의 entity/mapper/validation max length 테스트 추가/수정
-- [ ] EQP update의 `commMode`, `appliedParamVersion` 저장 테스트 추가/수정
-- [ ] EQP manage detail의 컬럼 우선 / fallback 보조 정책 테스트 추가/수정
-- [ ] EQP checkout race 또는 duplicate key conflict 정규화 테스트 추가/수정
+- [x] `applied_param_version` 매핑 테스트 추가/수정
+- [x] 문자열 길이 확장 대상 컬럼의 entity/mapper/validation max length 테스트 추가/수정
+- [x] EQP update의 `commMode`, `appliedParamVersion` 저장 테스트 추가/수정
+- [x] EQP manage detail의 컬럼 우선 / fallback 보조 정책 테스트 추가/수정
+- [x] EQP checkout race 또는 duplicate key conflict 정규화 테스트 추가/수정
 
 #### T5-2. 프론트 검증
 
-- [ ] `nori-tc-ui` build 확인
-- [ ] `nori-tc-ui` lint 확인
+- [x] `nori-tc-ui` build 확인
+- [x] `nori-tc-ui` lint 확인
 - [ ] EQP/Model 주요 modal interaction 회귀 여부 확인
 
 #### T5-3. 수동 acceptance QA

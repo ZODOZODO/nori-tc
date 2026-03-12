@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 /**
  * EQP 수정 요청 DTO입니다.
@@ -47,6 +48,7 @@ public record EqpUpdateRequest(
         @Positive(message = "modelVersionKey는 1 이상이어야 합니다.")
         Long modelVersionKey,
 
+        @Size(max = 100, message = "appliedParamVersion은 100자 이하여야 합니다.")
         String appliedParamVersion,
 
         String gatewayJarFileName,

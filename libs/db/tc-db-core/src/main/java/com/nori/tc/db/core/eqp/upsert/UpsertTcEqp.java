@@ -37,4 +37,36 @@ public record UpsertTcEqp(
         String createdBy,
         String updatedBy
 ) {
+
+    private static final int APPLIED_PARAM_VERSION_MAX_LENGTH = 100;
+
+    public UpsertTcEqp {
+        if (eqpId == null || eqpId.isBlank()) {
+            throw new IllegalArgumentException("eqpId must not be null/blank");
+        }
+        if (commInterface == null) {
+            throw new IllegalArgumentException("commInterface must not be null");
+        }
+        if (commMode == null || commMode.isBlank()) {
+            throw new IllegalArgumentException("commMode must not be null/blank");
+        }
+        if (!"ACTIVE".equals(commMode) && !"PASSIVE".equals(commMode)) {
+            throw new IllegalArgumentException("commMode must be ACTIVE or PASSIVE");
+        }
+        if (routePartition != null && routePartition < 0) {
+            throw new IllegalArgumentException("routePartition must be >= 0 when present");
+        }
+        if (eqpIp == null || eqpIp.isBlank()) {
+            throw new IllegalArgumentException("eqpIp must not be null/blank");
+        }
+        if (eqpPort <= 0) {
+            throw new IllegalArgumentException("eqpPort must be > 0");
+        }
+        if (modelVersionKey <= 0) {
+            throw new IllegalArgumentException("modelVersionKey must be > 0");
+        }
+        if (appliedParamVersion != null && appliedParamVersion.length() > APPLIED_PARAM_VERSION_MAX_LENGTH) {
+            throw new IllegalArgumentException("appliedParamVersion must be <= " + APPLIED_PARAM_VERSION_MAX_LENGTH + " characters");
+        }
+    }
 }
