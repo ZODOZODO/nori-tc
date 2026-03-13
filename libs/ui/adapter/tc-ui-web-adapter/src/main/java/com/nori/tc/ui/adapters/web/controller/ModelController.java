@@ -12,8 +12,11 @@ import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
+import com.nori.tc.ui.adapters.web.controller.support.ModelDetailPreviewSupport;
 import com.nori.tc.ui.adapters.web.controller.support.UiPageRequestSupport;
 import com.nori.tc.ui.adapters.web.dto.request.ModelBranchCreateRequest;
+import com.nori.tc.ui.adapters.web.dto.request.ModelCheckinRequest;
+import com.nori.tc.ui.adapters.web.dto.request.ModelDetailSaveRequest;
 import com.nori.tc.ui.adapters.web.dto.request.ModelInfoUpdateRequest;
 import com.nori.tc.ui.adapters.web.dto.request.ModelParentCommitRequest;
 import com.nori.tc.ui.adapters.web.dto.request.ModelRootCreateRequest;
@@ -29,6 +32,7 @@ import com.nori.tc.ui.adapters.web.dto.response.ModelMdfContentResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelParentCommitResponse;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.model.PagedResponse;
+import com.nori.tc.ui.core.port.db.ModelDetailCommandPort;
 import com.nori.tc.ui.core.port.db.ModelBranchCommandPort;
 import com.nori.tc.ui.core.port.db.ModelCrudPort;
 import com.nori.tc.ui.core.port.db.ModelDetailQueryPort;
@@ -40,7 +44,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,10 +54,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -79,6 +87,7 @@ import java.util.Optional;
 public class ModelController {
 
     private static final Logger log = LoggerFactory.getLogger(ModelController.class);
+    private static final String EDIT_MODEL_VERSION = "EDIT";
     private static final List<String> MODEL_PARAMETER_COLUMNS = List.of(
             "Parameter Name",
             "Parameter Value",
@@ -128,9 +137,11 @@ public class ModelController {
             "Collection Rule",
             "Order Rule"
     );
+    private static final String DEFAULT_MDF_NAME = "MDF";
 
     private final ModelCrudPort modelCrudPort;
     private final ModelDetailQueryPort modelDetailQueryPort;
+    private final ModelDetailCommandPort modelDetailCommandPort;
     private final ModelRootCommandPort modelRootCommandPort;
     private final ModelBranchCommandPort modelBranchCommandPort;
     private final ModelParentCommitPort modelParentCommitPort;
@@ -140,6 +151,7 @@ public class ModelController {
      *
      * @param modelCrudPort 모델 CRUD 포트
      * @param modelDetailQueryPort 모델 상세 조회 포트
+     * @param modelDetailCommandPort 모델 상세 저장 포트
      * @param modelRootCommandPort root model 관리 포트
      * @param modelBranchCommandPort branch model 관리 포트
      * @param modelParentCommitPort parent commit 포트
@@ -147,12 +159,14 @@ public class ModelController {
     public ModelController(
             final ModelCrudPort modelCrudPort,
             final ModelDetailQueryPort modelDetailQueryPort,
+            final ModelDetailCommandPort modelDetailCommandPort,
             final ModelRootCommandPort modelRootCommandPort,
             final ModelBranchCommandPort modelBranchCommandPort,
             final ModelParentCommitPort modelParentCommitPort
     ) {
         this.modelCrudPort = Objects.requireNonNull(modelCrudPort, "modelCrudPort is null");
         this.modelDetailQueryPort = Objects.requireNonNull(modelDetailQueryPort, "modelDetailQueryPort is null");
+        this.modelDetailCommandPort = Objects.requireNonNull(modelDetailCommandPort, "modelDetailCommandPort is null");
         this.modelRootCommandPort = Objects.requireNonNull(modelRootCommandPort, "modelRootCommandPort is null");
         this.modelBranchCommandPort = Objects.requireNonNull(modelBranchCommandPort, "modelBranchCommandPort is null");
         this.modelParentCommitPort = Objects.requireNonNull(modelParentCommitPort, "modelParentCommitPort is null");
@@ -246,74 +260,7 @@ public class ModelController {
                     .body(ApiResponse.error("NOT_FOUND", "모델을 찾을 수 없습니다."));
         }
 
-        final String normalizedNode = (detailNode == null) ? "" : detailNode.trim().toLowerCase(Locale.ROOT);
-        final ModelDetailDataResponse response = switch (normalizedNode) {
-            case "model-parameter" -> new ModelDetailDataResponse(
-                    MODEL_PARAMETER_COLUMNS,
-                    modelDetailQueryPort.findParamsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toModelParamRow)
-                            .toList(),
-                    List.of()
-            );
-            case "secs-message" -> new ModelDetailDataResponse(
-                    SECS_MESSAGE_COLUMNS,
-                    modelDetailQueryPort.findSecsMessagesByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toSecsMessageRow)
-                            .toList(),
-                    List.of()
-            );
-            case "socket-message" -> new ModelDetailDataResponse(
-                    SOCKET_MESSAGE_COLUMNS,
-                    modelDetailQueryPort.findSocketMessagesByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toSocketMessageRow)
-                            .toList(),
-                    List.of()
-            );
-            case "variableides" -> new ModelDetailDataResponse(
-                    VARIABLE_ID_COLUMNS,
-                    modelDetailQueryPort.findVariableIdsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toVariableIdRow)
-                            .toList(),
-                    List.of()
-            );
-            case "reportides" -> new ModelDetailDataResponse(
-                    REPORT_ID_COLUMNS,
-                    modelDetailQueryPort.findReportIdsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toReportIdRow)
-                            .toList(),
-                    List.of()
-            );
-            case "eventides" -> new ModelDetailDataResponse(
-                    EVENT_ID_COLUMNS,
-                    modelDetailQueryPort.findEventIdsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toEventIdRow)
-                            .toList(),
-                    List.of()
-            );
-            case "workflow" -> new ModelDetailDataResponse(
-                    WORKFLOW_COLUMNS,
-                    modelDetailQueryPort.findWorkflowsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toWorkflowRow)
-                            .toList(),
-                    List.of()
-            );
-            case "mdf" -> new ModelDetailDataResponse(
-                    List.of(),
-                    List.of(),
-                    modelDetailQueryPort.findMdfByModelVersionKey(modelVersionKey)
-                            .map(ModelController::toMdfContent)
-                            .stream()
-                            .toList()
-            );
-            case "dcop-itemes" -> new ModelDetailDataResponse(
-                    DCOP_ITEM_COLUMNS,
-                    modelDetailQueryPort.findDcopItemsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toDcopItemRow)
-                            .toList(),
-                    List.of()
-            );
-            default -> null;
-        };
+        final ModelDetailDataResponse response = buildDetailResponse(modelVersionKey, detailNode);
 
         if (response == null) {
             return ResponseEntity.badRequest()
@@ -321,6 +268,110 @@ public class ModelController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 일반 상세 테이블 row를 현재 model version에 저장합니다.
+     *
+     * <p>MDF는 multipart 업로드 계약을 사용하므로 본 엔드포인트에서 제외합니다.</p>
+     *
+     * @param modelVersionKey 대상 모델 버전 키
+     * @param detailNode 저장할 상세 노드 식별자
+     * @param request row 저장 요청 본문
+     * @return 저장 후 재조회한 상세 노드 응답
+     */
+    @PutMapping(
+            path = "/{modelVersionKey}/details/{detailNode}",
+            consumes = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<ModelDetailDataResponse>> saveDetailRows(
+            @PathVariable final long modelVersionKey,
+            @PathVariable final String detailNode,
+            @Valid @RequestBody final ModelDetailSaveRequest request
+    ) {
+        final Optional<TcModel> optionalModel = modelCrudPort.findByModelVersionKey(modelVersionKey);
+        if (optionalModel.isEmpty()) {
+            log.warn("모델 상세 저장 대상 없음. modelVersionKey={}, detailNode={}", modelVersionKey, detailNode);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("NOT_FOUND", "모델을 찾을 수 없습니다."));
+        }
+        if (!isEditVersion(optionalModel.get())) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_MODEL_VERSION", "EDIT version만 저장할 수 있습니다."));
+        }
+
+        final String normalizedNode = normalizeDetailNode(detailNode);
+        if ("mdf".equals(normalizedNode)) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_NODE", "MDF는 upload API를 사용해 주세요."));
+        }
+
+        log.info("모델 상세 row 저장 요청. modelVersionKey={}, detailNode={}, rowCount={}",
+                modelVersionKey, normalizedNode, request.rows() == null ? 0 : request.rows().size());
+
+        modelDetailCommandPort.saveDetailRows(
+                modelVersionKey,
+                normalizedNode,
+                request.rows() == null
+                        ? List.of()
+                        : request.rows().stream()
+                                .map(row -> new ModelDetailCommandPort.DetailRowCommand(row.id(), row.values()))
+                                .toList()
+        );
+
+        final ModelDetailDataResponse response = buildDetailResponse(modelVersionKey, normalizedNode);
+        if (response == null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_NODE", "지원하지 않는 상세 노드입니다."));
+        }
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * MDF XML 파일을 업로드하여 현재 model version의 MDF를 교체 저장합니다.
+     *
+     * <p>업로드 파일은 UTF-8 XML 형식이어야 하며, XML 정합성 검증 실패 시 400을 반환합니다.</p>
+     *
+     * @param modelVersionKey 대상 모델 버전 키
+     * @param file 업로드할 MDF 파일
+     * @param mdfName 저장할 MDF 이름(선택)
+     * @return 저장된 MDF 응답
+     */
+    @PutMapping(
+            path = "/{modelVersionKey}/details/mdf",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<ApiResponse<ModelMdfContentResponse>> uploadMdf(
+            @PathVariable final long modelVersionKey,
+            @RequestParam("file") final MultipartFile file,
+            @RequestParam(name = "mdfName", required = false) final String mdfName
+    ) {
+        final Optional<TcModel> optionalModel = modelCrudPort.findByModelVersionKey(modelVersionKey);
+        if (optionalModel.isEmpty()) {
+            log.warn("MDF 업로드 대상 모델 없음. modelVersionKey={}", modelVersionKey);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("NOT_FOUND", "모델을 찾을 수 없습니다."));
+        }
+        if (!isEditVersion(optionalModel.get())) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_MODEL_VERSION", "EDIT version만 업로드할 수 있습니다."));
+        }
+
+        final String resolvedMdfName = resolveUploadMdfName(
+                mdfName,
+                file == null ? null : file.getOriginalFilename(),
+                modelDetailQueryPort.findMdfByModelVersionKey(modelVersionKey).orElse(null)
+        );
+        final byte[] fileBytes = readUploadedBytes(file);
+
+        log.info("MDF 업로드 요청. modelVersionKey={}, mdfName={}, fileName={}, fileSize={}",
+                modelVersionKey,
+                resolvedMdfName,
+                file == null ? "" : nullToEmpty(file.getOriginalFilename()),
+                fileBytes.length);
+
+        final TcModelMdf saved = modelDetailCommandPort.saveMdf(modelVersionKey, resolvedMdfName, fileBytes);
+        return ResponseEntity.ok(ApiResponse.success(toMdfContent(saved)));
     }
 
     /**
@@ -408,6 +459,62 @@ public class ModelController {
 
         log.info("branch model 생성 완료. branchModelKey={}, branchModelName={}", created.modelKey(), created.modelName());
         return ResponseEntity.ok(ApiResponse.success(toModelInfoResponse(created)));
+    }
+
+    /**
+     * 선택한 branch version을 EDIT version으로 checkout합니다.
+     *
+     * @param modelVersionKey 복제 기준 version key
+     * @param authentication 현재 로그인 사용자 정보
+     * @return 편집용 EDIT 모델 버전 정보
+     */
+    @PostMapping("/{modelVersionKey}/checkout")
+    public ResponseEntity<ApiResponse<ModelInfoResponse>> checkoutBranchVersion(
+            @PathVariable final long modelVersionKey,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        log.info("branch checkout 요청. modelVersionKey={}, currentUser={}", modelVersionKey, currentUser);
+
+        final TcModel checkedOut = modelBranchCommandPort.checkoutBranchVersion(
+                new ModelBranchCommandPort.CheckoutBranchVersionCommand(modelVersionKey, currentUser)
+        );
+
+        log.info("branch checkout 완료. sourceModelVersionKey={}, checkedOutModelVersionKey={}",
+                modelVersionKey, checkedOut.modelVersionKey());
+        return ResponseEntity.ok(ApiResponse.success(toModelInfoResponse(checkedOut)));
+    }
+
+    /**
+     * EDIT version을 새 branch version으로 checkin합니다.
+     *
+     * @param modelVersionKey 체크인할 EDIT version key
+     * @param request 새 버전/설명 요청 본문
+     * @param authentication 현재 로그인 사용자 정보
+     * @return 새로 생성된 branch 모델 버전 정보
+     */
+    @PostMapping("/{modelVersionKey}/checkin")
+    public ResponseEntity<ApiResponse<ModelInfoResponse>> checkinBranchEditVersion(
+            @PathVariable final long modelVersionKey,
+            @Valid @RequestBody final ModelCheckinRequest request,
+            final Authentication authentication
+    ) {
+        final String currentUser = resolveCurrentUser(authentication);
+        log.info("branch checkin 요청. editModelVersionKey={}, newVersion={}, currentUser={}",
+                modelVersionKey, request.newVersion(), currentUser);
+
+        final TcModel checkedIn = modelBranchCommandPort.checkinBranchEditVersion(
+                new ModelBranchCommandPort.CheckinBranchEditVersionCommand(
+                        modelVersionKey,
+                        request.newVersion(),
+                        request.description(),
+                        currentUser
+                )
+        );
+
+        log.info("branch checkin 완료. editModelVersionKey={}, checkedInModelVersionKey={}",
+                modelVersionKey, checkedIn.modelVersionKey());
+        return ResponseEntity.ok(ApiResponse.success(toModelInfoResponse(checkedIn)));
     }
 
     /**
@@ -579,10 +686,98 @@ public class ModelController {
     }
 
     /**
+     * detailNode에 대응하는 상세 조회 응답을 생성합니다.
+     */
+    private ModelDetailDataResponse buildDetailResponse(final long modelVersionKey, final String detailNode) {
+        final String normalizedNode = normalizeDetailNode(detailNode);
+        return switch (normalizedNode) {
+            case "model-parameter" -> new ModelDetailDataResponse(
+                    MODEL_PARAMETER_COLUMNS,
+                    modelDetailQueryPort.findParamsByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toModelParamRow)
+                            .toList(),
+                    List.of()
+            );
+            case "secs-message" -> new ModelDetailDataResponse(
+                    SECS_MESSAGE_COLUMNS,
+                    modelDetailQueryPort.findSecsMessagesByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toSecsMessageRow)
+                            .toList(),
+                    List.of()
+            );
+            case "socket-message" -> new ModelDetailDataResponse(
+                    SOCKET_MESSAGE_COLUMNS,
+                    modelDetailQueryPort.findSocketMessagesByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toSocketMessageRow)
+                            .toList(),
+                    List.of()
+            );
+            case "variableides" -> new ModelDetailDataResponse(
+                    VARIABLE_ID_COLUMNS,
+                    modelDetailQueryPort.findVariableIdsByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toVariableIdRow)
+                            .toList(),
+                    List.of()
+            );
+            case "reportides" -> new ModelDetailDataResponse(
+                    REPORT_ID_COLUMNS,
+                    modelDetailQueryPort.findReportIdsByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toReportIdRow)
+                            .toList(),
+                    List.of()
+            );
+            case "eventides" -> new ModelDetailDataResponse(
+                    EVENT_ID_COLUMNS,
+                    modelDetailQueryPort.findEventIdsByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toEventIdRow)
+                            .toList(),
+                    List.of()
+            );
+            case "workflow" -> new ModelDetailDataResponse(
+                    WORKFLOW_COLUMNS,
+                    modelDetailQueryPort.findWorkflowsByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toWorkflowRow)
+                            .toList(),
+                    List.of()
+            );
+            case "mdf" -> new ModelDetailDataResponse(
+                    List.of(),
+                    List.of(),
+                    modelDetailQueryPort.findMdfByModelVersionKey(modelVersionKey)
+                            .map(ModelController::toMdfContent)
+                            .stream()
+                            .toList()
+            );
+            case "dcop-itemes" -> new ModelDetailDataResponse(
+                    DCOP_ITEM_COLUMNS,
+                    modelDetailQueryPort.findDcopItemsByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toDcopItemRow)
+                            .toList(),
+                    List.of()
+            );
+            default -> null;
+        };
+    }
+
+    /**
+     * detailNode path 값을 공통 규칙으로 정규화합니다.
+     */
+    private static String normalizeDetailNode(final String detailNode) {
+        return detailNode == null ? "" : detailNode.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 상세 저장/업로드는 EDIT version에서만 허용합니다.
+     */
+    private static boolean isEditVersion(final TcModel model) {
+        return model != null && EDIT_MODEL_VERSION.equalsIgnoreCase(nullToEmpty(model.modelVersion()));
+    }
+
+    /**
      * tc_model_param row를 상세 테이블 row DTO로 변환합니다.
      */
     private static ModelDetailRowResponse toModelParamRow(final TcModelParam param) {
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("param", param.modelParamKey()), List.of(
                 nullToEmpty(param.paramName()),
                 nullToEmpty(param.paramValue()),
                 nullToEmpty(param.description())
@@ -593,7 +788,7 @@ public class ModelController {
      * tc_model_secs_message row를 상세 테이블 row DTO로 변환합니다.
      */
     private static ModelDetailRowResponse toSecsMessageRow(final TcModelSecsMessage message) {
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("secs", message.secsMsgKey()), List.of(
                 nullToEmpty(message.secsMsgName()),
                 nullToEmpty(message.description()),
                 nullToEmpty(message.dataIndex())
@@ -604,7 +799,7 @@ public class ModelController {
      * tc_model_socket_message row를 상세 테이블 row DTO로 변환합니다.
      */
     private static ModelDetailRowResponse toSocketMessageRow(final TcModelSocketMessage message) {
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("socket", message.socketMsgKey()), List.of(
                 nullToEmpty(message.socketMsgName()),
                 nullToEmpty(message.description()),
                 nullToEmpty(message.dataIndex())
@@ -616,7 +811,7 @@ public class ModelController {
      */
     private static ModelDetailRowResponse toVariableIdRow(final TcModelVariableId variableId) {
         final String variableIdType = variableId.variableIdType() == null ? "" : variableId.variableIdType().name();
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("variable", variableId.variableKey()), List.of(
                 nullToEmpty(variableId.variableId()),
                 variableIdType,
                 nullToEmpty(variableId.description())
@@ -627,7 +822,7 @@ public class ModelController {
      * tc_model_reportid row를 상세 테이블 row DTO로 변환합니다.
      */
     private static ModelDetailRowResponse toReportIdRow(final TcModelReportId reportId) {
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("report", reportId.reportKey()), List.of(
                 nullToEmpty(reportId.reportId()),
                 nullToEmpty(reportId.variableId()),
                 Boolean.toString(reportId.enabled()),
@@ -639,7 +834,7 @@ public class ModelController {
      * tc_model_eventid row를 상세 테이블 row DTO로 변환합니다.
      */
     private static ModelDetailRowResponse toEventIdRow(final TcModelEventId eventId) {
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("event", eventId.eventKey()), List.of(
                 nullToEmpty(eventId.eventId()),
                 nullToEmpty(eventId.reportId()),
                 Boolean.toString(eventId.enabled()),
@@ -651,7 +846,7 @@ public class ModelController {
      * tc_model_workflow row를 상세 테이블 row DTO로 변환합니다.
      */
     private static ModelDetailRowResponse toWorkflowRow(final TcModelWorkflow workflow) {
-        return new ModelDetailRowResponse(List.of(
+        final List<String> values = List.of(
                 nullToEmpty(workflow.workflowName()),
                 nullToEmpty(workflow.messageName()),
                 nullToEmpty(workflow.eventId()),
@@ -659,7 +854,12 @@ public class ModelController {
                 nullToEmpty(workflow.workflowFilter()),
                 nullToEmpty(workflow.actionName()),
                 nullToEmpty(workflow.actionDataIndex())
-        ));
+        );
+        return new ModelDetailRowResponse(
+                modelRowId("workflow", workflow.workflowKey()),
+                values,
+                ModelDetailPreviewSupport.buildWorkflowPreviewValues(workflow)
+        );
     }
 
     /**
@@ -668,7 +868,7 @@ public class ModelController {
     private static ModelDetailRowResponse toDcopItemRow(final TcModelDcopItem dcopItem) {
         final String collectionRule = dcopItem.collectionRule() == null ? "" : dcopItem.collectionRule().name();
         final String orderRule = dcopItem.orderRule() == null ? "" : dcopItem.orderRule().toString();
-        return new ModelDetailRowResponse(List.of(
+        return new ModelDetailRowResponse(modelRowId("dcop", dcopItem.dcopItemKey()), List.of(
                 nullToEmpty(dcopItem.dcopItemName()),
                 nullToEmpty(dcopItem.workflowName()),
                 nullToEmpty(dcopItem.eventId()),
@@ -688,10 +888,94 @@ public class ModelController {
     }
 
     /**
+     * 일반 상세 row 식별자를 prefix + key 형식으로 생성합니다.
+     */
+    private static String modelRowId(final String prefix, final Long key) {
+        if (key == null || key <= 0L) {
+            return "";
+        }
+        return prefix + ":" + key;
+    }
+
+    /**
      * null 문자열을 빈 문자열로 변환합니다.
      */
     private static String nullToEmpty(final String value) {
         return value == null ? "" : value;
+    }
+
+    /**
+     * multipart 업로드 바이트를 읽고 입력 오류를 정규화합니다.
+     */
+    private static byte[] readUploadedBytes(final MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new UiBadRequestException("업로드할 MDF 파일이 비어 있습니다.");
+        }
+
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new UiBadRequestException("업로드한 MDF 파일을 읽을 수 없습니다.", e);
+        }
+    }
+
+    /**
+     * 업로드 시 사용할 MDF 이름을 결정합니다.
+     *
+     * <p>우선순위:
+     * 1) 요청 파라미터
+     * 2) 기존 저장 MDF 이름
+     * 3) 업로드 파일명(확장자 제거)
+     * 4) 기본값</p>
+     */
+    private static String resolveUploadMdfName(
+            final String requestedMdfName,
+            final String originalFilename,
+            final TcModelMdf existingMdf
+    ) {
+        final String explicitName = normalizeOptionalText(requestedMdfName);
+        if (explicitName != null) {
+            return explicitName;
+        }
+
+        final String existingName = existingMdf == null ? null : normalizeOptionalText(existingMdf.mdfName());
+        if (existingName != null) {
+            return existingName;
+        }
+
+        final String fileBasedName = extractBaseName(originalFilename);
+        if (fileBasedName != null) {
+            return fileBasedName;
+        }
+        return DEFAULT_MDF_NAME;
+    }
+
+    /**
+     * 선택 문자열을 trim 기반으로 정규화합니다.
+     */
+    private static String normalizeOptionalText(final String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    /**
+     * 파일명에서 마지막 확장자를 제거한 base name을 추출합니다.
+     */
+    private static String extractBaseName(final String filename) {
+        final String normalizedFilename = normalizeOptionalText(filename);
+        if (normalizedFilename == null) {
+            return null;
+        }
+
+        final int lastSlash = Math.max(normalizedFilename.lastIndexOf('/'), normalizedFilename.lastIndexOf('\\'));
+        final String simpleName = lastSlash >= 0 ? normalizedFilename.substring(lastSlash + 1) : normalizedFilename;
+        final int extensionIndex = simpleName.lastIndexOf('.');
+        if (extensionIndex <= 0) {
+            return simpleName;
+        }
+        return simpleName.substring(0, extensionIndex);
     }
 
     /**

@@ -317,6 +317,106 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     }
 
     /**
+     * branch version을 EDIT version으로 checkout합니다.
+     */
+    @Override
+    @Transactional
+    public TcModel checkoutBranchVersion(final CheckoutBranchVersionCommand command) {
+        validateCheckoutBranchVersionCommand(command);
+        final String currentUser = normalizeCurrentUser(command.currentUser());
+
+        try {
+            final List<TcModel> allModels = loadAllModels();
+            final TcModel sourceModel = requireModelVersion(command.sourceModelVersionKey(), allModels);
+            ensureBranchModel(sourceModel);
+
+            if (sourceModel.status() == ModelStatus.DEPRECATED) {
+                throw new UiConflictException("DEPRECATED branch model은 checkout할 수 없습니다.");
+            }
+
+            final Optional<TcModel> existingEdit = allModels.stream()
+                    .filter(model -> model.modelKey() == sourceModel.modelKey())
+                    .filter(model -> EDIT_VERSION.equalsIgnoreCase(model.modelVersion()))
+                    .max(Comparator.comparingLong(TcModel::modelVersionKey));
+
+            if (existingEdit.isPresent()) {
+                ensureEditableByCurrentUser(existingEdit.get(), currentUser);
+                return existingEdit.get();
+            }
+
+            final TcModel checkedOut = modelStore.upsert(new UpsertTcModel(
+                    null,
+                    sourceModel.modelName(),
+                    sourceModel.parentModel(),
+                    EDIT_VERSION,
+                    sourceModel.commInterface(),
+                    ModelStatus.DEVELOP,
+                    sourceModel.description(),
+                    sourceModel.maker(),
+                    currentUser,
+                    currentUser
+            ));
+
+            cloneModelDetails(sourceModel.modelVersionKey(), checkedOut.modelVersionKey());
+            log.info("branch checkout 완료. sourceModelVersionKey={}, checkedOutModelVersionKey={}, modelKey={}",
+                    sourceModel.modelVersionKey(), checkedOut.modelVersionKey(), checkedOut.modelKey());
+            return checkedOut;
+        } catch (RuntimeException e) {
+            throw translateException(e, "branch checkout 중 충돌이 발생했습니다.", "branch checkout 입력이 올바르지 않습니다.");
+        }
+    }
+
+    /**
+     * EDIT version을 새 branch version으로 checkin합니다.
+     */
+    @Override
+    @Transactional
+    public TcModel checkinBranchEditVersion(final CheckinBranchEditVersionCommand command) {
+        validateCheckinBranchEditVersionCommand(command);
+        final String currentUser = normalizeCurrentUser(command.currentUser());
+        final String newVersion = normalizeRequiredText(command.newVersion(), "newVersion");
+
+        try {
+            final List<TcModel> allModels = loadAllModels();
+            final TcModel editModel = requireModelVersion(command.editModelVersionKey(), allModels);
+            ensureBranchModel(editModel);
+
+            if (!EDIT_VERSION.equalsIgnoreCase(editModel.modelVersion())) {
+                throw new UiBadRequestException("EDIT version만 checkin할 수 있습니다.");
+            }
+
+            ensureEditableByCurrentUser(editModel, currentUser);
+            validateModelVersion(newVersion);
+
+            if (modelStore.findByNameVersion(editModel.modelName(), newVersion).isPresent()) {
+                throw new UiConflictException("동일한 branch version이 이미 존재합니다.");
+            }
+
+            final TcModel checkedIn = modelStore.upsert(new UpsertTcModel(
+                    null,
+                    editModel.modelName(),
+                    editModel.parentModel(),
+                    newVersion,
+                    editModel.commInterface(),
+                    editModel.status(),
+                    normalizeOptionalText(command.description()),
+                    editModel.maker(),
+                    currentUser,
+                    currentUser
+            ));
+
+            cloneModelDetails(editModel.modelVersionKey(), checkedIn.modelVersionKey());
+            modelStore.deleteByModelVersionKey(editModel.modelVersionKey());
+
+            log.info("branch checkin 완료. editModelVersionKey={}, checkedInModelVersionKey={}, newVersion={}",
+                    editModel.modelVersionKey(), checkedIn.modelVersionKey(), newVersion);
+            return checkedIn;
+        } catch (RuntimeException e) {
+            throw translateException(e, "branch checkin 중 충돌이 발생했습니다.", "branch checkin 입력이 올바르지 않습니다.");
+        }
+    }
+
+    /**
      * deprecated branch를 일괄 삭제합니다.
      */
     @Override
@@ -696,6 +796,19 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     }
 
     /**
+     * model_version_key 기준 단건을 조회합니다.
+     */
+    private TcModel requireModelVersion(final long modelVersionKey, final List<TcModel> allModels) {
+        if (modelVersionKey <= 0L) {
+            throw new UiBadRequestException("modelVersionKey는 1 이상이어야 합니다.");
+        }
+        return allModels.stream()
+                .filter(model -> model.modelVersionKey() == modelVersionKey)
+                .findFirst()
+                .orElseThrow(() -> new UiNotFoundException("모델을 찾을 수 없습니다."));
+    }
+
+    /**
      * branch 생성 시 복제할 root source 버전을 결정합니다.
      *
      * <p>sourceModelVersionKey가 없으면 현재 최신 root 버전을 사용하고,
@@ -740,6 +853,17 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
         if (model.parentModel() == null || model.parentModel().isBlank()) {
             throw new UiBadRequestException("branch model만 처리할 수 있습니다.");
         }
+    }
+
+    /**
+     * EDIT 잠금 소유권을 현재 사용자 기준으로 검증합니다.
+     */
+    private void ensureEditableByCurrentUser(final TcModel editModel, final String currentUser) {
+        final String lockOwner = resolveLockOwner(editModel);
+        if (lockOwner == null || lockOwner.equals(currentUser)) {
+            return;
+        }
+        throw new UiConflictException(lockOwner + "님이 체크아웃한 모델이라 수정할 수 없습니다.");
     }
 
     /**
@@ -1093,6 +1217,31 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     }
 
     /**
+     * branch checkout 입력을 검증합니다.
+     */
+    private void validateCheckoutBranchVersionCommand(final CheckoutBranchVersionCommand command) {
+        if (command == null) {
+            throw new UiBadRequestException("branch checkout 요청이 비어 있습니다.");
+        }
+        if (command.sourceModelVersionKey() <= 0L) {
+            throw new UiBadRequestException("sourceModelVersionKey는 1 이상이어야 합니다.");
+        }
+    }
+
+    /**
+     * branch checkin 입력을 검증합니다.
+     */
+    private void validateCheckinBranchEditVersionCommand(final CheckinBranchEditVersionCommand command) {
+        if (command == null) {
+            throw new UiBadRequestException("branch checkin 요청이 비어 있습니다.");
+        }
+        if (command.editModelVersionKey() <= 0L) {
+            throw new UiBadRequestException("editModelVersionKey는 1 이상이어야 합니다.");
+        }
+        normalizeRequiredText(command.newVersion(), "newVersion");
+    }
+
+    /**
      * parent commit 입력을 검증합니다.
      */
     private void validateCommitParentCommand(final CommitParentCommand command) {
@@ -1162,6 +1311,17 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     private String normalizeCurrentUser(final String currentUser) {
         final String normalized = normalizeOptionalText(currentUser);
         return normalized == null ? SYSTEM_USER : normalized;
+    }
+
+    /**
+     * EDIT 잠금 소유자를 updatedBy 우선 규칙으로 계산합니다.
+     */
+    private String resolveLockOwner(final TcModel model) {
+        final String updatedBy = normalizeOptionalText(model.updatedBy());
+        if (updatedBy != null) {
+            return updatedBy;
+        }
+        return normalizeOptionalText(model.createdBy());
     }
 
     /**

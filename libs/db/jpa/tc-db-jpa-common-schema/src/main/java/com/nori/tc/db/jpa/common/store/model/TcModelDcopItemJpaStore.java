@@ -66,7 +66,10 @@ public class TcModelDcopItemJpaStore implements TcModelDcopItemStore {
 
         try {
             TcModelDcopItemEntity entity = repository.findByModelVersionKeyAndDcopItemName(command.modelVersionKey(), command.dcopItemName())
-                    .orElseGet(TcModelDcopItemEntity::new);
+                    .orElseGet(() -> TcModelDcopItemEntity.newEntity(
+                            command.modelVersionKey(),
+                            command.dcopItemName()
+                    ));
 
             // 1. 엔티티 필드 업데이트 (명칭 변경 반영)
             mapper.updateEntity(command, entity);
