@@ -13,6 +13,7 @@ import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
 import com.nori.tc.ui.adapters.web.controller.support.ModelDetailPreviewSupport;
+import com.nori.tc.ui.adapters.web.controller.support.ModelDetailWorkflowJsonSupport;
 import com.nori.tc.ui.adapters.web.controller.support.UiPageRequestSupport;
 import com.nori.tc.ui.adapters.web.dto.request.ModelBranchCreateRequest;
 import com.nori.tc.ui.adapters.web.dto.request.ModelCheckinRequest;
@@ -138,6 +139,8 @@ public class ModelController {
             "Order Rule"
     );
     private static final String DEFAULT_MDF_NAME = "MDF";
+    private static final int WORKFLOW_FILTER_VALUE_INDEX = 4;
+    private static final int ACTION_DATA_INDEX_VALUE_INDEX = 6;
 
     private final ModelCrudPort modelCrudPort;
     private final ModelDetailQueryPort modelDetailQueryPort;
@@ -309,6 +312,12 @@ public class ModelController {
         log.info("모델 상세 row 저장 요청. modelVersionKey={}, detailNode={}, rowCount={}",
                 modelVersionKey, normalizedNode, request.rows() == null ? 0 : request.rows().size());
 
+        final String workflowValidationMessage = validateWorkflowJsonRows(normalizedNode, request.rows());
+        if (workflowValidationMessage != null) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_REQUEST", workflowValidationMessage));
+        }
+
         modelDetailCommandPort.saveDetailRows(
                 modelVersionKey,
                 normalizedNode,
@@ -325,6 +334,51 @@ public class ModelController {
                     .body(ApiResponse.error("INVALID_NODE", "지원하지 않는 상세 노드입니다."));
         }
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * workflow 상세 저장 시 row 단위 JSON 계약을 사전 검증합니다.
+     *
+     * <p>preview와 저장이 서로 다른 규칙을 보지 않도록 UI 계층에서 동일한 canonical 계약을 사용합니다.</p>
+     *
+     * @param detailNode 저장 대상 상세 노드
+     * @param rows 요청 row 목록
+     * @return 검증 실패 메시지. 정상인 경우 null
+     */
+    private String validateWorkflowJsonRows(
+            final String detailNode,
+            final List<ModelDetailSaveRequest.ModelDetailSaveRowItem> rows
+    ) {
+        if (!"workflow".equals(detailNode) || rows == null || rows.isEmpty()) {
+            return null;
+        }
+
+        for (int index = 0; index < rows.size(); index++) {
+            final ModelDetailSaveRequest.ModelDetailSaveRowItem row = rows.get(index);
+
+            final String workflowFilter = valueAt(row.values(), WORKFLOW_FILTER_VALUE_INDEX);
+            try {
+                ModelDetailWorkflowJsonSupport.validateWorkflowFilter(workflowFilter);
+            } catch (IllegalArgumentException exception) {
+                final String message = "workflow " + (index + 1) + "행의 workflow_filter가 올바르지 않습니다. "
+                        + exception.getMessage();
+                log.warn("workflow_filter 저장 검증 실패. detailNode={}, rowIndex={}, rowId={}, reason={}",
+                        detailNode, index, row.id(), exception.getMessage());
+                return message;
+            }
+
+            final String actionDataIndex = valueAt(row.values(), ACTION_DATA_INDEX_VALUE_INDEX);
+            try {
+                ModelDetailWorkflowJsonSupport.validateActionDataIndex(actionDataIndex);
+            } catch (IllegalArgumentException exception) {
+                final String message = "workflow " + (index + 1) + "행의 action_data_index가 올바르지 않습니다. "
+                        + exception.getMessage();
+                log.warn("action_data_index 저장 검증 실패. detailNode={}, rowIndex={}, rowId={}, reason={}",
+                        detailNode, index, row.id(), exception.getMessage());
+                return message;
+            }
+        }
+        return null;
     }
 
     /**
@@ -885,6 +939,20 @@ public class ModelController {
         final byte[] mdfFile = (mdf.mdfFile() == null) ? new byte[0] : mdf.mdfFile();
         final String xml = new String(mdfFile, StandardCharsets.UTF_8);
         return new ModelMdfContentResponse(nullToEmpty(mdf.mdfName()), xml);
+    }
+
+    /**
+     * row values 리스트에서 지정 인덱스 값을 null-safe하게 읽습니다.
+     *
+     * @param values row values
+     * @param index 읽을 컬럼 인덱스
+     * @return 존재하면 해당 값, 없으면 null
+     */
+    private static String valueAt(final List<String> values, final int index) {
+        if (values == null || index < 0 || index >= values.size()) {
+            return null;
+        }
+        return values.get(index);
     }
 
     /**

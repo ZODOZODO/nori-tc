@@ -5,6 +5,7 @@ import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.domain.model.TcModelWorkflow;
+import com.nori.tc.ui.adapters.web.dto.request.ModelDetailSaveRequest;
 import com.nori.tc.ui.adapters.web.dto.response.ApiResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelDetailDataResponse;
 import com.nori.tc.ui.adapters.web.dto.response.ModelMdfContentResponse;
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,14 +55,19 @@ class ModelControllerTest {
                 "T01",
                 """
                         {
-                          "rows": [
+                          "and": [
                             {
-                              "left": {
-                                "var": { "name": "status", "source": "MSG" },
-                                "xform": ["trim", "lower"]
-                              },
-                              "op": "eq",
-                              "right": "ok"
+                              "from": "data",
+                              "path": "status",
+                              "comparison": "equals",
+                              "expected": "ok",
+                              "transforms": ["trim", "lower"]
+                            },
+                            {
+                              "from": "metadata",
+                              "path": "eventType",
+                              "comparison": "equals",
+                              "expected": "READY_MSG"
                             }
                           ]
                         }
@@ -68,9 +75,9 @@ class ModelControllerTest {
                 "PUBLISH_MES_COMMAND",
                 """
                         {
-                          "mdf": "TOOL_CONDITION_REPLY_MES",
+                          "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
                           "fields": {
-                            "EQPID": { "var": "eqpId", "source": "CTX" }
+                            "EQPID": { "from": "data", "path": "eqpId", "transforms": ["trim"] }
                           }
                         }
                         """,
@@ -87,9 +94,95 @@ class ModelControllerTest {
         assertNotNull(responseBody);
         final ModelDetailDataResponse body = responseBody.data();
         assertEquals(1, body.rows().size());
-        assertEquals("status[MSG] | trim | lower eq ok", body.rows().get(0).previewValues().get(4));
-        assertEquals("TOOL_CONDITION_REPLY_MES / EQPID <- eqpId[CTX]", body.rows().get(0).previewValues().get(6));
+        assertEquals(
+                "and(data.status {comparison=equals, expected=\"ok\", transforms=[trim, lower]}, "
+                        + "metadata.eventType {comparison=equals, expected=\"READY_MSG\"})",
+                body.rows().get(0).previewValues().get(4)
+        );
+        assertEquals(
+                "mdfTemplateName=TOOL_CONDITION_REPLY_MES / EQPID {from=data, path=eqpId, transforms=[trim]}",
+                body.rows().get(0).previewValues().get(6)
+        );
         assertEquals(workflow.workflowFilter(), body.rows().get(0).values().get(4));
+    }
+
+    @Test
+    @DisplayName("workflow 상세 저장은 잘못된 workflow_filter를 400으로 거절합니다")
+    void saveDetailRowsRejectsInvalidWorkflowFilter() {
+        final Fixture fixture = new Fixture();
+        when(fixture.modelCrudPort.findByModelVersionKey(101L)).thenReturn(Optional.of(model(101L)));
+
+        final ModelDetailSaveRequest request = workflowSaveRequest(
+                """
+                        {
+                          "from": "data",
+                          "path": "status",
+                          "comparison": "equals",
+                          "expected": "READY"
+                        }
+                        """,
+                """
+                        {
+                          "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
+                          "fields": {
+                            "EQPID": "eqpId"
+                          }
+                        }
+                        """
+        );
+
+        final ResponseEntity<ApiResponse<ModelDetailDataResponse>> response =
+                fixture.controller.saveDetailRows(101L, "workflow", request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("INVALID_REQUEST", response.getBody().errorCode());
+        assertEquals(
+                "workflow 1행의 workflow_filter가 올바르지 않습니다. workflow_filter 루트는 and 또는 or 그룹이어야 합니다.",
+                response.getBody().errorMsg()
+        );
+        verify(fixture.modelDetailCommandPort, never()).saveDetailRows(anyLong(), any(String.class), any());
+    }
+
+    @Test
+    @DisplayName("workflow 상세 저장은 잘못된 action_data_index를 400으로 거절합니다")
+    void saveDetailRowsRejectsInvalidActionDataIndex() {
+        final Fixture fixture = new Fixture();
+        when(fixture.modelCrudPort.findByModelVersionKey(101L)).thenReturn(Optional.of(model(101L)));
+
+        final ModelDetailSaveRequest request = workflowSaveRequest(
+                """
+                        {
+                          "and": [
+                            {
+                              "from": "data",
+                              "path": "status",
+                              "comparison": "equals",
+                              "expected": "READY"
+                            }
+                          ]
+                        }
+                        """,
+                """
+                        {
+                          "fields": {
+                            "EQPID": "eqpId"
+                          }
+                        }
+                        """
+        );
+
+        final ResponseEntity<ApiResponse<ModelDetailDataResponse>> response =
+                fixture.controller.saveDetailRows(101L, "workflow", request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("INVALID_REQUEST", response.getBody().errorCode());
+        assertEquals(
+                "workflow 1행의 action_data_index가 올바르지 않습니다. action_data_index의 mdfTemplateName은 필수입니다.",
+                response.getBody().errorMsg()
+        );
+        verify(fixture.modelDetailCommandPort, never()).saveDetailRows(anyLong(), any(String.class), any());
     }
 
     @Test
@@ -157,6 +250,29 @@ class ModelControllerTest {
                 xml.getBytes(StandardCharsets.UTF_8),
                 OffsetDateTime.parse("2026-03-13T10:15:30+09:00")
         );
+    }
+
+    /**
+     * workflow 상세 저장 요청 본문을 생성합니다.
+     */
+    private static ModelDetailSaveRequest workflowSaveRequest(
+            final String workflowFilter,
+            final String actionDataIndex
+    ) {
+        return new ModelDetailSaveRequest(List.of(
+                new ModelDetailSaveRequest.ModelDetailSaveRowItem(
+                        "workflow-1",
+                        List.of(
+                                "WF_READY",
+                                "READY_MSG",
+                                "",
+                                "",
+                                workflowFilter,
+                                "PUBLISH_MES_COMMAND",
+                                actionDataIndex
+                        )
+                )
+        ));
     }
 
     /**

@@ -185,28 +185,28 @@
 
 #### T4-1. workflow preview 교체
 
-- [ ] `ModelDetailPreviewSupport`의 workflow preview를 새 계약 기준으로 재작성
-- [ ] 첫 번째 조건만 요약하는 방식에서 전체 식 요약 방식으로 전환
-- [ ] 새 preview 문구가 `data` / `metadata` 용어를 쓰는지 확인
-- [ ] `and`, `or`, `comparison`, `expected`, `transforms`가 드러나는 preview 규칙 정의
+- [x] `ModelDetailPreviewSupport`의 workflow preview를 새 계약 기준으로 재작성
+- [x] 첫 번째 조건만 요약하는 방식에서 전체 식 요약 방식으로 전환
+- [x] 새 preview 문구가 `data` / `metadata` 용어를 쓰는지 확인
+- [x] `and`, `or`, `comparison`, `expected`, `transforms`가 드러나는 preview 규칙 정의
 
 #### T4-2. action_data_index preview 교체
 
-- [ ] `mdfTemplateName` 기반 preview 문자열로 변경
-- [ ] 첫 필드 요약이 `from`, `path`, `transforms` 기준으로 출력되는지 확인
-- [ ] 예전 `messageName`, `MSG`, `CTX`, `AUTO`, `var`, `source`, `xform` 표기가 제거되는지 확인
+- [x] `mdfTemplateName` 기반 preview 문자열로 변경
+- [x] 첫 필드 요약이 `from`, `path`, `transforms` 기준으로 출력되는지 확인
+- [x] 예전 `messageName`, `MSG`, `CTX`, `AUTO`, `var`, `source`, `xform` 표기가 제거되는지 확인
 
 #### T4-3. 저장 API validation 반영
 
-- [ ] 모델 상세 저장 경로에서 `workflow_filter` 구조 검증 추가
-- [ ] 모델 상세 저장 경로에서 `action_data_index` 구조 검증 추가
-- [ ] validation 실패 시 400 응답과 원인 메시지 정리
+- [x] 모델 상세 저장 경로에서 `workflow_filter` 구조 검증 추가
+- [x] 모델 상세 저장 경로에서 `action_data_index` 구조 검증 추가
+- [x] validation 실패 시 400 응답과 원인 메시지 정리
 
 ### T4 검증
 
-- [ ] workflow preview가 새 계약 용어로 출력되는지 확인
-- [ ] action data index preview가 새 계약 용어로 출력되는지 확인
-- [ ] 잘못된 JSON 저장 시 400이 반환되는지 확인
+- [x] workflow preview가 새 계약 용어로 출력되는지 확인
+- [x] action data index preview가 새 계약 용어로 출력되는지 확인
+- [x] 잘못된 JSON 저장 시 400이 반환되는지 확인
 
 ---
 
@@ -273,10 +273,10 @@
 
 #### T6-3. UI adapter 테스트
 
-- [ ] workflow preview 테스트 갱신
-- [ ] action data index preview 테스트 갱신
-- [ ] 모델 상세 저장 validation 테스트 추가/수정
-- [ ] controller 응답 preview 문자열 기대값 갱신
+- [x] workflow preview 테스트 갱신
+- [x] action data index preview 테스트 갱신
+- [x] 모델 상세 저장 validation 테스트 추가/수정
+- [x] controller 응답 preview 문자열 기대값 갱신
 
 #### T6-4. 문서-코드 정합성 확인
 

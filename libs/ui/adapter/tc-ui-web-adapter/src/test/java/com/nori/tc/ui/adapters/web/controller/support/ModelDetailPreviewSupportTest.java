@@ -11,18 +11,33 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ModelDetailPreviewSupportTest {
 
     @Test
-    @DisplayName("workflow_filter preview는 첫 번째 조건을 읽기 쉬운 한 줄로 변환합니다")
-    void summarizeWorkflowFilterBuildsReadableFirstRowPreview() {
+    @DisplayName("workflow_filter preview는 전체 and/or 식을 canonical 용어로 요약합니다")
+    void summarizeWorkflowFilterBuildsCanonicalExpressionPreview() {
         final String workflowFilter = """
                 {
-                  "rows": [
+                  "and": [
                     {
-                      "left": {
-                        "var": { "name": "status", "source": "MSG" },
-                        "xform": ["trim", "lower"]
-                      },
-                      "op": "eq",
-                      "right": "ok"
+                      "from": "data",
+                      "path": "status",
+                      "comparison": "equals",
+                      "expected": "ok",
+                      "transforms": ["trim", "lower"]
+                    },
+                    {
+                      "or": [
+                        {
+                          "from": "metadata",
+                          "path": "eventType",
+                          "comparison": "equals",
+                          "expected": "READY"
+                        },
+                        {
+                          "from": "data",
+                          "path": "retryCount",
+                          "comparison": "greater_than_or_equal",
+                          "expected": 4
+                        }
+                      ]
                     }
                   ]
                 }
@@ -30,25 +45,33 @@ class ModelDetailPreviewSupportTest {
 
         final String preview = ModelDetailPreviewSupport.summarizeWorkflowFilter(workflowFilter);
 
-        assertEquals("status[MSG] | trim | lower eq ok", preview);
+        assertEquals(
+                "and(data.status {comparison=equals, expected=\"ok\", transforms=[trim, lower]}, "
+                        + "or(metadata.eventType {comparison=equals, expected=\"READY\"}, "
+                        + "data.retryCount {comparison=greater_than_or_equal, expected=4}))",
+                preview
+        );
     }
 
     @Test
-    @DisplayName("action_data_index preview는 첫 번째 필드 기준으로 message/field 요약을 만듭니다")
-    void summarizeActionDataIndexBuildsReadableFirstFieldPreview() {
+    @DisplayName("action_data_index preview는 mdfTemplateName과 첫 번째 field spec을 canonical 용어로 요약합니다")
+    void summarizeActionDataIndexBuildsCanonicalFieldPreview() {
         final String actionDataIndex = """
                 {
-                  "mdf": "TOOL_CONDITION_REPLY_MES",
+                  "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
                   "fields": {
-                    "EQPID": { "var": "eqpId", "source": "CTX", "required": true },
-                    "STATUS": { "var": "data.status", "source": "MSG", "xform": ["trim", "upper"] }
+                    "EQPID": { "from": "data", "path": "eqpId", "transforms": ["trim", "upper"] },
+                    "EVENT_TYPE": { "from": "metadata", "path": "eventType" }
                   }
                 }
                 """;
 
         final String preview = ModelDetailPreviewSupport.summarizeActionDataIndex(actionDataIndex);
 
-        assertEquals("TOOL_CONDITION_REPLY_MES / EQPID <- eqpId[CTX]", preview);
+        assertEquals(
+                "mdfTemplateName=TOOL_CONDITION_REPLY_MES / EQPID {from=data, path=eqpId, transforms=[trim, upper]}",
+                preview
+        );
     }
 
     @Test
