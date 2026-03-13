@@ -47,6 +47,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -67,8 +70,8 @@ import java.util.stream.Collectors;
  *
  * <p>중요 정책:</p>
  * <ul>
- *   <li>root create는 항상 {@code parent_model=NULL, model_version=EDIT, status=OPERATE}</li>
- *   <li>branch create는 항상 {@code model_version=EDIT, status=DEVELOP}</li>
+ *   <li>root create는 항상 {@code parent_model=NULL, model_version=YY.MM.DD.0000, status=OPERATE}</li>
+ *   <li>branch create는 일자형 임시 baseline version을 만들고, 실제 편집은 checkout 시 {@code EDIT}로 분리합니다.</li>
  *   <li>parent commit은 branch 최신 버전 전체를 parent 새 버전으로 복제합니다.</li>
  *   <li>root delete는 self FK cascade로 branch까지 함께 삭제되므로, 삭제 전 EQP 참조를 선검증합니다.</li>
  * </ul>
@@ -83,6 +86,9 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
     private static final int MODEL_VERSION_MAX_LENGTH = 100;
     private static final String EDIT_VERSION = "EDIT";
     private static final String SYSTEM_USER = "SYSTEM";
+    private static final ZoneId MODEL_VERSION_ZONE_ID = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter MODEL_VERSION_DATE_FORMATTER = DateTimeFormatter.ofPattern("yy.MM.dd");
+    private static final int MODEL_VERSION_SEQUENCE_DIGITS = 4;
     private static final List<String> MODEL_PARAMETER_COLUMNS = List.of(
             "Parameter Name",
             "Parameter Value",
@@ -190,15 +196,17 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
         final String currentUser = normalizeCurrentUser(command.currentUser());
 
         try {
-            if (existsModelName(modelName)) {
+            final List<TcModel> allModels = loadAllModels();
+            if (allModels.stream().anyMatch(model -> modelName.equals(model.modelName()))) {
                 throw new UiConflictException("동일한 모델 이름이 이미 존재합니다.");
             }
+            final String rootBaselineVersion = generateNextBaselineVersion(modelName, allModels);
 
             final TcModel created = modelStore.upsert(new UpsertTcModel(
                     null,
                     modelName,
                     null,
-                    EDIT_VERSION,
+                    rootBaselineVersion,
                     command.commInterface(),
                     ModelStatus.OPERATE,
                     null,
@@ -292,12 +300,13 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
             if (existsModelName(branchModelName)) {
                 throw new UiConflictException("동일한 branch 모델 이름이 이미 존재합니다.");
             }
+            final String branchBaselineVersion = generateNextBranchBaselineVersion(branchModelName, allModels);
 
             final TcModel branchCreated = modelStore.upsert(new UpsertTcModel(
                     null,
                     branchModelName,
                     parentLatest.modelName(),
-                    EDIT_VERSION,
+                    branchBaselineVersion,
                     sourceModel.commInterface(),
                     ModelStatus.DEVELOP,
                     sourceModel.description(),
@@ -835,6 +844,69 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
 
         ensureRootModel(sourceModel);
         return sourceModel;
+    }
+
+    /**
+     * branch 생성 직후 사용할 임시 baseline version 문자열을 생성합니다.
+     *
+     * <p>branch create 단계부터 {@code EDIT}를 사용하면 checkout/undo 의미가 겹치므로,
+     * EQP param 버전과 동일한 형식 {@code YY.MM.DD.0000}을 baseline version에 사용합니다.
+     * 동일 이름 branch의 기존 버전이 남아 있으면 같은 날짜 prefix 안에서 sequence를 증가시킵니다.</p>
+     */
+    private String generateNextBranchBaselineVersion(final String branchModelName, final List<TcModel> allModels) {
+        return generateNextBaselineVersion(branchModelName, allModels);
+    }
+
+    /**
+     * model 생성 직후 사용할 일자형 baseline version 문자열을 생성합니다.
+     *
+     * <p>root/branch 모두 checkout 전에는 읽기 전용 기준선 버전을 가져야 하므로,
+     * EQP param 버전과 동일한 형식 {@code YY.MM.DD.0000}을 사용합니다.
+     * 같은 model_name 안에서만 sequence를 증가시켜 버전 충돌을 방지합니다.</p>
+     */
+    private String generateNextBaselineVersion(final String modelName, final List<TcModel> allModels) {
+        final String versionPrefix = resolveCurrentVersionDate().format(MODEL_VERSION_DATE_FORMATTER) + ".";
+        int maxSequence = -1;
+
+        for (TcModel model : allModels) {
+            if (!modelName.equals(model.modelName())) {
+                continue;
+            }
+
+            final int sequence = extractDailySequence(model.modelVersion(), versionPrefix);
+            if (sequence > maxSequence) {
+                maxSequence = sequence;
+            }
+        }
+
+        final int nextSequence = maxSequence + 1;
+        return versionPrefix + String.format(Locale.ROOT, "%0" + MODEL_VERSION_SEQUENCE_DIGITS + "d", nextSequence);
+    }
+
+    /**
+     * 자동 버전 생성 기준 날짜를 반환합니다.
+     *
+     * <p>운영에서는 Asia/Seoul 현재 날짜를 사용하고,
+     * 테스트에서는 동일 패키지 오버라이드로 고정 날짜를 주입할 수 있습니다.</p>
+     */
+    LocalDate resolveCurrentVersionDate() {
+        return LocalDate.now(MODEL_VERSION_ZONE_ID);
+    }
+
+    /**
+     * 오늘자 일자형 자동 버전과 일치하면 sequence를 반환하고, 아니면 -1을 반환합니다.
+     */
+    private int extractDailySequence(final String modelVersion, final String versionPrefix) {
+        if (modelVersion == null || !modelVersion.startsWith(versionPrefix)) {
+            return -1;
+        }
+
+        final String sequenceText = modelVersion.substring(versionPrefix.length());
+        if (sequenceText.length() != MODEL_VERSION_SEQUENCE_DIGITS || !sequenceText.chars().allMatch(Character::isDigit)) {
+            return -1;
+        }
+
+        return Integer.parseInt(sequenceText);
     }
 
     /**

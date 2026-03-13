@@ -431,7 +431,7 @@ public class ModelController {
     /**
      * root model을 생성합니다.
      *
-     * <p>신규 root는 항상 {@code parentModel=null, modelVersion=EDIT, status=OPERATE} 정책으로 생성됩니다.</p>
+     * <p>신규 root는 항상 {@code parentModel=null, modelVersion=YY.MM.DD.0000, status=OPERATE} 정책으로 생성됩니다.</p>
      *
      * @param request root 생성 요청 본문
      * @param authentication 현재 로그인 사용자 정보

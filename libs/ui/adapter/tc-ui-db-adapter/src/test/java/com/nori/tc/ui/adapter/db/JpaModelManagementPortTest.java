@@ -35,6 +35,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -61,11 +62,15 @@ import static org.mockito.Mockito.when;
  */
 class JpaModelManagementPortTest {
 
+    private static final LocalDate FIXED_VERSION_DATE = LocalDate.of(2026, 3, 13);
+    private static final String INITIAL_ROOT_VERSION = dailyVersion(FIXED_VERSION_DATE, 0);
+    private static final String INITIAL_BRANCH_VERSION = dailyVersion(FIXED_VERSION_DATE, 0);
+
     @Test
-    @DisplayName("root model 생성은 parent=NULL, EDIT/OPERATE 고정값으로 저장합니다")
+    @DisplayName("root model 생성은 parent=NULL, 일자형 baseline version/OPERATE 고정값으로 저장합니다")
     void createRootModelUsesFixedDefaults() {
         final Fixture fixture = new Fixture();
-        final TcModel created = model(1001L, 501L, "ROOT-SECS", null, "EDIT", ProtocolType.SECS, ModelStatus.OPERATE);
+        final TcModel created = model(1001L, 501L, "ROOT-SECS", null, INITIAL_ROOT_VERSION, ProtocolType.SECS, ModelStatus.OPERATE);
         when(fixture.modelStore.upsert(any())).thenReturn(created);
 
         final TcModel result = fixture.port.createRootModel(new ModelRootCommandPort.CreateRootModelCommand(
@@ -80,7 +85,7 @@ class JpaModelManagementPortTest {
 
         assertEquals(created, result);
         assertNull(captor.getValue().parentModel());
-        assertEquals("EDIT", captor.getValue().modelVersion());
+        assertEquals(INITIAL_ROOT_VERSION, captor.getValue().modelVersion());
         assertEquals(ModelStatus.OPERATE, captor.getValue().status());
         assertEquals("tester", captor.getValue().createdBy());
         assertEquals("tester", captor.getValue().updatedBy());
@@ -131,11 +136,11 @@ class JpaModelManagementPortTest {
     }
 
     @Test
-    @DisplayName("branch model 생성은 부모 최신 버전 상세를 EDIT/DEVELOP branch로 전체 복제합니다")
+    @DisplayName("branch model 생성은 부모 최신 버전 상세를 baseline/DEVELOP branch로 전체 복제합니다")
     void createBranchModelClonesParentLatestSnapshot() {
         final Fixture fixture = new Fixture();
         final TcModel parentLatest = model(2001L, 601L, "ROOT_MODEL", null, "1.2.0", ProtocolType.SOCKET, ModelStatus.OPERATE);
-        final TcModel branchCreated = model(3001L, 701L, "ROOT_MODEL_feature_tester", "ROOT_MODEL", "EDIT", ProtocolType.SOCKET, ModelStatus.DEVELOP);
+        final TcModel branchCreated = model(3001L, 701L, "ROOT_MODEL_feature_tester", "ROOT_MODEL", INITIAL_BRANCH_VERSION, ProtocolType.SOCKET, ModelStatus.DEVELOP);
 
         fixture.allModels.add(parentLatest);
         fixture.paramsByVersion.put(parentLatest.modelVersionKey(), List.of(param(parentLatest.modelVersionKey(), "SITE", "DEV")));
@@ -163,7 +168,7 @@ class JpaModelManagementPortTest {
         assertEquals(branchCreated, result);
         assertEquals("ROOT_MODEL_feature_tester", captor.getValue().modelName());
         assertEquals("ROOT_MODEL", captor.getValue().parentModel());
-        assertEquals("EDIT", captor.getValue().modelVersion());
+        assertEquals(INITIAL_BRANCH_VERSION, captor.getValue().modelVersion());
         assertEquals(ModelStatus.DEVELOP, captor.getValue().status());
         verify(fixture.modelParamStore, times(1)).upsert(any());
         verify(fixture.modelSecsMessageStore, times(1)).upsert(any());
@@ -202,7 +207,7 @@ class JpaModelManagementPortTest {
                 "latest-desc",
                 "LATEST-MAKER"
         );
-        final TcModel branchCreated = model(3101L, 711L, "ROOT_MODEL_feature_tester", "ROOT_MODEL", "EDIT", ProtocolType.SECS, ModelStatus.DEVELOP);
+        final TcModel branchCreated = model(3101L, 711L, "ROOT_MODEL_feature_tester", "ROOT_MODEL", INITIAL_BRANCH_VERSION, ProtocolType.SECS, ModelStatus.DEVELOP);
 
         fixture.allModels.add(sourceVersion);
         fixture.allModels.add(parentLatest);
@@ -224,10 +229,33 @@ class JpaModelManagementPortTest {
         verify(fixture.modelParamStore).upsert(paramCaptor.capture());
 
         assertEquals(branchCreated, result);
+        assertEquals(INITIAL_BRANCH_VERSION, modelCaptor.getValue().modelVersion());
         assertEquals(sourceVersion.commInterface(), modelCaptor.getValue().commInterface());
         assertEquals(sourceVersion.description(), modelCaptor.getValue().description());
         assertEquals(sourceVersion.maker(), modelCaptor.getValue().maker());
         assertEquals("OLD", paramCaptor.getValue().paramValue());
+    }
+
+    @Test
+    @DisplayName("branch model 생성은 source version과 관계없이 일자형 임시 버전을 사용합니다")
+    void createBranchModelUsesTemporaryVersionWhenRootSourceIsEdit() {
+        final Fixture fixture = new Fixture();
+        final TcModel parentLatest = model(2051L, 605L, "ROOT_MODEL", null, "EDIT", ProtocolType.SECS, ModelStatus.OPERATE);
+        final TcModel branchCreated = model(3051L, 705L, "ROOT_MODEL_feature_tester", "ROOT_MODEL", INITIAL_BRANCH_VERSION, ProtocolType.SECS, ModelStatus.DEVELOP);
+        fixture.allModels.add(parentLatest);
+        when(fixture.modelStore.upsert(any())).thenReturn(branchCreated);
+
+        fixture.port.createBranchModel(new ModelBranchCommandPort.CreateBranchModelCommand(
+                parentLatest.modelKey(),
+                "feature",
+                null,
+                "tester"
+        ));
+
+        final ArgumentCaptor<UpsertTcModel> captor = ArgumentCaptor.forClass(UpsertTcModel.class);
+        verify(fixture.modelStore).upsert(captor.capture());
+
+        assertEquals(INITIAL_BRANCH_VERSION, captor.getValue().modelVersion());
     }
 
     @Test
@@ -348,7 +376,7 @@ class JpaModelManagementPortTest {
         final String currentUser = "tester";
         final String branchModelName = parentModelName + "_" + suffix + "_" + currentUser;
         final TcModel parentLatest = model(9401L, 1701L, parentModelName, null, "1.0.0", ProtocolType.SECS, ModelStatus.OPERATE);
-        final TcModel branchCreated = model(9402L, 1702L, branchModelName, parentModelName, "EDIT", ProtocolType.SECS, ModelStatus.DEVELOP);
+        final TcModel branchCreated = model(9402L, 1702L, branchModelName, parentModelName, INITIAL_BRANCH_VERSION, ProtocolType.SECS, ModelStatus.DEVELOP);
         fixture.allModels.add(parentLatest);
         when(fixture.modelStore.upsert(any())).thenReturn(branchCreated);
 
@@ -507,6 +535,10 @@ class JpaModelManagementPortTest {
         );
     }
 
+    private static String dailyVersion(final LocalDate date, final int sequence) {
+        return String.format("%ty.%tm.%td.%04d", date, date, date, sequence);
+    }
+
     /**
      * 다중 Store mock과 페이지 기반 조회 동작을 함께 관리하는 테스트 픽스처입니다.
      */
@@ -548,7 +580,12 @@ class JpaModelManagementPortTest {
                 modelWorkflowStore,
                 modelMdfStore,
                 modelDcopItemStore
-        );
+        ) {
+            @Override
+            LocalDate resolveCurrentVersionDate() {
+                return FIXED_VERSION_DATE;
+            }
+        };
 
         private Fixture() {
             when(modelStore.findAll(any())).thenAnswer(invocation -> paginate(allModels, invocation.getArgument(0)));

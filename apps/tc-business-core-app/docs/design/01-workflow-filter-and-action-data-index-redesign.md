@@ -45,6 +45,7 @@
 - `action_data_index` 외부 JSON 계약 재정의
 - MDF 템플릿 선택 정책 재정의
 - Business runtime / UI preview / 모델 저장 검증 경로에 대한 반영 범위 정의
+- `nori-tc-ui` 모델 상세 structured editor / local preview / 저장 오류 노출 반영 범위 정의
 - `tc-business-core-app` 및 루트 `docs` 기준 문서 재작성 범위 정의
 
 ### 2.2 비범위
@@ -53,7 +54,7 @@
 - Kafka envelope 포맷 자체를 변경하지 않습니다.
 - DB 신규 컬럼, 신규 테이블, 신규 스키마 버전 도입은 포함하지 않습니다.
 - `workflow_filter`와 `action_data_index` 외의 workflow/action 도메인 구조 개편은 포함하지 않습니다.
-- UI 화면 레이아웃 자체 개편은 포함하지 않고, preview 및 저장 검증 정책만 포함합니다.
+- UI 화면 전체 레이아웃 개편은 포함하지 않으며, 모델 상세의 계약 정합성 확보를 위한 editor / preview / 저장 오류 노출만 포함합니다.
 
 ### 2.3 확정 전제
 
@@ -497,6 +498,12 @@ MDF 템플릿 선택은 자동이 아니라 명시 선택으로 고정합니다.
 - `libs/ui/adapter/tc-ui-web-adapter/src/main/java/com/nori/tc/ui/adapters/web/controller/support/ModelDetailPreviewSupport.java`
 - workflow/action_data_index 상세 저장 경로를 담당하는 UI backend controller / adapter 검증 경로
 
+#### `nori-tc-ui` frontend
+
+- `nori-tc-ui/src/features/model/lib/model-detail-editor.ts`
+- `nori-tc-ui/src/features/model/components/ModelDetailPanel.tsx`
+- `nori-tc-ui/src/features/model/components/ModelPage.tsx`
+
 ### 7.2 반영 방향
 
 - `workflow_filter` 평가기는 flat row 순회에서 재귀 AST 평가 방식으로 전환해야 합니다.
@@ -517,6 +524,28 @@ MDF 템플릿 선택은 자동이 아니라 명시 선택으로 고정합니다.
 - app README 링크/설명 갱신
 
 즉, 실제 구현은 `libs/business`, `libs/ui`, 루트 `docs`에서 주로 일어나고, app은 그 구현의 공식 문서 진입점 역할을 합니다.
+
+### 7.4 `nori-tc-ui` 반영 범위
+
+`nori-tc-ui`는 서버가 이미 새 canonical 계약을 기준으로 preview와 저장 검증을 수행하더라도,
+모델 상세 structured editor가 예전 계약을 생성하면 실제 운영자가 UI를 통해 값을 수정하는 순간 정합성이 다시 깨질 수 있습니다.
+
+따라서 `nori-tc-ui`에서는 아래 항목이 함께 반영되어야 합니다.
+
+- `workflow_filter` structured editor는 flat row 기반 `rows/left/op/right` 편집기가 아니라, `and` / `or` 그룹과 조건 노드(`from`, `path`, `comparison`, `expected`, `transforms`)를 표현할 수 있어야 합니다.
+- `workflow_filter` structured editor가 새 canonical JSON을 읽을 때 `and` / `or` 구조를 잃어버리거나 blank 상태로 열리면 안 됩니다.
+- 새 canonical 구조를 UI가 아직 완전하게 구조화 편집하지 못하는 경우, 부분 파싱으로 잘못된 structured 값으로 바꾸는 대신 raw mode fallback으로 안전하게 열어야 합니다.
+- `action_data_index` structured editor는 `messageName`, `mdf`, `var`, `source`, `xform`, `fixed`, `required` 중심 UI를 제거하고 `mdfTemplateName`, `fields`, `from`, `path`, `transforms` 기준으로 전환해야 합니다.
+- `action_data_index.fields`의 문자열 shorthand는 `from=data`, `path=<value>` 의미로 구조화 편집기에 정상 로드되거나, 최소한 raw mode에서 의미 손실 없이 유지되어야 합니다.
+- structured editor에서 값을 적용한 뒤 테이블 셀에 보이는 local preview fallback도 서버 preview와 같은 canonical 용어(`and`, `or`, `from`, `path`, `comparison`, `expected`, `transforms`, `mdfTemplateName`)를 사용해야 합니다.
+- modal 안내 문구, placeholder, select option, 도움말에서 예전 용어(`MSG`, `CTX`, `AUTO`, `Var`, `Source`, `Xform`, `Operator`, `Right`, `MDF Message`)를 제거해야 합니다.
+- 저장 API가 400과 원인 메시지를 반환할 때 사용자가 어떤 row의 `workflow_filter` 또는 `action_data_index`가 잘못되었는지 화면에서 다시 확인하고 수정할 수 있어야 합니다.
+
+현재 코드 기준으로 특히 영향이 큰 지점은 아래와 같습니다.
+
+- `model-detail-editor.ts`의 parse / build / summarize 로직은 예전 계약(`rows`, `var`, `source`, `xform`, `mdf`, `messageName`)을 기준으로 작성되어 있어 새 canonical JSON을 lossless 하게 다루지 못합니다.
+- `ModelDetailPanel.tsx`의 structured modal은 `Var / Source / Xform / Operator / Right`, `MDF Message / Fixed / Required` UI를 사용하고 있어 새 계약과 직접 대응되지 않습니다.
+- `ModelPage.tsx`는 로컬 편집 후 `previewValues`를 비우고 클라이언트 summarize fallback에 의존하므로, fallback 요약 로직도 새 계약 기준으로 맞아야 합니다.
 
 ---
 
@@ -588,6 +617,13 @@ MDF 템플릿 선택은 자동이 아니라 명시 선택으로 고정합니다.
 - `warn`: transform 실패, `action_data_index` 값 누락 대체
 - `error`: JSON 파싱 실패, MDF 템플릿 선택 실패, 구조 검증 실패
 
+### 9.5 UI 편집 안전성 정책
+
+- `nori-tc-ui`는 유효한 새 canonical JSON을 열었을 때 의미를 잃은 blank structured form으로 바꾸면 안 됩니다.
+- structured editor가 현재 지원하지 못하는 입력은 부분 변환하지 않고 raw mode로 유지해야 합니다.
+- UI가 값을 다시 serialize 할 때 예전 계약 키(`rows`, `left`, `op`, `right`, `messageName`, `mdf`, `var`, `source`, `xform`, `fixed`, `required`)를 재생성하면 안 됩니다.
+- 저장 전 미리보기와 저장 후 서버 preview가 서로 다른 용어 체계를 사용하지 않도록 canonical 요약 규칙을 공유해야 합니다.
+
 ---
 
 ## 10. 기대 효과와 주의사항
@@ -606,3 +642,4 @@ MDF 템플릿 선택은 자동이 아니라 명시 선택으로 고정합니다.
 - `path` 절대 경로를 허용하지 않으므로 운영자가 익숙한 `data.status` 표기 관성을 문서와 검증으로 교정해야 합니다.
 - `action_data_index`는 값 조회 전용이므로, 기존 `fixed`/`required` 개념을 기대하는 운영 패턴은 새 표준에 맞게 재정의해야 합니다.
 - `apps/tc-business-core-app` 문서만 업데이트하면 끝나는 작업이 아니며, 실제 구현과 루트 문서가 함께 반영되어야 정합성이 맞습니다.
+- `nori-tc-ui` structured editor가 예전 계약을 계속 생성하면, 서버 구현이 완료되어 있어도 UI에서 열기/수정/재저장하는 과정에서 유효한 `workflow_filter` / `action_data_index`가 손실되거나 400 검증 오류가 발생할 수 있습니다.
