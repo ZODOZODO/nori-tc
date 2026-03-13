@@ -1,28 +1,41 @@
-# tc-business-core-app MDF/action_data_index 문서
+# tc-business-core-app Workflow / MDF 문서
 
 ## 문서 목적
-- `tc-business-core-app`에서 사용하는 MDF(XML)와 `action_data_index` 작성 규칙을 운영 표준으로 고정합니다.
-- 모델 등록자/운영자가 동일한 형식으로 정의를 작성하도록 가이드를 제공합니다.
-- 코드 동작과 문서 규칙을 일치시켜 배포 전/장애 대응 시 혼선을 줄입니다.
 
-## 문서 대상
-- 모델링 담당자(MDF/XML 작성)
-- 운영 담당자(action_data_index 등록/검증)
-- 개발 담당자(코드-스펙 정합성 점검)
+- `workflow_filter`, `action_data_index`, MDF(XML) 관련 설계/구현 계획/운영 표준 문서를 한 곳에서 찾을 수 있게 정리합니다.
+- app 문서와 root 아키텍처 문서가 동일한 canonical 용어를 사용하도록 진입점을 제공합니다.
+- 모델 등록자, 운영 담당자, 개발 담당자가 읽어야 할 순서를 명확히 안내합니다.
 
-## 빠른 시작
-1. [01-mdf-action-data-index-standard.md](./01-mdf-action-data-index-standard.md)를 먼저 읽습니다.
-2. 표준 JSON 예시(최소형/권장형/장애 유도형)를 기반으로 실제 `action_data_index`를 작성합니다.
-3. 운영 체크리스트로 등록 전 검증을 수행합니다.
+## 권장 읽기 순서
 
-## 표준 문서
-- [01-mdf-action-data-index-standard.md](./01-mdf-action-data-index-standard.md)
+1. [재설계 문서](./design/01-workflow-filter-and-action-data-index-redesign.md)
+2. [구현 계획 문서](./tasks/01-workflow-filter-and-action-data-index-build-plan.md)
+3. [운영 표준 문서](./Architecture/01-mdf-action-data-index-standard.md)
+4. [루트 아키텍처: 워크플로우 매칭](../../../docs/Architecture/business/03-workflow-matching.md)
+5. [루트 아키텍처: 워크플로우 액션 타입](../../../docs/Architecture/business/04-workflow-action-types.md)
+
+## app 문서
+
+- [재설계 문서](./design/01-workflow-filter-and-action-data-index-redesign.md)
+- [구현 계획 문서](./tasks/01-workflow-filter-and-action-data-index-build-plan.md)
+- [운영 표준 문서](./Architecture/01-mdf-action-data-index-standard.md)
+
+## 주요 설명 범위
+
+- `workflow_filter`의 `and` / `or` AST 구조
+- `from=data|metadata`, 상대 `path`, `comparison`, `expected`, `transforms`
+- `action_data_index`의 `mdfTemplateName`, `fields`, `from`, `path`, `transforms`
+- MDF 템플릿 explicit 선택 정책과 field fallback 우선순위
+- 모델 상세 preview / 저장 검증 시 노출되는 공개 계약
 
 ## 관련 코드 참조
-- [BusinessMdfRuntimeParser.java](../../../libs/business/adapter/tc-business-db-adapter/src/main/java/com/nori/tc/business/adapters/db/modelcache/BusinessMdfRuntimeParser.java)
-- [BusinessMdfMessageComposer.java](../../../libs/business/tc-business-core/src/main/java/com/nori/tc/business/core/workflow/internal/support/BusinessMdfMessageComposer.java)
+
+- [BusinessWorkflowFilterEvaluator.java](../../../libs/business/tc-business-core/src/main/java/com/nori/tc/business/core/workflow/internal/matching/BusinessWorkflowFilterEvaluator.java)
 - [BusinessActionDataIndexHybridResolver.java](../../../libs/business/tc-business-core/src/main/java/com/nori/tc/business/core/workflow/internal/support/BusinessActionDataIndexHybridResolver.java)
+- [BusinessMdfMessageComposer.java](../../../libs/business/tc-business-core/src/main/java/com/nori/tc/business/core/workflow/internal/support/BusinessMdfMessageComposer.java)
+- [ModelDetailWorkflowJsonSupport.java](../../../libs/ui/adapter/tc-ui-web-adapter/src/main/java/com/nori/tc/ui/adapters/web/controller/support/ModelDetailWorkflowJsonSupport.java)
 
 ## 범위
-- 본 문서는 운영 표준 문서화 범위입니다.
-- 코드 API/DB 스키마/런타임 동작 자체를 변경하지 않습니다.
+
+- 본 README는 문서 진입점 역할만 수행합니다.
+- 런타임 동작의 source of truth는 실제 구현 코드와 각 상세 문서입니다.

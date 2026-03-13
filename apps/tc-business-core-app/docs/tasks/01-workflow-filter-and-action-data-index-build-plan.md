@@ -220,26 +220,26 @@
 
 #### T5-1. app docs 신규 작성
 
-- [ ] `apps/tc-business-core-app/docs/design/01-workflow-filter-and-action-data-index-redesign.md` 작성
-- [ ] `apps/tc-business-core-app/docs/tasks/01-workflow-filter-and-action-data-index-build-plan.md` 작성
+- [x] `apps/tc-business-core-app/docs/design/01-workflow-filter-and-action-data-index-redesign.md` 작성
+- [x] `apps/tc-business-core-app/docs/tasks/01-workflow-filter-and-action-data-index-build-plan.md` 작성
 
 #### T5-2. 기존 app 문서 재작성
 
-- [ ] `apps/tc-business-core-app/docs/Architecture/01-mdf-action-data-index-standard.md` 전면 재작성
-- [ ] `apps/tc-business-core-app/docs/README.md` 링크/설명 업데이트
-- [ ] app README가 새 design/tasks 문서를 가리키는지 확인
+- [x] `apps/tc-business-core-app/docs/Architecture/01-mdf-action-data-index-standard.md` 전면 재작성
+- [x] `apps/tc-business-core-app/docs/README.md` 링크/설명 업데이트
+- [x] app README가 새 design/tasks 문서를 가리키는지 확인
 
 #### T5-3. root docs 갱신
 
-- [ ] `docs/Architecture/business/03-workflow-matching.md` 갱신 체크
-- [ ] `docs/Architecture/business/04-workflow-action-types.md` 갱신 체크
-- [ ] root docs가 `data`, `metadata`, `mdfTemplateName` 기준으로 설명하는지 확인
+- [x] `docs/Architecture/business/03-workflow-matching.md` 갱신 체크
+- [x] `docs/Architecture/business/04-workflow-action-types.md` 갱신 체크
+- [x] root docs가 `data`, `metadata`, `mdfTemplateName` 기준으로 설명하는지 확인
 
 ### T5 검증
 
-- [ ] app docs와 root docs에서 같은 canonical 용어를 사용하는지 확인
-- [ ] 예전 용어가 표준 문서 본문에서 제거되었는지 확인
-- [ ] design/tasks/architecture/readme 간 상호 링크가 맞는지 확인
+- [x] app docs와 root docs에서 같은 canonical 용어를 사용하는지 확인
+- [x] 예전 용어가 표준 문서 본문에서 제거되었는지 확인
+- [x] design/tasks/architecture/readme 간 상호 링크가 맞는지 확인
 
 ---
 

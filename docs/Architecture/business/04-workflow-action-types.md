@@ -155,7 +155,7 @@ public record BusinessWorkflowActionContext(
     BusinessInboundRecord record,           // 수신 원본 레코드 (payload, topic, eqpId …)
     TcModelRuntime modelRuntime,            // 모델 런타임 (워크플로우 인덱스, 메시지 정의 …)
     WorkflowRuntimeEntry workflowEntry,     // 현재 실행 중인 워크플로우 항목
-    BusinessWorkflowFilterContext filterContext, // MSG/CTX 변수 맵, 필터 평가 컨텍스트
+    BusinessWorkflowFilterContext filterContext, // payload envelope 맵 + 내부 런타임 문맥
     BusinessWorkflowActionMessageType actionMessageType  // SECS / SOCKET / MES
 )
 ```
@@ -201,6 +201,31 @@ Core EQP/MES publish 액션은 `workflowEntry.actionDataIndex()`가 비어 있�
 - 필드 값 우선순위는 `action_data_index.fields[field]` → MDF `<field>` 정의 순서입니다.
 - `action_data_index.fields`는 `from=data|metadata`, `path`, `transforms`만 사용하며 값이 없으면 빈 문자열로 대체합니다.
 
+예시:
+
+```json
+{
+  "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
+  "fields": {
+    "EQPID": "eqpId",
+    "STATUS": {
+      "from": "data",
+      "path": "status",
+      "transforms": ["trim", "upper"]
+    },
+    "EVENT_TYPE": {
+      "from": "metadata",
+      "path": "eventType"
+    }
+  }
+}
+```
+
+주의:
+
+- `messageName`, `mdf`, `message`, `var`, `source`, `xform`, `fixed`, `required`는 `action_data_index` 공개 계약에서 허용하지 않습니다.
+- `data.status`, `metadata.eventType` 같은 절대 경로도 허용하지 않습니다.
+
 ---
 
 ## 운영 포인트
@@ -218,5 +243,6 @@ Core EQP/MES publish 액션은 `workflowEntry.actionDataIndex()`가 비어 있�
 ## 관련 문서
 
 - [Business: 워크플로우 매칭](03-workflow-matching.md) — 액션 실행 전 매칭 단계
+- [tc-business-core-app 운영 표준](../../../apps/tc-business-core-app/docs/Architecture/01-mdf-action-data-index-standard.md) — `workflow_filter` / `action_data_index` 공개 계약
 - [공통: 플러그인 어댑터](../common/10-plugin-adapter.md) — Plugin Registry 로드 메커니즘
 - [Business: 태스크 재시도/타임아웃 정책](06-task-retry-timeout-policy.md) — 액션 실행 실패 후 처리
