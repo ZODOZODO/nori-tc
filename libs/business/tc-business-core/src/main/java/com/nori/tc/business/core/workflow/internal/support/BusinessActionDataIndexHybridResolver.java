@@ -3,6 +3,7 @@ package com.nori.tc.business.core.workflow.internal.support;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
+import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfSourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,49 +85,32 @@ public class BusinessActionDataIndexHybridResolver {
         Objects.requireNonNull(valueSpec, "valueSpec is null");
         Objects.requireNonNull(context, "context is null");
 
-        Object value;
-        if (valueSpec.fixedValue() != null) {
-            value = valueSpec.fixedValue();
-        } else {
-            value = resolveVariable(valueSpec, context);
-        }
+        final Object value = resolveActionDataIndexValue(valueSpec, context);
+        return resolveTextValue(fieldName, value, valueSpec.transforms(), false, context);
+    }
 
-        if (value == null) {
-            if (valueSpec.required()) {
-                throw new IllegalArgumentException("Required field value is missing. field=" + fieldName);
-            }
-            log.warn("action_data_index field value is missing and replaced with empty string. field={}, workflowKey={}",
-                    fieldName,
-                    context.workflowEntry().workflowKey());
-            return "";
-        }
+    /**
+     * MDF field fallback 규칙을 적용해 문자열 값을 반환합니다.
+     *
+     * <p>새 공개 계약은 아니지만, 기존 MDF XML의 {@code source}/{@code fixed}/{@code required} 규칙은
+     * action_data_index override가 없는 경우에만 fallback으로 유지합니다.</p>
+     */
+    String resolveMdfFieldValue(
+            final String fieldName,
+            final MdfFieldDefinition fieldDefinition,
+            final BusinessWorkflowActionContext context
+    ) {
+        Objects.requireNonNull(fieldDefinition, "fieldDefinition is null");
+        Objects.requireNonNull(context, "context is null");
 
-        Object current = value;
-        for (TransformSpec transform : valueSpec.transforms()) {
-            final Object before = current;
-            current = applyTransformWithPolicy(current, transform, fieldName, context);
-            if (log.isTraceEnabled()) {
-                log.trace("action_data_index transform applied. workflowKey={}, field={}, transform={}, before={}, after={}",
-                        context.workflowEntry().workflowKey(),
-                        fieldName,
-                        transform.name(),
-                        before,
-                        current);
-            }
-        }
-
-        final String asText = toText(current);
-        if (asText == null) {
-            if (valueSpec.required()) {
-                throw new IllegalArgumentException("Required field resolved to null/blank. field=" + fieldName);
-            }
-            log.warn("action_data_index field resolved to null/blank and replaced with empty string. field={}, workflowKey={}",
-                    fieldName,
-                    context.workflowEntry().workflowKey());
-            return "";
-        }
-
-        return asText;
+        final Object value = resolveMdfFieldValue(fieldDefinition, context);
+        return resolveTextValue(
+                fieldName,
+                value,
+                parseCompactTransforms(fieldDefinition.xformChain()),
+                fieldDefinition.required(),
+                context
+        );
     }
 
     /**
@@ -226,17 +210,56 @@ public class BusinessActionDataIndexHybridResolver {
     }
 
     /**
+     * MDF xform 문자열 체인을 transform spec 목록으로 변환합니다.
+     */
+    static List<TransformSpec> parseCompactTransforms(final List<String> transformChain) {
+        if (transformChain == null || transformChain.isEmpty()) {
+            return List.of();
+        }
+
+        final List<TransformSpec> transforms = new ArrayList<>();
+        for (String transform : transformChain) {
+            transforms.add(TransformSpec.fromCompactText(transform));
+        }
+        return List.copyOf(transforms);
+    }
+
+    /**
      * lookup source/path 기준으로 변수 값을 조회합니다.
      */
-    private static Object resolveVariable(final ValueSpec valueSpec, final BusinessWorkflowActionContext context) {
-        final String path = normalize(valueSpec.variablePath());
+    private static Object resolveActionDataIndexValue(
+            final ValueSpec valueSpec,
+            final BusinessWorkflowActionContext context
+    ) {
+        final String path = normalize(valueSpec.path());
         if (path == null) {
             return null;
         }
 
-        return switch (valueSpec.lookupSourceType()) {
-            case DATA -> lookupPayloadBlock(context.messageVariables(), "data", path);
-            case METADATA -> lookupPayloadBlock(context.messageVariables(), "metadata", path);
+        return lookupPayloadBlock(context.messageVariables(), valueSpec.lookupSourceType().rootKey(), path);
+    }
+
+    /**
+     * MDF field 정의의 source/fixed 규칙으로 값을 조회합니다.
+     */
+    private static Object resolveMdfFieldValue(
+            final MdfFieldDefinition fieldDefinition,
+            final BusinessWorkflowActionContext context
+    ) {
+        if (fieldDefinition.fixedValue() != null) {
+            return fieldDefinition.fixedValue();
+        }
+
+        final String path = normalize(fieldDefinition.variablePath());
+        if (path == null) {
+            return null;
+        }
+
+        final MdfSourceType sourceType = fieldDefinition.sourceType() == null
+                ? MdfSourceType.AUTO
+                : fieldDefinition.sourceType();
+
+        return switch (sourceType) {
             case MSG -> lookupPath(context.messageVariables(), path);
             case CTX -> lookupPath(context.contextVariables(), path);
             case AUTO -> {
@@ -247,6 +270,54 @@ public class BusinessActionDataIndexHybridResolver {
                 yield lookupPath(context.contextVariables(), path);
             }
         };
+    }
+
+    /**
+     * 누락/transform 실패 정책을 포함해 최종 문자열 값을 계산합니다.
+     */
+    private String resolveTextValue(
+            final String fieldName,
+            final Object value,
+            final List<TransformSpec> transforms,
+            final boolean required,
+            final BusinessWorkflowActionContext context
+    ) {
+        if (value == null) {
+            if (required) {
+                throw new IllegalArgumentException("Required field value is missing. field=" + fieldName);
+            }
+            log.warn("action_data_index field value is missing and replaced with empty string. field={}, workflowKey={}",
+                    fieldName,
+                    context.workflowEntry().workflowKey());
+            return "";
+        }
+
+        Object current = value;
+        for (TransformSpec transform : transforms) {
+            final Object before = current;
+            current = applyTransformWithPolicy(current, transform, fieldName, context);
+            if (log.isTraceEnabled()) {
+                log.trace("action_data_index transform applied. workflowKey={}, field={}, transform={}, before={}, after={}",
+                        context.workflowEntry().workflowKey(),
+                        fieldName,
+                        transform.name(),
+                        before,
+                        current);
+            }
+        }
+
+        final String asText = toText(current);
+        if (asText == null) {
+            if (required) {
+                throw new IllegalArgumentException("Required field resolved to null/blank. field=" + fieldName);
+            }
+            log.warn("action_data_index field resolved to null/blank and replaced with empty string. field={}, workflowKey={}",
+                    fieldName,
+                    context.workflowEntry().workflowKey());
+            return "";
+        }
+
+        return asText;
     }
 
     /**
@@ -573,18 +644,15 @@ public class BusinessActionDataIndexHybridResolver {
      * 단일 필드 value spec 모델입니다.
      */
     public record ValueSpec(
-            String variablePath,
+            String path,
             LookupSourceType lookupSourceType,
-            List<TransformSpec> transforms,
-            String fixedValue,
-            boolean required
+            List<TransformSpec> transforms
     ) {
 
         public ValueSpec {
-            variablePath = normalize(variablePath);
-            lookupSourceType = lookupSourceType == null ? LookupSourceType.AUTO : lookupSourceType;
+            path = normalize(path);
+            lookupSourceType = lookupSourceType == null ? LookupSourceType.DATA : lookupSourceType;
             transforms = transforms == null ? List.of() : List.copyOf(transforms);
-            fixedValue = normalize(fixedValue);
         }
 
         public static ValueSpec payloadPath(
@@ -592,21 +660,26 @@ public class BusinessActionDataIndexHybridResolver {
                 final LookupSourceType lookupSourceType,
                 final List<TransformSpec> transforms
         ) {
-            return new ValueSpec(variablePath, lookupSourceType, transforms, null, false);
+            return new ValueSpec(variablePath, lookupSourceType, transforms);
         }
     }
 
     /**
      * 필드 값 조회 소스 타입입니다.
-     *
-     * <p>{@code DATA}/{@code METADATA}는 새 공개 계약, 나머지는 기존 MDF field fallback 전용입니다.</p>
      */
     public enum LookupSourceType {
-        DATA,
-        METADATA,
-        MSG,
-        CTX,
-        AUTO;
+        DATA("data"),
+        METADATA("metadata");
+
+        private final String rootKey;
+
+        LookupSourceType(final String rootKey) {
+            this.rootKey = rootKey;
+        }
+
+        String rootKey() {
+            return rootKey;
+        }
 
         /**
          * 새 action_data_index 공개 계약의 from 값을 변환합니다.
@@ -620,18 +693,6 @@ public class BusinessActionDataIndexHybridResolver {
                 case "data" -> DATA;
                 case "metadata" -> METADATA;
                 default -> throw new IllegalArgumentException("invalid from value: " + normalized);
-            };
-        }
-
-        /**
-         * 기존 MDF field 정의의 sourceType을 내부 조회 소스로 변환합니다.
-         */
-        public static LookupSourceType fromMdfSourceType(final MdfSourceType sourceType) {
-            final MdfSourceType resolved = sourceType == null ? MdfSourceType.AUTO : sourceType;
-            return switch (resolved) {
-                case MSG -> MSG;
-                case CTX -> CTX;
-                case AUTO -> AUTO;
             };
         }
     }

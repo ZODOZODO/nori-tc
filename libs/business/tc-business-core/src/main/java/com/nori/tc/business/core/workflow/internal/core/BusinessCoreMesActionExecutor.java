@@ -32,7 +32,6 @@ public class BusinessCoreMesActionExecutor extends AbstractMesActionExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessCoreMesActionExecutor.class);
     private static final String DEFAULT_MES_EVENT_TYPE = "MES_COMMAND";
-    private static final String ACTION_NAME_PUBLISH_MES_COMMAND = "PUBLISH_MES_COMMAND";
 
     private final BusinessMesCommandPublishPort mesCommandPublishPort;
     private final BusinessMdfMessageComposer mdfMessageComposer;
@@ -86,8 +85,7 @@ public class BusinessCoreMesActionExecutor extends AbstractMesActionExecutor {
 
         final Optional<BusinessMdfMessageComposer.MdfComposeResult> mdfResult = mdfMessageComposer.compose(
                 context,
-                MdfTargetType.MES,
-                ACTION_NAME_PUBLISH_MES_COMMAND
+                MdfTargetType.MES
         );
 
         final Map<String, Object> data;

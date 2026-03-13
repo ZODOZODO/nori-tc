@@ -1,9 +1,7 @@
 package com.nori.tc.business.core.workflow.internal.support;
 
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
-import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.LookupSourceType;
 import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.ParsedActionDataIndex;
-import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.TransformSpec;
 import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.ValueSpec;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
@@ -13,10 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,23 +40,20 @@ public class BusinessMdfMessageComposer {
     }
 
     /**
-     * 타겟(EQP/MES)과 액션명에 맞는 MDF 메시지를 조립합니다.
+     * 타겟(EQP/MES)에 맞는 MDF 메시지를 조립합니다.
+     *
+     * <p>새 정책에서는 {@code action_data_index.mdfTemplateName}이 존재할 때만 MDF 조립을 시도합니다.</p>
      *
      * @param context 액션 실행 컨텍스트
      * @param targetType MDF 타겟 타입
-     * @param actionName 액션명
-     * @return MDF 조립 결과(해당 정의가 없으면 empty)
+     * @return MDF 조립 결과({@code action_data_index} 또는 MDF 정의가 없으면 empty)
      */
     public Optional<MdfComposeResult> compose(
             final BusinessWorkflowActionContext context,
-            final MdfTargetType targetType,
-            final String actionName
+            final MdfTargetType targetType
     ) {
         Objects.requireNonNull(context, "context is null");
         Objects.requireNonNull(targetType, "targetType is null");
-        if (actionName == null || actionName.isBlank()) {
-            throw new IllegalArgumentException("actionName is required");
-        }
 
         final MdfRuntimeDefinition runtimeDefinition = context.modelRuntime().mdfRuntimeDefinition();
         if (runtimeDefinition.isEmpty()) {
@@ -69,19 +62,16 @@ public class BusinessMdfMessageComposer {
 
         final ParsedActionDataIndex parsedActionDataIndex =
                 actionDataIndexResolver.parse(context.workflowEntry().actionDataIndex());
-
-        final Optional<MdfMessageDefinition> selectedMessage = selectMessageDefinition(
-                runtimeDefinition,
-                parsedActionDataIndex,
-                targetType,
-                actionName.trim(),
-                context
-        );
-        if (selectedMessage.isEmpty()) {
+        if (parsedActionDataIndex.isEmpty()) {
             return Optional.empty();
         }
 
-        final MdfMessageDefinition messageDefinition = selectedMessage.orElseThrow();
+        final MdfMessageDefinition messageDefinition = selectMessageDefinition(
+                runtimeDefinition,
+                parsedActionDataIndex,
+                targetType,
+                context
+        );
         final Map<String, String> resolvedFields = resolveFieldValues(
                 messageDefinition,
                 parsedActionDataIndex,
@@ -93,7 +83,7 @@ public class BusinessMdfMessageComposer {
             log.debug("MDF message composed. eqpId={}, workflowKey={}, actionName={}, mdfMessageName={}, targetType={}, fieldCount={}",
                     context.record().eqpId(),
                     context.workflowEntry().workflowKey(),
-                    actionName,
+                    context.workflowEntry().actionName(),
                     messageDefinition.name(),
                     targetType,
                     resolvedFields.size());
@@ -109,47 +99,38 @@ public class BusinessMdfMessageComposer {
     /**
      * 액션 컨텍스트에서 사용할 MDF 메시지 정의를 선택합니다.
      */
-    private Optional<MdfMessageDefinition> selectMessageDefinition(
+    private MdfMessageDefinition selectMessageDefinition(
             final MdfRuntimeDefinition runtimeDefinition,
             final ParsedActionDataIndex parsedActionDataIndex,
             final MdfTargetType targetType,
-            final String actionName,
             final BusinessWorkflowActionContext context
     ) {
-        if (parsedActionDataIndex.mdfTemplateName() != null) {
-            final MdfMessageDefinition byName = runtimeDefinition.findMessage(parsedActionDataIndex.mdfTemplateName())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "MDF message not found. mdfTemplateName=" + parsedActionDataIndex.mdfTemplateName()
-                    ));
-
-            if (byName.targetType() != targetType) {
-                throw new IllegalArgumentException(
-                        "MDF message target mismatch. mdfTemplateName=" + byName.name()
-                                + ", expectedTarget=" + targetType
-                                + ", actualTarget=" + byName.targetType()
-                );
-            }
-            return Optional.of(byName);
-        }
-
-        final List<MdfMessageDefinition> candidates = runtimeDefinition.findByActionAndTarget(actionName, targetType);
-        if (candidates.isEmpty()) {
-            return Optional.empty();
-        }
-
-        if (candidates.size() > 1) {
+        if (parsedActionDataIndex.mdfTemplateName() == null) {
             throw new IllegalArgumentException(
-                    "Multiple MDF messages matched. actionName=" + actionName
-                            + ", targetType=" + targetType
-                            + ", workflowKey=" + context.workflowEntry().workflowKey()
-                            + ", candidates=" + candidates.stream().map(MdfMessageDefinition::name).toList()
+                    "mdfTemplateName is required when action_data_index is provided. workflowKey="
+                            + context.workflowEntry().workflowKey()
             );
         }
-        return Optional.of(candidates.getFirst());
+
+        final MdfMessageDefinition messageDefinition = runtimeDefinition.findMessage(parsedActionDataIndex.mdfTemplateName())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "MDF message not found. mdfTemplateName=" + parsedActionDataIndex.mdfTemplateName()
+                ));
+
+        if (messageDefinition.targetType() != targetType) {
+            throw new IllegalArgumentException(
+                    "MDF message target mismatch. mdfTemplateName=" + messageDefinition.name()
+                            + ", expectedTarget=" + targetType
+                            + ", actualTarget=" + messageDefinition.targetType()
+            );
+        }
+        return messageDefinition;
     }
 
     /**
      * 메시지 정의와 action_data_index를 합쳐 필드 값을 계산합니다.
+     *
+     * <p>우선순위는 {@code action_data_index.fields[field]} → MDF {@code <field>} 정의 순서입니다.</p>
      */
     private Map<String, String> resolveFieldValues(
             final MdfMessageDefinition messageDefinition,
@@ -165,61 +146,24 @@ public class BusinessMdfMessageComposer {
 
         final Map<String, String> resolved = new LinkedHashMap<>();
         for (String fieldName : fieldNames) {
-            final ValueSpec spec = chooseValueSpec(messageDefinition, parsedActionDataIndex, fieldName);
-            final String value = actionDataIndexResolver.resolveFieldValue(fieldName, spec, context);
-            resolved.put(fieldName, value);
+            final ValueSpec overrideSpec = parsedActionDataIndex.fields().get(fieldName);
+            if (overrideSpec != null) {
+                resolved.put(fieldName, actionDataIndexResolver.resolveFieldValue(fieldName, overrideSpec, context));
+                continue;
+            }
+
+            final Optional<MdfFieldDefinition> fieldDefinition = messageDefinition.findField(fieldName);
+            if (fieldDefinition.isPresent()) {
+                resolved.put(
+                        fieldName,
+                        actionDataIndexResolver.resolveMdfFieldValue(fieldName, fieldDefinition.orElseThrow(), context)
+                );
+                continue;
+            }
+
+            resolved.put(fieldName, "");
         }
         return resolved;
-    }
-
-    /**
-     * 필드별 value spec 우선순위를 결정합니다.
-     *
-     * <p>
-     * 우선순위:
-     * 1) action_data_index.fields[field]
-     * 2) MDF field 정의
-     * 3) 기본값(AUTO path=field, required=false)
-     * </p>
-     */
-    private static ValueSpec chooseValueSpec(
-            final MdfMessageDefinition messageDefinition,
-            final ParsedActionDataIndex parsedActionDataIndex,
-            final String fieldName
-    ) {
-        final ValueSpec overrideSpec = parsedActionDataIndex.fields().get(fieldName);
-        if (overrideSpec != null) {
-            return overrideSpec;
-        }
-
-        final Optional<MdfFieldDefinition> fieldDefinition = messageDefinition.findField(fieldName);
-        if (fieldDefinition.isPresent()) {
-            final MdfFieldDefinition definition = fieldDefinition.orElseThrow();
-            return new ValueSpec(
-                    definition.variablePath(),
-                    LookupSourceType.fromMdfSourceType(definition.sourceType()),
-                    parseTransforms(definition.xformChain()),
-                    definition.fixedValue(),
-                    definition.required()
-            );
-        }
-
-        return new ValueSpec(fieldName, LookupSourceType.AUTO, List.of(), null, false);
-    }
-
-    /**
-     * 문자열 xform 체인을 TransformSpec 목록으로 변환합니다.
-     */
-    private static List<TransformSpec> parseTransforms(final List<String> xformChain) {
-        if (xformChain == null || xformChain.isEmpty()) {
-            return List.of();
-        }
-
-        final List<TransformSpec> transforms = new ArrayList<>();
-        for (String xform : xformChain) {
-            transforms.add(TransformSpec.fromCompactText(xform));
-        }
-        return List.copyOf(transforms);
     }
 
     /**

@@ -190,6 +190,19 @@ pluginRegistry (eqpId별)
 
 ---
 
+## MDF 조립 정책
+
+Core EQP/MES publish 액션은 `workflowEntry.actionDataIndex()`가 비어 있지 않을 때만 MDF 조립을 시도합니다.
+
+- `action_data_index`가 없으면 기존 raw message/data fallback을 유지합니다.
+- `action_data_index`가 있으면 루트의 `mdfTemplateName`으로만 MDF 템플릿을 선택합니다.
+- `actionName + target(EQP/MES)` 기반 자동 템플릿 선택 fallback은 사용하지 않습니다.
+- `mdfTemplateName`이 없거나, 해당 템플릿이 없거나, target이 다르면 액션 실행 실패로 처리합니다.
+- 필드 값 우선순위는 `action_data_index.fields[field]` → MDF `<field>` 정의 순서입니다.
+- `action_data_index.fields`는 `from=data|metadata`, `path`, `transforms`만 사용하며 값이 없으면 빈 문자열로 대체합니다.
+
+---
+
 ## 운영 포인트
 
 | 항목 | 설명 |

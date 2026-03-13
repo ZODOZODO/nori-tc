@@ -113,6 +113,41 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
         Assertions.assertEquals("READY", message.data().get("STATUS"));
     }
 
+    @Test
+    void shouldFallbackToRawMessageWhenActionDataIndexIsEmpty() throws Exception {
+        final AtomicReference<BusinessEqpCommandMessage> published = new AtomicReference<>();
+        final BusinessMdfMessageComposer composer = new BusinessMdfMessageComposer(
+                new BusinessActionDataIndexHybridResolver(new ObjectMapper())
+        );
+        final BusinessCoreSocketActionExecutor executor = new BusinessCoreSocketActionExecutor(
+                published::set,
+                composer
+        );
+
+        final MdfMessageDefinition eqpMessage = new MdfMessageDefinition(
+                "TOOL_CONDITION_REQUEST_EQP",
+                MdfTargetType.EQP,
+                MdfOutputType.RAW_MESSAGE,
+                "PUBLISH_EQP_COMMAND",
+                "CMD=TOOL_CONDITION_REQUEST EQPID={EQPID}",
+                List.of(new MdfFieldDefinition("EQPID", "eqpId", MdfSourceType.CTX, List.of(), null, true))
+        );
+
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(eqpMessage.name(), eqpMessage)),
+                "PUBLISH_EQP_COMMAND",
+                null,
+                null
+        );
+
+        executor.publishEqpCommand(context);
+
+        final BusinessEqpCommandMessage message = published.get();
+        Assertions.assertNotNull(message);
+        Assertions.assertEquals("{\"metadata\":{\"eventType\":\"EQP_CONDITION_CHECK\"},\"data\":{\"status\":\"ready\"}}", message.rawMessage());
+        Assertions.assertNull(message.attributes().get("mdfMessageName"));
+    }
+
     /**
      * 테스트용 액션 컨텍스트를 생성합니다.
      */
@@ -131,7 +166,7 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 BusinessMessageType.EQP,
                 "S6F11",
                 "payload://eqp/1",
-                "{\"data\":{\"status\":\"ready\"}}"
+                "{\"metadata\":{\"eventType\":\"EQP_CONDITION_CHECK\"},\"data\":{\"status\":\"ready\"}}"
         );
 
         final TcModel model = new TcModel(
@@ -180,6 +215,7 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
         );
 
         final Map<String, Object> messageVariables = new LinkedHashMap<>();
+        messageVariables.put("metadata", Map.of("eventType", "EQP_CONDITION_CHECK"));
         messageVariables.put("data", Map.of("status", "ready"));
         if (correlationId != null) {
             messageVariables.put("correlationId", correlationId);

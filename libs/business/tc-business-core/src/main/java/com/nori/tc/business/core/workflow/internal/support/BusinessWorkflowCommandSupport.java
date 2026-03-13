@@ -178,7 +178,9 @@ public final class BusinessWorkflowCommandSupport {
         payload.put("workflowKey", context.workflowEntry().workflowKey());
         payload.put("workflowName", context.workflowEntry().workflowName());
         payload.put("actionName", context.workflowEntry().actionName());
-        payload.put("actionDataIndex", context.workflowEntry().actionDataIndex());
+        if (context.workflowEntry().actionDataIndex() != null) {
+            payload.put("actionDataIndex", context.workflowEntry().actionDataIndex());
+        }
         payload.put("messageVariables", context.messageVariables());
         payload.put("contextVariables", context.contextVariables());
         return Map.copyOf(payload);
@@ -265,4 +267,3 @@ public final class BusinessWorkflowCommandSupport {
         return normalized;
     }
 }
-

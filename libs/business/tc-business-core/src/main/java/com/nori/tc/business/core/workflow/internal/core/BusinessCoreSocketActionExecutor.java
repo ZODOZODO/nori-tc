@@ -26,7 +26,6 @@ public class BusinessCoreSocketActionExecutor extends AbstractSocketActionExecut
     private static final Logger log = LoggerFactory.getLogger(BusinessCoreSocketActionExecutor.class);
     private static final String DEFAULT_EQP_EVENT_TYPE = "EQP_COMMAND";
     private static final String INTERFACE_TYPE_SOCKET = "SOCKET";
-    private static final String ACTION_NAME_PUBLISH_EQP_COMMAND = "PUBLISH_EQP_COMMAND";
 
     private final BusinessEqpCommandPublishPort eqpCommandPublishPort;
     private final BusinessMdfMessageComposer mdfMessageComposer;
@@ -76,8 +75,7 @@ public class BusinessCoreSocketActionExecutor extends AbstractSocketActionExecut
 
         final Optional<BusinessMdfMessageComposer.MdfComposeResult> mdfResult = mdfMessageComposer.compose(
                 context,
-                MdfTargetType.EQP,
-                ACTION_NAME_PUBLISH_EQP_COMMAND
+                MdfTargetType.EQP
         );
 
         final String rawMessage = mdfResult

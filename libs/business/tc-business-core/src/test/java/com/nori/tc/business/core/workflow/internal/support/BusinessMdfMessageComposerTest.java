@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,7 +63,7 @@ class BusinessMdfMessageComposerTest {
                         """
         );
 
-        final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP, "PUBLISH_EQP_COMMAND")
+        final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP)
                 .orElseThrow();
 
         Assertions.assertEquals("CMD=REQ EQPID=EQP-01 STATUS=MANUAL", result.renderedMessage());
@@ -73,8 +72,8 @@ class BusinessMdfMessageComposerTest {
     }
 
     @Test
-    void shouldFailWhenMultipleCandidatesExistWithoutSelector() {
-        final MdfMessageDefinition message1 = new MdfMessageDefinition(
+    void shouldReturnEmptyWhenActionDataIndexIsEmptyEvenIfMatchingMdfExists() {
+        final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
                 "REQ_A_EQP",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
@@ -82,25 +81,71 @@ class BusinessMdfMessageComposerTest {
                 "A={A}",
                 List.of(new MdfFieldDefinition("A", "a", MdfSourceType.MSG, List.of(), null, false))
         );
-        final MdfMessageDefinition message2 = new MdfMessageDefinition(
-                "REQ_B_EQP",
-                MdfTargetType.EQP,
-                MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
-                "B={B}",
-                List.of(new MdfFieldDefinition("B", "b", MdfSourceType.MSG, List.of(), null, false))
+
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
+                null
         );
 
-        final Map<String, MdfMessageDefinition> messages = new LinkedHashMap<>();
-        messages.put(message1.name(), message1);
-        messages.put(message2.name(), message2);
+        Assertions.assertTrue(composer.compose(context, MdfTargetType.EQP).isEmpty());
+    }
 
-        final BusinessWorkflowActionContext context = createContext(new MdfRuntimeDefinition(messages), null);
+    @Test
+    void shouldFailWhenTemplateTargetDoesNotMatchRequestedTarget() {
+        final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
+                "TOOL_CONDITION_REPLY_MES",
+                MdfTargetType.MES,
+                MdfOutputType.DATA,
+                "PUBLISH_MES_COMMAND",
+                "EVENT={EVENT_TYPE}",
+                List.of()
+        );
+
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
+                """
+                        {
+                          "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
+                          "fields": {}
+                        }
+                        """
+        );
 
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> composer.compose(context, MdfTargetType.EQP, "PUBLISH_EQP_COMMAND")
+                () -> composer.compose(context, MdfTargetType.EQP)
         );
+    }
+
+    @Test
+    void shouldResolveMetadataAndFixedMdfFieldFallbackWhenNoActionOverrideExists() {
+        final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
+                "TOOL_METADATA_REPLY_EQP",
+                MdfTargetType.EQP,
+                MdfOutputType.RAW_MESSAGE,
+                "PUBLISH_EQP_COMMAND",
+                "EVENT={EVENT_TYPE} FIXED={FIXED_VALUE}",
+                List.of(
+                        new MdfFieldDefinition("EVENT_TYPE", "metadata.eventType", MdfSourceType.MSG, List.of(), null, true),
+                        new MdfFieldDefinition("FIXED_VALUE", null, MdfSourceType.AUTO, List.of(), "CONST", true)
+                )
+        );
+
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
+                """
+                        {
+                          "mdfTemplateName": "TOOL_METADATA_REPLY_EQP",
+                          "fields": {}
+                        }
+                        """
+        );
+
+        final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP).orElseThrow();
+
+        Assertions.assertEquals("EVENT=EQP_CONDITION_CHECK FIXED=CONST", result.renderedMessage());
+        Assertions.assertEquals("EQP_CONDITION_CHECK", result.fieldValues().get("EVENT_TYPE"));
+        Assertions.assertEquals("CONST", result.fieldValues().get("FIXED_VALUE"));
     }
 
     /**
@@ -119,7 +164,16 @@ class BusinessMdfMessageComposerTest {
                 BusinessMessageType.EQP,
                 "S6F11",
                 "payload://eqp/1",
-                "{\"data\":{\"status\":\"ready\"}}"
+                """
+                        {
+                          "metadata": {
+                            "eventType": "EQP_CONDITION_CHECK"
+                          },
+                          "data": {
+                            "status": "ready"
+                          }
+                        }
+                        """
         );
 
         final TcModel model = new TcModel(
@@ -161,7 +215,12 @@ class BusinessMdfMessageComposerTest {
 
         final BusinessWorkflowFilterContext filterContext = new BusinessWorkflowFilterContext(
                 record,
-                Map.of("data", Map.of("status", "ready", "overrideStatus", "manual"), "a", "1", "b", "2"),
+                Map.of(
+                        "metadata", Map.of("eventType", "EQP_CONDITION_CHECK"),
+                        "data", Map.of("status", "ready", "overrideStatus", "manual"),
+                        "a", "1",
+                        "b", "2"
+                ),
                 Map.of("eqpId", "EQP-01")
         );
 

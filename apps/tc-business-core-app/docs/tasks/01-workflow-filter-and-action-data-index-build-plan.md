@@ -147,31 +147,31 @@
 
 #### T3-1. action_data_index 해석기 전환
 
-- [ ] `BusinessActionDataIndexHybridResolver`를 새 계약 기준으로 전환
-- [ ] `mdfTemplateName` 루트 키 처리 추가
-- [ ] `fields` 하위 `from`, `path`, `transforms` 처리 추가
-- [ ] 문자열 shorthand를 `from=data` 기본값으로 처리
-- [ ] 값 누락 시 빈 문자열 반환 정책 반영
+- [x] `BusinessActionDataIndexHybridResolver`를 새 계약 기준으로 전환
+- [x] `mdfTemplateName` 루트 키 처리 추가
+- [x] `fields` 하위 `from`, `path`, `transforms` 처리 추가
+- [x] 문자열 shorthand를 `from=data` 기본값으로 처리
+- [x] 값 누락 시 빈 문자열 반환 정책 반영
 
 #### T3-2. MDF 템플릿 선택 정책 전환
 
-- [ ] `BusinessMdfMessageComposer`에서 `actionName + target` 자동 템플릿 선택 제거
-- [ ] `mdfTemplateName` explicit 선택만 허용
-- [ ] `mdfTemplateName` 누락 시 실패 처리
-- [ ] 템플릿 미존재 / target mismatch 실패 처리
-- [ ] `action_data_index` 비어 있을 때 raw message fallback 유지
+- [x] `BusinessMdfMessageComposer`에서 `actionName + target` 자동 템플릿 선택 제거
+- [x] `mdfTemplateName` explicit 선택만 허용
+- [x] `mdfTemplateName` 누락 시 실패 처리
+- [x] 템플릿 미존재 / target mismatch 실패 처리
+- [x] `action_data_index` 비어 있을 때 raw message fallback 유지
 
 #### T3-3. MDF field fallback 충돌 점검
 
-- [ ] MDF `<field>` 정의와 새 `action_data_index.fields` 우선순위 재확인
-- [ ] 새 계약에서 `fixed` / `required` 제거에 따른 fallback 영향 점검
-- [ ] `metadata` 블록 값을 MDF 필드에 매핑하는 경로 확인
+- [x] MDF `<field>` 정의와 새 `action_data_index.fields` 우선순위 재확인
+- [x] 새 계약에서 `fixed` / `required` 제거에 따른 fallback 영향 점검
+- [x] `metadata` 블록 값을 MDF 필드에 매핑하는 경로 확인
 
 ### T3 검증
 
-- [ ] `mdfTemplateName` 기반으로만 MDF 템플릿이 선택되는지 확인
-- [ ] 자동 템플릿 선택 코드가 제거되었는지 확인
-- [ ] `action_data_index`가 비교 없는 값 조회 전용으로 동작하는지 확인
+- [x] `mdfTemplateName` 기반으로만 MDF 템플릿이 선택되는지 확인
+- [x] 자동 템플릿 선택 코드가 제거되었는지 확인
+- [x] `action_data_index`가 비교 없는 값 조회 전용으로 동작하는지 확인
 
 ---
 

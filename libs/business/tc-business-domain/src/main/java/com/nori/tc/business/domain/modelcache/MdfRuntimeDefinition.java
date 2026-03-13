@@ -54,24 +54,6 @@ public record MdfRuntimeDefinition(
     }
 
     /**
-     * 액션명 + 타겟(EQP/MES) 기준으로 메시지 정의를 조회합니다.
-     */
-    public List<MdfMessageDefinition> findByActionAndTarget(String actionName, MdfTargetType targetType) {
-        if (actionName == null || actionName.isBlank() || targetType == null) {
-            return List.of();
-        }
-
-        final String normalizedAction = actionName.trim();
-        final List<MdfMessageDefinition> matched = new ArrayList<>();
-        for (MdfMessageDefinition message : messagesByName.values()) {
-            if (message.targetType() == targetType && message.actionName().equals(normalizedAction)) {
-                matched.add(message);
-            }
-        }
-        return List.copyOf(matched);
-    }
-
-    /**
      * MDF 정의가 비어 있는지 여부를 반환합니다.
      */
     public boolean isEmpty() {
