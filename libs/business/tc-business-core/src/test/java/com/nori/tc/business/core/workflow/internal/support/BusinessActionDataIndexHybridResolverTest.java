@@ -30,6 +30,33 @@ class BusinessActionDataIndexHybridResolverTest {
             new BusinessActionDataIndexHybridResolver(new ObjectMapper());
 
     @Test
+    void shouldParseMdfTemplateNameAndMixedFieldSpecs() {
+        final String actionDataIndex = """
+                {
+                  "mdfTemplateName": "TOOL_CONDITION_REQUEST_EQP",
+                  "fields": {
+                    "EQPID": "eqpId",
+                    "EVENT_TYPE": {"from": "metadata", "path": "eventType"},
+                    "STATUS": {"from": "data", "path": "status", "transforms": ["trim", "upper"]}
+                  }
+                }
+                """;
+
+        final ParsedActionDataIndex parsed = resolver.parse(actionDataIndex);
+        final ValueSpec eqpIdSpec = parsed.fields().get("EQPID");
+        final ValueSpec eventTypeSpec = parsed.fields().get("EVENT_TYPE");
+        final ValueSpec statusSpec = parsed.fields().get("STATUS");
+
+        Assertions.assertEquals("TOOL_CONDITION_REQUEST_EQP", parsed.mdfTemplateName());
+        Assertions.assertEquals(BusinessActionDataIndexHybridResolver.LookupSourceType.DATA, eqpIdSpec.lookupSourceType());
+        Assertions.assertEquals("eqpId", eqpIdSpec.path());
+        Assertions.assertEquals(BusinessActionDataIndexHybridResolver.LookupSourceType.METADATA, eventTypeSpec.lookupSourceType());
+        Assertions.assertEquals("eventType", eventTypeSpec.path());
+        Assertions.assertEquals("trim", statusSpec.transforms().get(0).name());
+        Assertions.assertEquals("upper", statusSpec.transforms().get(1).name());
+    }
+
+    @Test
     void shouldResolveCanonicalFieldSpecsWithTransformChain() {
         final String actionDataIndex = """
                 {

@@ -91,6 +91,34 @@ class BusinessMdfMessageComposerTest {
     }
 
     @Test
+    void shouldFailExplicitlyWhenTemplateNameIsMissing() {
+        final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
+                "TOOL_CONDITION_REQUEST_EQP",
+                MdfTargetType.EQP,
+                MdfOutputType.RAW_MESSAGE,
+                "PUBLISH_EQP_COMMAND",
+                "EQPID={EQPID}",
+                List.of()
+        );
+
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
+                """
+                        {
+                          "fields": {
+                            "EQPID": "eqpId"
+                          }
+                        }
+                        """
+        );
+
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> composer.compose(context, MdfTargetType.EQP)
+        );
+    }
+
+    @Test
     void shouldFailWhenTemplateTargetDoesNotMatchRequestedTarget() {
         final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
                 "TOOL_CONDITION_REPLY_MES",

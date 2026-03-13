@@ -253,23 +253,23 @@
 
 #### T6-1. business-core 단위 테스트
 
-- [ ] `workflow_filter` 단일 조건 성공/실패 테스트
-- [ ] `and` 그룹 테스트
-- [ ] `or` 그룹 테스트
-- [ ] `and` 안의 `or` 중첩 테스트
-- [ ] 사용자 예시 복합식 테스트
-- [ ] `from=data`, `from=metadata` 테스트
-- [ ] 절대 경로 금지 validation 테스트
-- [ ] transform 실패 fallback 테스트
+- [x] `workflow_filter` 단일 조건 성공/실패 테스트
+- [x] `and` 그룹 테스트
+- [x] `or` 그룹 테스트
+- [x] `and` 안의 `or` 중첩 테스트
+- [x] 사용자 예시 복합식 테스트
+- [x] `from=data`, `from=metadata` 테스트
+- [x] 절대 경로 금지 validation 테스트
+- [x] transform 실패 fallback 테스트
 
 #### T6-2. action/MDF 테스트
 
-- [ ] `action_data_index`의 `mdfTemplateName` 파싱 테스트
-- [ ] `fields` shorthand / object 식 테스트
-- [ ] 값 누락 시 빈 문자열 테스트
-- [ ] `metadata` 조회 테스트
-- [ ] explicit template selection 성공/실패 테스트
-- [ ] 자동 MDF 선택 제거 확인 테스트
+- [x] `action_data_index`의 `mdfTemplateName` 파싱 테스트
+- [x] `fields` shorthand / object 식 테스트
+- [x] 값 누락 시 빈 문자열 테스트
+- [x] `metadata` 조회 테스트
+- [x] explicit template selection 성공/실패 테스트
+- [x] 자동 MDF 선택 제거 확인 테스트
 
 #### T6-3. UI adapter 테스트
 
@@ -280,17 +280,17 @@
 
 #### T6-4. 문서-코드 정합성 확인
 
-- [ ] canonical 키 이름이 설계 문서와 코드에 동일한지 확인
-- [ ] `from=data|metadata`, `mdfTemplateName`, `transforms` 용어가 문서/코드/preview에 일치하는지 확인
-- [ ] 예전 계약 키가 테스트 fixture와 문서 예시에 남아 있지 않은지 확인
+- [x] canonical 키 이름이 설계 문서와 코드에 동일한지 확인
+- [x] `from=data|metadata`, `mdfTemplateName`, `transforms` 용어가 문서/코드/preview에 일치하는지 확인
+- [x] 예전 계약 키가 허용 fixture/운영 예시에 남아 있지 않고, 금지 예시/거절 테스트에만 제한적으로 남아 있는지 확인
 
 ### T6 acceptance 기준
 
-- [ ] `workflow_filter`가 `and` / `or` 중첩 구조를 실제 런타임에서 평가할 수 있어야 함
-- [ ] `action_data_index`가 `data` / `metadata`에서 값만 조회해야 함
-- [ ] `mdfTemplateName`이 없으면 MDF 조립이 명시적으로 실패해야 함
-- [ ] preview와 문서가 같은 용어를 사용해야 함
-- [ ] app docs와 root docs가 같은 표준 계약을 설명해야 함
+- [x] `workflow_filter`가 `and` / `or` 중첩 구조를 실제 런타임에서 평가할 수 있어야 함
+- [x] `action_data_index`가 `data` / `metadata`에서 값만 조회해야 함
+- [x] `mdfTemplateName`이 없으면 MDF 조립이 명시적으로 실패해야 함
+- [x] preview와 문서가 같은 용어를 사용해야 함
+- [x] app docs와 root docs가 같은 표준 계약을 설명해야 함
 
 ---
 
