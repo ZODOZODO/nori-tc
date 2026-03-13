@@ -31,8 +31,8 @@ class BusinessWorkflowMatcherImplTest {
         final TcModelRuntime runtime = createRuntime(
                 ProtocolType.SECS,
                 List.of(
-                        workflow(1L, 100L, "WF-READY", "S6F11", "E1", "T1", filterEq("data.status", "READY")),
-                        workflow(2L, 100L, "WF-BLOCK", "S6F11", "E1", "T1", filterEq("data.status", "BLOCK")),
+                        workflow(1L, 100L, "WF-READY", "S6F11", "E1", "T1", filterEq("status", "READY")),
+                        workflow(2L, 100L, "WF-BLOCK", "S6F11", "E1", "T1", filterEq("status", "BLOCK")),
                         workflow(3L, 100L, "WF-OTHER", "S6F11", "E9", "T9", null)
                 )
         );
@@ -106,6 +106,292 @@ class BusinessWorkflowMatcherImplTest {
                 BusinessWorkflowFilterEvaluationException.class,
                 () -> matcher.match(record, runtime)
         );
+    }
+
+    @Test
+    void shouldThrowFilterEvalExceptionWhenWorkflowFilterUsesLegacyRowsContract() {
+        final BusinessWorkflowMatcherImpl matcher = createMatcher();
+        final TcModelRuntime runtime = createRuntime(
+                ProtocolType.SOCKET,
+                List.of(workflow(
+                        1L,
+                        100L,
+                        "WF-LEGACY",
+                        "SOCKET_IN",
+                        null,
+                        null,
+                        "{\"rows\":[{\"left\":{\"var\":{\"name\":\"status\",\"source\":\"MSG\"}},\"op\":\"eq\",\"right\":\"READY\"}]}"
+                ))
+        );
+
+        final BusinessInboundRecord record = new BusinessInboundRecord(
+                "tc.eqp.events",
+                0,
+                13L,
+                "EQP-100",
+                "TRACE-TEST-13",
+                BusinessMessageType.EQP,
+                "SOCKET_IN",
+                "payload://eqp/13",
+                "{\"metadata\":{\"eventType\":\"SOCKET_IN\"},\"data\":{\"status\":\"READY\"}}"
+        );
+
+        Assertions.assertThrows(
+                BusinessWorkflowFilterEvaluationException.class,
+                () -> matcher.match(record, runtime)
+        );
+    }
+
+    @Test
+    void shouldThrowFilterEvalExceptionWhenWorkflowFilterUsesAbsolutePath() {
+        final BusinessWorkflowMatcherImpl matcher = createMatcher();
+        final TcModelRuntime runtime = createRuntime(
+                ProtocolType.SOCKET,
+                List.of(workflow(
+                        1L,
+                        100L,
+                        "WF-ABSOLUTE-PATH",
+                        "SOCKET_IN",
+                        null,
+                        null,
+                        filterEq("data", "data.status", "READY")
+                ))
+        );
+
+        final BusinessInboundRecord record = new BusinessInboundRecord(
+                "tc.eqp.events",
+                0,
+                14L,
+                "EQP-100",
+                "TRACE-TEST-14",
+                BusinessMessageType.EQP,
+                "SOCKET_IN",
+                "payload://eqp/14",
+                "{\"metadata\":{\"eventType\":\"SOCKET_IN\"},\"data\":{\"status\":\"READY\"}}"
+        );
+
+        Assertions.assertThrows(
+                BusinessWorkflowFilterEvaluationException.class,
+                () -> matcher.match(record, runtime)
+        );
+    }
+
+    @Test
+    void shouldMatchNestedWorkflowFilterUsingDataAndMetadataBlocks() {
+        final BusinessWorkflowMatcherImpl matcher = createMatcher();
+        final TcModelRuntime runtime = createRuntime(
+                ProtocolType.SOCKET,
+                List.of(
+                        workflow(
+                                1L,
+                                100L,
+                                "WF-NESTED-MATCH",
+                                "SOCKET_IN",
+                                null,
+                                null,
+                                """
+                                        {
+                                          "and": [
+                                            {
+                                              "from": "data",
+                                              "path": "status",
+                                              "comparison": "equals",
+                                              "expected": "READY"
+                                            },
+                                            {
+                                              "or": [
+                                                {
+                                                  "from": "metadata",
+                                                  "path": "eventType",
+                                                  "comparison": "equals",
+                                                  "expected": "SOCKET_IN"
+                                                },
+                                                {
+                                                  "from": "data",
+                                                  "path": "retryCount",
+                                                  "comparison": "greater_than_or_equal",
+                                                  "expected": 5
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                        """
+                        ),
+                        workflow(
+                                2L,
+                                100L,
+                                "WF-NESTED-NO-MATCH",
+                                "SOCKET_IN",
+                                null,
+                                null,
+                                """
+                                        {
+                                          "and": [
+                                            {
+                                              "from": "data",
+                                              "path": "status",
+                                              "comparison": "equals",
+                                              "expected": "READY"
+                                            },
+                                            {
+                                              "or": [
+                                                {
+                                                  "from": "metadata",
+                                                  "path": "eventType",
+                                                  "comparison": "equals",
+                                                  "expected": "OTHER_EVENT"
+                                                },
+                                                {
+                                                  "from": "data",
+                                                  "path": "retryCount",
+                                                  "comparison": "greater_than_or_equal",
+                                                  "expected": 5
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                        """
+                        )
+                )
+        );
+
+        final BusinessInboundRecord record = new BusinessInboundRecord(
+                "tc.eqp.events",
+                0,
+                15L,
+                "EQP-100",
+                "TRACE-TEST-15",
+                BusinessMessageType.EQP,
+                "SOCKET_IN",
+                "payload://eqp/15",
+                """
+                        {
+                          "metadata": {
+                            "eventType": "SOCKET_IN"
+                          },
+                          "data": {
+                            "status": "READY",
+                            "retryCount": 1
+                          }
+                        }
+                        """
+        );
+
+        final BusinessWorkflowMatchResult result = matcher.match(record, runtime);
+
+        Assertions.assertTrue(result.hasMatchedWorkflow());
+        Assertions.assertEquals(1, result.matchedWorkflows().size());
+        Assertions.assertEquals("WF-NESTED-MATCH", result.matchedWorkflows().getFirst().workflowName());
+    }
+
+    @Test
+    void shouldNotReadRuntimeContextOutsidePayloadEnvelope() {
+        final BusinessWorkflowMatcherImpl matcher = createMatcher();
+        final TcModelRuntime runtime = createRuntime(
+                ProtocolType.SOCKET,
+                List.of(workflow(
+                        1L,
+                        100L,
+                        "WF-PAYLOAD-ONLY",
+                        "SOCKET_IN",
+                        null,
+                        null,
+                        """
+                                {
+                                  "and": [
+                                    {
+                                      "from": "metadata",
+                                      "path": "messageName",
+                                      "comparison": "equals",
+                                      "expected": "SOCKET_IN"
+                                    }
+                                  ]
+                                }
+                                """
+                ))
+        );
+
+        final BusinessInboundRecord record = new BusinessInboundRecord(
+                "tc.eqp.events",
+                0,
+                16L,
+                "EQP-100",
+                "TRACE-TEST-16",
+                BusinessMessageType.EQP,
+                "SOCKET_IN",
+                "payload://eqp/16",
+                """
+                        {
+                          "metadata": {
+                            "eventType": "SOCKET_IN"
+                          },
+                          "data": {
+                            "status": "READY"
+                          }
+                        }
+                        """
+        );
+
+        final BusinessWorkflowMatchResult result = matcher.match(record, runtime);
+
+        Assertions.assertFalse(result.hasMatchedWorkflow());
+        Assertions.assertTrue(result.matchedWorkflows().isEmpty());
+    }
+
+    @Test
+    void shouldTreatMissingPayloadValueAsFalseEvenForNotEqualsComparison() {
+        final BusinessWorkflowMatcherImpl matcher = createMatcher();
+        final TcModelRuntime runtime = createRuntime(
+                ProtocolType.SOCKET,
+                List.of(workflow(
+                        1L,
+                        100L,
+                        "WF-MISSING-VALUE",
+                        "SOCKET_IN",
+                        null,
+                        null,
+                        """
+                                {
+                                  "and": [
+                                    {
+                                      "from": "data",
+                                      "path": "missingStatus",
+                                      "comparison": "not_equals",
+                                      "expected": "BLOCK"
+                                    }
+                                  ]
+                                }
+                                """
+                ))
+        );
+
+        final BusinessInboundRecord record = new BusinessInboundRecord(
+                "tc.eqp.events",
+                0,
+                17L,
+                "EQP-100",
+                "TRACE-TEST-17",
+                BusinessMessageType.EQP,
+                "SOCKET_IN",
+                "payload://eqp/17",
+                """
+                        {
+                          "metadata": {
+                            "eventType": "SOCKET_IN"
+                          },
+                          "data": {
+                            "status": "READY"
+                          }
+                        }
+                        """
+        );
+
+        final BusinessWorkflowMatchResult result = matcher.match(record, runtime);
+
+        Assertions.assertFalse(result.hasMatchedWorkflow());
+        Assertions.assertTrue(result.matchedWorkflows().isEmpty());
     }
 
     /**
@@ -185,11 +471,24 @@ class BusinessWorkflowMatcherImplTest {
      * 단순 equality 필터 JSON을 생성합니다.
      */
     private static String filterEq(final String variablePath, final String expectedValue) {
-        return "{\"rows\":[{\"left\":{\"var\":{\"name\":\""
-                + variablePath
-                + "\",\"source\":\"MSG\"}},\"op\":\"eq\",\"right\":\""
-                + expectedValue
-                + "\"}]}";
+        return filterEq("data", variablePath, expectedValue);
+    }
+
+    /**
+     * 단순 equality 필터 JSON을 생성합니다.
+     */
+    private static String filterEq(final String from, final String variablePath, final String expectedValue) {
+        return """
+                {
+                  "and": [
+                    {
+                      "from": "%s",
+                      "path": "%s",
+                      "comparison": "equals",
+                      "expected": "%s"
+                    }
+                  ]
+                }
+                """.formatted(from, variablePath, expectedValue);
     }
 }
-

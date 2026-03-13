@@ -30,15 +30,15 @@ class BusinessActionDataIndexHybridResolverTest {
             new BusinessActionDataIndexHybridResolver(new ObjectMapper());
 
     @Test
-    void shouldResolveHybridFieldSpecsWithTransformChain() {
+    void shouldResolveCanonicalFieldSpecsWithTransformChain() {
         final String actionDataIndex = """
                 {
-                  "mdf": "TOOL_CONDITION_REQUEST_EQP",
+                  "mdfTemplateName": "TOOL_CONDITION_REQUEST_EQP",
                   "fields": {
                     "EQPID": "eqpId",
-                    "STATUS": {"var": "data.status", "source": "MSG", "xform": ["trim", "upper"]},
-                    "ERRORCODE": {"fixed": "E000"},
-                    "OPTIONAL": {"var": "data.missing", "required": false}
+                    "STATUS": {"from": "data", "path": "status", "transforms": ["trim", "upper"]},
+                    "EVENT_TYPE": {"from": "metadata", "path": "eventType"},
+                    "OPTIONAL": {"from": "data", "path": "missing"}
                   }
                 }
                 """;
@@ -46,26 +46,64 @@ class BusinessActionDataIndexHybridResolverTest {
         final ParsedActionDataIndex parsed = resolver.parse(actionDataIndex);
         final BusinessWorkflowActionContext context = createContext();
 
-        Assertions.assertEquals("TOOL_CONDITION_REQUEST_EQP", parsed.messageName());
+        Assertions.assertEquals("TOOL_CONDITION_REQUEST_EQP", parsed.mdfTemplateName());
 
         Assertions.assertEquals("EQP-01",
-                resolver.resolveFieldValue("EQPID", parsed.fieldSpecs().get("EQPID"), context));
+                resolver.resolveFieldValue("EQPID", parsed.fields().get("EQPID"), context));
         Assertions.assertEquals("READY",
-                resolver.resolveFieldValue("STATUS", parsed.fieldSpecs().get("STATUS"), context));
-        Assertions.assertEquals("E000",
-                resolver.resolveFieldValue("ERRORCODE", parsed.fieldSpecs().get("ERRORCODE"), context));
+                resolver.resolveFieldValue("STATUS", parsed.fields().get("STATUS"), context));
+        Assertions.assertEquals("EQP_CONDITION_CHECK",
+                resolver.resolveFieldValue("EVENT_TYPE", parsed.fields().get("EVENT_TYPE"), context));
         Assertions.assertEquals("",
-                resolver.resolveFieldValue("OPTIONAL", parsed.fieldSpecs().get("OPTIONAL"), context));
+                resolver.resolveFieldValue("OPTIONAL", parsed.fields().get("OPTIONAL"), context));
     }
 
     @Test
-    void shouldFailWhenRequiredValueIsMissing() {
-        final ValueSpec requiredMissing = new ValueSpec("data.unknown", MdfRuntimeDefinition.MdfSourceType.MSG, List.of(), null, true);
+    void shouldReturnEmptyWhenFieldValueIsMissing() {
+        final ValueSpec missingField = ValueSpec.payloadPath(
+                "unknown",
+                BusinessActionDataIndexHybridResolver.LookupSourceType.DATA,
+                List.of()
+        );
         final BusinessWorkflowActionContext context = createContext();
+
+        Assertions.assertEquals(
+                "",
+                resolver.resolveFieldValue("MISSING_FIELD", missingField, context)
+        );
+    }
+
+    @Test
+    void shouldRejectLegacyActionDataIndexKeys() {
+        final String legacyActionDataIndex = """
+                {
+                  "messageName": "TOOL_CONDITION_REQUEST_EQP",
+                  "fields": {
+                    "STATUS": {"var": "data.status", "source": "MSG", "xform": ["upper"]}
+                  }
+                }
+                """;
 
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> resolver.resolveFieldValue("REQUIRED_FIELD", requiredMissing, context)
+                () -> resolver.parse(legacyActionDataIndex)
+        );
+    }
+
+    @Test
+    void shouldRejectAbsolutePathInFieldSpec() {
+        final String actionDataIndex = """
+                {
+                  "mdfTemplateName": "TOOL_CONDITION_REQUEST_EQP",
+                  "fields": {
+                    "STATUS": {"from": "data", "path": "data.status"}
+                  }
+                }
+                """;
+
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> resolver.parse(actionDataIndex)
         );
     }
 
@@ -82,7 +120,17 @@ class BusinessActionDataIndexHybridResolverTest {
                 BusinessMessageType.EQP,
                 "S6F11",
                 "payload://eqp/10",
-                "{\"data\":{\"status\":\"  ready  \"}}"
+                """
+                        {
+                          "metadata": {
+                            "eventType": "EQP_CONDITION_CHECK"
+                          },
+                          "data": {
+                            "eqpId": "EQP-01",
+                            "status": "  ready  "
+                          }
+                        }
+                        """
         );
 
         final TcModel model = new TcModel(
@@ -123,7 +171,10 @@ class BusinessActionDataIndexHybridResolverTest {
 
         final BusinessWorkflowFilterContext filterContext = new BusinessWorkflowFilterContext(
                 record,
-                Map.of("data", Map.of("status", "  ready  ")),
+                Map.of(
+                        "metadata", Map.of("eventType", "EQP_CONDITION_CHECK"),
+                        "data", Map.of("eqpId", "EQP-01", "status", "  ready  ")
+                ),
                 Map.of("eqpId", "EQP-01")
         );
 

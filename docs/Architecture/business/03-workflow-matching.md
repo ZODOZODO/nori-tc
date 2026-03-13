@@ -39,7 +39,7 @@ BusinessWorkflowMatcherImpl
                 ├── payloadExtractor.extractMessageVariables(payload)
                 │       → MSG 변수 Map 구성
                 ├── payloadExtractor.buildContextVariables(record)
-                │       → CTX 변수 Map 구성 (eqpId, messageName, timestamp …)
+                │       → CTX 변수 Map 구성 (topic, partition, offset, eqpId, messageType, messageName, payloadRef)
                 │
                 └── for each candidate WorkflowRuntimeEntry
                         BusinessWorkflowFilterEvaluator.evaluate(entry, filterContext)
@@ -125,9 +125,105 @@ protocolType == SECS
 }
 ```
 
-- `rows`(또는 `conditions`) 배열의 각 row는 **AND** 로 평가 → 하나라도 false이면 전체 false
-- `left`와 `expr`은 동의어 (호환성 유지)
-- `op`과 `operator`도 동의어
+#### 필드 의미
+
+| 필드 | 의미 | 비고 |
+|------|------|------|
+| `rows` / `conditions` | 최상위 조건 목록 | 현재 구현은 **flat AND** 만 지원. row 하나라도 false이면 전체 false |
+| `left` / `expr` | 좌변 표현식 | 어떤 변수를 어디서(`MSG`/`CTX`/`AUTO`) 읽고, 어떤 `xform`을 적용할지 정의 |
+| `op` / `operator` | 비교 연산자 | `eq`, `gte`, `contains` 등 |
+| `right` | 우변 고정값(literal) | 문자열/숫자/불리언/배열 가능. **현재 구현은 우변 변수 참조를 지원하지 않음** |
+
+- `rows`는 "조건 row 목록" 정도로 이해하시면 됩니다.
+- 각 row는 `left op right` 형태의 단일 비교식입니다.
+- `left`와 `expr`은 동의어이고, `op`와 `operator`도 동의어입니다.
+- `right`라는 이름은 비교식 관점에서는 맞는 표현이지만, 비즈니스 문서만 보면 의미가 약할 수 있습니다.
+  현재 구현 계약은 `right`이므로 그대로 두되, 문서에서는 "우변 고정값"이라고 이해하는 편이 정확합니다.
+
+#### 현재 구현에서 가능한 식 / 불가능한 식
+
+- 가능: `(A == "TEST") && (B >= 4)` 같은 **AND 조합**
+- 불가능: `(A == "TEST" && B >= 4) || (C == "NO" && D <= 10)` 같은 **OR / 그룹 중첩**
+- 불가능: `A == B` 같은 **변수 대 변수 비교**
+
+즉, 현재 `workflow_filter`는 "여러 개의 단일 비교식을 나열하고 전부 만족해야 통과하는 구조"입니다.
+
+#### 변수 소스와 경로 해석
+
+- `MSG`: Kafka 인바운드 payload JSON 전체를 Map으로 펼친 값
+- `CTX`: payload 바깥의 런타임 메타데이터
+- `AUTO`: `MSG`에서 먼저 찾고, 없으면 `CTX`에서 찾음
+- 변수 경로는 dot-path를 지원하므로 중첩 JSON도 조회할 수 있습니다.
+  예: payload가 `{"data":{"status":"READY","count":4}}`이면 `data.status`, `data.count` 조회 가능
+
+#### CTX에 실제로 들어가는 값
+
+현재 구현 기준 `CTX`는 아래 키만 제공합니다.
+
+```json
+{
+  "topic": "tc.eqp.events",
+  "partition": 0,
+  "offset": 10,
+  "eqpId": "EQP-100",
+  "messageType": "EQP",
+  "messageName": "S6F11",
+  "payloadRef": "payload://eqp/10"
+}
+```
+
+- `traceId`, `timestamp` 등은 **현재 CTX에 포함되지 않습니다**
+- 따라서 filter에서 `{"var":{"name":"traceId","source":"CTX"}}` 같은 참조는 현재 동작하지 않습니다
+
+#### 예시 1: payload 값 두 개를 AND로 비교
+
+payload:
+
+```json
+{
+  "data": {
+    "status": "TEST",
+    "count": 4
+  }
+}
+```
+
+filter:
+
+```json
+{
+  "rows": [
+    {
+      "left": { "var": { "name": "data.status", "source": "MSG" } },
+      "op": "eq",
+      "right": "TEST"
+    },
+    {
+      "left": { "var": { "name": "data.count", "source": "MSG" } },
+      "op": "gte",
+      "right": 4
+    }
+  ]
+}
+```
+
+위 예시는 `(data.status == "TEST") && (data.count >= 4)` 와 동일합니다.
+
+#### 예시 2: CTX 값 사용
+
+```json
+{
+  "rows": [
+    {
+      "left": { "var": { "name": "eqpId", "source": "CTX" } },
+      "op": "contains",
+      "right": "FAB1"
+    }
+  ]
+}
+```
+
+위 예시는 `CTX.eqpId`에 `"FAB1"` 문자열이 포함되는지 검사합니다.
 
 ### 지원 연산자
 

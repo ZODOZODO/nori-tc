@@ -1,6 +1,7 @@
 package com.nori.tc.business.core.workflow.internal.support;
 
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
+import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.LookupSourceType;
 import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.ParsedActionDataIndex;
 import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.TransformSpec;
 import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataIndexHybridResolver.ValueSpec;
@@ -115,15 +116,15 @@ public class BusinessMdfMessageComposer {
             final String actionName,
             final BusinessWorkflowActionContext context
     ) {
-        if (parsedActionDataIndex.messageName() != null) {
-            final MdfMessageDefinition byName = runtimeDefinition.findMessage(parsedActionDataIndex.messageName())
+        if (parsedActionDataIndex.mdfTemplateName() != null) {
+            final MdfMessageDefinition byName = runtimeDefinition.findMessage(parsedActionDataIndex.mdfTemplateName())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "MDF message not found. messageName=" + parsedActionDataIndex.messageName()
+                            "MDF message not found. mdfTemplateName=" + parsedActionDataIndex.mdfTemplateName()
                     ));
 
             if (byName.targetType() != targetType) {
                 throw new IllegalArgumentException(
-                        "MDF message target mismatch. messageName=" + byName.name()
+                        "MDF message target mismatch. mdfTemplateName=" + byName.name()
                                 + ", expectedTarget=" + targetType
                                 + ", actualTarget=" + byName.targetType()
                 );
@@ -160,7 +161,7 @@ public class BusinessMdfMessageComposer {
         for (MdfFieldDefinition fieldDefinition : messageDefinition.fields()) {
             fieldNames.add(fieldDefinition.name());
         }
-        fieldNames.addAll(parsedActionDataIndex.fieldSpecs().keySet());
+        fieldNames.addAll(parsedActionDataIndex.fields().keySet());
 
         final Map<String, String> resolved = new LinkedHashMap<>();
         for (String fieldName : fieldNames) {
@@ -186,7 +187,7 @@ public class BusinessMdfMessageComposer {
             final ParsedActionDataIndex parsedActionDataIndex,
             final String fieldName
     ) {
-        final ValueSpec overrideSpec = parsedActionDataIndex.fieldSpecs().get(fieldName);
+        final ValueSpec overrideSpec = parsedActionDataIndex.fields().get(fieldName);
         if (overrideSpec != null) {
             return overrideSpec;
         }
@@ -196,14 +197,14 @@ public class BusinessMdfMessageComposer {
             final MdfFieldDefinition definition = fieldDefinition.orElseThrow();
             return new ValueSpec(
                     definition.variablePath(),
-                    definition.sourceType(),
+                    LookupSourceType.fromMdfSourceType(definition.sourceType()),
                     parseTransforms(definition.xformChain()),
                     definition.fixedValue(),
                     definition.required()
             );
         }
 
-        return new ValueSpec(fieldName, MdfRuntimeDefinition.MdfSourceType.AUTO, List.of(), null, false);
+        return new ValueSpec(fieldName, LookupSourceType.AUTO, List.of(), null, false);
     }
 
     /**

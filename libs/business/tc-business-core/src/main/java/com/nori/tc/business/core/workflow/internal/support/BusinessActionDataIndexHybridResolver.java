@@ -11,25 +11,28 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * {@code action_data_index}를 해석하는 하이브리드 해석기입니다.
+ * {@code action_data_index}를 새 canonical 계약 기준으로 해석하는 컴포넌트입니다.
  *
- * <p>
- * 지원 규칙:
- * 1) 문자열: MDF 메시지명 선택자(예: TOOL_CONDITION_REQUEST_EQP)
- * 2) 객체: {@code mdf/messageName} + {@code fields} 매핑
- * 3) 필드 식: 문자열 경로 또는 객체식(var/source/xform/fixed/required)
- * </p>
+ * <p>외부 계약은 아래 규칙만 허용합니다.</p>
+ * <p>1) 루트 키: {@code mdfTemplateName}, {@code fields}</p>
+ * <p>2) 필드 shorthand: 문자열 경로({@code from=data} 기본값)</p>
+ * <p>3) 필드 객체: {@code from}, {@code path}, {@code transforms}</p>
  */
 @Component
 public class BusinessActionDataIndexHybridResolver {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessActionDataIndexHybridResolver.class);
+
+    private static final Set<String> ROOT_KEYS = Set.of("mdfTemplateName", "fields");
+    private static final Set<String> FIELD_KEYS = Set.of("from", "path", "transforms");
 
     private final ObjectMapper objectMapper;
 
@@ -49,29 +52,22 @@ public class BusinessActionDataIndexHybridResolver {
             return ParsedActionDataIndex.empty();
         }
 
-        // JSON 객체가 아니면 MDF 메시지명 선택자로 해석합니다.
-        if (!(normalized.startsWith("{") && normalized.endsWith("}"))) {
-            return new ParsedActionDataIndex(normalized, Map.of());
-        }
-
         try {
             final JsonNode root = objectMapper.readTree(normalized);
             if (!root.isObject()) {
                 throw new IllegalArgumentException("action_data_index root must be JSON object");
             }
 
-            final String messageName = firstText(root, "mdf", "messageName", "message");
-            final JsonNode fieldsNode = root.path("fields");
+            validateAllowedKeys(root, ROOT_KEYS, "action_data_index root");
 
-            final Map<String, ValueSpec> fieldSpecs = new LinkedHashMap<>();
-            if (fieldsNode.isObject()) {
-                parseFieldSpecObject(fieldsNode, fieldSpecs);
-            } else {
-                // fields가 없으면 예약 키를 제외한 루트 key를 필드 정의로 해석합니다.
-                parseRootAsFieldSpec(root, fieldSpecs);
+            final String mdfTemplateName = requiredText(root, "mdfTemplateName", "mdfTemplateName is required");
+            final JsonNode fieldsNode = requiredNode(root, "fields", "fields is required");
+            if (!fieldsNode.isObject()) {
+                throw new IllegalArgumentException("fields must be JSON object");
             }
 
-            return new ParsedActionDataIndex(messageName, Map.copyOf(fieldSpecs));
+            final Map<String, ValueSpec> fieldSpecs = parseFieldSpecObject(fieldsNode);
+            return new ParsedActionDataIndex(mdfTemplateName, Map.copyOf(fieldSpecs));
         } catch (Exception ex) {
             throw new IllegalArgumentException("Invalid action_data_index format", ex);
         }
@@ -99,7 +95,7 @@ public class BusinessActionDataIndexHybridResolver {
             if (valueSpec.required()) {
                 throw new IllegalArgumentException("Required field value is missing. field=" + fieldName);
             }
-            log.warn("Optional field value is missing and replaced with empty string. field={}, workflowKey={}",
+            log.warn("action_data_index field value is missing and replaced with empty string. field={}, workflowKey={}",
                     fieldName,
                     context.workflowEntry().workflowKey());
             return "";
@@ -110,7 +106,7 @@ public class BusinessActionDataIndexHybridResolver {
             final Object before = current;
             current = applyTransformWithPolicy(current, transform, fieldName, context);
             if (log.isTraceEnabled()) {
-                log.trace("action_data_index xform applied. workflowKey={}, field={}, transform={}, before={}, after={}",
+                log.trace("action_data_index transform applied. workflowKey={}, field={}, transform={}, before={}, after={}",
                         context.workflowEntry().workflowKey(),
                         fieldName,
                         transform.name(),
@@ -124,7 +120,7 @@ public class BusinessActionDataIndexHybridResolver {
             if (valueSpec.required()) {
                 throw new IllegalArgumentException("Required field resolved to null/blank. field=" + fieldName);
             }
-            log.warn("Optional field resolved to null/blank and replaced with empty string. field={}, workflowKey={}",
+            log.warn("action_data_index field resolved to null/blank and replaced with empty string. field={}, workflowKey={}",
                     fieldName,
                     context.workflowEntry().workflowKey());
             return "";
@@ -134,83 +130,69 @@ public class BusinessActionDataIndexHybridResolver {
     }
 
     /**
-     * 루트 객체의 key/value를 필드 정의로 파싱합니다.
-     */
-    private static void parseRootAsFieldSpec(JsonNode root, Map<String, ValueSpec> target) {
-        final List<String> reservedKeys = List.of("mdf", "message", "messageName", "fields");
-        final var iterator = root.properties().iterator();
-        while (iterator.hasNext()) {
-            final Map.Entry<String, JsonNode> entry = iterator.next();
-            if (reservedKeys.contains(entry.getKey())) {
-                continue;
-            }
-            target.put(entry.getKey(), parseValueSpec(entry.getValue()));
-        }
-    }
-
-    /**
      * fields 객체를 필드 정의로 파싱합니다.
      */
-    private static void parseFieldSpecObject(JsonNode fieldsNode, Map<String, ValueSpec> target) {
+    private static Map<String, ValueSpec> parseFieldSpecObject(final JsonNode fieldsNode) {
+        final Map<String, ValueSpec> target = new LinkedHashMap<>();
         final var iterator = fieldsNode.properties().iterator();
         while (iterator.hasNext()) {
             final Map.Entry<String, JsonNode> entry = iterator.next();
-            target.put(entry.getKey(), parseValueSpec(entry.getValue()));
+            final String fieldName = normalize(entry.getKey());
+            if (fieldName == null) {
+                throw new IllegalArgumentException("field name must not be blank");
+            }
+            target.put(fieldName, parseValueSpec(entry.getValue(), fieldName));
         }
+        return Map.copyOf(target);
     }
 
     /**
-     * 단일 value spec을 파싱합니다.
+     * 단일 field spec을 파싱합니다.
      */
-    private static ValueSpec parseValueSpec(JsonNode node) {
+    private static ValueSpec parseValueSpec(final JsonNode node, final String fieldName) {
         if (node == null || node.isNull()) {
-            return ValueSpec.requiredPath(null);
+            throw new IllegalArgumentException("field spec must not be null. field=" + fieldName);
         }
+
         if (node.isTextual()) {
-            return ValueSpec.requiredPath(node.asText());
+            final String path = parseRelativePath(node.asText(), "field path is required. field=" + fieldName);
+            return ValueSpec.payloadPath(path, LookupSourceType.DATA, List.of());
         }
-        if (node.isNumber() || node.isBoolean()) {
-            return ValueSpec.fixed(String.valueOf(node.asText()));
-        }
+
         if (!node.isObject()) {
-            throw new IllegalArgumentException("Unsupported value spec node type: " + node.getNodeType());
+            throw new IllegalArgumentException("field spec must be string or object. field=" + fieldName);
         }
 
-        final String fixed = textOrNull(node.path("fixed"));
-        final String var = textOrNull(node.path("var"));
-        final MdfSourceType source = MdfSourceType.fromTextOrDefault(textOrNull(node.path("source")), MdfSourceType.AUTO);
-        final boolean required = node.path("required").isMissingNode() || node.path("required").asBoolean(true);
+        validateAllowedKeys(node, FIELD_KEYS, "field spec. field=" + fieldName);
 
-        final List<TransformSpec> transforms = parseTransforms(node.path("xform"));
-
-        if (fixed != null) {
-            return new ValueSpec(null, source, transforms, fixed, required);
-        }
-        return new ValueSpec(var, source, transforms, null, required);
+        final LookupSourceType lookupSourceType = LookupSourceType.fromActionFieldFrom(
+                requiredText(node, "from", "from is required. field=" + fieldName)
+        );
+        final String path = parseRelativePath(
+                requiredText(node, "path", "path is required. field=" + fieldName),
+                "path is required. field=" + fieldName
+        );
+        final List<TransformSpec> transforms = parseTransforms(
+                node.path("transforms"),
+                "transforms must be array. field=" + fieldName
+        );
+        return ValueSpec.payloadPath(path, lookupSourceType, transforms);
     }
 
     /**
-     * xform 체인을 파싱합니다.
+     * transforms 체인을 파싱합니다.
      */
-    private static List<TransformSpec> parseTransforms(JsonNode xformNode) {
-        if (xformNode == null || xformNode.isNull() || xformNode.isMissingNode()) {
+    private static List<TransformSpec> parseTransforms(final JsonNode transformsNode, final String invalidMessage) {
+        if (transformsNode == null || transformsNode.isNull() || transformsNode.isMissingNode()) {
             return List.of();
+        }
+        if (!transformsNode.isArray()) {
+            throw new IllegalArgumentException(invalidMessage);
         }
 
         final List<TransformSpec> transforms = new ArrayList<>();
-        if (xformNode.isArray()) {
-            for (JsonNode child : xformNode) {
-                final TransformSpec spec = parseTransformSpec(child);
-                if (spec != null) {
-                    transforms.add(spec);
-                }
-            }
-            return List.copyOf(transforms);
-        }
-
-        final TransformSpec single = parseTransformSpec(xformNode);
-        if (single != null) {
-            transforms.add(single);
+        for (JsonNode child : transformsNode) {
+            transforms.add(parseTransformSpec(child));
         }
         return List.copyOf(transforms);
     }
@@ -218,25 +200,24 @@ public class BusinessActionDataIndexHybridResolver {
     /**
      * 단일 transform spec을 파싱합니다.
      */
-    private static TransformSpec parseTransformSpec(JsonNode node) {
+    private static TransformSpec parseTransformSpec(final JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode()) {
-            return null;
+            throw new IllegalArgumentException("transform spec must not be null");
         }
         if (node.isTextual()) {
             return TransformSpec.fromCompactText(node.asText());
         }
         if (!node.isObject()) {
-            return null;
+            throw new IllegalArgumentException("transform spec must be string or object");
         }
 
-        final String name = textOrNull(node.path("name"));
-        if (name == null) {
-            return null;
-        }
-
-        final List<Object> args = new ArrayList<>();
+        final String name = requiredText(node, "name", "transform name is required");
         final JsonNode argsNode = node.path("args");
-        if (argsNode.isArray()) {
+        final List<Object> args = new ArrayList<>();
+        if (!argsNode.isMissingNode()) {
+            if (!argsNode.isArray()) {
+                throw new IllegalArgumentException("transform args must be array");
+            }
             for (JsonNode arg : argsNode) {
                 args.add(jsonValue(arg));
             }
@@ -245,15 +226,17 @@ public class BusinessActionDataIndexHybridResolver {
     }
 
     /**
-     * source/path 기준으로 변수 값을 조회합니다.
+     * lookup source/path 기준으로 변수 값을 조회합니다.
      */
-    private static Object resolveVariable(ValueSpec valueSpec, BusinessWorkflowActionContext context) {
+    private static Object resolveVariable(final ValueSpec valueSpec, final BusinessWorkflowActionContext context) {
         final String path = normalize(valueSpec.variablePath());
         if (path == null) {
             return null;
         }
 
-        return switch (valueSpec.sourceType()) {
+        return switch (valueSpec.lookupSourceType()) {
+            case DATA -> lookupPayloadBlock(context.messageVariables(), "data", path);
+            case METADATA -> lookupPayloadBlock(context.messageVariables(), "metadata", path);
             case MSG -> lookupPath(context.messageVariables(), path);
             case CTX -> lookupPath(context.contextVariables(), path);
             case AUTO -> {
@@ -278,7 +261,7 @@ public class BusinessActionDataIndexHybridResolver {
         try {
             return applyTransform(value, transform);
         } catch (Exception ex) {
-            log.warn("action_data_index xform failed and previous value is preserved. workflowKey={}, field={}, transform={}",
+            log.warn("action_data_index transform failed and previous value is preserved. workflowKey={}, field={}, transform={}",
                     context.workflowEntry().workflowKey(),
                     fieldName,
                     transform.name(),
@@ -354,6 +337,25 @@ public class BusinessActionDataIndexHybridResolver {
             return value;
         }
         return add ? left.add(right) : left.subtract(right);
+    }
+
+    /**
+     * payload 루트에서 data/metadata 블록을 선택한 뒤 상대 경로를 조회합니다.
+     */
+    @SuppressWarnings("unchecked")
+    private static Object lookupPayloadBlock(
+            final Map<String, Object> payloadRoot,
+            final String blockName,
+            final String path
+    ) {
+        if (payloadRoot == null || blockName == null) {
+            return null;
+        }
+        final Object block = payloadRoot.get(blockName);
+        if (!(block instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return lookupPath((Map<String, Object>) map, path);
     }
 
     /**
@@ -448,6 +450,70 @@ public class BusinessActionDataIndexHybridResolver {
     }
 
     /**
+     * JsonNode에서 필수 문자열을 읽습니다.
+     */
+    private static String requiredText(final JsonNode root, final String key, final String errorMessage) {
+        final String value = textOrNull(root.path(key));
+        if (value == null) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return value;
+    }
+
+    /**
+     * JsonNode에서 필수 노드를 읽습니다.
+     */
+    private static JsonNode requiredNode(final JsonNode root, final String key, final String errorMessage) {
+        final JsonNode node = root.path(key);
+        if (node == null || node.isMissingNode()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return node;
+    }
+
+    /**
+     * path를 상대 경로 규칙에 맞게 검증합니다.
+     */
+    private static String parseRelativePath(final String rawPath, final String blankMessage) {
+        final String path = normalize(rawPath);
+        if (path == null) {
+            throw new IllegalArgumentException(blankMessage);
+        }
+        if (path.startsWith("data.") || path.startsWith("metadata.")) {
+            throw new IllegalArgumentException("absolute path is not allowed. path=" + path);
+        }
+        return path;
+    }
+
+    /**
+     * 허용되지 않은 키 존재 여부를 검증합니다.
+     */
+    private static void validateAllowedKeys(
+            final JsonNode node,
+            final Set<String> allowedKeys,
+            final String subject
+    ) {
+        final Set<String> actualKeys = fieldNames(node);
+        if (!allowedKeys.containsAll(actualKeys)) {
+            final Set<String> invalidKeys = new LinkedHashSet<>(actualKeys);
+            invalidKeys.removeAll(allowedKeys);
+            throw new IllegalArgumentException(subject + " contains unsupported keys: " + invalidKeys);
+        }
+    }
+
+    /**
+     * JsonNode 객체의 key 집합을 추출합니다.
+     */
+    private static Set<String> fieldNames(final JsonNode node) {
+        final Set<String> names = new LinkedHashSet<>();
+        final var iterator = node.properties().iterator();
+        while (iterator.hasNext()) {
+            names.add(iterator.next().getKey());
+        }
+        return Set.copyOf(names);
+    }
+
+    /**
      * JsonNode를 null-safe 문자열로 변환합니다.
      */
     private static String textOrNull(final JsonNode node) {
@@ -455,19 +521,6 @@ public class BusinessActionDataIndexHybridResolver {
             return null;
         }
         return normalize(node.asText(null));
-    }
-
-    /**
-     * 우선순위 key 목록에서 첫 문자열 값을 반환합니다.
-     */
-    private static String firstText(final JsonNode root, final String... keys) {
-        for (String key : keys) {
-            final String value = textOrNull(root.path(key));
-            if (value != null) {
-                return value;
-            }
-        }
-        return null;
     }
 
     /**
@@ -498,13 +551,13 @@ public class BusinessActionDataIndexHybridResolver {
      * 파싱된 action_data_index 모델입니다.
      */
     public record ParsedActionDataIndex(
-            String messageName,
-            Map<String, ValueSpec> fieldSpecs
+            String mdfTemplateName,
+            Map<String, ValueSpec> fields
     ) {
 
         public ParsedActionDataIndex {
-            messageName = normalize(messageName);
-            fieldSpecs = fieldSpecs == null ? Map.of() : Map.copyOf(fieldSpecs);
+            mdfTemplateName = normalize(mdfTemplateName);
+            fields = fields == null ? Map.of() : Map.copyOf(fields);
         }
 
         public static ParsedActionDataIndex empty() {
@@ -512,7 +565,7 @@ public class BusinessActionDataIndexHybridResolver {
         }
 
         public boolean isEmpty() {
-            return messageName == null && fieldSpecs.isEmpty();
+            return mdfTemplateName == null && fields.isEmpty();
         }
     }
 
@@ -521,7 +574,7 @@ public class BusinessActionDataIndexHybridResolver {
      */
     public record ValueSpec(
             String variablePath,
-            MdfSourceType sourceType,
+            LookupSourceType lookupSourceType,
             List<TransformSpec> transforms,
             String fixedValue,
             boolean required
@@ -529,22 +582,62 @@ public class BusinessActionDataIndexHybridResolver {
 
         public ValueSpec {
             variablePath = normalize(variablePath);
-            sourceType = sourceType == null ? MdfSourceType.AUTO : sourceType;
+            lookupSourceType = lookupSourceType == null ? LookupSourceType.AUTO : lookupSourceType;
             transforms = transforms == null ? List.of() : List.copyOf(transforms);
             fixedValue = normalize(fixedValue);
         }
 
-        public static ValueSpec requiredPath(final String variablePath) {
-            return new ValueSpec(variablePath, MdfSourceType.AUTO, List.of(), null, true);
-        }
-
-        public static ValueSpec fixed(final String fixedValue) {
-            return new ValueSpec(null, MdfSourceType.AUTO, List.of(), fixedValue, true);
+        public static ValueSpec payloadPath(
+                final String variablePath,
+                final LookupSourceType lookupSourceType,
+                final List<TransformSpec> transforms
+        ) {
+            return new ValueSpec(variablePath, lookupSourceType, transforms, null, false);
         }
     }
 
     /**
-     * xform 스펙 모델입니다.
+     * 필드 값 조회 소스 타입입니다.
+     *
+     * <p>{@code DATA}/{@code METADATA}는 새 공개 계약, 나머지는 기존 MDF field fallback 전용입니다.</p>
+     */
+    public enum LookupSourceType {
+        DATA,
+        METADATA,
+        MSG,
+        CTX,
+        AUTO;
+
+        /**
+         * 새 action_data_index 공개 계약의 from 값을 변환합니다.
+         */
+        public static LookupSourceType fromActionFieldFrom(final String text) {
+            final String normalized = normalize(text);
+            if (normalized == null) {
+                throw new IllegalArgumentException("from is required");
+            }
+            return switch (normalized.toLowerCase(Locale.ROOT)) {
+                case "data" -> DATA;
+                case "metadata" -> METADATA;
+                default -> throw new IllegalArgumentException("invalid from value: " + normalized);
+            };
+        }
+
+        /**
+         * 기존 MDF field 정의의 sourceType을 내부 조회 소스로 변환합니다.
+         */
+        public static LookupSourceType fromMdfSourceType(final MdfSourceType sourceType) {
+            final MdfSourceType resolved = sourceType == null ? MdfSourceType.AUTO : sourceType;
+            return switch (resolved) {
+                case MSG -> MSG;
+                case CTX -> CTX;
+                case AUTO -> AUTO;
+            };
+        }
+    }
+
+    /**
+     * transforms 스펙 모델입니다.
      */
     public record TransformSpec(
             String name,

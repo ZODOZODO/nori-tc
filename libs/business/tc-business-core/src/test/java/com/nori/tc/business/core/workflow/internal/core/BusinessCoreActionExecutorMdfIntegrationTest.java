@@ -159,7 +159,14 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 mdfRuntimeDefinition
         );
 
-        final String actionDataIndex = mdfMessageName == null ? null : mdfMessageName;
+        final String actionDataIndex = mdfMessageName == null
+                ? null
+                : """
+                        {
+                          "mdfTemplateName": "%s",
+                          "fields": {}
+                        }
+                        """.formatted(mdfMessageName);
         final WorkflowRuntimeEntry workflowEntry = new WorkflowRuntimeEntry(
                 1L,
                 "WF-1",

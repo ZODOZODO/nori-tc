@@ -50,7 +50,18 @@ class BusinessMdfMessageComposerTest {
 
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
-                "{\"fields\":{\"STATUS\":{\"fixed\":\"MANUAL\"}}}"
+                """
+                        {
+                          "mdfTemplateName": "TOOL_CONDITION_REQUEST_EQP",
+                          "fields": {
+                            "STATUS": {
+                              "from": "data",
+                              "path": "overrideStatus",
+                              "transforms": ["upper"]
+                            }
+                          }
+                        }
+                        """
         );
 
         final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP, "PUBLISH_EQP_COMMAND")
@@ -150,7 +161,7 @@ class BusinessMdfMessageComposerTest {
 
         final BusinessWorkflowFilterContext filterContext = new BusinessWorkflowFilterContext(
                 record,
-                Map.of("data", Map.of("status", "ready"), "a", "1", "b", "2"),
+                Map.of("data", Map.of("status", "ready", "overrideStatus", "manual"), "a", "1", "b", "2"),
                 Map.of("eqpId", "EQP-01")
         );
 

@@ -11,25 +11,31 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * workflow_filter(JSON Rule)를 평가하는 컴포넌트입니다.
+ * workflow_filter(JSON Rule)를 새 canonical 계약 기준으로 평가하는 컴포넌트입니다.
  *
  * <p>동작 원칙:</p>
  * <p>1) filter가 비어 있으면 true를 반환합니다.</p>
- * <p>2) rows/conditions는 AND로 평가합니다.</p>
- * <p>3) xform 변환 실패 시 이전 값을 유지하고 warn 로그를 남깁니다.</p>
- * <p>4) 변수 source는 MSG/CTX/AUTO(MSG 우선)를 지원합니다.</p>
+ * <p>2) 루트는 반드시 {@code and}/{@code or} 그룹 노드여야 합니다.</p>
+ * <p>3) 조건 노드는 {@code from/path/comparison/expected/transforms}만 허용합니다.</p>
+ * <p>4) transform 변환 실패 시 이전 값을 유지하고 warn 로그를 남깁니다.</p>
  */
 @Component
 public class BusinessWorkflowFilterEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessWorkflowFilterEvaluator.class);
+
+    private static final Set<String> GROUP_KEYS = Set.of("and", "or");
+    private static final Set<String> CONDITION_KEYS = Set.of("from", "path", "comparison", "expected", "transforms");
 
     /**
      * 동일한 filter 문자열의 재파싱 비용을 줄이기 위한 캐시입니다.
@@ -66,23 +72,7 @@ public class BusinessWorkflowFilterEvaluator {
         }
 
         final ParsedFilter parsedFilter = resolveParsedFilter(filter, entry);
-        if (parsedFilter.rows().isEmpty()) {
-            return true;
-        }
-
-        for (FilterRow row : parsedFilter.rows()) {
-            final boolean rowResult = evaluateRow(row, context);
-            if (!rowResult) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Workflow filter row rejected. workflowKey={}, actionName={}, operator={}",
-                            entry.workflowKey(),
-                            entry.actionName(),
-                            row.operator());
-                }
-                return false;
-            }
-        }
-        return true;
+        return evaluateNode(parsedFilter.rootNode(), context, entry);
     }
 
     /**
@@ -112,146 +102,146 @@ public class BusinessWorkflowFilterEvaluator {
     private ParsedFilterState parseFilterState(final String filter) {
         try {
             final JsonNode root = objectMapper.readTree(filter);
-            final List<FilterRow> rows = parseRows(root);
-            return ParsedFilterState.success(new ParsedFilter(rows));
+            final FilterGroupNode rootNode = parseRootNode(root);
+            return ParsedFilterState.success(new ParsedFilter(rootNode));
         } catch (Exception ex) {
-            log.warn("workflow_filter parsing failed. filter={}", filter, ex);
+            log.error("workflow_filter parsing failed. filter={}", filter, ex);
             final String message = ex.getClass().getSimpleName() + ": " + normalizeExceptionMessage(ex.getMessage());
             return ParsedFilterState.failure(message);
         }
     }
 
     /**
-     * JSON 루트에서 row 목록을 파싱합니다.
-     *
-     * <p>지원 형태:</p>
-     * <p>1) {"rows":[...]}</p>
-     * <p>2) {"conditions":[...]}</p>
-     * <p>3) 단일 row 객체</p>
-     *
-     * @param root 필터 JSON 루트
-     * @return 파싱된 row 목록
+     * 루트 그룹 노드를 파싱합니다.
      */
-    private List<FilterRow> parseRows(final JsonNode root) {
-        final List<FilterRow> rows = new ArrayList<>();
+    private FilterGroupNode parseRootNode(final JsonNode root) {
+        if (root == null || root.isNull() || !root.isObject()) {
+            throw new IllegalArgumentException("workflow_filter root must be JSON object");
+        }
+        return parseGroupNode(root, true);
+    }
 
-        if (root == null || root.isNull()) {
-            return rows;
+    /**
+     * 그룹/조건 노드를 재귀 파싱합니다.
+     */
+    private FilterNode parseNode(final JsonNode node) {
+        if (node == null || node.isNull() || !node.isObject()) {
+            throw new IllegalArgumentException("workflow_filter node must be JSON object");
         }
 
-        final JsonNode rowsNode = firstArrayNode(root, "rows", "conditions");
-        if (rowsNode != null) {
-            for (JsonNode rowNode : rowsNode) {
-                final FilterRow row = parseRow(rowNode);
-                if (row != null) {
-                    rows.add(row);
-                }
+        final Set<String> fieldNames = fieldNames(node);
+        if (fieldNames.contains("and") || fieldNames.contains("or")) {
+            return parseGroupNode(node, false);
+        }
+        return parseConditionNode(node);
+    }
+
+    /**
+     * and/or 그룹 노드를 파싱합니다.
+     */
+    private FilterGroupNode parseGroupNode(final JsonNode node, final boolean root) {
+        final Set<String> fieldNames = fieldNames(node);
+        final boolean hasAnd = fieldNames.contains("and");
+        final boolean hasOr = fieldNames.contains("or");
+
+        if (!hasAnd && !hasOr) {
+            if (root) {
+                throw new IllegalArgumentException("workflow_filter root must be group node");
             }
-            return rows;
+            throw new IllegalArgumentException("group node must contain exactly one of and/or");
+        }
+        if (hasAnd && hasOr) {
+            throw new IllegalArgumentException("group node cannot contain both and/or");
+        }
+        if (fieldNames.size() != 1) {
+            throw new IllegalArgumentException("group node allows only and/or key");
         }
 
-        final FilterRow singleRow = parseRow(root);
-        if (singleRow != null) {
-            rows.add(singleRow);
+        final String groupKey = hasAnd ? "and" : "or";
+        final JsonNode childrenNode = node.path(groupKey);
+        if (!childrenNode.isArray()) {
+            throw new IllegalArgumentException(groupKey + " must be array");
         }
-        return rows;
+        if (childrenNode.isEmpty()) {
+            throw new IllegalArgumentException(groupKey + " group must not be empty");
+        }
+
+        final List<FilterNode> children = new ArrayList<>();
+        for (JsonNode childNode : childrenNode) {
+            children.add(parseNode(childNode));
+        }
+        return new FilterGroupNode(GroupType.fromKey(groupKey), List.copyOf(children));
     }
 
     /**
-     * 단일 row 노드를 파싱합니다.
-     *
-     * @param node row JSON 노드
-     * @return 파싱 성공 시 row, 불완전한 노드면 null
+     * 조건 노드를 파싱합니다.
      */
-    private FilterRow parseRow(final JsonNode node) {
-        if (node == null || node.isNull()) {
-            return null;
-        }
+    private FilterConditionNode parseConditionNode(final JsonNode node) {
+        validateAllowedKeys(node, CONDITION_KEYS, "workflow_filter condition");
 
-        final JsonNode leftNode = node.path("left");
-        final JsonNode expressionNode = leftNode.isMissingNode() ? node.path("expr") : leftNode;
-        if (expressionNode == null || expressionNode.isMissingNode() || expressionNode.isNull()) {
-            return null;
-        }
-
-        final LeftExpression leftExpression = parseLeftExpression(expressionNode);
-        if (leftExpression == null) {
-            return null;
-        }
-
-        final String operatorRaw = textOrNull(node.path("op"));
-        final String fallbackOperatorRaw = textOrNull(node.path("operator"));
-        final OperatorType operatorType = OperatorType.fromText(
-                normalize(operatorRaw) != null ? operatorRaw : fallbackOperatorRaw
+        final FilterLookupSourceType lookupSourceType = FilterLookupSourceType.fromText(
+                requiredText(node, "from", "workflow_filter condition.from is required")
         );
-
-        final JsonNode rightNode = node.path("right");
-        final Object rightValue = jsonValue(rightNode);
-        return new FilterRow(leftExpression, operatorType, rightValue);
+        final String path = parseRelativePath(
+                requiredText(node, "path", "workflow_filter condition.path is required")
+        );
+        final ComparisonType comparisonType = ComparisonType.fromText(
+                requiredText(node, "comparison", "workflow_filter condition.comparison is required")
+        );
+        final JsonNode expectedNode = requiredNode(node, "expected", "workflow_filter condition.expected is required");
+        if (expectedNode.isObject()) {
+            throw new IllegalArgumentException("workflow_filter condition.expected must not be object");
+        }
+        final Object expected = jsonValue(expectedNode);
+        final List<TransformSpec> transforms = parseTransforms(node.path("transforms"));
+        return new FilterConditionNode(lookupSourceType, path, comparisonType, expected, transforms);
     }
 
     /**
-     * 좌변 표현식을 파싱합니다.
-     *
-     * @param expressionNode left/expr 노드
-     * @return 파싱된 좌변 표현식
+     * transforms 체인을 파싱합니다.
      */
-    private LeftExpression parseLeftExpression(final JsonNode expressionNode) {
-        final JsonNode varNode = expressionNode.path("var");
-        if (varNode == null || varNode.isMissingNode() || varNode.isNull()) {
-            return null;
+    private List<TransformSpec> parseTransforms(final JsonNode transformsNode) {
+        if (transformsNode == null || transformsNode.isNull() || transformsNode.isMissingNode()) {
+            return List.of();
         }
-
-        final String varName = textOrNull(varNode.path("name"));
-        final SourceType sourceType = SourceType.fromText(textOrNull(varNode.path("source")));
-        if (normalize(varName) == null) {
-            return null;
+        if (!transformsNode.isArray()) {
+            throw new IllegalArgumentException("workflow_filter transforms must be array");
         }
 
         final List<TransformSpec> transforms = new ArrayList<>();
-        final JsonNode xformNode = expressionNode.path("xform");
-        if (xformNode != null && xformNode.isArray()) {
-            for (JsonNode transformNode : xformNode) {
-                final TransformSpec spec = parseTransform(transformNode);
-                if (spec != null) {
-                    transforms.add(spec);
-                }
-            }
+        for (JsonNode child : transformsNode) {
+            transforms.add(parseTransform(child));
         }
-
-        return new LeftExpression(
-                new VariableRef(varName.trim(), sourceType),
-                List.copyOf(transforms)
-        );
+        return List.copyOf(transforms);
     }
 
     /**
-     * 변환 스펙을 파싱합니다.
-     *
-     * @param transformNode xform 노드
-     * @return 파싱된 변환 스펙
+     * 단일 transform spec을 파싱합니다.
      */
     private TransformSpec parseTransform(final JsonNode transformNode) {
-        if (transformNode == null || transformNode.isNull()) {
-            return null;
+        if (transformNode == null || transformNode.isNull() || transformNode.isMissingNode()) {
+            throw new IllegalArgumentException("workflow_filter transform must not be null");
         }
 
         if (transformNode.isTextual()) {
             final String text = transformNode.asText();
             if (normalize(text) == null) {
-                return null;
+                throw new IllegalArgumentException("workflow_filter transform text is blank");
             }
             return TransformSpec.fromCompactText(text);
         }
 
-        final String name = textOrNull(transformNode.path("name"));
-        if (normalize(name) == null) {
-            return null;
+        if (!transformNode.isObject()) {
+            throw new IllegalArgumentException("workflow_filter transform must be string or object");
         }
 
-        final List<Object> args = new ArrayList<>();
+        final String name = requiredText(transformNode, "name", "workflow_filter transform.name is required");
         final JsonNode argsNode = transformNode.path("args");
-        if (argsNode != null && argsNode.isArray()) {
+        final List<Object> args = new ArrayList<>();
+        if (!argsNode.isMissingNode()) {
+            if (!argsNode.isArray()) {
+                throw new IllegalArgumentException("workflow_filter transform.args must be array");
+            }
             for (JsonNode argNode : argsNode) {
                 args.add(jsonValue(argNode));
             }
@@ -260,20 +250,70 @@ public class BusinessWorkflowFilterEvaluator {
     }
 
     /**
-     * 단일 row를 실제 값으로 평가합니다.
-     *
-     * @param row 필터 row
-     * @param context 평가 컨텍스트
-     * @return row 평가 결과
+     * 재귀 AST를 실제 값으로 평가합니다.
      */
-    private boolean evaluateRow(final FilterRow row, final BusinessWorkflowFilterContext context) {
-        Object leftValue = resolveVariable(row.leftExpression().variableRef(), context);
-        for (TransformSpec transform : row.leftExpression().transforms()) {
-            leftValue = applyTransformWithPolicy(leftValue, transform, row, context);
+    private boolean evaluateNode(
+            final FilterNode node,
+            final BusinessWorkflowFilterContext context,
+            final WorkflowRuntimeEntry entry
+    ) {
+        if (node instanceof FilterGroupNode groupNode) {
+            return evaluateGroupNode(groupNode, context, entry);
+        }
+        if (node instanceof FilterConditionNode conditionNode) {
+            return evaluateConditionNode(conditionNode, context, entry);
+        }
+        throw new IllegalStateException("Unsupported workflow filter node: " + node.getClass().getName());
+    }
+
+    /**
+     * 그룹 노드를 평가합니다.
+     */
+    private boolean evaluateGroupNode(
+            final FilterGroupNode groupNode,
+            final BusinessWorkflowFilterContext context,
+            final WorkflowRuntimeEntry entry
+    ) {
+        if (groupNode.groupType() == GroupType.AND) {
+            for (FilterNode child : groupNode.children()) {
+                if (!evaluateNode(child, context, entry)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
-        final Object rightValue = row.rightValue();
-        return row.operator().evaluate(leftValue, rightValue);
+        for (FilterNode child : groupNode.children()) {
+            if (evaluateNode(child, context, entry)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 조건 노드를 평가합니다.
+     */
+    private boolean evaluateConditionNode(
+            final FilterConditionNode conditionNode,
+            final BusinessWorkflowFilterContext context,
+            final WorkflowRuntimeEntry entry
+    ) {
+        Object leftValue = resolvePayloadValue(conditionNode.lookupSourceType(), conditionNode.path(), context);
+        for (TransformSpec transform : conditionNode.transforms()) {
+            leftValue = applyTransformWithPolicy(leftValue, transform, conditionNode, context, entry);
+        }
+
+        final boolean result = conditionNode.comparisonType().evaluate(leftValue, conditionNode.expected());
+        if (!result && log.isDebugEnabled()) {
+            log.debug("Workflow filter condition rejected. workflowKey={}, actionName={}, from={}, path={}, comparison={}",
+                    entry.workflowKey(),
+                    entry.actionName(),
+                    conditionNode.lookupSourceType(),
+                    conditionNode.path(),
+                    conditionNode.comparisonType());
+        }
+        return result;
     }
 
     /**
@@ -284,17 +324,21 @@ public class BusinessWorkflowFilterEvaluator {
     private Object applyTransformWithPolicy(
             final Object previousValue,
             final TransformSpec transform,
-            final FilterRow row,
-            final BusinessWorkflowFilterContext context
+            final FilterConditionNode conditionNode,
+            final BusinessWorkflowFilterContext context,
+            final WorkflowRuntimeEntry entry
     ) {
         try {
             return applyTransform(previousValue, transform);
         } catch (Exception ex) {
-            log.warn("workflow_filter xform failed and previous value is preserved. eqpId={}, messageName={}, transform={}, operator={}",
+            log.warn("workflow_filter transform failed and previous value is preserved. eqpId={}, messageName={}, workflowKey={}, from={}, path={}, comparison={}, transform={}",
                     context.record().eqpId(),
                     context.record().messageName(),
+                    entry.workflowKey(),
+                    conditionNode.lookupSourceType(),
+                    conditionNode.path(),
+                    conditionNode.comparisonType(),
                     transform.name(),
-                    row.operator(),
                     ex);
             return previousValue;
         }
@@ -373,25 +417,25 @@ public class BusinessWorkflowFilterEvaluator {
     }
 
     /**
-     * 변수 참조(source/name)를 실제 값으로 조회합니다.
+     * payload 루트에서 data/metadata 블록을 선택한 뒤 상대 경로를 조회합니다.
      */
-    private Object resolveVariable(final VariableRef variableRef, final BusinessWorkflowFilterContext context) {
-        return switch (variableRef.sourceType()) {
-            case MSG -> lookupPath(context.messageVariables(), variableRef.name());
-            case CTX -> lookupPath(context.contextVariables(), variableRef.name());
-            case AUTO -> {
-                final Object fromMessage = lookupPath(context.messageVariables(), variableRef.name());
-                if (fromMessage != null) {
-                    yield fromMessage;
-                }
-                yield lookupPath(context.contextVariables(), variableRef.name());
-            }
-        };
+    @SuppressWarnings("unchecked")
+    private static Object resolvePayloadValue(
+            final FilterLookupSourceType lookupSourceType,
+            final String path,
+            final BusinessWorkflowFilterContext context
+    ) {
+        final Object block = context.messageVariables().get(lookupSourceType.rootKey());
+        if (!(block instanceof Map<?, ?> map)) {
+            return null;
+        }
+        return lookupPath((Map<String, Object>) map, path);
     }
 
     /**
      * dot-path를 사용해 중첩 맵 값을 조회합니다.
      */
+    @SuppressWarnings("unchecked")
     private static Object lookupPath(final Map<String, Object> source, final String path) {
         if (source == null || path == null || path.isBlank()) {
             return null;
@@ -405,7 +449,7 @@ public class BusinessWorkflowFilterEvaluator {
             if (!(current instanceof Map<?, ?> map)) {
                 return null;
             }
-            current = map.get(part);
+            current = ((Map<String, Object>) map).get(part);
             if (current == null) {
                 return null;
             }
@@ -442,16 +486,67 @@ public class BusinessWorkflowFilterEvaluator {
     }
 
     /**
-     * 복수 후보 필드 중 첫 번째 배열 노드를 반환합니다.
+     * JsonNode에서 필수 문자열을 읽습니다.
      */
-    private static JsonNode firstArrayNode(final JsonNode root, final String... names) {
-        for (String name : names) {
-            final JsonNode node = root.path(name);
-            if (node != null && node.isArray()) {
-                return node;
-            }
+    private static String requiredText(final JsonNode root, final String key, final String errorMessage) {
+        final String value = textOrNull(root.path(key));
+        if (value == null) {
+            throw new IllegalArgumentException(errorMessage);
         }
-        return null;
+        return value;
+    }
+
+    /**
+     * JsonNode에서 필수 노드를 읽습니다.
+     */
+    private static JsonNode requiredNode(final JsonNode root, final String key, final String errorMessage) {
+        final JsonNode node = root.path(key);
+        if (node == null || node.isMissingNode()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return node;
+    }
+
+    /**
+     * 절대 경로를 차단하고 상대 경로만 허용합니다.
+     */
+    private static String parseRelativePath(final String rawPath) {
+        final String path = normalize(rawPath);
+        if (path == null) {
+            throw new IllegalArgumentException("workflow_filter condition.path is required");
+        }
+        if (path.startsWith("data.") || path.startsWith("metadata.")) {
+            throw new IllegalArgumentException("absolute path is not allowed. path=" + path);
+        }
+        return path;
+    }
+
+    /**
+     * 허용되지 않은 키 존재 여부를 검증합니다.
+     */
+    private static void validateAllowedKeys(
+            final JsonNode node,
+            final Set<String> allowedKeys,
+            final String subject
+    ) {
+        final Set<String> actualKeys = fieldNames(node);
+        if (!allowedKeys.containsAll(actualKeys)) {
+            final Set<String> invalidKeys = new LinkedHashSet<>(actualKeys);
+            invalidKeys.removeAll(allowedKeys);
+            throw new IllegalArgumentException(subject + " contains unsupported keys: " + invalidKeys);
+        }
+    }
+
+    /**
+     * JsonNode 객체의 key 집합을 추출합니다.
+     */
+    private static Set<String> fieldNames(final JsonNode node) {
+        final Map<String, Boolean> names = new LinkedHashMap<>();
+        final var iterator = node.properties().iterator();
+        while (iterator.hasNext()) {
+            names.put(iterator.next().getKey(), Boolean.TRUE);
+        }
+        return Set.copyOf(names.keySet());
     }
 
     /**
@@ -492,7 +587,7 @@ public class BusinessWorkflowFilterEvaluator {
             return List.copyOf(values);
         }
         if (node.isObject()) {
-            final Map<String, Object> mapped = new java.util.LinkedHashMap<>();
+            final Map<String, Object> mapped = new LinkedHashMap<>();
             for (Map.Entry<String, JsonNode> field : node.properties()) {
                 mapped.put(field.getKey(), jsonValue(field.getValue()));
             }
@@ -526,10 +621,7 @@ public class BusinessWorkflowFilterEvaluator {
     /**
      * 파싱 완료된 필터 모델입니다.
      */
-    private record ParsedFilter(List<FilterRow> rows) {
-        private ParsedFilter {
-            rows = List.copyOf(rows == null ? List.of() : rows);
-        }
+    private record ParsedFilter(FilterGroupNode rootNode) {
     }
 
     /**
@@ -562,31 +654,76 @@ public class BusinessWorkflowFilterEvaluator {
     }
 
     /**
-     * 필터 row 모델입니다.
+     * 재귀 필터 AST 공통 계약입니다.
      */
-    private record FilterRow(
-            LeftExpression leftExpression,
-            OperatorType operator,
-            Object rightValue
-    ) {
+    private interface FilterNode {
     }
 
     /**
-     * 좌변 표현식 모델입니다.
+     * 그룹 노드 모델입니다.
      */
-    private record LeftExpression(
-            VariableRef variableRef,
+    private record FilterGroupNode(
+            GroupType groupType,
+            List<FilterNode> children
+    ) implements FilterNode {
+    }
+
+    /**
+     * 조건 노드 모델입니다.
+     */
+    private record FilterConditionNode(
+            FilterLookupSourceType lookupSourceType,
+            String path,
+            ComparisonType comparisonType,
+            Object expected,
             List<TransformSpec> transforms
-    ) {
+    ) implements FilterNode {
     }
 
     /**
-     * 변수 참조 모델입니다.
+     * 그룹 타입입니다.
      */
-    private record VariableRef(
-            String name,
-            SourceType sourceType
-    ) {
+    private enum GroupType {
+        AND,
+        OR;
+
+        private static GroupType fromKey(final String key) {
+            return switch (key) {
+                case "and" -> AND;
+                case "or" -> OR;
+                default -> throw new IllegalArgumentException("invalid group key: " + key);
+            };
+        }
+    }
+
+    /**
+     * workflow_filter 공개 계약에서 허용하는 조회 소스입니다.
+     */
+    private enum FilterLookupSourceType {
+        DATA("data"),
+        METADATA("metadata");
+
+        private final String rootKey;
+
+        FilterLookupSourceType(final String rootKey) {
+            this.rootKey = rootKey;
+        }
+
+        private String rootKey() {
+            return rootKey;
+        }
+
+        private static FilterLookupSourceType fromText(final String text) {
+            final String normalized = normalize(text);
+            if (normalized == null) {
+                throw new IllegalArgumentException("workflow_filter condition.from is required");
+            }
+            return switch (normalized.toLowerCase(Locale.ROOT)) {
+                case "data" -> DATA;
+                case "metadata" -> METADATA;
+                default -> throw new IllegalArgumentException("invalid from value: " + normalized);
+            };
+        }
     }
 
     /**
@@ -603,10 +740,13 @@ public class BusinessWorkflowFilterEvaluator {
          * @return 변환 스펙
          */
         private static TransformSpec fromCompactText(final String compactText) {
-            final String normalized = compactText.trim();
+            final String normalized = normalize(compactText);
+            if (normalized == null) {
+                throw new IllegalArgumentException("transform text is blank");
+            }
+
             final int openIndex = normalized.indexOf('(');
             final int closeIndex = normalized.lastIndexOf(')');
-
             if (openIndex < 0 || closeIndex < openIndex) {
                 return new TransformSpec(normalized.toLowerCase(Locale.ROOT), List.of());
             }
@@ -622,11 +762,7 @@ public class BusinessWorkflowFilterEvaluator {
                 final String trimmed = token.trim();
                 final String unquoted = stripQuotes(trimmed);
                 final BigDecimal numeric = toBigDecimal(unquoted);
-                if (numeric != null) {
-                    args.add(numeric);
-                } else {
-                    args.add(unquoted);
-                }
+                args.add(numeric != null ? numeric : unquoted);
             }
             return new TransformSpec(name, List.copyOf(args));
         }
@@ -647,66 +783,36 @@ public class BusinessWorkflowFilterEvaluator {
     }
 
     /**
-     * 변수 조회 소스 타입입니다.
+     * 지원 비교 연산입니다.
      */
-    private enum SourceType {
-        MSG,
-        CTX,
-        AUTO;
-
-        /**
-         * 문자열을 SourceType으로 변환합니다.
-         *
-         * @param text source 문자열
-         * @return 변환된 SourceType, 실패 시 AUTO
-         */
-        private static SourceType fromText(final String text) {
-            final String normalized = normalize(text);
-            if (normalized == null) {
-                return SourceType.AUTO;
-            }
-            try {
-                return SourceType.valueOf(normalized.toUpperCase(Locale.ROOT));
-            } catch (Exception ex) {
-                return SourceType.AUTO;
-            }
-        }
-    }
-
-    /**
-     * 지원 연산자 타입입니다.
-     */
-    private enum OperatorType {
-        EQ,
-        NE,
-        GT,
-        GTE,
-        LT,
-        LTE,
+    private enum ComparisonType {
+        EQUALS,
+        NOT_EQUALS,
+        GREATER_THAN,
+        GREATER_THAN_OR_EQUAL,
+        LESS_THAN,
+        LESS_THAN_OR_EQUAL,
         CONTAINS,
         IN;
 
         /**
-         * 문자열을 연산자 타입으로 변환합니다.
-         *
-         * @param text 연산자 문자열
-         * @return 변환된 연산자 타입
+         * 문자열을 비교 연산으로 변환합니다.
          */
-        private static OperatorType fromText(final String text) {
+        private static ComparisonType fromText(final String text) {
             final String normalized = normalize(text);
             if (normalized == null) {
-                return EQ;
+                throw new IllegalArgumentException("workflow_filter condition.comparison is required");
             }
             return switch (normalized.toLowerCase(Locale.ROOT)) {
-                case "eq", "==" -> EQ;
-                case "ne", "!=", "<>" -> NE;
-                case "gt", ">" -> GT;
-                case "gte", ">=" -> GTE;
-                case "lt", "<" -> LT;
-                case "lte", "<=" -> LTE;
+                case "equals" -> EQUALS;
+                case "not_equals" -> NOT_EQUALS;
+                case "greater_than" -> GREATER_THAN;
+                case "greater_than_or_equal" -> GREATER_THAN_OR_EQUAL;
+                case "less_than" -> LESS_THAN;
+                case "less_than_or_equal" -> LESS_THAN_OR_EQUAL;
                 case "contains" -> CONTAINS;
                 case "in" -> IN;
-                default -> EQ;
+                default -> throw new IllegalArgumentException("unsupported comparison: " + normalized);
             };
         }
 
@@ -714,13 +820,16 @@ public class BusinessWorkflowFilterEvaluator {
          * 좌변/우변 값을 현재 연산자로 평가합니다.
          */
         private boolean evaluate(final Object leftValue, final Object rightValue) {
+            if (leftValue == null) {
+                return false;
+            }
             return switch (this) {
-                case EQ -> Objects.equals(normalizeComparable(leftValue), normalizeComparable(rightValue));
-                case NE -> !Objects.equals(normalizeComparable(leftValue), normalizeComparable(rightValue));
-                case GT -> compare(leftValue, rightValue) > 0;
-                case GTE -> compare(leftValue, rightValue) >= 0;
-                case LT -> compare(leftValue, rightValue) < 0;
-                case LTE -> compare(leftValue, rightValue) <= 0;
+                case EQUALS -> Objects.equals(normalizeComparable(leftValue), normalizeComparable(rightValue));
+                case NOT_EQUALS -> !Objects.equals(normalizeComparable(leftValue), normalizeComparable(rightValue));
+                case GREATER_THAN -> compare(leftValue, rightValue) > 0;
+                case GREATER_THAN_OR_EQUAL -> compare(leftValue, rightValue) >= 0;
+                case LESS_THAN -> compare(leftValue, rightValue) < 0;
+                case LESS_THAN_OR_EQUAL -> compare(leftValue, rightValue) <= 0;
                 case CONTAINS -> {
                     if (leftValue == null || rightValue == null) {
                         yield false;
