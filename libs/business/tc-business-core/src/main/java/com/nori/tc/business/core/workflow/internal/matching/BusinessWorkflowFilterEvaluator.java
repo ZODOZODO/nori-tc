@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowFilterContext;
 import com.nori.tc.business.core.workflow.api.match.BusinessWorkflowFilterEvaluationException;
+import com.nori.tc.business.core.workflow.internal.support.BusinessTransformSupport;
 import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.nori.tc.business.core.workflow.internal.support.BusinessTransformSupport.TransformSpec;
 
 /**
  * workflow_filter(JSON Rule)를 새 canonical 계약 기준으로 평가하는 컴포넌트입니다.
@@ -329,7 +332,7 @@ public class BusinessWorkflowFilterEvaluator {
             final WorkflowRuntimeEntry entry
     ) {
         try {
-            return applyTransform(previousValue, transform);
+            return BusinessTransformSupport.applyTransform(previousValue, transform);
         } catch (Exception ex) {
             log.warn("workflow_filter transform failed and previous value is preserved. eqpId={}, messageName={}, workflowKey={}, from={}, path={}, comparison={}, transform={}",
                     context.record().eqpId(),
@@ -342,78 +345,6 @@ public class BusinessWorkflowFilterEvaluator {
                     ex);
             return previousValue;
         }
-    }
-
-    /**
-     * 변환 스펙 이름에 맞는 변환 함수를 실행합니다.
-     */
-    private Object applyTransform(final Object value, final TransformSpec transform) {
-        return switch (transform.name()) {
-            case "split" -> transformSplit(value, transform.args());
-            case "trim" -> value == null ? null : String.valueOf(value).trim();
-            case "substring" -> transformSubstring(value, transform.args());
-            case "toint" -> toBigDecimal(value) == null ? null : toBigDecimal(value).intValue();
-            case "tolong" -> toBigDecimal(value) == null ? null : toBigDecimal(value).longValue();
-            case "length" -> value == null ? null : String.valueOf(value).length();
-            case "add" -> transformAddSub(value, transform.args(), true);
-            case "sub" -> transformAddSub(value, transform.args(), false);
-            case "lower" -> value == null ? null : String.valueOf(value).toLowerCase(Locale.ROOT);
-            case "upper" -> value == null ? null : String.valueOf(value).toUpperCase(Locale.ROOT);
-            default -> value;
-        };
-    }
-
-    /**
-     * split 변환을 수행합니다.
-     */
-    private Object transformSplit(final Object value, final List<Object> args) {
-        if (value == null) {
-            return null;
-        }
-
-        final String source = String.valueOf(value);
-        final String delimiter = args.size() >= 1 ? String.valueOf(args.get(0)) : ",";
-        final int index = toIntOrDefault(args, 1, 0);
-        final String[] tokens = source.split(java.util.regex.Pattern.quote(delimiter), -1);
-        if (index < 0 || index >= tokens.length) {
-            return value;
-        }
-        return tokens[index];
-    }
-
-    /**
-     * substring 변환을 수행합니다.
-     */
-    private Object transformSubstring(final Object value, final List<Object> args) {
-        if (value == null) {
-            return null;
-        }
-        if (args.isEmpty()) {
-            return value;
-        }
-
-        final String source = String.valueOf(value);
-        final int start = toIntOrDefault(args, 0, 0);
-        final int end = toIntOrDefault(args, 1, source.length());
-        final int safeStart = Math.max(0, Math.min(start, source.length()));
-        final int safeEnd = Math.max(safeStart, Math.min(end, source.length()));
-        return source.substring(safeStart, safeEnd);
-    }
-
-    /**
-     * add/sub 변환을 수행합니다.
-     */
-    private Object transformAddSub(final Object value, final List<Object> args, final boolean add) {
-        if (value == null || args.isEmpty()) {
-            return value;
-        }
-
-        final BigDecimal left = toBigDecimal(value);
-        final BigDecimal right = toBigDecimal(args.get(0));
-        if (left == null || right == null) {
-            return value;
-        }
-        return add ? left.add(right) : left.subtract(right);
     }
 
     /**
@@ -455,20 +386,6 @@ public class BusinessWorkflowFilterEvaluator {
             }
         }
         return current;
-    }
-
-    /**
-     * args[index]를 정수로 파싱하고 실패 시 기본값을 반환합니다.
-     */
-    private static int toIntOrDefault(final List<Object> args, final int index, final int defaultValue) {
-        if (args == null || index < 0 || index >= args.size()) {
-            return defaultValue;
-        }
-        final BigDecimal number = toBigDecimal(args.get(index));
-        if (number == null) {
-            return defaultValue;
-        }
-        return number.intValue();
     }
 
     /**
@@ -723,62 +640,6 @@ public class BusinessWorkflowFilterEvaluator {
                 case "metadata" -> METADATA;
                 default -> throw new IllegalArgumentException("invalid from value: " + normalized);
             };
-        }
-    }
-
-    /**
-     * 변환 스펙 모델입니다.
-     */
-    private record TransformSpec(
-            String name,
-            List<Object> args
-    ) {
-        /**
-         * compact 문자열을 변환 스펙으로 파싱합니다.
-         *
-         * @param compactText 예: split(",",0)
-         * @return 변환 스펙
-         */
-        private static TransformSpec fromCompactText(final String compactText) {
-            final String normalized = normalize(compactText);
-            if (normalized == null) {
-                throw new IllegalArgumentException("transform text is blank");
-            }
-
-            final int openIndex = normalized.indexOf('(');
-            final int closeIndex = normalized.lastIndexOf(')');
-            if (openIndex < 0 || closeIndex < openIndex) {
-                return new TransformSpec(normalized.toLowerCase(Locale.ROOT), List.of());
-            }
-
-            final String name = normalized.substring(0, openIndex).trim().toLowerCase(Locale.ROOT);
-            final String argsSection = normalized.substring(openIndex + 1, closeIndex).trim();
-            if (argsSection.isEmpty()) {
-                return new TransformSpec(name, List.of());
-            }
-
-            final List<Object> args = new ArrayList<>();
-            for (String token : argsSection.split(",")) {
-                final String trimmed = token.trim();
-                final String unquoted = stripQuotes(trimmed);
-                final BigDecimal numeric = toBigDecimal(unquoted);
-                args.add(numeric != null ? numeric : unquoted);
-            }
-            return new TransformSpec(name, List.copyOf(args));
-        }
-
-        /**
-         * 작은따옴표/큰따옴표로 감싼 문자열의 외곽 따옴표를 제거합니다.
-         */
-        private static String stripQuotes(final String value) {
-            if (value == null || value.length() < 2) {
-                return value;
-            }
-            if ((value.startsWith("\"") && value.endsWith("\""))
-                    || (value.startsWith("'") && value.endsWith("'"))) {
-                return value.substring(1, value.length() - 1);
-            }
-            return value;
         }
     }
 
