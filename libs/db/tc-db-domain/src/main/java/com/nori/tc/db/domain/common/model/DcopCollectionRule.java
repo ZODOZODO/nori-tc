@@ -6,12 +6,19 @@ package com.nori.tc.db.domain.common.model;
  * DB Check Constraint:
  * - FIRST
  * - LAST
+ * - AVERAGE
+ * - MIN
+ * - MAX
  *
  * 주의:
  * - null 가능 컬럼이므로, 도메인에서도 null 허용을 기본으로 한다.
  * - 값은 Adapter(JPA/MyBatis) 계층에서 EnumTypeHandler로 매핑한다.
+ * - DB CHECK 제약 조건 변경 시 tc_model_dcop_item 테이블 마이그레이션 필요.
  */
 public enum DcopCollectionRule {
     FIRST,
-    LAST
+    LAST,
+    AVERAGE,
+    MIN,
+    MAX
 }

@@ -1,6 +1,5 @@
 package com.nori.tc.db.jpa.common.entity.model;
 
-import com.nori.tc.db.domain.common.model.DcopCalculationRule;
 import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 import com.nori.tc.db.jpa.common.entity.base.AbstractUpdatedEntity;
 
@@ -24,8 +23,8 @@ import jakarta.persistence.UniqueConstraint;
  * - workflow_name    : varchar(1000) NULL
  * - event_id         : varchar(100) NULL
  * - variable_id      : varchar(1000) NULL
- * - collection_rule  : varchar(10) NULL (FIRST/LAST)
- * - calculation_rule : varchar(2000) NULL (ADD/MULTIPLY/SUBTRACT/NONE)
+ * - collection_rule  : varchar(10) NULL (FIRST/LAST/AVERAGE/MIN/MAX)
+ * - calculation_rule : varchar(2000) NULL (자유 텍스트)
  * - order_rule       : int NULL (>= 0)
  * - updated_at       : timestamptz NOT NULL default CURRENT_TIMESTAMP
  * - Constraints      : UNIQUE (model_version_key, dcop_item_name)
@@ -66,9 +65,8 @@ public class TcModelDcopItemEntity extends AbstractUpdatedEntity {
     @Column(name = "collection_rule", length = 10)
     private DcopCollectionRule collectionRule;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "calculation_rule", length = 2000)
-    private DcopCalculationRule calculationRule;
+    private String calculationRule;
 
     @Column(name = "order_rule")
     private Integer orderRule;
@@ -96,7 +94,7 @@ public class TcModelDcopItemEntity extends AbstractUpdatedEntity {
             String eventId,
             String variableId,
             DcopCollectionRule collectionRule,
-            DcopCalculationRule calculationRule,
+            String calculationRule,
             Integer orderRule
     ) {
         this.dcopItemKey = dcopItemKey;
@@ -296,18 +294,18 @@ public class TcModelDcopItemEntity extends AbstractUpdatedEntity {
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
      * @return DB JPA 계층 처리 결과
      */
-    public DcopCalculationRule getCalculationRule() {
+    public String getCalculationRule() {
         return calculationRule;
     }
 
-    
+
     /**
      * DB JPA 계층 설정 값을 반영합니다.
      *
      * <p>엔티티 생명주기 콜백과 컬럼 매핑 규칙을 기준으로 처리합니다.</p>
      * @param calculationRule DB JPA 계층 처리에 사용하는 입력 값
      */
-    public void setCalculationRule(DcopCalculationRule calculationRule) {
+    public void setCalculationRule(String calculationRule) {
         this.calculationRule = calculationRule;
     }
 

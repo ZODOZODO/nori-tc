@@ -1223,7 +1223,7 @@ public class JpaModelManagementPort implements ModelRootCommandPort, ModelBranch
                         safe(dcopItem.eventId()),
                         safe(dcopItem.variableId()),
                         safe(dcopItem.collectionRule() == null ? null : dcopItem.collectionRule().name()),
-                        safe(dcopItem.calculationRule() == null ? null : dcopItem.calculationRule().name()),
+                        safe(dcopItem.calculationRule()),
                         safe(dcopItem.orderRule() == null ? null : String.valueOf(dcopItem.orderRule()))
                 )
         );

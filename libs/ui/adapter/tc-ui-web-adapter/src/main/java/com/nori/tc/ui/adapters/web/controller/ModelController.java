@@ -121,7 +121,8 @@ public class ModelController {
             "Enabled",
             "Description"
     );
-    private static final List<String> WORKFLOW_COLUMNS = List.of(
+    // SECS 모델용 workflow 컬럼: EventId, TransactionId 포함 7개
+    private static final List<String> SECS_WORKFLOW_COLUMNS = List.of(
             "Workflow Name",
             "Message Name",
             "EventId",
@@ -130,17 +131,40 @@ public class ModelController {
             "Action Name",
             "Data Index"
     );
-    private static final List<String> DCOP_ITEM_COLUMNS = List.of(
-            "Dcop Item Name",
+    // SOCKET 모델용 workflow 컬럼: EventId, TransactionId 미사용이므로 제외
+    private static final List<String> SOCKET_WORKFLOW_COLUMNS = List.of(
             "Workflow Name",
-            "EventId",
-            "VariableId",
-            "Collection Rule",
-            "Order Rule"
+            "Message Name",
+            "Filter",
+            "Action Name",
+            "Data Index"
+    );
+    // SECS 모델용 dcop item 컬럼 (7개): EventId 포함
+    private static final List<String> SECS_DCOP_ITEM_COLUMNS = List.of(
+            "Dcop Item Name",     // [0]
+            "Workflow Name",      // [1]
+            "EventId",            // [2]
+            "VariableId",         // [3]
+            "Collection Rule",    // [4]
+            "Calculation Rule",   // [5]
+            "Order Rule"          // [6]
+    );
+    // SOCKET 모델용 dcop item 컬럼 (6개): EventId 미사용이므로 제외
+    private static final List<String> SOCKET_DCOP_ITEM_COLUMNS = List.of(
+            "Dcop Item Name",     // [0]
+            "Workflow Name",      // [1]
+            "VariableId",         // [2]
+            "Collection Rule",    // [3]
+            "Calculation Rule",   // [4]
+            "Order Rule"          // [5]
     );
     private static final String DEFAULT_MDF_NAME = "MDF";
-    private static final int WORKFLOW_FILTER_VALUE_INDEX = 4;
-    private static final int ACTION_DATA_INDEX_VALUE_INDEX = 6;
+    // SECS workflow 컬럼 기준 인덱스 (7개 컬럼)
+    private static final int SECS_WORKFLOW_FILTER_VALUE_INDEX = 4;
+    private static final int SECS_ACTION_DATA_INDEX_VALUE_INDEX = 6;
+    // SOCKET workflow 컬럼 기준 인덱스 (5개 컬럼, EventId/TransactionId 제외)
+    private static final int SOCKET_WORKFLOW_FILTER_VALUE_INDEX = 2;
+    private static final int SOCKET_ACTION_DATA_INDEX_VALUE_INDEX = 4;
 
     private final ModelCrudPort modelCrudPort;
     private final ModelDetailQueryPort modelDetailQueryPort;
@@ -257,13 +281,14 @@ public class ModelController {
             log.debug("모델 상세 노드 조회 요청. modelVersionKey={}, detailNode={}", modelVersionKey, detailNode);
         }
 
-        if (modelCrudPort.findByModelVersionKey(modelVersionKey).isEmpty()) {
+        final Optional<TcModel> optionalModelForDetail = modelCrudPort.findByModelVersionKey(modelVersionKey);
+        if (optionalModelForDetail.isEmpty()) {
             log.warn("모델 상세 노드 조회 결과 없음 - 모델 미존재. modelVersionKey={}, detailNode={}", modelVersionKey, detailNode);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error("NOT_FOUND", "모델을 찾을 수 없습니다."));
         }
 
-        final ModelDetailDataResponse response = buildDetailResponse(modelVersionKey, detailNode);
+        final ModelDetailDataResponse response = buildDetailResponse(optionalModelForDetail.get(), modelVersionKey, detailNode);
 
         if (response == null) {
             return ResponseEntity.badRequest()
@@ -312,7 +337,23 @@ public class ModelController {
         log.info("모델 상세 row 저장 요청. modelVersionKey={}, detailNode={}, rowCount={}",
                 modelVersionKey, normalizedNode, request.rows() == null ? 0 : request.rows().size());
 
-        final String workflowValidationMessage = validateWorkflowJsonRows(normalizedNode, request.rows());
+        final TcModel model = optionalModel.get();
+        final boolean isSocketWorkflow = "workflow".equals(normalizedNode) && isSocketModel(model);
+        final boolean isSocketDcopItem = "dcop-itemes".equals(normalizedNode) && isSocketModel(model);
+
+        // SOCKET 모델의 workflow는 5개 컬럼(EventId/TransactionId 제외)으로 전송됩니다.
+        // SOCKET 모델의 dcop-itemes는 6개 컬럼(EventId 제외)으로 전송됩니다.
+        // 두 경우 모두 DB 저장 계층이 기대하는 SECS 기준 values 형식으로 확장합니다.
+        final List<ModelDetailSaveRequest.ModelDetailSaveRowItem> normalizedRows;
+        if (isSocketWorkflow) {
+            normalizedRows = expandSocketWorkflowValues(request.rows());
+        } else if (isSocketDcopItem) {
+            normalizedRows = expandSocketDcopItemValues(request.rows());
+        } else {
+            normalizedRows = request.rows();
+        }
+
+        final String workflowValidationMessage = validateWorkflowJsonRows(normalizedNode, normalizedRows, isSocketWorkflow);
         if (workflowValidationMessage != null) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("INVALID_REQUEST", workflowValidationMessage));
@@ -321,14 +362,14 @@ public class ModelController {
         modelDetailCommandPort.saveDetailRows(
                 modelVersionKey,
                 normalizedNode,
-                request.rows() == null
+                normalizedRows == null
                         ? List.of()
-                        : request.rows().stream()
+                        : normalizedRows.stream()
                                 .map(row -> new ModelDetailCommandPort.DetailRowCommand(row.id(), row.values()))
                                 .toList()
         );
 
-        final ModelDetailDataResponse response = buildDetailResponse(modelVersionKey, normalizedNode);
+        final ModelDetailDataResponse response = buildDetailResponse(model, modelVersionKey, normalizedNode);
         if (response == null) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("INVALID_NODE", "지원하지 않는 상세 노드입니다."));
@@ -345,18 +386,34 @@ public class ModelController {
      * @param rows 요청 row 목록
      * @return 검증 실패 메시지. 정상인 경우 null
      */
+    /**
+     * workflow 상세 저장 시 row 단위 JSON 계약을 사전 검증합니다.
+     *
+     * <p>SOCKET 모델의 경우 EventId, TransactionId 컬럼이 없으므로 filter, data index의 인덱스가 달라집니다.
+     * isSocketWorkflow가 true이면 SOCKET 기준 인덱스를 사용합니다.</p>
+     *
+     * @param detailNode 저장 대상 상세 노드
+     * @param rows 요청 row 목록 (이미 7개 values로 변환된 상태)
+     * @param isSocketWorkflow SOCKET 모델의 workflow 여부 (변환 후에도 인덱스 참조용)
+     * @return 검증 실패 메시지. 정상인 경우 null
+     */
     private String validateWorkflowJsonRows(
             final String detailNode,
-            final List<ModelDetailSaveRequest.ModelDetailSaveRowItem> rows
+            final List<ModelDetailSaveRequest.ModelDetailSaveRowItem> rows,
+            final boolean isSocketWorkflow
     ) {
         if (!"workflow".equals(detailNode) || rows == null || rows.isEmpty()) {
             return null;
         }
 
+        // SOCKET workflow는 expandSocketWorkflowValues()로 7개 values로 변환된 상태이므로 SECS 인덱스 사용
+        final int filterIndex = SECS_WORKFLOW_FILTER_VALUE_INDEX;
+        final int dataIndexIndex = SECS_ACTION_DATA_INDEX_VALUE_INDEX;
+
         for (int index = 0; index < rows.size(); index++) {
             final ModelDetailSaveRequest.ModelDetailSaveRowItem row = rows.get(index);
 
-            final String workflowFilter = valueAt(row.values(), WORKFLOW_FILTER_VALUE_INDEX);
+            final String workflowFilter = valueAt(row.values(), filterIndex);
             try {
                 ModelDetailWorkflowJsonSupport.validateWorkflowFilter(workflowFilter);
             } catch (IllegalArgumentException exception) {
@@ -367,7 +424,7 @@ public class ModelController {
                 return message;
             }
 
-            final String actionDataIndex = valueAt(row.values(), ACTION_DATA_INDEX_VALUE_INDEX);
+            final String actionDataIndex = valueAt(row.values(), dataIndexIndex);
             try {
                 ModelDetailWorkflowJsonSupport.validateActionDataIndex(actionDataIndex);
             } catch (IllegalArgumentException exception) {
@@ -379,6 +436,101 @@ public class ModelController {
             }
         }
         return null;
+    }
+
+    /**
+     * 모델이 SOCKET 통신 인터페이스를 사용하는지 확인합니다.
+     *
+     * @param model 확인 대상 모델
+     * @return SOCKET 모델이면 true
+     */
+    private static boolean isSocketModel(final TcModel model) {
+        return model != null
+                && model.commInterface() != null
+                && "SOCKET".equalsIgnoreCase(model.commInterface().name());
+    }
+
+    /**
+     * SOCKET 모델의 workflow values(5개)를 DB 저장 계층이 기대하는 7개 형식으로 확장합니다.
+     *
+     * <p>SOCKET 컬럼 순서: [workflowName, messageName, filter, actionName, dataIndex]
+     * DB 저장 계층 기대 순서: [workflowName, messageName, eventId, transactionId, filter, actionName, dataIndex]
+     * EventId, TransactionId는 SOCKET 모델에서 사용하지 않으므로 빈 문자열로 채웁니다.</p>
+     *
+     * @param rows 5개 values를 가진 SOCKET workflow rows
+     * @return 7개 values로 변환된 rows
+     */
+    private static List<ModelDetailSaveRequest.ModelDetailSaveRowItem> expandSocketWorkflowValues(
+            final List<ModelDetailSaveRequest.ModelDetailSaveRowItem> rows
+    ) {
+        if (rows == null) {
+            return null;
+        }
+        return rows.stream()
+                .map(row -> {
+                    final List<String> original = row.values() == null ? List.of() : row.values();
+                    // [workflowName, messageName, "", "", filter, actionName, dataIndex]
+                    final List<String> expanded = List.of(
+                            getOrEmpty(original, 0),  // workflowName
+                            getOrEmpty(original, 1),  // messageName
+                            "",                       // eventId (SOCKET 미사용)
+                            "",                       // transactionId (SOCKET 미사용)
+                            getOrEmpty(original, 2),  // filter
+                            getOrEmpty(original, 3),  // actionName
+                            getOrEmpty(original, 4)   // dataIndex
+                    );
+                    return new ModelDetailSaveRequest.ModelDetailSaveRowItem(row.id(), expanded);
+                })
+                .toList();
+    }
+
+    /**
+     * SOCKET 모델의 dcop item values(6개)를 DB 저장 계층이 기대하는 7개 형식으로 확장합니다.
+     *
+     * <p>SOCKET 컬럼 순서: [dcopItemName, workflowName, variableId, collectionRule, calculationRule, orderRule]
+     * DB 저장 계층 기대 순서: [dcopItemName, workflowName, eventId, variableId, collectionRule, calculationRule, orderRule]
+     * EventId는 SOCKET 모델에서 사용하지 않으므로 빈 문자열로 채웁니다.</p>
+     *
+     * @param rows 6개 values를 가진 SOCKET dcop item rows
+     * @return 7개 values로 변환된 rows
+     */
+    private static List<ModelDetailSaveRequest.ModelDetailSaveRowItem> expandSocketDcopItemValues(
+            final List<ModelDetailSaveRequest.ModelDetailSaveRowItem> rows
+    ) {
+        if (rows == null) {
+            return null;
+        }
+        return rows.stream()
+                .map(row -> {
+                    final List<String> original = row.values() == null ? List.of() : row.values();
+                    // [dcopItemName, workflowName, "", variableId, collectionRule, calculationRule, orderRule]
+                    final List<String> expanded = List.of(
+                            getOrEmpty(original, 0),  // dcopItemName
+                            getOrEmpty(original, 1),  // workflowName
+                            "",                       // eventId (SOCKET 미사용)
+                            getOrEmpty(original, 2),  // variableId
+                            getOrEmpty(original, 3),  // collectionRule
+                            getOrEmpty(original, 4),  // calculationRule
+                            getOrEmpty(original, 5)   // orderRule
+                    );
+                    return new ModelDetailSaveRequest.ModelDetailSaveRowItem(row.id(), expanded);
+                })
+                .toList();
+    }
+
+    /**
+     * 리스트에서 지정한 인덱스의 값을 반환하고, 인덱스가 범위를 벗어나면 빈 문자열을 반환합니다.
+     *
+     * @param list 대상 리스트
+     * @param index 인덱스
+     * @return 해당 인덱스의 값 또는 빈 문자열
+     */
+    private static String getOrEmpty(final List<String> list, final int index) {
+        if (list == null || index < 0 || index >= list.size()) {
+            return "";
+        }
+        final String value = list.get(index);
+        return value == null ? "" : value;
     }
 
     /**
@@ -741,8 +893,16 @@ public class ModelController {
 
     /**
      * detailNode에 대응하는 상세 조회 응답을 생성합니다.
+     *
+     * <p>workflow 노드는 모델의 commInterface에 따라 다른 컬럼 세트를 반환합니다.
+     * SOCKET 모델의 경우 SECS 전용인 EventId, TransactionId 컬럼을 제외합니다.</p>
+     *
+     * @param model 조회 대상 모델 (컬럼 분기 판단에 사용)
+     * @param modelVersionKey 모델 버전 키
+     * @param detailNode 상세 노드 식별자
+     * @return 상세 조회 응답
      */
-    private ModelDetailDataResponse buildDetailResponse(final long modelVersionKey, final String detailNode) {
+    private ModelDetailDataResponse buildDetailResponse(final TcModel model, final long modelVersionKey, final String detailNode) {
         final String normalizedNode = normalizeDetailNode(detailNode);
         return switch (normalizedNode) {
             case "model-parameter" -> new ModelDetailDataResponse(
@@ -787,13 +947,18 @@ public class ModelController {
                             .toList(),
                     List.of()
             );
-            case "workflow" -> new ModelDetailDataResponse(
-                    WORKFLOW_COLUMNS,
-                    modelDetailQueryPort.findWorkflowsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toWorkflowRow)
-                            .toList(),
-                    List.of()
-            );
+            case "workflow" -> {
+                // SOCKET 모델은 EventId, TransactionId 컬럼을 사용하지 않으므로 제외한 컬럼 세트를 반환
+                final boolean socketModel = isSocketModel(model);
+                final List<String> workflowColumns = socketModel ? SOCKET_WORKFLOW_COLUMNS : SECS_WORKFLOW_COLUMNS;
+                yield new ModelDetailDataResponse(
+                        workflowColumns,
+                        modelDetailQueryPort.findWorkflowsByModelVersionKey(modelVersionKey).stream()
+                                .map(workflow -> toWorkflowRow(workflow, socketModel))
+                                .toList(),
+                        List.of()
+                );
+            }
             case "mdf" -> new ModelDetailDataResponse(
                     List.of(),
                     List.of(),
@@ -802,13 +967,20 @@ public class ModelController {
                             .stream()
                             .toList()
             );
-            case "dcop-itemes" -> new ModelDetailDataResponse(
-                    DCOP_ITEM_COLUMNS,
-                    modelDetailQueryPort.findDcopItemsByModelVersionKey(modelVersionKey).stream()
-                            .map(ModelController::toDcopItemRow)
-                            .toList(),
-                    List.of()
-            );
+            case "dcop-itemes" -> {
+                // SOCKET 모델은 EventId 컬럼을 사용하지 않으므로 workflow와 동일한 방식으로 분기
+                final boolean socketDcopModel = isSocketModel(model);
+                final List<String> dcopColumns = socketDcopModel
+                        ? SOCKET_DCOP_ITEM_COLUMNS
+                        : SECS_DCOP_ITEM_COLUMNS;
+                yield new ModelDetailDataResponse(
+                        dcopColumns,
+                        modelDetailQueryPort.findDcopItemsByModelVersionKey(modelVersionKey).stream()
+                                .map(dcopItem -> toDcopItemRow(dcopItem, socketDcopModel))
+                                .toList(),
+                        List.of()
+                );
+            }
             default -> null;
         };
     }
@@ -899,16 +1071,38 @@ public class ModelController {
     /**
      * tc_model_workflow row를 상세 테이블 row DTO로 변환합니다.
      */
-    private static ModelDetailRowResponse toWorkflowRow(final TcModelWorkflow workflow) {
-        final List<String> values = List.of(
-                nullToEmpty(workflow.workflowName()),
-                nullToEmpty(workflow.messageName()),
-                nullToEmpty(workflow.eventId()),
-                nullToEmpty(workflow.transactionId()),
-                nullToEmpty(workflow.workflowFilter()),
-                nullToEmpty(workflow.actionName()),
-                nullToEmpty(workflow.actionDataIndex())
-        );
+    /**
+     * workflow row를 상세 테이블 row DTO로 변환합니다.
+     *
+     * <p>SOCKET 모델의 경우 EventId, TransactionId를 사용하지 않으므로 해당 값을 제외합니다.</p>
+     *
+     * @param workflow 변환 대상 workflow 도메인 객체
+     * @param excludeEventFields SOCKET 모델 여부. true이면 EventId, TransactionId를 values에서 제외
+     * @return 상세 테이블 row DTO
+     */
+    private static ModelDetailRowResponse toWorkflowRow(final TcModelWorkflow workflow, final boolean excludeEventFields) {
+        final List<String> values;
+        if (excludeEventFields) {
+            // SOCKET 컬럼 순서: [workflowName, messageName, filter, actionName, dataIndex]
+            values = List.of(
+                    nullToEmpty(workflow.workflowName()),
+                    nullToEmpty(workflow.messageName()),
+                    nullToEmpty(workflow.workflowFilter()),
+                    nullToEmpty(workflow.actionName()),
+                    nullToEmpty(workflow.actionDataIndex())
+            );
+        } else {
+            // SECS 컬럼 순서: [workflowName, messageName, eventId, transactionId, filter, actionName, dataIndex]
+            values = List.of(
+                    nullToEmpty(workflow.workflowName()),
+                    nullToEmpty(workflow.messageName()),
+                    nullToEmpty(workflow.eventId()),
+                    nullToEmpty(workflow.transactionId()),
+                    nullToEmpty(workflow.workflowFilter()),
+                    nullToEmpty(workflow.actionName()),
+                    nullToEmpty(workflow.actionDataIndex())
+            );
+        }
         return new ModelDetailRowResponse(
                 modelRowId("workflow", workflow.workflowKey()),
                 values,
@@ -918,18 +1112,42 @@ public class ModelController {
 
     /**
      * tc_model_dcop_item row를 상세 테이블 row DTO로 변환합니다.
+     *
+     * <p>SOCKET 모델의 경우 EventId를 사용하지 않으므로 excludeEventId=true를 전달하면
+     * EventId 값을 values에서 제외합니다.</p>
+     *
+     * @param dcopItem 변환 대상 dcop item 도메인 객체
+     * @param excludeEventId SOCKET 모델 여부. true이면 EventId를 values에서 제외
+     * @return 상세 테이블 row DTO
      */
-    private static ModelDetailRowResponse toDcopItemRow(final TcModelDcopItem dcopItem) {
+    private static ModelDetailRowResponse toDcopItemRow(final TcModelDcopItem dcopItem, final boolean excludeEventId) {
         final String collectionRule = dcopItem.collectionRule() == null ? "" : dcopItem.collectionRule().name();
+        final String calculationRule = dcopItem.calculationRule() == null ? "" : dcopItem.calculationRule();
         final String orderRule = dcopItem.orderRule() == null ? "" : dcopItem.orderRule().toString();
-        return new ModelDetailRowResponse(modelRowId("dcop", dcopItem.dcopItemKey()), List.of(
-                nullToEmpty(dcopItem.dcopItemName()),
-                nullToEmpty(dcopItem.workflowName()),
-                nullToEmpty(dcopItem.eventId()),
-                nullToEmpty(dcopItem.variableId()),
-                collectionRule,
-                orderRule
-        ));
+        final List<String> values;
+        if (excludeEventId) {
+            // SOCKET 컬럼 순서: [dcopItemName, workflowName, variableId, collectionRule, calculationRule, orderRule]
+            values = List.of(
+                    nullToEmpty(dcopItem.dcopItemName()),
+                    nullToEmpty(dcopItem.workflowName()),
+                    nullToEmpty(dcopItem.variableId()),
+                    collectionRule,
+                    calculationRule,
+                    orderRule
+            );
+        } else {
+            // SECS 컬럼 순서: [dcopItemName, workflowName, eventId, variableId, collectionRule, calculationRule, orderRule]
+            values = List.of(
+                    nullToEmpty(dcopItem.dcopItemName()),
+                    nullToEmpty(dcopItem.workflowName()),
+                    nullToEmpty(dcopItem.eventId()),
+                    nullToEmpty(dcopItem.variableId()),
+                    collectionRule,
+                    calculationRule,
+                    orderRule
+            );
+        }
+        return new ModelDetailRowResponse(modelRowId("dcop", dcopItem.dcopItemKey()), values);
     }
 
     /**

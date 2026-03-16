@@ -263,8 +263,6 @@ CREATE TABLE TC_MODEL_DCOP_ITEM (
   CONSTRAINT fk_tc_model_dcop_item_model_version_key__tc_model_version
     FOREIGN KEY (model_version_key) REFERENCES TC_MODEL_VERSION(model_version_key) ON DELETE CASCADE,
   CONSTRAINT uk_tc_model_dcop_item_model_version_key_dcop_item_name UNIQUE (model_version_key, dcop_item_name),
-  CONSTRAINT ck_tc_model_dcop_item_collection_rule CHECK (collection_rule IS NULL OR collection_rule IN ('FIRST','LAST')),
-  CONSTRAINT ck_tc_model_dcop_item_calculation_rule CHECK (calculation_rule IS NULL OR calculation_rule IN ('ADD','MULTIPLY','SUBTRACT','NONE')),
   CONSTRAINT ck_tc_model_dcop_item_order_rule CHECK (order_rule IS NULL OR order_rule >= 0)
 );
 

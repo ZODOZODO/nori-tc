@@ -5,7 +5,7 @@
         ) VALUES (
             #{i.modelVersionKey}, #{i.dcopItemName}, #{i.dcopItemDesc}, #{i.workflowName}, #{i.eventId}, #{i.variableId},
             #{i.collectionRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-            #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+            #{i.calculationRule},
             #{i.orderRule}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
     </insert>
@@ -16,7 +16,7 @@
                event_id         = #{i.eventId},
                variable_id      = #{i.variableId},
                collection_rule  = #{i.collectionRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
-               calculation_rule = #{i.calculationRule, typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+               calculation_rule = #{i.calculationRule},
                order_rule       = #{i.orderRule},
                updated_at       = CURRENT_TIMESTAMP
          WHERE model_version_key        = #{i.modelVersionKey}

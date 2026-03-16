@@ -291,29 +291,28 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
     /**
      * dcop item node를 교체 저장합니다.
      *
-     * <p>현재 UI가 calculationRule 컬럼을 노출하지 않으므로 기존 row는 id 기준으로
-     * calculationRule을 보존하고, 신규 row는 null로 저장합니다.</p>
+     * <p>Controller 계층에서 SOCKET 모델의 경우 6개 values를 7개(SECS 기준)로 확장한 후
+     * 이 메서드에 전달하므로, 항상 SECS 기준 인덱스를 사용합니다.</p>
+     *
+     * <p>컬럼 인덱스 (확장 후 공통):
+     * [0]=dcopItemName, [1]=workflowName, [2]=eventId, [3]=variableId,
+     * [4]=collectionRule, [5]=calculationRule, [6]=orderRule</p>
      */
     private void replaceDcopItems(final long modelVersionKey, final List<DetailRowCommand> rows) {
         final List<TcModelDcopItem> existingItems =
                 loadAllByModelVersionKey(modelVersionKey, modelDcopItemStore::findAllByModelVersionKey);
-        final Map<String, TcModelDcopItem> existingById = new LinkedHashMap<>();
-        existingItems.forEach(item -> existingById.put(modelRowId("dcop", item.dcopItemKey()), item));
         existingItems.forEach(item -> modelDcopItemStore.deleteByModelVersionKeyAndName(modelVersionKey, item.dcopItemName()));
 
-        rows.forEach(row -> {
-            final TcModelDcopItem existing = existingById.get(normalizeOptionalText(row.id()));
-            modelDcopItemStore.upsert(new UpsertTcModelDcopItem(
-                    modelVersionKey,
-                    requiredCell(row, 0, "dcopItemName"),
-                    optionalCell(row, 1),
-                    optionalCell(row, 2),
-                    optionalCell(row, 3),
-                    parseOptionalEnum(optionalCell(row, 4), DcopCollectionRule.class, "collectionRule"),
-                    existing == null ? null : existing.calculationRule(),
-                    parseOptionalInteger(optionalCell(row, 5), "orderRule")
-            ));
-        });
+        rows.forEach(row -> modelDcopItemStore.upsert(new UpsertTcModelDcopItem(
+                modelVersionKey,
+                requiredCell(row, 0, "dcopItemName"),
+                optionalCell(row, 1),    // workflowName
+                optionalCell(row, 2),    // eventId
+                optionalCell(row, 3),    // variableId
+                parseOptionalEnum(optionalCell(row, 4), DcopCollectionRule.class, "collectionRule"),
+                optionalCell(row, 5),    // calculationRule (자유 텍스트)
+                parseOptionalInteger(optionalCell(row, 6), "orderRule")
+        )));
     }
 
     /**

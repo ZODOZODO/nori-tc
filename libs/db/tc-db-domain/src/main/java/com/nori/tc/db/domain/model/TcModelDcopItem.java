@@ -2,7 +2,6 @@ package com.nori.tc.db.domain.model;
 
 import java.time.OffsetDateTime;
 
-import com.nori.tc.db.domain.common.model.DcopCalculationRule;
 import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 
 /**
@@ -15,8 +14,8 @@ import com.nori.tc.db.domain.common.model.DcopCollectionRule;
  * - workflow_name    : varchar(1000) NULL
  * - event_id         : varchar(100) NULL
  * - variable_id      : varchar(1000) NULL
- * - collection_rule  : varchar(10) NULL (FIRST/LAST)
- * - calculation_rule : varchar(2000) NULL (ADD/MULTIPLY/SUBTRACT/NONE)
+ * - collection_rule  : varchar(10) NULL (FIRST/LAST/AVERAGE/MIN/MAX)
+ * - calculation_rule : varchar(2000) NULL (자유 텍스트)
  * - order_rule       : int NULL (>= 0)
  * - updated_at       : timestamptz NOT NULL default CURRENT_TIMESTAMP
  *
@@ -31,7 +30,7 @@ public record TcModelDcopItem(
         String eventId,
         String variableId,
         DcopCollectionRule collectionRule,
-        DcopCalculationRule calculationRule,
+        String calculationRule,
         Integer orderRule,
         OffsetDateTime updatedAt
 ) {
