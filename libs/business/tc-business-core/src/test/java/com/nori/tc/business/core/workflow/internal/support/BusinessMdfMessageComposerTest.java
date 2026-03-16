@@ -9,7 +9,6 @@ import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfMessageDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfOutputType;
-import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfSourceType;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfTargetType;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
@@ -34,52 +33,86 @@ class BusinessMdfMessageComposerTest {
             new BusinessMdfMessageComposer(new BusinessActionDataIndexHybridResolver(new ObjectMapper()));
 
     @Test
-    void shouldComposeEqpMessageUsingMdfAndActionDataIndexOverride() {
+    void shouldComposeRawMessageForEqp() {
+        // MDF: EQP 장비로 전송할 RAW_MESSAGE
         final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
-                "TOOL_CONDITION_REQUEST_EQP",
+                "TOOL_CONDITION_REQUEST",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
-                "CMD=REQ EQPID={EQPID} STATUS={STATUS}",
+                "CMD=TOOL_CONDITION_REQUEST EQPID={EQPID} CARID={CARID}",
                 List.of(
-                        new MdfFieldDefinition("EQPID", "eqpId", MdfSourceType.CTX, List.of(), null, true),
-                        new MdfFieldDefinition("STATUS", "data.status", MdfSourceType.MSG, List.of("upper"), null, true)
+                        new MdfFieldDefinition("EQPID", "EQPID", true),
+                        new MdfFieldDefinition("CARID", "CARID", false)
                 )
         );
 
+        // action_data_index.fields key = var 이름 (EQPID, CARID)
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
                 """
                         {
-                          "mdfTemplateName": "TOOL_CONDITION_REQUEST_EQP",
+                          "mdfTemplateName": "TOOL_CONDITION_REQUEST",
                           "fields": {
-                            "STATUS": {
-                              "from": "data",
-                              "path": "overrideStatus",
-                              "transforms": ["upper"]
-                            }
+                            "EQPID": { "from": "data", "path": "eqpId" },
+                            "CARID": { "from": "data", "path": "carId" }
                           }
                         }
                         """
         );
 
-        final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP)
-                .orElseThrow();
+        final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP).orElseThrow();
 
-        Assertions.assertEquals("CMD=REQ EQPID=EQP-01 STATUS=MANUAL", result.renderedMessage());
+        Assertions.assertEquals("CMD=TOOL_CONDITION_REQUEST EQPID=EQP-01 CARID=CAR-01", result.rawMessage());
         Assertions.assertEquals("EQP-01", result.fieldValues().get("EQPID"));
-        Assertions.assertEquals("MANUAL", result.fieldValues().get("STATUS"));
+        Assertions.assertEquals("CAR-01", result.fieldValues().get("CARID"));
     }
 
     @Test
-    void shouldReturnEmptyWhenActionDataIndexIsEmptyEvenIfMatchingMdfExists() {
+    void shouldComposeKafkaDataBlockForMes() {
+        // MDF: MES로 전송할 KAFKA 메시지 (template 없음)
         final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
-                "REQ_A_EQP",
+                "TOOL_CONDITION_REPLY",
+                MdfTargetType.MES,
+                MdfOutputType.KAFKA,
+                null,
+                List.of(
+                        new MdfFieldDefinition("EQPID", "EQPID", true),
+                        new MdfFieldDefinition("STATUS", "STATUS", true),
+                        new MdfFieldDefinition("CARID", "CARID", false)
+                )
+        );
+
+        // action_data_index.fields key = var 이름 (EQPID, STATUS, CARID)
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
+                """
+                        {
+                          "mdfTemplateName": "TOOL_CONDITION_REPLY",
+                          "fields": {
+                            "EQPID": { "from": "data", "path": "eqpId" },
+                            "STATUS": { "from": "data", "path": "status" }
+                          }
+                        }
+                        """
+        );
+
+        final MdfComposeResult result = composer.compose(context, MdfTargetType.MES).orElseThrow();
+
+        final Map<String, Object> dataBlock = result.kafkaDataBlock();
+        Assertions.assertEquals("EQP-01", dataBlock.get("EQPID"));
+        Assertions.assertEquals("READY", dataBlock.get("STATUS"));
+        // optional field CARID는 action_data_index에 없으면 빈 문자열
+        Assertions.assertEquals("", dataBlock.get("CARID"));
+    }
+
+    @Test
+    void shouldReturnEmptyWhenActionDataIndexIsNull() {
+        final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
+                "TOOL_CONDITION_REQUEST",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
-                "A={A}",
-                List.of(new MdfFieldDefinition("A", "a", MdfSourceType.MSG, List.of(), null, false))
+                "CMD=REQ EQPID={EQPID}",
+                List.of(new MdfFieldDefinition("EQPID", "EQPID", false))
         );
 
         final BusinessWorkflowActionContext context = createContext(
@@ -91,16 +124,16 @@ class BusinessMdfMessageComposerTest {
     }
 
     @Test
-    void shouldFailExplicitlyWhenTemplateNameIsMissing() {
+    void shouldFailWhenTemplateNameIsMissing() {
         final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
-                "TOOL_CONDITION_REQUEST_EQP",
+                "TOOL_CONDITION_REQUEST",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
                 "EQPID={EQPID}",
                 List.of()
         );
 
+        // action_data_index에 mdfTemplateName 없음
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
                 """
@@ -119,13 +152,12 @@ class BusinessMdfMessageComposerTest {
     }
 
     @Test
-    void shouldFailWhenTemplateTargetDoesNotMatchRequestedTarget() {
+    void shouldFailWhenTargetDoesNotMatchRequested() {
         final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
-                "TOOL_CONDITION_REPLY_MES",
+                "TOOL_CONDITION_REPLY",
                 MdfTargetType.MES,
-                MdfOutputType.DATA,
-                "PUBLISH_MES_COMMAND",
-                "EVENT={EVENT_TYPE}",
+                MdfOutputType.KAFKA,
+                null,
                 List.of()
         );
 
@@ -133,7 +165,35 @@ class BusinessMdfMessageComposerTest {
                 new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
                 """
                         {
-                          "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
+                          "mdfTemplateName": "TOOL_CONDITION_REPLY",
+                          "fields": {}
+                        }
+                        """
+        );
+
+        // MES 메시지를 EQP로 요청하면 예외
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> composer.compose(context, MdfTargetType.EQP)
+        );
+    }
+
+    @Test
+    void shouldFailWhenRequiredFieldIsMissingInActionDataIndex() {
+        final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
+                "TOOL_CONDITION_REQUEST",
+                MdfTargetType.EQP,
+                MdfOutputType.RAW_MESSAGE,
+                "CMD=REQ EQPID={EQPID}",
+                List.of(new MdfFieldDefinition("EQPID", "EQPID", true))
+        );
+
+        // action_data_index.fields에 EQPID(var 이름) 없음
+        final BusinessWorkflowActionContext context = createContext(
+                new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
+                """
+                        {
+                          "mdfTemplateName": "TOOL_CONDITION_REQUEST",
                           "fields": {}
                         }
                         """
@@ -146,34 +206,32 @@ class BusinessMdfMessageComposerTest {
     }
 
     @Test
-    void shouldResolveMetadataAndFixedMdfFieldFallbackWhenNoActionOverrideExists() {
+    void shouldUseVarAsLookupKeyWhenVarDiffersFromName() {
+        // field name="EQPID", var="equipmentId" 이면
+        // action_data_index.fields["equipmentId"] 값을 {EQPID} 자리에 채웁니다.
         final MdfMessageDefinition messageDefinition = new MdfMessageDefinition(
-                "TOOL_METADATA_REPLY_EQP",
+                "TOOL_CONDITION_REQUEST",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
-                "EVENT={EVENT_TYPE} FIXED={FIXED_VALUE}",
-                List.of(
-                        new MdfFieldDefinition("EVENT_TYPE", "metadata.eventType", MdfSourceType.MSG, List.of(), null, true),
-                        new MdfFieldDefinition("FIXED_VALUE", null, MdfSourceType.AUTO, List.of(), "CONST", true)
-                )
+                "CMD=REQ EQPID={EQPID}",
+                List.of(new MdfFieldDefinition("EQPID", "equipmentId", true))
         );
 
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(messageDefinition.name(), messageDefinition)),
                 """
                         {
-                          "mdfTemplateName": "TOOL_METADATA_REPLY_EQP",
-                          "fields": {}
+                          "mdfTemplateName": "TOOL_CONDITION_REQUEST",
+                          "fields": {
+                            "equipmentId": { "from": "data", "path": "eqpId" }
+                          }
                         }
                         """
         );
 
         final MdfComposeResult result = composer.compose(context, MdfTargetType.EQP).orElseThrow();
-
-        Assertions.assertEquals("EVENT=EQP_CONDITION_CHECK FIXED=CONST", result.renderedMessage());
-        Assertions.assertEquals("EQP_CONDITION_CHECK", result.fieldValues().get("EVENT_TYPE"));
-        Assertions.assertEquals("CONST", result.fieldValues().get("FIXED_VALUE"));
+        // equipmentId로 lookup → EQP-01 값이 {EQPID} 자리에 들어갑니다.
+        Assertions.assertEquals("CMD=REQ EQPID=EQP-01", result.rawMessage());
     }
 
     /**
@@ -198,7 +256,9 @@ class BusinessMdfMessageComposerTest {
                             "eventType": "EQP_CONDITION_CHECK"
                           },
                           "data": {
-                            "status": "ready"
+                            "eqpId": "EQP-01",
+                            "carId": "CAR-01",
+                            "status": "READY"
                           }
                         }
                         """
@@ -245,11 +305,9 @@ class BusinessMdfMessageComposerTest {
                 record,
                 Map.of(
                         "metadata", Map.of("eventType", "EQP_CONDITION_CHECK"),
-                        "data", Map.of("status", "ready", "overrideStatus", "manual"),
-                        "a", "1",
-                        "b", "2"
+                        "data", Map.of("eqpId", "EQP-01", "carId", "CAR-01", "status", "READY")
                 ),
-                Map.of("eqpId", "EQP-01")
+                Map.of()
         );
 
         return new BusinessWorkflowActionContext(

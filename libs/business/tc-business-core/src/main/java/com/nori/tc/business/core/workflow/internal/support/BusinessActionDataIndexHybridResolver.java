@@ -3,8 +3,6 @@ package com.nori.tc.business.core.workflow.internal.support;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
-import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
-import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfSourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -87,30 +85,6 @@ public class BusinessActionDataIndexHybridResolver {
 
         final Object value = resolveActionDataIndexValue(valueSpec, context);
         return resolveTextValue(fieldName, value, valueSpec.transforms(), false, context);
-    }
-
-    /**
-     * MDF field fallback 규칙을 적용해 문자열 값을 반환합니다.
-     *
-     * <p>새 공개 계약은 아니지만, 기존 MDF XML의 {@code source}/{@code fixed}/{@code required} 규칙은
-     * action_data_index override가 없는 경우에만 fallback으로 유지합니다.</p>
-     */
-    String resolveMdfFieldValue(
-            final String fieldName,
-            final MdfFieldDefinition fieldDefinition,
-            final BusinessWorkflowActionContext context
-    ) {
-        Objects.requireNonNull(fieldDefinition, "fieldDefinition is null");
-        Objects.requireNonNull(context, "context is null");
-
-        final Object value = resolveMdfFieldValue(fieldDefinition, context);
-        return resolveTextValue(
-                fieldName,
-                value,
-                parseCompactTransforms(fieldDefinition.xformChain()),
-                fieldDefinition.required(),
-                context
-        );
     }
 
     /**
@@ -210,21 +184,6 @@ public class BusinessActionDataIndexHybridResolver {
     }
 
     /**
-     * MDF xform 문자열 체인을 transform spec 목록으로 변환합니다.
-     */
-    static List<TransformSpec> parseCompactTransforms(final List<String> transformChain) {
-        if (transformChain == null || transformChain.isEmpty()) {
-            return List.of();
-        }
-
-        final List<TransformSpec> transforms = new ArrayList<>();
-        for (String transform : transformChain) {
-            transforms.add(TransformSpec.fromCompactText(transform));
-        }
-        return List.copyOf(transforms);
-    }
-
-    /**
      * lookup source/path 기준으로 변수 값을 조회합니다.
      */
     private static Object resolveActionDataIndexValue(
@@ -237,39 +196,6 @@ public class BusinessActionDataIndexHybridResolver {
         }
 
         return lookupPayloadBlock(context.messageVariables(), valueSpec.lookupSourceType().rootKey(), path);
-    }
-
-    /**
-     * MDF field 정의의 source/fixed 규칙으로 값을 조회합니다.
-     */
-    private static Object resolveMdfFieldValue(
-            final MdfFieldDefinition fieldDefinition,
-            final BusinessWorkflowActionContext context
-    ) {
-        if (fieldDefinition.fixedValue() != null) {
-            return fieldDefinition.fixedValue();
-        }
-
-        final String path = normalize(fieldDefinition.variablePath());
-        if (path == null) {
-            return null;
-        }
-
-        final MdfSourceType sourceType = fieldDefinition.sourceType() == null
-                ? MdfSourceType.AUTO
-                : fieldDefinition.sourceType();
-
-        return switch (sourceType) {
-            case MSG -> lookupPath(context.messageVariables(), path);
-            case CTX -> lookupPath(context.contextVariables(), path);
-            case AUTO -> {
-                final Object fromMessage = lookupPath(context.messageVariables(), path);
-                if (fromMessage != null) {
-                    yield fromMessage;
-                }
-                yield lookupPath(context.contextVariables(), path);
-            }
-        };
     }
 
     /**

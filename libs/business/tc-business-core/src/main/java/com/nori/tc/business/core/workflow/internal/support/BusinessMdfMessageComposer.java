@@ -6,22 +6,30 @@ import com.nori.tc.business.core.workflow.internal.support.BusinessActionDataInd
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfMessageDefinition;
+import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfOutputType;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfTargetType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * MDF 정의와 action_data_index를 결합해 최종 메시지를 조립하는 컴포넌트입니다.
+ *
+ * <p>
+ * MDF field의 {@code var}(variablePath)를 key로 action_data_index.fields에서 값을 조회합니다.
+ * output 타입에 따라 직렬화 방식이 결정됩니다.
+ * <ul>
+ *   <li>RAW_MESSAGE: template 문자열에 field 값을 치환해 rawMessage 생성</li>
+ *   <li>KAFKA: field 값을 Map으로 수집해 Kafka data 블록으로 사용</li>
+ * </ul>
+ * </p>
  */
 @Component
 public class BusinessMdfMessageComposer {
@@ -42,11 +50,11 @@ public class BusinessMdfMessageComposer {
     /**
      * 타겟(EQP/MES)에 맞는 MDF 메시지를 조립합니다.
      *
-     * <p>새 정책에서는 {@code action_data_index.mdfTemplateName}이 존재할 때만 MDF 조립을 시도합니다.</p>
+     * <p>{@code action_data_index.mdfTemplateName}이 존재할 때만 MDF 조립을 시도합니다.</p>
      *
-     * @param context 액션 실행 컨텍스트
+     * @param context    액션 실행 컨텍스트
      * @param targetType MDF 타겟 타입
-     * @return MDF 조립 결과({@code action_data_index} 또는 MDF 정의가 없으면 empty)
+     * @return MDF 조립 결과 (action_data_index 또는 MDF 정의가 없으면 empty)
      */
     public Optional<MdfComposeResult> compose(
             final BusinessWorkflowActionContext context,
@@ -78,22 +86,18 @@ public class BusinessMdfMessageComposer {
                 context
         );
 
-        final String renderedMessage = renderTemplate(messageDefinition.template(), resolvedFields);
         if (log.isDebugEnabled()) {
-            log.debug("MDF message composed. eqpId={}, workflowKey={}, actionName={}, mdfMessageName={}, targetType={}, fieldCount={}",
+            log.debug("MDF message composed. eqpId={}, workflowKey={}, actionName={}, mdfMessageName={}, targetType={}, outputType={}, fieldCount={}",
                     context.record().eqpId(),
                     context.workflowEntry().workflowKey(),
                     context.workflowEntry().actionName(),
                     messageDefinition.name(),
                     targetType,
+                    messageDefinition.outputType(),
                     resolvedFields.size());
         }
 
-        return Optional.of(new MdfComposeResult(
-                messageDefinition,
-                renderedMessage,
-                Map.copyOf(resolvedFields)
-        ));
+        return Optional.of(new MdfComposeResult(messageDefinition, resolvedFields));
     }
 
     /**
@@ -128,40 +132,40 @@ public class BusinessMdfMessageComposer {
     }
 
     /**
-     * 메시지 정의와 action_data_index를 합쳐 필드 값을 계산합니다.
+     * MDF field 목록을 기준으로 field 값을 계산합니다.
      *
-     * <p>우선순위는 {@code action_data_index.fields[field]} → MDF {@code <field>} 정의 순서입니다.</p>
+     * <p>
+     * 각 field의 {@code var}(variablePath)를 key로 action_data_index.fields에서 ValueSpec을 조회합니다.
+     * ValueSpec이 없고 field가 required이면 예외를 발생시킵니다.
+     * </p>
      */
     private Map<String, String> resolveFieldValues(
             final MdfMessageDefinition messageDefinition,
             final ParsedActionDataIndex parsedActionDataIndex,
             final BusinessWorkflowActionContext context
     ) {
-        final Set<String> fieldNames = new LinkedHashSet<>();
-        fieldNames.addAll(extractTemplatePlaceholders(messageDefinition.template()));
-        for (MdfFieldDefinition fieldDefinition : messageDefinition.fields()) {
-            fieldNames.add(fieldDefinition.name());
-        }
-        fieldNames.addAll(parsedActionDataIndex.fields().keySet());
-
         final Map<String, String> resolved = new LinkedHashMap<>();
-        for (String fieldName : fieldNames) {
-            final ValueSpec overrideSpec = parsedActionDataIndex.fields().get(fieldName);
-            if (overrideSpec != null) {
-                resolved.put(fieldName, actionDataIndexResolver.resolveFieldValue(fieldName, overrideSpec, context));
-                continue;
-            }
-
-            final Optional<MdfFieldDefinition> fieldDefinition = messageDefinition.findField(fieldName);
-            if (fieldDefinition.isPresent()) {
-                resolved.put(
-                        fieldName,
-                        actionDataIndexResolver.resolveMdfFieldValue(fieldName, fieldDefinition.orElseThrow(), context)
+        for (MdfFieldDefinition field : messageDefinition.fields()) {
+            // field.variablePath() (var)를 key로 action_data_index.fields에서 값을 조회합니다.
+            final ValueSpec spec = parsedActionDataIndex.fields().get(field.variablePath());
+            if (spec != null) {
+                resolved.put(field.name(), actionDataIndexResolver.resolveFieldValue(field.name(), spec, context));
+            } else if (field.required()) {
+                throw new IllegalArgumentException(
+                        "Required MDF field value is missing in action_data_index. "
+                                + "message=" + messageDefinition.name()
+                                + ", field=" + field.name()
+                                + ", var=" + field.variablePath()
                 );
-                continue;
+            } else {
+                log.warn("MDF field value is missing and replaced with empty string. "
+                                + "message={}, field={}, var={}, workflowKey={}",
+                        messageDefinition.name(),
+                        field.name(),
+                        field.variablePath(),
+                        context.workflowEntry().workflowKey());
+                resolved.put(field.name(), "");
             }
-
-            resolved.put(fieldName, "");
         }
         return resolved;
     }
@@ -182,47 +186,51 @@ public class BusinessMdfMessageComposer {
     }
 
     /**
-     * 템플릿의 필드명을 추출합니다.
-     */
-    private static Set<String> extractTemplatePlaceholders(final String template) {
-        final Set<String> fieldNames = new LinkedHashSet<>();
-        final Matcher matcher = TEMPLATE_FIELD_PATTERN.matcher(template);
-        while (matcher.find()) {
-            final String fieldName = matcher.group(1);
-            if (fieldName != null && !fieldName.isBlank()) {
-                fieldNames.add(fieldName.trim());
-            }
-        }
-        return fieldNames;
-    }
-
-    /**
      * MDF 조립 결과 모델입니다.
+     *
+     * <p>
+     * output이 RAW_MESSAGE이면 {@link #rawMessage()}로 조립된 문자열을 반환합니다.
+     * output이 KAFKA이면 {@link #kafkaDataBlock()}으로 Kafka data 블록 Map을 반환합니다.
+     * </p>
      */
     public record MdfComposeResult(
             MdfMessageDefinition messageDefinition,
-            String renderedMessage,
             Map<String, String> fieldValues
     ) {
 
         public MdfComposeResult {
             Objects.requireNonNull(messageDefinition, "messageDefinition is null");
-            if (renderedMessage == null || renderedMessage.isBlank()) {
-                throw new IllegalArgumentException("renderedMessage is required");
-            }
             fieldValues = fieldValues == null ? Map.of() : Map.copyOf(fieldValues);
         }
 
         /**
-         * MES publish용 data 맵을 반환합니다.
+         * RAW_MESSAGE output용 조립 문자열을 반환합니다.
+         *
+         * @throws IllegalStateException output이 RAW_MESSAGE가 아닌 경우
          */
-        public Map<String, Object> toMesData() {
-            final Map<String, Object> data = new LinkedHashMap<>();
-            data.put("mdfMessageName", messageDefinition.name());
-            data.put("mdfTarget", messageDefinition.targetType().name());
-            data.put("mdfRenderedMessage", renderedMessage);
-            data.putAll(fieldValues);
-            return Map.copyOf(data);
+        public String rawMessage() {
+            if (messageDefinition.outputType() != MdfOutputType.RAW_MESSAGE) {
+                throw new IllegalStateException(
+                        "rawMessage() is only valid for RAW_MESSAGE output. actual=" + messageDefinition.outputType()
+                );
+            }
+            return renderTemplate(messageDefinition.template(), fieldValues);
+        }
+
+        /**
+         * KAFKA output용 data 블록 Map을 반환합니다.
+         *
+         * <p>이 Map은 Kafka 메시지의 {@code data} 블록에 그대로 사용됩니다.</p>
+         *
+         * @throws IllegalStateException output이 KAFKA가 아닌 경우
+         */
+        public Map<String, Object> kafkaDataBlock() {
+            if (messageDefinition.outputType() != MdfOutputType.KAFKA) {
+                throw new IllegalStateException(
+                        "kafkaDataBlock() is only valid for KAFKA output. actual=" + messageDefinition.outputType()
+                );
+            }
+            return Map.copyOf(fieldValues);
         }
     }
 }

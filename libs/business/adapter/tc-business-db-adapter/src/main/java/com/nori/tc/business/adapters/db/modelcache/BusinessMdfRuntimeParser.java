@@ -4,7 +4,6 @@ import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfMessageDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfOutputType;
-import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfSourceType;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfTargetType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +32,14 @@ import java.util.regex.Pattern;
  * DB의 MDF(byte[])를 런타임 메시지 정의로 파싱/검증하는 컴포넌트입니다.
  *
  * <p>
+ * MDF는 메시지 구조와 field 목록만 선언합니다.
+ * source/xform/action 등 workflow-specific 정보는 MDF에 포함되지 않습니다.
+ * </p>
+ *
+ * <p>
  * 지원 포맷:
- * 1) 명시적 포맷: {@code <message name="..." target="EQP|MES" ...>}
- * 2) 축약 포맷: {@code <TOOL_CONDITION_REQUEST_EQP>...</TOOL_CONDITION_REQUEST_EQP>}
+ * 1) 명시적 포맷: {@code <message name="..." target="EQP|MES" output="RAW_MESSAGE|KAFKA">}
+ * 2) 축약 포맷: {@code <TOOL_CONDITION_REQUEST_EQP>...</TOOL_CONDITION_REQUEST_EQP>} (이름에서 target 추론)
  * </p>
  */
 @Component
@@ -49,8 +53,8 @@ public class BusinessMdfRuntimeParser {
      * MDF 바이너리를 UTF-8 XML로 파싱합니다.
      *
      * @param modelVersionKey 모델 버전 키(로그/예외 식별용)
-     * @param mdfName MDF 이름
-     * @param mdfBytes MDF 원본 바이너리
+     * @param mdfName         MDF 이름
+     * @param mdfBytes        MDF 원본 바이너리
      * @return 런타임 MDF 정의
      */
     public MdfRuntimeDefinition parse(long modelVersionKey, String mdfName, byte[] mdfBytes) {
@@ -137,7 +141,12 @@ public class BusinessMdfRuntimeParser {
     }
 
     /**
-     * 명시적 포맷({@code <message ...>})을 파싱합니다.
+     * 명시적 포맷({@code <message name="..." target="..." output="...">})을 파싱합니다.
+     *
+     * <p>
+     * output이 RAW_MESSAGE이면 template이 필수입니다.
+     * output이 KAFKA이면 template 없이 field 목록만 정의합니다.
+     * </p>
      */
     private MdfMessageDefinition parseExplicitMessage(Element element) {
         final String name = requiredAttribute(element, "name");
@@ -149,10 +158,8 @@ public class BusinessMdfRuntimeParser {
         final MdfOutputType outputType = MdfOutputType.fromText(attribute(element, "output"))
                 .orElse(defaultOutputType(targetType));
 
-        final String actionName = normalize(attribute(element, "action"));
-        final String resolvedActionName = actionName == null ? defaultActionName(targetType) : actionName;
-
-        final String template = resolveTemplate(element, name);
+        // RAW_MESSAGE는 template 필수, KAFKA는 template 불필요
+        final String template = resolveTemplate(element, outputType);
 
         final List<MdfFieldDefinition> fieldDefinitions = new ArrayList<>();
         final NodeList fieldNodes = element.getElementsByTagName("field");
@@ -163,11 +170,13 @@ public class BusinessMdfRuntimeParser {
         }
 
         final List<MdfFieldDefinition> normalizedFields = normalizeFields(name, template, fieldDefinitions);
-        return new MdfMessageDefinition(name, targetType, outputType, resolvedActionName, template, normalizedFields);
+        return new MdfMessageDefinition(name, targetType, outputType, template, normalizedFields);
     }
 
     /**
      * 축약 포맷({@code <XXX_EQP>...</XXX_EQP>})을 파싱합니다.
+     *
+     * <p>축약 포맷은 이름 suffix(_EQP/_MES)로 target을 추론하며, 항상 RAW_MESSAGE output을 사용합니다.</p>
      */
     private MdfMessageDefinition parseShorthandMessage(Element element) {
         final String name = normalize(element.getTagName());
@@ -186,20 +195,15 @@ public class BusinessMdfRuntimeParser {
         }
 
         final List<MdfFieldDefinition> fields = normalizeFields(name, template, List.of());
-        return new MdfMessageDefinition(
-                name,
-                targetType,
-                defaultOutputType(targetType),
-                defaultActionName(targetType),
-                template,
-                fields
-        );
+        return new MdfMessageDefinition(name, targetType, MdfOutputType.RAW_MESSAGE, template, fields);
     }
 
     /**
      * 메시지 템플릿 본문을 조회합니다.
+     *
+     * <p>output이 KAFKA이면 template이 없어도 됩니다(null 반환). RAW_MESSAGE이면 필수입니다.</p>
      */
-    private String resolveTemplate(Element messageElement, String messageName) {
+    private String resolveTemplate(Element messageElement, MdfOutputType outputType) {
         final NodeList templateNodes = messageElement.getElementsByTagName("template");
         if (templateNodes.getLength() > 0 && templateNodes.item(0) != null) {
             final String templateText = normalize(templateNodes.item(0).getTextContent());
@@ -212,28 +216,31 @@ public class BusinessMdfRuntimeParser {
         if (fallback != null) {
             return fallback;
         }
-        throw new IllegalArgumentException("template is required. message=" + messageName);
+
+        // KAFKA output은 template 없이 field 목록만으로 직렬화하므로 null 반환
+        // RAW_MESSAGE는 MdfMessageDefinition 생성자에서 필수 검증
+        return null;
     }
 
     /**
      * 필드 노드를 파싱합니다.
+     *
+     * <p>
+     * {@code name}은 template의 치환 위치 식별자이고,
+     * {@code var}는 action_data_index에서 값을 가져올 lookup key 이름입니다.
+     * </p>
      */
     private MdfFieldDefinition parseField(Element fieldElement, String messageName) {
         final String fieldName = requiredAttribute(fieldElement, "name");
-        final String variablePath = normalize(attribute(fieldElement, "var"));
-        final String fixedValue = normalize(attribute(fieldElement, "fixed"));
 
-        final MdfSourceType sourceType = MdfSourceType.fromTextOrDefault(
-                attribute(fieldElement, "source"),
-                MdfSourceType.AUTO
-        );
+        // var가 없으면 name과 동일한 이름으로 action_data_index를 lookup합니다.
+        final String varAttr = normalize(attribute(fieldElement, "var"));
+        final String variablePath = varAttr != null ? varAttr : fieldName;
 
         final boolean required = parseBoolean(attribute(fieldElement, "required"), true);
 
-        final List<String> xforms = parseXforms(fieldElement);
-
         try {
-            return new MdfFieldDefinition(fieldName, variablePath, sourceType, xforms, fixedValue, required);
+            return new MdfFieldDefinition(fieldName, variablePath, required);
         } catch (RuntimeException ex) {
             throw new IllegalArgumentException(
                     "Invalid field definition. message=" + messageName + ", field=" + fieldName,
@@ -244,13 +251,17 @@ public class BusinessMdfRuntimeParser {
 
     /**
      * 템플릿 플레이스홀더를 기준으로 필드 정의를 정규화합니다.
+     *
+     * <p>
+     * template이 null(KAFKA output)이면 explicit fields만 사용합니다.
+     * template이 있으면 플레이스홀더 중 explicit fields에 없는 항목을 var=name으로 자동 보강합니다.
+     * </p>
      */
     private List<MdfFieldDefinition> normalizeFields(
             String messageName,
             String template,
             List<MdfFieldDefinition> explicitFields
     ) {
-        final Set<String> placeholderNames = extractTemplatePlaceholders(template);
         final Map<String, MdfFieldDefinition> byName = new LinkedHashMap<>();
 
         for (MdfFieldDefinition field : explicitFields) {
@@ -261,19 +272,14 @@ public class BusinessMdfRuntimeParser {
             }
         }
 
-        // 템플릿에만 존재하는 필드는 AUTO + required=false 기본 정책으로 자동 보강합니다.
-        for (String placeholder : placeholderNames) {
-            byName.computeIfAbsent(
-                    placeholder,
-                    ignored -> new MdfFieldDefinition(
-                            placeholder,
-                            placeholder,
-                            MdfSourceType.AUTO,
-                            List.of(),
-                            null,
-                            false
-                    )
-            );
+        // 템플릿 플레이스홀더 중 explicit fields에 없는 항목은 var=name으로 자동 보강합니다.
+        if (template != null) {
+            for (String placeholder : extractTemplatePlaceholders(template)) {
+                byName.computeIfAbsent(
+                        placeholder,
+                        ignored -> new MdfFieldDefinition(placeholder, placeholder, false)
+                );
+            }
         }
 
         return List.copyOf(byName.values());
@@ -295,36 +301,6 @@ public class BusinessMdfRuntimeParser {
     }
 
     /**
-     * field 노드의 xform 체인을 파싱합니다.
-     */
-    private List<String> parseXforms(Element fieldElement) {
-        final List<String> xforms = new ArrayList<>();
-
-        final String attributeXform = normalize(attribute(fieldElement, "xform"));
-        if (attributeXform != null) {
-            for (String token : attributeXform.split(",")) {
-                final String normalized = normalize(token);
-                if (normalized != null) {
-                    xforms.add(normalized);
-                }
-            }
-        }
-
-        final NodeList xformNodes = fieldElement.getElementsByTagName("xform");
-        for (int i = 0; i < xformNodes.getLength(); i++) {
-            if (!(xformNodes.item(i) instanceof Element xformElement)) {
-                continue;
-            }
-            final String text = normalize(xformElement.getTextContent());
-            if (text != null) {
-                xforms.add(text);
-            }
-        }
-
-        return List.copyOf(xforms);
-    }
-
-    /**
      * 메시지 이름 suffix를 기반으로 target 타입을 추론합니다.
      */
     private static Optional<MdfTargetType> inferTargetFromName(String messageName) {
@@ -342,22 +318,12 @@ public class BusinessMdfRuntimeParser {
     }
 
     /**
-     * target별 기본 액션명을 반환합니다.
-     */
-    private static String defaultActionName(MdfTargetType targetType) {
-        return switch (targetType) {
-            case EQP -> "PUBLISH_EQP_COMMAND";
-            case MES -> "PUBLISH_MES_COMMAND";
-        };
-    }
-
-    /**
      * target별 기본 output 타입을 반환합니다.
      */
     private static MdfOutputType defaultOutputType(MdfTargetType targetType) {
         return switch (targetType) {
             case EQP -> MdfOutputType.RAW_MESSAGE;
-            case MES -> MdfOutputType.DATA;
+            case MES -> MdfOutputType.KAFKA;
         };
     }
 

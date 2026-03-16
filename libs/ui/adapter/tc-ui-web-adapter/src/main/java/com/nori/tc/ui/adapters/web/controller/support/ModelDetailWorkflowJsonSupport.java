@@ -148,11 +148,11 @@ public final class ModelDetailWorkflowJsonSupport {
                 "action_data_index 루트에는 mdfTemplateName, fields만 허용됩니다."
         );
 
-        final String mdfTemplateName = requiredText(
-                root,
-                "mdfTemplateName",
-                "action_data_index의 mdfTemplateName은 필수입니다."
-        );
+        // mdfTemplateName은 선택 값입니다. 없거나 공백이면 null로 처리합니다.
+        final JsonNode mdfTemplateNameNode = root.path("mdfTemplateName");
+        final String mdfTemplateName = (!mdfTemplateNameNode.isMissingNode() && !mdfTemplateNameNode.isNull())
+                ? normalizeOptionalText(mdfTemplateNameNode.asText())
+                : null;
         final JsonNode fieldsNode = requiredNode(
                 root,
                 "fields",
