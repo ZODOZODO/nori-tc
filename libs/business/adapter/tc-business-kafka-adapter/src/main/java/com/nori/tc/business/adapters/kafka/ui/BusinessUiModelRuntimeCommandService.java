@@ -3,6 +3,7 @@ package com.nori.tc.business.adapters.kafka.ui;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nori.tc.business.core.logging.BusinessLogContext;
+import com.nori.tc.business.core.modelcache.BusinessModelParamMutationPort;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.core.workflow.api.plugin.BusinessWorkflowPluginRuntimeMutationPort;
@@ -18,12 +19,25 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * UI 이벤트를 기반으로 model runtime 캐시를 제어하는 서비스입니다.
+ * UI 이벤트를 기반으로 model runtime 캐시와 model/eqp param 캐시를 제어하는 서비스입니다.
  *
  * <p>지원 시나리오:</p>
- * <p>1) EQP_CREATE / EQP_UPDATE: eqpId -> modelVersionKey 바인딩 갱신</p>
- * <p>2) EQP_UPDATE_JARFILE: model runtime 리로드 + workflow plugin runtime 리로드</p>
+ * <p>1) EQP_CREATE / EQP_UPDATE: eqpId -> modelVersionKey 바인딩 갱신 + model/eqp param 캐시 갱신</p>
+ * <p>2) EQP_UPDATE_JARFILE: model runtime 리로드 + model param 캐시 갱신 + workflow plugin runtime 리로드</p>
  * <p>3) EQP_DELETE: eqpId 바인딩 제거 + workflow plugin runtime 제거</p>
+ *
+ * <p>파라미터 캐시 갱신 정책:</p>
+ * <ul>
+ *   <li>EQP_CREATE / EQP_UPDATE: model runtime 바인딩 갱신 이후 model params와 eqp params를 모두 갱신합니다.
+ *       model params는 modelVersionKey 기준으로, eqp params는 DB의 현재 appliedParamVersion 기준으로 갱신합니다.</li>
+ *   <li>EQP_UPDATE_JARFILE: 새 JAR 반영 후 model runtime을 갱신하면서 model params도 함께 갱신합니다.
+ *       JAR 업데이트 시 model param이 변경될 수 있기 때문입니다.</li>
+ *   <li>EQP_DELETE: 파라미터 캐시를 명시적으로 정리하지 않습니다.
+ *       eqpKeyBindings에서 제거된 eqpId는 이후 param 조회 시 WARN 후 empty를 반환하므로 안전합니다.</li>
+ * </ul>
+ *
+ * <p>파라미터 캐시 갱신 실패는 model runtime 갱신 실패와 독립적으로 처리됩니다.
+ * runtime 바인딩이 성공하면 PASS를 반환하되, param 갱신 실패는 별도 FAIL로 응답합니다.</p>
  */
 @Service
 public class BusinessUiModelRuntimeCommandService {
@@ -40,6 +54,7 @@ public class BusinessUiModelRuntimeCommandService {
             Pattern.compile("(?i)\\b(?:modelVersionKey|modelKey)\\s*=\\s*([0-9]+)\\b");
 
     private final BusinessModelRuntimeMutationPort runtimeMutationPort;
+    private final BusinessModelParamMutationPort paramMutationPort;
     private final BusinessWorkflowPluginRuntimeMutationPort pluginRuntimeMutationPort;
     private final ObjectMapper objectMapper;
 
@@ -48,10 +63,12 @@ public class BusinessUiModelRuntimeCommandService {
      */
     public BusinessUiModelRuntimeCommandService(
             final BusinessModelRuntimeMutationPort runtimeMutationPort,
+            final BusinessModelParamMutationPort paramMutationPort,
             final BusinessWorkflowPluginRuntimeMutationPort pluginRuntimeMutationPort,
             final ObjectMapper objectMapper
     ) {
         this.runtimeMutationPort = Objects.requireNonNull(runtimeMutationPort, "runtimeMutationPort is null");
+        this.paramMutationPort = Objects.requireNonNull(paramMutationPort, "paramMutationPort is null");
         this.pluginRuntimeMutationPort = Objects.requireNonNull(pluginRuntimeMutationPort, "pluginRuntimeMutationPort is null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper is null");
     }
@@ -59,7 +76,18 @@ public class BusinessUiModelRuntimeCommandService {
     /**
      * EQP_CREATE / EQP_UPDATE 이벤트를 처리합니다.
      *
-     * <p>uiMessage에서 modelVersionKey를 추출하여 eqp 바인딩을 갱신합니다.</p>
+     * <p>처리 순서:
+     * <ol>
+     *   <li>uiMessage에서 modelVersionKey를 추출하여 eqp 바인딩(runtime)을 갱신합니다.</li>
+     *   <li>갱신된 eqpKey 기준으로 model params 캐시를 갱신합니다.
+     *       새 modelVersionKey로 바인딩되면 해당 모델의 param도 최신화가 필요합니다.</li>
+     *   <li>갱신된 eqpKey 기준으로 eqp params 캐시를 갱신합니다.
+     *       설비 설정 변경(appliedParamVersion 등)이 있을 수 있습니다.</li>
+     * </ol>
+     * </p>
+     *
+     * <p>runtime 바인딩 실패 시 param 갱신도 중단합니다.
+     * model param 갱신 실패 시 eqp param 갱신도 중단합니다.</p>
      */
     public KafkaTaskResult handleEqpCreateOrUpdate(final KafkaUiTaskMessage request) {
         final String eqpId = normalize(request.data().eqpId());
@@ -81,6 +109,7 @@ public class BusinessUiModelRuntimeCommandService {
                 );
             }
 
+            // 1. eqpId-modelVersionKey 바인딩 갱신 (model runtime 캐시 포함)
             try {
                 runtimeMutationPort.updateEqpBinding(eqpId, modelVersionKey);
             } catch (Exception ex) {
@@ -92,10 +121,43 @@ public class BusinessUiModelRuntimeCommandService {
                 );
             }
 
+            // 2. model param 캐시 갱신
+            // eqpId가 새 modelVersionKey에 바인딩되었으므로 해당 모델의 param을 최신화합니다.
+            try {
+                paramMutationPort.reloadModelParams(modelVersionKey);
+            } catch (Exception ex) {
+                log.error("UI {} failed during model param reload. eqpId={}, traceId={}, modelVersionKey={}",
+                        eventType, eqpId, traceId, modelVersionKey, ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_PARAM_RELOAD_FAILED,
+                        "model 파라미터 캐시 갱신에 실패했습니다."
+                );
+            }
+
+            // 3. eqp param 캐시 갱신
+            // 설비의 appliedParamVersion이 변경되었을 수 있으므로 eqp param을 최신화합니다.
+            final Optional<Long> eqpKey = runtimeMutationPort.findEqpKeyByEqpId(eqpId);
+            if (eqpKey.isPresent()) {
+                try {
+                    paramMutationPort.reloadEqpParams(eqpKey.get());
+                } catch (Exception ex) {
+                    log.error("UI {} failed during eqp param reload. eqpId={}, traceId={}, eqpKey={}",
+                            eventType, eqpId, traceId, eqpKey.get(), ex);
+                    return KafkaTaskResult.fail(
+                            BusinessUiTaskErrorCode.EQP_PARAM_RELOAD_FAILED,
+                            "eqp 파라미터 캐시 갱신에 실패했습니다."
+                    );
+                }
+            } else {
+                // eqpKeyBindings에 없으면 runtime 적재 직후임에도 eqpKey를 못 찾은 것 → WARN만 남기고 계속
+                log.warn("UI {} eqp param reload skipped: eqpKey not found after binding update. eqpId={}, traceId={}",
+                        eventType, eqpId, traceId);
+            }
+
             log.info("UI {} success. eqpId={}, traceId={}, modelVersionKey={}",
                     eventType, eqpId, traceId, modelVersionKey);
             if (log.isDebugEnabled()) {
-                log.debug("UI {} binding update detail. eqpId={}, modelVersionKey={}",
+                log.debug("UI {} binding and param update detail. eqpId={}, modelVersionKey={}",
                         eventType, eqpId, modelVersionKey);
             }
             return KafkaTaskResult.pass();
@@ -105,7 +167,16 @@ public class BusinessUiModelRuntimeCommandService {
     /**
      * EQP_UPDATE_JARFILE 이벤트를 처리합니다.
      *
-     * <p>우선순위:</p>
+     * <p>처리 순서:
+     * <ol>
+     *   <li>uiMessage의 modelVersionKey 또는 기존 바인딩에서 modelVersionKey를 확인합니다.</li>
+     *   <li>model runtime 캐시를 리로드합니다 (새 JAR의 워크플로우 정의 반영).</li>
+     *   <li>model param 캐시를 갱신합니다 (새 JAR에 따라 model param이 변경될 수 있음).</li>
+     *   <li>workflow plugin runtime을 리로드합니다.</li>
+     * </ol>
+     * </p>
+     *
+     * <p>modelVersionKey 결정 우선순위:</p>
      * <p>1) uiMessage의 modelVersionKey</p>
      * <p>2) eqpId 바인딩에 저장된 modelVersionKey</p>
      */
@@ -132,6 +203,7 @@ public class BusinessUiModelRuntimeCommandService {
                 );
             }
 
+            // 1. model runtime 캐시 리로드 (새 JAR의 워크플로우 정의 반영)
             try {
                 runtimeMutationPort.reloadModelRuntime(modelVersionKey);
             } catch (Exception ex) {
@@ -143,6 +215,20 @@ public class BusinessUiModelRuntimeCommandService {
                 );
             }
 
+            // 2. model param 캐시 갱신
+            // 새 JAR 반영 시 model param이 변경될 수 있으므로 함께 갱신합니다.
+            try {
+                paramMutationPort.reloadModelParams(modelVersionKey);
+            } catch (Exception ex) {
+                log.error("UI EQP_UPDATE_JARFILE failed during model param reload. eqpId={}, traceId={}, modelVersionKey={}",
+                        eqpId, traceId, modelVersionKey, ex);
+                return KafkaTaskResult.fail(
+                        BusinessUiTaskErrorCode.MODEL_PARAM_RELOAD_FAILED,
+                        "model 파라미터 캐시 갱신에 실패했습니다."
+                );
+            }
+
+            // 3. workflow plugin runtime 리로드
             try {
                 pluginRuntimeMutationPort.reloadByEqpId(eqpId);
             } catch (Exception ex) {

@@ -46,6 +46,16 @@ public final class BusinessUiTaskErrorCode {
     public static final String WORKFLOW_PLUGIN_REMOVE_FAILED = "WORKFLOW_PLUGIN_REMOVE_FAILED";
 
     /**
+     * model 파라미터 캐시 갱신 처리 중 예외가 발생했습니다.
+     */
+    public static final String MODEL_PARAM_RELOAD_FAILED = "MODEL_PARAM_RELOAD_FAILED";
+
+    /**
+     * eqp 파라미터 캐시 갱신 처리 중 예외가 발생했습니다.
+     */
+    public static final String EQP_PARAM_RELOAD_FAILED = "EQP_PARAM_RELOAD_FAILED";
+
+    /**
      * eqpId 필수값이 누락되었습니다.
      */
     public static final String EQP_ID_REQUIRED = "EQP_ID_REQUIRED";
