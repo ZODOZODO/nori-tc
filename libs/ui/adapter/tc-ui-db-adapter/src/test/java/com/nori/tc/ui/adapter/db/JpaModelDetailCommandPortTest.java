@@ -3,6 +3,7 @@ package com.nori.tc.ui.adapter.db;
 import com.nori.tc.db.core.model.store.TcModelDcopItemStore;
 import com.nori.tc.db.core.model.store.TcModelEventIdStore;
 import com.nori.tc.db.core.model.store.TcModelMdfStore;
+import com.nori.tc.db.core.model.store.TcModelMesMessageStore;
 import com.nori.tc.db.core.model.store.TcModelParamStore;
 import com.nori.tc.db.core.model.store.TcModelReportIdStore;
 import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
@@ -144,6 +145,7 @@ class JpaModelDetailCommandPortTest {
         private final TcModelParamStore modelParamStore = mock(TcModelParamStore.class);
         private final TcModelSecsMessageStore modelSecsMessageStore = mock(TcModelSecsMessageStore.class);
         private final TcModelSocketMessageStore modelSocketMessageStore = mock(TcModelSocketMessageStore.class);
+        private final TcModelMesMessageStore modelMesMessageStore = mock(TcModelMesMessageStore.class);
         private final TcModelVariableIdStore modelVariableIdStore = mock(TcModelVariableIdStore.class);
         private final TcModelReportIdStore modelReportIdStore = mock(TcModelReportIdStore.class);
         private final TcModelEventIdStore modelEventIdStore = mock(TcModelEventIdStore.class);
@@ -155,6 +157,7 @@ class JpaModelDetailCommandPortTest {
                 modelParamStore,
                 modelSecsMessageStore,
                 modelSocketMessageStore,
+                modelMesMessageStore,
                 modelVariableIdStore,
                 modelReportIdStore,
                 modelEventIdStore,

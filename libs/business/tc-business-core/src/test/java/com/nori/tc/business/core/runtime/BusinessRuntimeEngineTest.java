@@ -70,7 +70,8 @@ class BusinessRuntimeEngineTest {
         final TcModelRuntime modelRuntime = createRuntime(900L, ProtocolType.SOCKET);
         final BusinessModelRuntimeProvider runtimeProvider = () -> BusinessModelRuntimeSnapshot.of(
                 Map.of("EQP-TEST-02", 900L),
-                Map.of(900L, modelRuntime)
+                Map.of(900L, modelRuntime),
+                Map.of()
         );
 
         final WorkflowRuntimeEntry matchedWorkflow = new WorkflowRuntimeEntry(
@@ -177,7 +178,8 @@ class BusinessRuntimeEngineTest {
         final TcModelRuntime modelRuntime = createRuntime(901L, ProtocolType.SOCKET);
         final BusinessModelRuntimeProvider runtimeProvider = () -> BusinessModelRuntimeSnapshot.of(
                 Map.of("EQP-TEST-DISP-01", 901L),
-                Map.of(901L, modelRuntime)
+                Map.of(901L, modelRuntime),
+                Map.of()
         );
 
         final WorkflowRuntimeEntry matchedWorkflow = new WorkflowRuntimeEntry(

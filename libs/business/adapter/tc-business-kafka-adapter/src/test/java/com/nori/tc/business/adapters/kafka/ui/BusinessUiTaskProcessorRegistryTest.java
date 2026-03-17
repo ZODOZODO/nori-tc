@@ -1,6 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nori.tc.business.core.modelcache.BusinessModelParamMutationPort;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
@@ -15,10 +16,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * BusinessUiTaskProcessorRegistryTest ?대옒?ㅼ엯?덈떎.
+ * BusinessUiTaskProcessorRegistry 테스트입니다.
  *
- * <p>?대떦 紐⑤뱢?먯꽌 怨듯넻 怨꾩빟怨??숈옉 寃쎄퀎瑜??뺤쓽?섎ŉ,
- * ?몄텧 怨꾩링?먯꽌 ?쇨????ъ슜??媛?ν븯?꾨줉 ?ㅺ퀎?섏뿀?듬땲??</p>
+ * <p>해당 모듈에서 외부 의존성 없이 단위 테스트를 수행하기 위해,
+ * 내부 구현에서 인터페이스를 직접 사용할 수 있도록 작성하였습니다.</p>
  */
 class BusinessUiTaskProcessorRegistryTest {
 
@@ -27,6 +28,7 @@ class BusinessUiTaskProcessorRegistryTest {
         final BusinessUiTaskProcessorRegistry registry = new BusinessUiTaskProcessorRegistry(
                 new BusinessUiModelRuntimeCommandService(
                         new NoopRuntimeMutationPort(),
+                        new NoopParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 )
@@ -60,6 +62,7 @@ class BusinessUiTaskProcessorRegistryTest {
         final BusinessUiTaskProcessorRegistry registry = new BusinessUiTaskProcessorRegistry(
                 new BusinessUiModelRuntimeCommandService(
                         new NoopRuntimeMutationPort(),
+                        new NoopParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 )
@@ -73,6 +76,7 @@ class BusinessUiTaskProcessorRegistryTest {
         final BusinessUiTaskProcessorRegistry registry = new BusinessUiTaskProcessorRegistry(
                 new BusinessUiModelRuntimeCommandService(
                         new NoopRuntimeMutationPort(),
+                        new NoopParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 )
@@ -102,73 +106,54 @@ class BusinessUiTaskProcessorRegistryTest {
     }
 
     /**
-     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
+     * BusinessModelRuntimeMutationPort 테스트용 no-op 구현체입니다.
      */
     private static final class NoopRuntimeMutationPort implements BusinessModelRuntimeMutationPort {
-        /**
-         * reloadAll 湲곕뒫???섑뻾?⑸땲??
-         *
-         */
 
         @Override
         public void reloadAll() {
             // no-op
         }
 
-        /**
-         * reloadModelRuntime 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param modelVersionKey ?낅젰 媛?         */
-
         @Override
         public void reloadModelRuntime(final long modelVersionKey) {
             // no-op
         }
-
-        /**
-         * updateEqpBinding 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param eqpId ?낅젰 媛?         * @param modelVersionKey ?낅젰 媛?         */
 
         @Override
         public void updateEqpBinding(final String eqpId, final long modelVersionKey) {
             // no-op
         }
 
-        /**
-         * removeEqpBinding 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param eqpId ?낅젰 媛?         * @return 泥섎━ 寃곌낵
-         */
         @Override
         public Optional<Long> removeEqpBinding(final String eqpId) {
             return Optional.empty();
         }
 
-        /**
-         * currentSnapshot 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @return 泥섎━ 寃곌낵
-         */
-
         @Override
         public BusinessModelRuntimeSnapshot currentSnapshot() {
-            return BusinessModelRuntimeSnapshot.of(Map.of(), Map.of());
+            return BusinessModelRuntimeSnapshot.of(Map.of(), Map.of(), Map.of());
         }
-
-        /**
-         * findRuntimeByModelVersionKey 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param modelVersionKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
-         */
 
         @Override
         public Optional<TcModelRuntime> findRuntimeByModelVersionKey(final long modelVersionKey) {
             return Optional.empty();
         }
     }
+
+    /**
+     * BusinessModelParamMutationPort 테스트용 no-op 구현체입니다.
+     */
+    private static final class NoopParamMutationPort implements BusinessModelParamMutationPort {
+
+        @Override
+        public void reloadModelParams(final long modelVersionKey) {
+            // no-op
+        }
+
+        @Override
+        public void reloadEqpParams(final long eqpKey) {
+            // no-op
+        }
+    }
 }
-
-
-
-

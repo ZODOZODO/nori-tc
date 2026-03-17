@@ -1,6 +1,7 @@
 package com.nori.tc.business.adapters.kafka.ui;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nori.tc.business.core.modelcache.BusinessModelParamMutationPort;
 import com.nori.tc.business.core.modelcache.BusinessModelRuntimeMutationPort;
 import com.nori.tc.business.core.ui.BusinessUiTaskErrorCode;
 import com.nori.tc.business.domain.modelcache.BusinessModelRuntimeSnapshot;
@@ -19,10 +20,10 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * BusinessUiModelRuntimeCommandServiceTest ?대옒?ㅼ엯?덈떎.
+ * BusinessUiModelRuntimeCommandService 테스트입니다.
  *
- * <p>?대떦 紐⑤뱢?먯꽌 怨듯넻 怨꾩빟怨??숈옉 寃쎄퀎瑜??뺤쓽?섎ŉ,
- * ?몄텧 怨꾩링?먯꽌 ?쇨????ъ슜??媛?ν븯?꾨줉 ?ㅺ퀎?섏뿀?듬땲??</p>
+ * <p>해당 모듈에서 외부 의존성 없이 단위 테스트를 수행하기 위해,
+ * 내부 구현에서 인터페이스를 직접 사용할 수 있도록 작성하였습니다.</p>
  */
 class BusinessUiModelRuntimeCommandServiceTest {
 
@@ -32,6 +33,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 );
@@ -54,6 +56,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 );
@@ -78,6 +81,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 );
@@ -100,6 +104,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         BusinessWorkflowPluginRuntimeMutationPort.noop(),
                         new ObjectMapper()
                 );
@@ -124,6 +129,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         eqpId -> {
                             throw new IllegalStateException("plugin reload failed");
                         },
@@ -151,6 +157,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         pluginPort,
                         new ObjectMapper()
                 );
@@ -175,6 +182,7 @@ class BusinessUiModelRuntimeCommandServiceTest {
         final BusinessUiModelRuntimeCommandService service =
                 new BusinessUiModelRuntimeCommandService(
                         runtimePort,
+                        new FakeParamMutationPort(),
                         pluginPort,
                         new ObjectMapper()
                 );
@@ -213,69 +221,37 @@ class BusinessUiModelRuntimeCommandServiceTest {
     }
 
     /**
-     * UTF-8 ?뺤떇?쇰줈 ?뺣━??二쇱꽍?낅땲??
+     * BusinessModelRuntimeMutationPort 테스트용 fake 구현체입니다.
      */
     private static final class FakeRuntimeMutationPort implements BusinessModelRuntimeMutationPort {
         private final Map<String, Long> bindings = new LinkedHashMap<>();
         private final Set<Long> reloadedModelVersionKeys = new LinkedHashSet<>();
 
-        /**
-         * reloadAll 湲곕뒫???섑뻾?⑸땲??
-         *
-         */
-
         @Override
         public void reloadAll() {
-            // ?뚯뒪???붾툝 援ы쁽?먯꽌??蹂꾨룄 ?숈옉 ?놁씠 臾댁떆?⑸땲??
+            // 테스트 목적상 아무 동작도 하지 않습니다.
         }
-
-        /**
-         * reloadModelRuntime 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param modelVersionKey ?낅젰 媛?         */
 
         @Override
         public void reloadModelRuntime(final long modelVersionKey) {
             reloadedModelVersionKeys.add(modelVersionKey);
         }
 
-        /**
-         * updateEqpBinding 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param eqpId ?낅젰 媛?         * @param modelVersionKey ?낅젰 媛?         */
-
         @Override
         public void updateEqpBinding(final String eqpId, final long modelVersionKey) {
             bindings.put(eqpId, modelVersionKey);
         }
 
-        /**
-         * removeEqpBinding 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param eqpId ?낅젰 媛?         * @return 泥섎━ 寃곌낵
-         */
         @Override
         public Optional<Long> removeEqpBinding(final String eqpId) {
             final Long removed = bindings.remove(eqpId);
             return Optional.ofNullable(removed);
         }
 
-        /**
-         * currentSnapshot 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @return 泥섎━ 寃곌낵
-         */
-
         @Override
         public BusinessModelRuntimeSnapshot currentSnapshot() {
-            return BusinessModelRuntimeSnapshot.of(bindings, Map.of());
+            return BusinessModelRuntimeSnapshot.of(bindings, Map.of(), Map.of());
         }
-
-        /**
-         * findRuntimeByModelVersionKey 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param modelVersionKey ?낅젰 媛?         * @return 泥섎━ 寃곌낵
-         */
 
         @Override
         public Optional<TcModelRuntime> findRuntimeByModelVersionKey(final long modelVersionKey) {
@@ -284,34 +260,39 @@ class BusinessUiModelRuntimeCommandServiceTest {
     }
 
     /**
-     * ?뚮윭洹몄씤 ?고????쒓굅 ?몄텧 ?щ?瑜?寃利앺븯湲??꾪븳 ?뚯뒪???붾툝?낅땲??
+     * BusinessModelParamMutationPort 테스트용 no-op 구현체입니다.
+     */
+    private static final class FakeParamMutationPort implements BusinessModelParamMutationPort {
+
+        @Override
+        public void reloadModelParams(final long modelVersionKey) {
+            // 테스트 목적상 아무 동작도 하지 않습니다.
+        }
+
+        @Override
+        public void reloadEqpParams(final long eqpKey) {
+            // 테스트 목적상 아무 동작도 하지 않습니다.
+        }
+    }
+
+    /**
+     * 마지막으로 remove 호출된 eqpId를 추적하기 위한 테스트용 구현체입니다.
      */
     private static final class TrackingPluginMutationPort implements BusinessWorkflowPluginRuntimeMutationPort {
 
         /**
-         * 留덉?留됱쑝濡?remove ?붿껌??eqpId?낅땲??
+         * 마지막으로 remove 호출된 eqpId입니다.
          */
         private String lastRemovedEqpId;
 
-        /**
-         * reloadByEqpId 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param eqpId ?낅젰 媛?         */
         @Override
         public void reloadByEqpId(final String eqpId) {
-            // ???뚯뒪???붾툝?먯꽌??reload 寃쎈줈瑜??ъ슜?섏? ?딆뒿?덈떎.
+            // 이 테스트에서는 reload 경로를 사용하지 않습니다.
         }
 
-        /**
-         * removeByEqpId 湲곕뒫???섑뻾?⑸땲??
-         *
-         * @param eqpId ?낅젰 媛?         */
         @Override
         public void removeByEqpId(final String eqpId) {
             this.lastRemovedEqpId = eqpId;
         }
     }
 }
-
-
-

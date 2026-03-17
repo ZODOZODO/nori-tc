@@ -15,6 +15,12 @@ java {
 dependencies {
     api(project(":libs:comm:tc-comm-gateway-core"))
 
+    /*
+     * SocketTypeHandler / SocketTypeDecodeResult / SocketTypeEncodeResult / SocketFrame 등
+     * gateway action SPI 계약을 직접 참조합니다.
+     */
+    implementation(project(":libs:action:tc-gateway-action"))
+
     implementation(libs.netty.all)
 
     // Spring 컴포넌트 컴파일 의존성 (@Component/@Service)

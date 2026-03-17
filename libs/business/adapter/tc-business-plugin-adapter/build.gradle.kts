@@ -19,6 +19,12 @@ dependencies {
     api(project(":libs:business:tc-business-core"))
 
     /*
+     * AbstractXxxActionExecutor / @TcAction / TcActionContext 타입을 직접 참조하므로
+     * transitive 의존에 의존하지 않고 명시적으로 선언합니다.
+     */
+    implementation(project(":libs:action:tc-business-action"))
+
+    /*
      * 플러그인 preload/reload 시 DB 저장소를 조회합니다.
      */
     implementation(project(":libs:db:tc-db-core"))
