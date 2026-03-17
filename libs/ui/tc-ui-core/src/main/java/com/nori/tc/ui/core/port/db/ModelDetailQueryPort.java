@@ -5,6 +5,7 @@ import com.nori.tc.db.domain.model.TcModelEventId;
 import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.domain.model.TcModelParam;
 import com.nori.tc.db.domain.model.TcModelReportId;
+import com.nori.tc.db.domain.model.TcModelMesMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
@@ -21,6 +22,7 @@ import java.util.Optional;
  *   <li>Model Parameter: tc_model_param</li>
  *   <li>SECS Message: tc_model_secs_message</li>
  *   <li>Socket Message: tc_model_socket_message</li>
+ *   <li>MES Message: tc_model_mes_message</li>
  *   <li>VariableIdes: tc_model_variableid</li>
  *   <li>ReportIdes: tc_model_reportid</li>
  *   <li>EventIdes: tc_model_eventid</li>
@@ -45,6 +47,11 @@ public interface ModelDetailQueryPort {
      * model_version_key 기준 Socket Message 목록을 조회합니다.
      */
     List<TcModelSocketMessage> findSocketMessagesByModelVersionKey(long modelVersionKey);
+
+    /**
+     * model_version_key 기준 MES Message 목록을 조회합니다.
+     */
+    List<TcModelMesMessage> findMesMessagesByModelVersionKey(long modelVersionKey);
 
     /**
      * model_version_key 기준 VariableIdes 목록을 조회합니다.

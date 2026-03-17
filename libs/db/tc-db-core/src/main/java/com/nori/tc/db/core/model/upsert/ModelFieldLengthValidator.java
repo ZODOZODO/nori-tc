@@ -17,6 +17,7 @@ final class ModelFieldLengthValidator {
     static final int PARAM_NAME_MAX_LENGTH = 1000;
     static final int SECS_MSG_NAME_MAX_LENGTH = 1000;
     static final int SOCKET_MSG_NAME_MAX_LENGTH = 1000;
+    static final int MES_MSG_NAME_MAX_LENGTH = 1000;
 
     private ModelFieldLengthValidator() {
     }

@@ -8,6 +8,7 @@ import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.domain.model.TcModelParam;
 import com.nori.tc.db.domain.model.TcModelReportId;
+import com.nori.tc.db.domain.model.TcModelMesMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
@@ -100,6 +101,11 @@ public class ModelController {
     );
     private static final List<String> SOCKET_MESSAGE_COLUMNS = List.of(
             "Socket Message Name",
+            "Description",
+            "Data Indexes"
+    );
+    private static final List<String> MES_MESSAGE_COLUMNS = List.of(
+            "MES Message Name",
             "Description",
             "Data Indexes"
     );
@@ -921,6 +927,13 @@ public class ModelController {
                             .toList(),
                     List.of()
             );
+            case "mes-message" -> new ModelDetailDataResponse(
+                    MES_MESSAGE_COLUMNS,
+                    modelDetailQueryPort.findMesMessagesByModelVersionKey(modelVersionKey).stream()
+                            .map(ModelController::toMesMessageRow)
+                            .toList(),
+                    List.of()
+            );
             case "variableides" -> new ModelDetailDataResponse(
                     VARIABLE_ID_COLUMNS,
                     modelDetailQueryPort.findVariableIdsByModelVersionKey(modelVersionKey).stream()
@@ -1011,6 +1024,17 @@ public class ModelController {
     private static ModelDetailRowResponse toSecsMessageRow(final TcModelSecsMessage message) {
         return new ModelDetailRowResponse(modelRowId("secs", message.secsMsgKey()), List.of(
                 nullToEmpty(message.secsMsgName()),
+                nullToEmpty(message.description()),
+                nullToEmpty(message.dataIndex())
+        ));
+    }
+
+    /**
+     * tc_model_mes_message row를 상세 테이블 row DTO로 변환합니다.
+     */
+    private static ModelDetailRowResponse toMesMessageRow(final TcModelMesMessage message) {
+        return new ModelDetailRowResponse(modelRowId("mes", message.mesMsgKey()), List.of(
+                nullToEmpty(message.mesMsgName()),
                 nullToEmpty(message.description()),
                 nullToEmpty(message.dataIndex())
         ));

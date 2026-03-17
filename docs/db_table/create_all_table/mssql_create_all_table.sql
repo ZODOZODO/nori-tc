@@ -24,6 +24,7 @@ IF OBJECT_ID('dbo.tc_model_workflow', 'U') IS NOT NULL DROP TABLE dbo.tc_model_w
 IF OBJECT_ID('dbo.tc_model_eventid', 'U') IS NOT NULL DROP TABLE dbo.tc_model_eventid;
 IF OBJECT_ID('dbo.tc_model_reportid', 'U') IS NOT NULL DROP TABLE dbo.tc_model_reportid;
 IF OBJECT_ID('dbo.tc_model_variableid', 'U') IS NOT NULL DROP TABLE dbo.tc_model_variableid;
+IF OBJECT_ID('dbo.tc_model_mes_message', 'U') IS NOT NULL DROP TABLE dbo.tc_model_mes_message;
 IF OBJECT_ID('dbo.tc_model_socket_message', 'U') IS NOT NULL DROP TABLE dbo.tc_model_socket_message;
 IF OBJECT_ID('dbo.tc_model_secs_message', 'U') IS NOT NULL DROP TABLE dbo.tc_model_secs_message;
 IF OBJECT_ID('dbo.tc_model_param', 'U') IS NOT NULL DROP TABLE dbo.tc_model_param;
@@ -159,6 +160,26 @@ GO
 
 CREATE INDEX ix_tc_model_socket_message_model_version_key ON dbo.tc_model_socket_message (model_version_key);
 CREATE INDEX ix_tc_model_socket_message_socket_msg_name ON dbo.tc_model_socket_message (socket_msg_name);
+GO
+
+
+CREATE TABLE dbo.tc_model_mes_message (
+  mes_msg_key       BIGINT IDENTITY(1,1) NOT NULL,
+  model_version_key BIGINT NOT NULL,
+  mes_msg_name      NVARCHAR(1000) NOT NULL,
+  description       NVARCHAR(2000) NULL,
+  data_index        NVARCHAR(200)  NULL,
+  updated_at        DATETIME2(3) NOT NULL CONSTRAINT df_tc_model_mes_message_updated_at DEFAULT (SYSUTCDATETIME()),
+
+  CONSTRAINT pk_tc_model_mes_message PRIMARY KEY (mes_msg_key),
+  CONSTRAINT fk_tc_model_mes_message_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES dbo.tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_mes_message_model_version_key_mes_msg_name UNIQUE (model_version_key, mes_msg_name)
+);
+GO
+
+CREATE INDEX ix_tc_model_mes_message_model_version_key ON dbo.tc_model_mes_message (model_version_key);
+CREATE INDEX ix_tc_model_mes_message_mes_msg_name ON dbo.tc_model_mes_message (mes_msg_name);
 GO
 
 

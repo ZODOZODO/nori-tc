@@ -6,6 +6,7 @@ import com.nori.tc.db.core.model.store.TcModelEventIdStore;
 import com.nori.tc.db.core.model.store.TcModelMdfStore;
 import com.nori.tc.db.core.model.store.TcModelParamStore;
 import com.nori.tc.db.core.model.store.TcModelReportIdStore;
+import com.nori.tc.db.core.model.store.TcModelMesMessageStore;
 import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
 import com.nori.tc.db.core.model.store.TcModelSocketMessageStore;
 import com.nori.tc.db.core.model.store.TcModelStore;
@@ -16,6 +17,7 @@ import com.nori.tc.db.core.model.upsert.UpsertTcModelEventId;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelMdf;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelParam;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelReportId;
+import com.nori.tc.db.core.model.upsert.UpsertTcModelMesMessage;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSecsMessage;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelSocketMessage;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelVariableId;
@@ -66,6 +68,7 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
     private final TcModelParamStore modelParamStore;
     private final TcModelSecsMessageStore modelSecsMessageStore;
     private final TcModelSocketMessageStore modelSocketMessageStore;
+    private final TcModelMesMessageStore modelMesMessageStore;
     private final TcModelVariableIdStore modelVariableIdStore;
     private final TcModelReportIdStore modelReportIdStore;
     private final TcModelEventIdStore modelEventIdStore;
@@ -81,6 +84,7 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
             final TcModelParamStore modelParamStore,
             final TcModelSecsMessageStore modelSecsMessageStore,
             final TcModelSocketMessageStore modelSocketMessageStore,
+            final TcModelMesMessageStore modelMesMessageStore,
             final TcModelVariableIdStore modelVariableIdStore,
             final TcModelReportIdStore modelReportIdStore,
             final TcModelEventIdStore modelEventIdStore,
@@ -92,6 +96,7 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
         this.modelParamStore = Objects.requireNonNull(modelParamStore, "modelParamStore is null");
         this.modelSecsMessageStore = Objects.requireNonNull(modelSecsMessageStore, "modelSecsMessageStore is null");
         this.modelSocketMessageStore = Objects.requireNonNull(modelSocketMessageStore, "modelSocketMessageStore is null");
+        this.modelMesMessageStore = Objects.requireNonNull(modelMesMessageStore, "modelMesMessageStore is null");
         this.modelVariableIdStore = Objects.requireNonNull(modelVariableIdStore, "modelVariableIdStore is null");
         this.modelReportIdStore = Objects.requireNonNull(modelReportIdStore, "modelReportIdStore is null");
         this.modelEventIdStore = Objects.requireNonNull(modelEventIdStore, "modelEventIdStore is null");
@@ -121,6 +126,7 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
             case "model-parameter" -> replaceModelParams(modelVersionKey, normalizedRows);
             case "secs-message" -> replaceSecsMessages(modelVersionKey, normalizedRows);
             case "socket-message" -> replaceSocketMessages(modelVersionKey, normalizedRows);
+            case "mes-message" -> replaceMesMessages(modelVersionKey, normalizedRows);
             case "variableides" -> replaceVariableIds(modelVersionKey, normalizedRows);
             case "reportides" -> replaceReportIds(modelVersionKey, normalizedRows);
             case "eventides" -> replaceEventIds(modelVersionKey, normalizedRows);
@@ -187,6 +193,24 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
                 null,
                 modelVersionKey,
                 requiredCell(row, 0, "secsMsgName"),
+                optionalCell(row, 1),
+                optionalCell(row, 2)
+        )));
+    }
+
+    /**
+     * mes message node를 교체 저장합니다.
+     *
+     * <p>컬럼 인덱스: [0]=mesMsgName, [1]=description, [2]=dataIndex</p>
+     */
+    private void replaceMesMessages(final long modelVersionKey, final List<DetailRowCommand> rows) {
+        loadAllByModelVersionKey(modelVersionKey, modelMesMessageStore::findAllByModelVersionKey)
+                .forEach(message -> modelMesMessageStore.deleteByMesMsgKey(message.mesMsgKey()));
+
+        rows.forEach(row -> modelMesMessageStore.upsert(new UpsertTcModelMesMessage(
+                null,
+                modelVersionKey,
+                requiredCell(row, 0, "mesMsgName"),
                 optionalCell(row, 1),
                 optionalCell(row, 2)
         )));

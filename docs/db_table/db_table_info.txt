@@ -12,8 +12,9 @@
 3) 카디널리티
 - tc_model_version(1):tc_eqp(n)
 - tc_model_version(1):tc_model_param(n)
-- tc_model_version(1):tc_model_secs_message(1)
-- tc_model_version(1):tc_model_socket_message(1)
+- tc_model_version(1):tc_model_secs_message(n) — UNIQUE(model_version_key, secs_msg_name)
+- tc_model_version(1):tc_model_socket_message(n) — UNIQUE(model_version_key, socket_msg_name)
+- tc_model_version(1):tc_model_mes_message(n) — UNIQUE(model_version_key, mes_msg_name)
 - tc_model_version(1):tc_model_variableid(n)
 - tc_model_version(1):tc_model_reportid(n)
 - tc_model_version(1):tc_model_eventid(n)
@@ -22,8 +23,6 @@
 - tc_model_version(1):tc_model_dcop_item(n)
 
 4) 1:1 강제 테이블(UNIQUE model_version_key)
-- tc_model_secs_message
-- tc_model_socket_message
 - tc_model_mdf
 
 5) 소유권 원칙

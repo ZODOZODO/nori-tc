@@ -6,6 +6,7 @@ import com.nori.tc.db.core.model.store.TcModelEventIdStore;
 import com.nori.tc.db.core.model.store.TcModelMdfStore;
 import com.nori.tc.db.core.model.store.TcModelParamStore;
 import com.nori.tc.db.core.model.store.TcModelReportIdStore;
+import com.nori.tc.db.core.model.store.TcModelMesMessageStore;
 import com.nori.tc.db.core.model.store.TcModelSecsMessageStore;
 import com.nori.tc.db.core.model.store.TcModelSocketMessageStore;
 import com.nori.tc.db.core.model.store.TcModelVariableIdStore;
@@ -15,6 +16,7 @@ import com.nori.tc.db.domain.model.TcModelEventId;
 import com.nori.tc.db.domain.model.TcModelMdf;
 import com.nori.tc.db.domain.model.TcModelParam;
 import com.nori.tc.db.domain.model.TcModelReportId;
+import com.nori.tc.db.domain.model.TcModelMesMessage;
 import com.nori.tc.db.domain.model.TcModelSecsMessage;
 import com.nori.tc.db.domain.model.TcModelSocketMessage;
 import com.nori.tc.db.domain.model.TcModelVariableId;
@@ -47,6 +49,7 @@ public class JpaModelDetailQueryPort implements ModelDetailQueryPort {
     private final TcModelParamStore modelParamStore;
     private final TcModelSecsMessageStore modelSecsMessageStore;
     private final TcModelSocketMessageStore modelSocketMessageStore;
+    private final TcModelMesMessageStore modelMesMessageStore;
     private final TcModelVariableIdStore modelVariableIdStore;
     private final TcModelReportIdStore modelReportIdStore;
     private final TcModelEventIdStore modelEventIdStore;
@@ -61,6 +64,7 @@ public class JpaModelDetailQueryPort implements ModelDetailQueryPort {
             final TcModelParamStore modelParamStore,
             final TcModelSecsMessageStore modelSecsMessageStore,
             final TcModelSocketMessageStore modelSocketMessageStore,
+            final TcModelMesMessageStore modelMesMessageStore,
             final TcModelVariableIdStore modelVariableIdStore,
             final TcModelReportIdStore modelReportIdStore,
             final TcModelEventIdStore modelEventIdStore,
@@ -71,6 +75,7 @@ public class JpaModelDetailQueryPort implements ModelDetailQueryPort {
         this.modelParamStore = Objects.requireNonNull(modelParamStore, "modelParamStore is null");
         this.modelSecsMessageStore = Objects.requireNonNull(modelSecsMessageStore, "modelSecsMessageStore is null");
         this.modelSocketMessageStore = Objects.requireNonNull(modelSocketMessageStore, "modelSocketMessageStore is null");
+        this.modelMesMessageStore = Objects.requireNonNull(modelMesMessageStore, "modelMesMessageStore is null");
         this.modelVariableIdStore = Objects.requireNonNull(modelVariableIdStore, "modelVariableIdStore is null");
         this.modelReportIdStore = Objects.requireNonNull(modelReportIdStore, "modelReportIdStore is null");
         this.modelEventIdStore = Objects.requireNonNull(modelEventIdStore, "modelEventIdStore is null");
@@ -104,6 +109,15 @@ public class JpaModelDetailQueryPort implements ModelDetailQueryPort {
         return loadAllByPage(page -> modelSocketMessageStore.findAllByModelVersionKey(modelVersionKey, page))
                 .stream()
                 .sorted(Comparator.comparingLong(TcModelSocketMessage::socketMsgKey))
+                .toList();
+    }
+
+    @Override
+    public List<TcModelMesMessage> findMesMessagesByModelVersionKey(final long modelVersionKey) {
+        validateModelVersionKey(modelVersionKey);
+        return loadAllByPage(page -> modelMesMessageStore.findAllByModelVersionKey(modelVersionKey, page))
+                .stream()
+                .sorted(Comparator.comparingLong(TcModelMesMessage::mesMsgKey))
                 .toList();
     }
 

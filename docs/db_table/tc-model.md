@@ -11,14 +11,15 @@
 1. `tc_model(1) : tc_model_version(n)`
 2. `tc_model_version(1) : tc_eqp(n)`
 3. `tc_model_version(1) : tc_model_param(n)`
-4. `tc_model_version(1) : tc_model_secs_message(1)`
-5. `tc_model_version(1) : tc_model_socket_message(1)`
-6. `tc_model_version(1) : tc_model_variableid(n)`
-7. `tc_model_version(1) : tc_model_reportid(n)`
-8. `tc_model_version(1) : tc_model_eventid(n)`
-9. `tc_model_version(1) : tc_model_workflow(n)`
-10. `tc_model_version(1) : tc_model_mdf(1)`
-11. `tc_model_version(1) : tc_model_dcop_item(n)`
+4. `tc_model_version(1) : tc_model_secs_message(n)` — UNIQUE(model_version_key, secs_msg_name)
+5. `tc_model_version(1) : tc_model_socket_message(n)` — UNIQUE(model_version_key, socket_msg_name)
+6. `tc_model_version(1) : tc_model_mes_message(n)` — UNIQUE(model_version_key, mes_msg_name)
+7. `tc_model_version(1) : tc_model_variableid(n)`
+8. `tc_model_version(1) : tc_model_reportid(n)`
+9. `tc_model_version(1) : tc_model_eventid(n)`
+10. `tc_model_version(1) : tc_model_workflow(n)`
+11. `tc_model_version(1) : tc_model_mdf(1)`
+12. `tc_model_version(1) : tc_model_dcop_item(n)`
 
 ## 3. 핵심 테이블
 
@@ -42,6 +43,7 @@
 - `tc_model_param`
 - `tc_model_secs_message`
 - `tc_model_socket_message`
+- `tc_model_mes_message`
 - `tc_model_variableid`
 - `tc_model_reportid`
 - `tc_model_eventid`
@@ -53,9 +55,9 @@
 
 아래 테이블은 버전당 1건만 허용하도록 `UNIQUE(model_version_key)` 제약을 둡니다.
 
-- `tc_model_secs_message`
-- `tc_model_socket_message`
 - `tc_model_mdf`
+
+> 주의: `tc_model_secs_message`, `tc_model_socket_message`, `tc_model_mes_message`는 `UNIQUE(model_version_key, *_msg_name)` 복합 유니크이므로 1:N 관계입니다.
 
 ## 6. FK 관계 요약
 
@@ -67,6 +69,7 @@ tc_model.model_key
   ├─(CASCADE)→ tc_model_param.model_version_key
   ├─(CASCADE)→ tc_model_secs_message.model_version_key
   ├─(CASCADE)→ tc_model_socket_message.model_version_key
+  ├─(CASCADE)→ tc_model_mes_message.model_version_key
   ├─(CASCADE)→ tc_model_variableid.model_version_key
   ├─(CASCADE)→ tc_model_reportid.model_version_key
   ├─(CASCADE)→ tc_model_eventid.model_version_key

@@ -4,14 +4,14 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<!-- tc_model_secs_message Mapper XML -->
-<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelSecsMessageMapper">
+<!-- tc_model_mes_message Mapper XML -->
+<mapper namespace="com.nori.tc.db.mybatis.common.mapper.model.TcModelMesMessageMapper">
 
-    <resultMap id="Map" type="com.nori.tc.db.domain.model.TcModelSecsMessage">
+    <resultMap id="Map" type="com.nori.tc.db.domain.model.TcModelMesMessage">
         <constructor>
-            <idArg column="secs_msg_key" javaType="long"/>
+            <idArg column="mes_msg_key" javaType="long"/>
             <arg column="model_version_key" javaType="long"/>
-            <arg column="secs_msg_name" javaType="java.lang.String"/>
+            <arg column="mes_msg_name" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="data_index" javaType="java.lang.String"/>
             <arg column="updated_at"
@@ -21,55 +21,54 @@
     </resultMap>
 
     <sql id="Columns">
-        secs_msg_key, model_version_key, secs_msg_name, description, data_index, updated_at
+        mes_msg_key, model_version_key, mes_msg_name, description, data_index, updated_at
     </sql>
 
-    <!-- created_at 컬럼은 tc_model_secs_message 테이블에 존재하지 않으므로 제거 -->
     <insert id="insert">
-        INSERT INTO tc_model_secs_message
-            (model_version_key, secs_msg_name, description, data_index)
+        INSERT INTO tc_model_mes_message
+            (model_version_key, mes_msg_name, description, data_index)
         VALUES
             (#{m.modelVersionKey},
-             #{m.secsMsgName},
+             #{m.mesMsgName},
              #{m.description},
              #{m.dataIndex})
     </insert>
 
     <update id="update">
-        UPDATE tc_model_secs_message
+        UPDATE tc_model_mes_message
            SET model_version_key = #{m.modelVersionKey},
-               secs_msg_name     = #{m.secsMsgName},
+               mes_msg_name      = #{m.mesMsgName},
                description       = #{m.description},
                data_index        = #{m.dataIndex},
                updated_at        = CURRENT_TIMESTAMP
-         WHERE secs_msg_key = #{m.secsMsgKey}
+         WHERE mes_msg_key = #{m.mesMsgKey}
     </update>
 
-    <select id="findBySecsMsgKey" resultMap="Map">
+    <select id="findByMesMsgKey" resultMap="Map">
         SELECT <include refid="Columns"/>
-          FROM tc_model_secs_message
-         WHERE secs_msg_key = #{secsMsgKey}
+          FROM tc_model_mes_message
+         WHERE mes_msg_key = #{mesMsgKey}
     </select>
 
     <select id="findByModelVersionKeyAndName" resultMap="Map">
         SELECT <include refid="Columns"/>
-          FROM tc_model_secs_message
+          FROM tc_model_mes_message
          WHERE model_version_key = #{modelVersionKey}
-           AND secs_msg_name = #{secsMsgName}
+           AND mes_msg_name = #{mesMsgName}
     </select>
 
     <select id="findAllByModelVersionKey" resultMap="Map">
         SELECT <include refid="Columns"/>
-          FROM tc_model_secs_message
+          FROM tc_model_mes_message
          WHERE model_version_key = #{modelVersionKey}
-         ORDER BY secs_msg_key ASC
+         ORDER BY mes_msg_key ASC
         <if test="limit > 0">
             LIMIT #{limit} OFFSET #{offset}
         </if>
     </select>
 
-    <delete id="deleteBySecsMsgKey">
-        DELETE FROM tc_model_secs_message WHERE secs_msg_key = #{secsMsgKey}
+    <delete id="deleteByMesMsgKey">
+        DELETE FROM tc_model_mes_message WHERE mes_msg_key = #{mesMsgKey}
     </delete>
 
 </mapper>

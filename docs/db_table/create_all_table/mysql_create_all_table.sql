@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS tc_model_workflow;
 DROP TABLE IF EXISTS tc_model_eventid;
 DROP TABLE IF EXISTS tc_model_reportid;
 DROP TABLE IF EXISTS tc_model_variableid;
+DROP TABLE IF EXISTS tc_model_mes_message;
 DROP TABLE IF EXISTS tc_model_socket_message;
 DROP TABLE IF EXISTS tc_model_secs_message;
 DROP TABLE IF EXISTS tc_model_param;
@@ -146,6 +147,23 @@ CREATE TABLE tc_model_socket_message (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX ix_tc_model_socket_message_model_version_key ON tc_model_socket_message (model_version_key);
 CREATE INDEX ix_tc_model_socket_message_socket_msg_name ON tc_model_socket_message (socket_msg_name);
+
+
+CREATE TABLE tc_model_mes_message (
+  mes_msg_key       BIGINT AUTO_INCREMENT NOT NULL,
+  model_version_key BIGINT NOT NULL,
+  mes_msg_name      VARCHAR(100) NOT NULL,
+  description       VARCHAR(2000) NULL,
+  data_index        VARCHAR(200) NULL,
+  updated_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+  CONSTRAINT pk_tc_model_mes_message PRIMARY KEY (mes_msg_key),
+  CONSTRAINT fk_tc_model_mes_message_model_version_key__tc_model_version
+    FOREIGN KEY (model_version_key) REFERENCES tc_model_version(model_version_key) ON DELETE CASCADE,
+  CONSTRAINT uk_tc_model_mes_message_model_version_key_mes_msg_name UNIQUE (model_version_key, mes_msg_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX ix_tc_model_mes_message_model_version_key ON tc_model_mes_message (model_version_key);
+CREATE INDEX ix_tc_model_mes_message_mes_msg_name ON tc_model_mes_message (mes_msg_name);
 
 
 CREATE TABLE tc_model_variableid (
