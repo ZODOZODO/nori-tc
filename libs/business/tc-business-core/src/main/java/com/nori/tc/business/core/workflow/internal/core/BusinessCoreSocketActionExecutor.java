@@ -79,7 +79,7 @@ public class BusinessCoreSocketActionExecutor extends AbstractSocketActionExecut
         );
 
         final String rawMessage = mdfResult
-                .map(BusinessMdfMessageComposer.MdfComposeResult::renderedMessage)
+                .map(BusinessMdfMessageComposer.MdfComposeResult::rawMessage)
                 .orElseGet(() -> BusinessWorkflowCommandSupport.resolveRawMessage(context));
 
         final Map<String, Object> attributes = new LinkedHashMap<>(BusinessWorkflowCommandSupport.buildCommandPayload(context));

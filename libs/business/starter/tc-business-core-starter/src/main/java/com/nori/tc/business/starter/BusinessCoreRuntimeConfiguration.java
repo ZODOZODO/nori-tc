@@ -2,6 +2,7 @@ package com.nori.tc.business.starter;
 
 import com.nori.tc.business.adapters.db.modelcache.BusinessModelCacheProperties;
 import com.nori.tc.business.adapters.plugin.workflow.BusinessWorkflowPluginRuntimeProperties;
+import com.nori.tc.business.adapters.redis.datacoll.DatacollRedisProperties;
 import com.nori.tc.business.adapters.redis.dlq.BusinessRedisProperties;
 import com.nori.tc.business.core.config.BusinessCoreRuntimeProperties;
 import com.nori.tc.business.core.dlq.BusinessDlqPublisherPort;
@@ -20,7 +21,8 @@ import org.springframework.context.annotation.Configuration;
         BusinessCoreRuntimeProperties.class,
         BusinessModelCacheProperties.class,
         BusinessWorkflowPluginRuntimeProperties.class,
-        BusinessRedisProperties.class
+        BusinessRedisProperties.class,
+        DatacollRedisProperties.class
 })
 /**
  * BusinessCoreRuntimeConfiguration 클래스입니다.

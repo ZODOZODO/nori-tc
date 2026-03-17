@@ -1,6 +1,5 @@
 package com.nori.tc.db.core.model.upsert;
 
-import com.nori.tc.db.domain.common.model.DcopCalculationRule;
 import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.common.model.VariableIdType;
@@ -83,7 +82,7 @@ class ModelUpsertLengthValidationTest {
                 "EVT",
                 repeat('I', 1000),
                 null,
-                DcopCalculationRule.NONE,
+                null,
                 1
         ));
         assertDoesNotThrow(() -> new UpsertTcModelMdf(null, 1L, repeat('M', 1000), "<xml/>".getBytes()));

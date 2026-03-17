@@ -16,9 +16,17 @@
 
 ## app 문서
 
+### workflow_filter / action_data_index
+
 - [재설계 문서](./design/01-workflow-filter-and-action-data-index-redesign.md)
 - [구현 계획 문서](./tasks/01-workflow-filter-and-action-data-index-build-plan.md)
 - [운영 표준 문서](./Architecture/01-mdf-action-data-index-standard.md)
+
+### DCSPECREQ_REP / DATACOLL / DCOP Item
+
+- [설계 문서](./design/02-dcspecreq-datacoll-dcop-item-design.md)
+- [구현 작업 계획](./tasks/02-dcspecreq-datacoll-dcop-item-build-plan.md)
+- [루트 아키텍처: DCSPECREQ_REP / DATACOLL / DCOP Item 가이드](../../../docs/Architecture/business/09-dcspecreq-datacoll-dcop-item-guide.md)
 
 ## 주요 설명 범위
 

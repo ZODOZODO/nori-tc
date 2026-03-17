@@ -9,7 +9,6 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import com.nori.tc.db.core.model.upsert.UpsertTcModelDcopItem;
-import com.nori.tc.db.domain.common.model.DcopCalculationRule;
 import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 import com.nori.tc.db.domain.model.TcModelDcopItem;
 import com.nori.tc.db.jpa.common.entity.model.TcModelDcopItemEntity;
@@ -43,7 +42,7 @@ class TcModelDcopItemJpaStoreTest {
                 "EVT_100",
                 "VID_TEMP",
                 DcopCollectionRule.LAST,
-                DcopCalculationRule.NONE,
+                null,
                 1
         );
         final TcModelDcopItemEntity savedEntity = TcModelDcopItemEntity.newEntity(100L, "DCOP_MAIN");
@@ -55,7 +54,7 @@ class TcModelDcopItemJpaStoreTest {
                 "EVT_100",
                 "VID_TEMP",
                 DcopCollectionRule.LAST,
-                DcopCalculationRule.NONE,
+                null,
                 1,
                 OffsetDateTime.now()
         );

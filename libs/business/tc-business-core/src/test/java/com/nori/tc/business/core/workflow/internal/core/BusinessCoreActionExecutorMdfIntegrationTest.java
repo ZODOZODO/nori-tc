@@ -12,7 +12,6 @@ import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfFieldDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfMessageDefinition;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfOutputType;
-import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfSourceType;
 import com.nori.tc.business.domain.modelcache.MdfRuntimeDefinition.MdfTargetType;
 import com.nori.tc.business.domain.modelcache.TcModelRuntime;
 import com.nori.tc.business.domain.modelcache.WorkflowRuntimeEntry;
@@ -46,19 +45,30 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 composer
         );
 
+        // action_data_index.fields에서 "eqpId" 키로 ValueSpec을 조회하므로,
+        // variablePath는 fields 맵의 키 이름이어야 합니다.
         final MdfMessageDefinition eqpMessage = new MdfMessageDefinition(
                 "TOOL_CONDITION_REQUEST_EQP",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
                 "CMD=TOOL_CONDITION_REQUEST EQPID={EQPID}",
-                List.of(new MdfFieldDefinition("EQPID", "eqpId", MdfSourceType.CTX, List.of(), null, true))
+                List.of(new MdfFieldDefinition("EQPID", "eqpId", true))
         );
+
+        // fields에서 "eqpId" 키를 shorthand 경로로 지정: from=data, path=eqpId
+        final String actionDataIndex = """
+                {
+                  "mdfTemplateName": "TOOL_CONDITION_REQUEST_EQP",
+                  "fields": {
+                    "eqpId": "eqpId"
+                  }
+                }
+                """;
 
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(eqpMessage.name(), eqpMessage)),
                 "PUBLISH_EQP_COMMAND",
-                "TOOL_CONDITION_REQUEST_EQP",
+                actionDataIndex,
                 null
         );
 
@@ -83,22 +93,33 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 composer
         );
 
+        // KAFKA output은 template이 없으며, kafkaDataBlock()으로 field 값 Map을 반환합니다.
         final MdfMessageDefinition mesMessage = new MdfMessageDefinition(
                 "TOOL_CONDITION_REPLY_MES",
                 MdfTargetType.MES,
-                MdfOutputType.DATA,
-                "PUBLISH_MES_COMMAND",
-                "EQPID={EQPID} STATUS={STATUS}",
+                MdfOutputType.KAFKA,
+                null,
                 List.of(
-                        new MdfFieldDefinition("EQPID", "eqpId", MdfSourceType.CTX, List.of(), null, true),
-                        new MdfFieldDefinition("STATUS", "data.status", MdfSourceType.MSG, List.of("upper"), null, true)
+                        new MdfFieldDefinition("EQPID", "eqpId", true),
+                        new MdfFieldDefinition("STATUS", "status", true)
                 )
         );
+
+        // STATUS field는 data.status("ready")를 upper transform으로 "READY"로 변환합니다.
+        final String actionDataIndex = """
+                {
+                  "mdfTemplateName": "TOOL_CONDITION_REPLY_MES",
+                  "fields": {
+                    "eqpId": "eqpId",
+                    "status": { "from": "data", "path": "status", "transforms": ["upper"] }
+                  }
+                }
+                """;
 
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(mesMessage.name(), mesMessage)),
                 "PUBLISH_MES_COMMAND",
-                "TOOL_CONDITION_REPLY_MES",
+                actionDataIndex,
                 "LOT-001"
         );
 
@@ -107,8 +128,7 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
         final BusinessMesCommandMessage message = published.get();
         Assertions.assertNotNull(message);
         Assertions.assertEquals("LOT-001", message.correlationId());
-        Assertions.assertEquals("TOOL_CONDITION_REPLY_MES", message.data().get("mdfMessageName"));
-        Assertions.assertEquals("EQPID=EQP-01 STATUS=READY", message.data().get("mdfRenderedMessage"));
+        // kafkaDataBlock()은 MDF field 이름을 키로, 변환된 값을 value로 반환합니다.
         Assertions.assertEquals("EQP-01", message.data().get("EQPID"));
         Assertions.assertEquals("READY", message.data().get("STATUS"));
     }
@@ -128,11 +148,11 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 "TOOL_CONDITION_REQUEST_EQP",
                 MdfTargetType.EQP,
                 MdfOutputType.RAW_MESSAGE,
-                "PUBLISH_EQP_COMMAND",
                 "CMD=TOOL_CONDITION_REQUEST EQPID={EQPID}",
-                List.of(new MdfFieldDefinition("EQPID", "eqpId", MdfSourceType.CTX, List.of(), null, true))
+                List.of(new MdfFieldDefinition("EQPID", "eqpId", true))
         );
 
+        // action_data_index가 null이면 ParsedActionDataIndex.isEmpty() == true → MDF 미적용
         final BusinessWorkflowActionContext context = createContext(
                 new MdfRuntimeDefinition(Map.of(eqpMessage.name(), eqpMessage)),
                 "PUBLISH_EQP_COMMAND",
@@ -150,11 +170,16 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
 
     /**
      * 테스트용 액션 컨텍스트를 생성합니다.
+     *
+     * @param mdfRuntimeDefinition MDF 런타임 정의
+     * @param actionName           액션 이름
+     * @param actionDataIndex      action_data_index JSON 문자열 (null이면 MDF 미적용)
+     * @param correlationId        correlationId (null이면 messageVariables에 미포함)
      */
     private static BusinessWorkflowActionContext createContext(
             final MdfRuntimeDefinition mdfRuntimeDefinition,
             final String actionName,
-            final String mdfMessageName,
+            final String actionDataIndex,
             final String correlationId
     ) {
         final BusinessInboundRecord record = new BusinessInboundRecord(
@@ -194,14 +219,6 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 mdfRuntimeDefinition
         );
 
-        final String actionDataIndex = mdfMessageName == null
-                ? null
-                : """
-                        {
-                          "mdfTemplateName": "%s",
-                          "fields": {}
-                        }
-                        """.formatted(mdfMessageName);
         final WorkflowRuntimeEntry workflowEntry = new WorkflowRuntimeEntry(
                 1L,
                 "WF-1",
@@ -214,9 +231,12 @@ class BusinessCoreActionExecutorMdfIntegrationTest {
                 0
         );
 
+        // data 블록에 eqpId를 포함합니다.
+        // MdfFieldDefinition.variablePath("eqpId")로 action_data_index.fields에서 조회한 ValueSpec이
+        // from=DATA, path=eqpId로 설정된 경우 messageVariables["data"]["eqpId"]에서 값을 가져옵니다.
         final Map<String, Object> messageVariables = new LinkedHashMap<>();
         messageVariables.put("metadata", Map.of("eventType", "EQP_CONDITION_CHECK"));
-        messageVariables.put("data", Map.of("status", "ready"));
+        messageVariables.put("data", Map.of("status", "ready", "eqpId", "EQP-01"));
         if (correlationId != null) {
             messageVariables.put("correlationId", correlationId);
         }

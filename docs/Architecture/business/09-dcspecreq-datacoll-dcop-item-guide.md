@@ -243,9 +243,7 @@ Value (JSON):
 
 ---
 
-## TCAction 목록 (구현 예정)
-
-> **TODO**: 현재 미구현 상태입니다.
+## TCAction 목록
 
 ### COLLECT_DCDATA TCAction
 
@@ -281,6 +279,21 @@ workflow에 명시적으로 배치하는 수집 action입니다.
 | `libs/db/tc-db-core/.../model/store/TcModelDcopItemStore.java` | DCOP Item 조회 인터페이스 |
 | `libs/business/adapter/tc-business-redis-adapter/` | Business Redis 어댑터 |
 | `libs/business/tc-business-core/.../support/BusinessTransformSupport.java` | Calculation Rule 공통 함수 (transform 재사용) |
+
+## 구현 위치
+
+| 구성 요소 | 위치 |
+|---|---|
+| `DcspecreqRepTcAction` | `libs/business/tc-business-core/.../workflow/action/DcspecreqRepTcAction.java` |
+| `CollectDcdataTcAction` | `libs/business/tc-business-core/.../workflow/action/CollectDcdataTcAction.java` |
+| `DatacollTcAction` | `libs/business/tc-business-core/.../workflow/action/DatacollTcAction.java` |
+| `DatacollStatePort` | `libs/business/tc-business-core/.../datacoll/DatacollStatePort.java` |
+| `DcopItemPort` | `libs/business/tc-business-core/.../datacoll/DcopItemPort.java` |
+| `DcopCollectionEngine` | `libs/business/tc-business-core/.../datacoll/DcopCollectionEngine.java` |
+| `DatacollState` | `libs/business/tc-business-core/.../domain/datacoll/DatacollState.java` |
+| `DatacollRedisAdapter` | `libs/business/adapter/tc-business-redis-adapter/.../redis/datacoll/DatacollRedisAdapter.java` |
+| `DatacollRedisProperties` | `libs/business/adapter/tc-business-redis-adapter/.../redis/datacoll/DatacollRedisProperties.java` |
+| `DcopItemDbAdapter` | `libs/business/adapter/tc-business-db-adapter/.../db/datacoll/DcopItemDbAdapter.java` |
 
 ---
 

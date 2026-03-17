@@ -90,7 +90,7 @@ public class BusinessCoreMesActionExecutor extends AbstractMesActionExecutor {
 
         final Map<String, Object> data;
         if (mdfResult.isPresent()) {
-            data = new LinkedHashMap<>(mdfResult.orElseThrow().toMesData());
+            data = new LinkedHashMap<>(mdfResult.orElseThrow().kafkaDataBlock());
         } else {
             data = new LinkedHashMap<>(BusinessWorkflowCommandSupport.buildCommandPayload(context));
             data.put("rawMessage", BusinessWorkflowCommandSupport.resolveRawMessage(context));

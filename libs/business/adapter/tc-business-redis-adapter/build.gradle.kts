@@ -42,6 +42,13 @@ dependencies {
     compileOnly(libs.spring.context)
     compileOnly(libs.jakarta.annotation.api)
     annotationProcessor(libs.spring.boot.configuration.processor)
+
+    /*
+     * 단위 테스트 의존성입니다.
+     */
+    testImplementation(platform(libs.junit.bom))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {

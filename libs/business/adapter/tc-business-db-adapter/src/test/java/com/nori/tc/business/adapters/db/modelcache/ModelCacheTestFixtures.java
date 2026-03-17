@@ -252,6 +252,11 @@ final class ModelCacheTestFixtures {
         public void deleteByModelVersionKey(final long modelVersionKey) {
             throw new UnsupportedOperationException("not used");
         }
+
+        @Override
+        public void deleteByModelKey(final long modelKey) {
+            throw new UnsupportedOperationException("not used");
+        }
     }
 
     /**

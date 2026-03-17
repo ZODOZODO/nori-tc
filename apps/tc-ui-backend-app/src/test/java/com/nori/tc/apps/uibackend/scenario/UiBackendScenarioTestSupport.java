@@ -28,6 +28,7 @@ import com.nori.tc.ui.core.port.db.GroupCrudPort;
 import com.nori.tc.ui.core.port.db.GroupPermissionMappingPort;
 import com.nori.tc.ui.core.port.db.ModelBranchCommandPort;
 import com.nori.tc.ui.core.port.db.ModelCrudPort;
+import com.nori.tc.ui.core.port.db.ModelDetailCommandPort;
 import com.nori.tc.ui.core.port.db.ModelDetailQueryPort;
 import com.nori.tc.ui.core.port.db.ModelParentCommitPort;
 import com.nori.tc.ui.core.port.db.ModelRootCommandPort;
@@ -285,6 +286,9 @@ abstract class UiBackendScenarioTestSupport {
 
     @MockitoBean
     ModelDetailQueryPort modelDetailQueryPort;
+
+    @MockitoBean
+    ModelDetailCommandPort modelDetailCommandPort;
 
     @MockitoBean
     ModelRootCommandPort modelRootCommandPort;
