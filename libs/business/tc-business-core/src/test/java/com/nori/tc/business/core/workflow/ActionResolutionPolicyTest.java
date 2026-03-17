@@ -2,11 +2,11 @@ package com.nori.tc.business.core.workflow;
 
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
-import com.nori.tc.business.core.workflow.api.annotation.TcAction;
+import com.nori.tc.business.action.TcAction;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionKey;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistryBuilder;
-import com.nori.tc.business.core.workflow.api.spi.executor.AbstractSocketActionExecutor;
+import com.nori.tc.business.action.AbstractSocketActionExecutor;
 import com.nori.tc.business.core.workflow.internal.resolution.ActionResolutionPolicy;
 import com.nori.tc.business.core.workflow.internal.resolution.ActionResolutionTrace;
 import org.junit.jupiter.api.Assertions;

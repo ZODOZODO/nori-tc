@@ -2,8 +2,8 @@ package com.nori.tc.business.core.workflow.action;
 
 import com.nori.tc.business.core.datacoll.DatacollStatePort;
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
-import com.nori.tc.business.core.workflow.api.annotation.TcAction;
-import com.nori.tc.business.core.workflow.api.spi.executor.AbstractMesActionExecutor;
+import com.nori.tc.business.action.AbstractMesActionExecutor;
+import com.nori.tc.business.action.TcAction;
 import com.nori.tc.business.core.workflow.internal.support.BusinessWorkflowCommandSupport;
 import com.nori.tc.business.domain.datacoll.DatacollState;
 import org.slf4j.Logger;

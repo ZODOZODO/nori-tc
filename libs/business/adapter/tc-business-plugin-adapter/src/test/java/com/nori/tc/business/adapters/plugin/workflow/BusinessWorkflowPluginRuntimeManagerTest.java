@@ -4,8 +4,8 @@ import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionConte
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistry;
 import com.nori.tc.business.core.workflow.api.registry.BusinessWorkflowActionRegistryBuilder;
-import com.nori.tc.business.core.workflow.api.spi.executor.AbstractSocketActionExecutor;
-import com.nori.tc.business.core.workflow.api.annotation.TcAction;
+import com.nori.tc.business.action.AbstractSocketActionExecutor;
+import com.nori.tc.business.action.TcAction;
 import com.nori.tc.db.core.common.PageRequest;
 import com.nori.tc.db.core.eqp.store.TcEqpStore;
 import com.nori.tc.db.core.eqp.upsert.UpsertTcEqp;

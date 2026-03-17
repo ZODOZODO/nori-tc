@@ -1,10 +1,10 @@
 package com.nori.tc.comm.gateway.socket.socketType.types.regexDelimited;
 
 import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
-import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeEncodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
+import com.nori.tc.comm.gateway.action.SocketFrame;
+import com.nori.tc.comm.gateway.action.SocketTypeDecodeResult;
+import com.nori.tc.comm.gateway.action.SocketTypeEncodeResult;
+import com.nori.tc.comm.gateway.action.SocketTypeHandler;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;

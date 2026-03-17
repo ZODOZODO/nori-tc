@@ -19,6 +19,8 @@ dependencies {
      */
     api(project(":libs:comm:tc-comm-gateway-core"))
     api(project(":libs:comm:tc-comm-socket"))
+    // Gateway 플러그인 SDK: SocketTypeHandler SPI 계약 (GatewaySocketPluginRuntimeManager에서 직접 참조)
+    api(project(":libs:action:tc-gateway-action"))
 
     /*
      * ?뚮윭洹몄씤 JAR 議고쉶瑜??꾪븳 DB ?ы듃/?꾨찓???섏〈?깆엯?덈떎.

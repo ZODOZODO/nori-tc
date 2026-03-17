@@ -136,7 +136,19 @@ include(":libs:messaging:starter:tc-messaging-rendezvous-starter")
 project(":libs:messaging:starter:tc-messaging-rendezvous-starter").projectDir = file("libs/messaging/starter/tc-messaging-rendezvous-starter")
 
 /* ===================================================
- * 4. Gateway Modules (comm-gateway Layer)
+ * 4. Action Modules (Plugin SDK Layer)
+ * - Gateway/Business 플러그인 JAR 개발자를 위한 경량 SDK
+ * - 순수 Java / Spring·Kafka 의존 없음
+ * =================================================== */
+
+include(":libs:action:tc-gateway-action")
+project(":libs:action:tc-gateway-action").projectDir = file("libs/action/tc-gateway-action")
+
+include(":libs:action:tc-business-action")
+project(":libs:action:tc-business-action").projectDir = file("libs/action/tc-business-action")
+
+/* ===================================================
+ * 5. Gateway Modules (comm-gateway Layer)
  * - HSMS, Socket 모듈
  * =================================================== */
 

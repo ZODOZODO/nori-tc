@@ -1,8 +1,8 @@
 package com.nori.tc.business.core.workflow.api.registry;
 
-import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionContext;
+import com.nori.tc.business.action.TcAction;
+import com.nori.tc.business.action.TcActionContext;
 import com.nori.tc.business.core.workflow.api.action.BusinessWorkflowActionMessageType;
-import com.nori.tc.business.core.workflow.api.annotation.TcAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +96,7 @@ public final class BusinessWorkflowActionRegistryBuilder {
      * <p>허용 규칙:</p>
      * <p>1) static 금지</p>
      * <p>2) return type은 void</p>
-     * <p>3) 파라미터는 0개 또는 1개(BusinessWorkflowActionContext)</p>
+     * <p>3) 파라미터는 0개 또는 1개({@link TcActionContext} 또는 그 구현 타입)</p>
      */
     private static void validateActionMethod(final Method method, final Class<?> ownerClass) {
         if (Modifier.isStatic(method.getModifiers())) {
@@ -111,9 +111,11 @@ public final class BusinessWorkflowActionRegistryBuilder {
             throw new IllegalStateException("TcAction method supports 0 or 1 parameter only. method="
                     + ownerClass.getName() + "#" + method.getName());
         }
+        // 파라미터 타입은 TcActionContext 또는 그 구현 타입이어야 합니다.
+        // 플러그인 JAR은 TcActionContext를, 코어 액션은 BusinessWorkflowActionContext(TcActionContext 구현체)를 사용합니다.
         if (method.getParameterCount() == 1
-                && !BusinessWorkflowActionContext.class.isAssignableFrom(method.getParameterTypes()[0])) {
-            throw new IllegalStateException("TcAction method parameter must be BusinessWorkflowActionContext. method="
+                && !TcActionContext.class.isAssignableFrom(method.getParameterTypes()[0])) {
+            throw new IllegalStateException("TcAction method parameter must be TcActionContext or its subtype. method="
                     + ownerClass.getName() + "#" + method.getName());
         }
     }

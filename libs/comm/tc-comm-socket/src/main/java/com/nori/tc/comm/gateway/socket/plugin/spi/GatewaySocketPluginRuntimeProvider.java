@@ -1,6 +1,6 @@
 package com.nori.tc.comm.gateway.socket.plugin.spi;
 
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
+import com.nori.tc.comm.gateway.action.SocketTypeHandler;
 
 import java.util.Optional;
 
