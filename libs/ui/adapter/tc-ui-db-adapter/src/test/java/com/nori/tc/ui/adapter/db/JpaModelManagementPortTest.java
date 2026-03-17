@@ -445,7 +445,6 @@ class JpaModelManagementPortTest {
             final ProtocolType protocolType,
             final ModelStatus modelStatus
     ) {
-        final OffsetDateTime now = OffsetDateTime.parse("2026-03-11T10:15:30+09:00");
         return model(modelVersionKey, modelKey, modelName, parentModel, modelVersion, protocolType, modelStatus, "desc", "NORI");
     }
 

@@ -60,7 +60,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -162,10 +161,6 @@ public class ModelController {
     // SECS workflow 컬럼 기준 인덱스 (7개 컬럼)
     private static final int SECS_WORKFLOW_FILTER_VALUE_INDEX = 4;
     private static final int SECS_ACTION_DATA_INDEX_VALUE_INDEX = 6;
-    // SOCKET workflow 컬럼 기준 인덱스 (5개 컬럼, EventId/TransactionId 제외)
-    private static final int SOCKET_WORKFLOW_FILTER_VALUE_INDEX = 2;
-    private static final int SOCKET_ACTION_DATA_INDEX_VALUE_INDEX = 4;
-
     private final ModelCrudPort modelCrudPort;
     private final ModelDetailQueryPort modelDetailQueryPort;
     private final ModelDetailCommandPort modelDetailCommandPort;

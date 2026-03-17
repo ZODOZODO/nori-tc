@@ -23,6 +23,7 @@ import com.nori.tc.comm.gateway.observability.logging.GatewayLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * Gateway 처리 파이프라인을 조립하는 Spring 구성 클래스입니다.
@@ -30,6 +31,7 @@ import org.springframework.context.annotation.Bean;
  * <p>이 클래스는 코어 유스케이스와 어댑터 구현체를 연결해
  * 런타임 처리 흐름을 실행 가능한 빈으로 노출합니다.</p>
  */
+@Configuration
 public class GatewayProcessingConfiguration {
 
     /**

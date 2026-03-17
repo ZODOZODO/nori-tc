@@ -23,7 +23,6 @@ import com.nori.tc.db.core.model.upsert.UpsertTcModelSocketMessage;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelVariableId;
 import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
 import com.nori.tc.db.domain.common.model.ModelStatus;
-import com.nori.tc.db.domain.common.model.ProtocolType;
 import com.nori.tc.db.domain.eqp.TcEqp;
 import com.nori.tc.db.domain.model.TcModel;
 import com.nori.tc.db.domain.model.TcModelDcopItem;

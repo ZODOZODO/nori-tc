@@ -24,7 +24,6 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

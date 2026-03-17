@@ -20,7 +20,6 @@ import com.nori.tc.ui.core.eqp.EqpManagementSnapshot;
 import com.nori.tc.ui.core.exception.UiConflictException;
 import com.nori.tc.ui.core.model.AsyncResultEntry;
 import com.nori.tc.ui.core.model.UiCommandReply;
-import com.nori.tc.ui.core.model.UiCommandMessage;
 import com.nori.tc.ui.core.registry.DualResponseRegistry;
 import com.nori.tc.ui.core.registry.UiDualTaskFinalResult;
 import com.nori.tc.ui.domain.task.UiTaskResult;
@@ -29,8 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -67,8 +64,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @DisplayName("T2 EQP 관리 시나리오")
 class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
-
-    private static final Logger log = LoggerFactory.getLogger(UiEqpScenarioTest.class);
 
     @BeforeEach
     void setUpValidToken() {
@@ -760,28 +755,6 @@ class UiEqpScenarioTest extends UiBackendScenarioTestSupport {
                 includeJars ? "business-main.jar" : null,
                 "v2",
                 null,
-                null
-        );
-    }
-
-    private EqpManagementSnapshot sampleManagementSnapshot(
-            final String eqpId,
-            final ProtocolType protocolType,
-            final boolean isDev,
-            final boolean alreadyStopped,
-            final boolean includeJars,
-            final String appliedParamVersion,
-            final List<TcEqpParam> params
-    ) {
-        return sampleManagementSnapshot(
-                eqpId,
-                protocolType,
-                isDev,
-                alreadyStopped,
-                includeJars ? "gateway-main.jar" : null,
-                includeJars ? "business-main.jar" : null,
-                appliedParamVersion,
-                params,
                 null
         );
     }

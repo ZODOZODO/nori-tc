@@ -27,7 +27,9 @@ public final class HsmsEqpIdExtractor implements EqpIdExtractor {
 
     /**
      * 향후 S1F2 payload 파싱 구현 시 사용할 디코더입니다.
+     * TODO 완료 시점까지 의도적으로 보존합니다.
      */
+    @SuppressWarnings("unused")
     private final Secs2Decoder secs2Decoder;
 
     /**

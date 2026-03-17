@@ -19,7 +19,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +36,6 @@ import static org.mockito.Mockito.when;
  */
 class JpaEqpParamCommandPortTest {
 
-    private static final ZoneId PARAM_VERSION_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter PARAM_VERSION_DATE_FORMATTER = DateTimeFormatter.ofPattern("yy.MM.dd");
 
     @Test

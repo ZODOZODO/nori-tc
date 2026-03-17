@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * 게이트웨이 공통 런타임 Bean을 등록하는 자동구성 클래스입니다.
@@ -47,6 +48,7 @@ import org.springframework.context.annotation.Bean;
  * <p>- Bean 생성 로그는 시작 시점 진단을 위해 {@code debug} 중심으로 기록하고,
  *   fallback/no-op 같은 운영 판단 포인트는 {@code info}로 기록합니다.</p>
  */
+@Configuration
 @EnableConfigurationProperties({
         GatewayRuntimeProperties.class,
         GatewayLifecycleProperties.class,

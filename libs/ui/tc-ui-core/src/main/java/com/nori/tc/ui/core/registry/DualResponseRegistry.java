@@ -8,8 +8,9 @@ import com.nori.tc.ui.domain.task.UiTaskResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
+
+import jakarta.annotation.Nullable;
 
 import java.util.Objects;
 import java.util.Optional;

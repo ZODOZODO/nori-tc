@@ -37,7 +37,6 @@ public class BusinessWorkflowFilterEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessWorkflowFilterEvaluator.class);
 
-    private static final Set<String> GROUP_KEYS = Set.of("and", "or");
     private static final Set<String> CONDITION_KEYS = Set.of("from", "path", "comparison", "expected", "transforms");
 
     /**

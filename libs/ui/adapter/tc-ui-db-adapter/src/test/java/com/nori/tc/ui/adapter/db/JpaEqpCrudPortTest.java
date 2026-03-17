@@ -294,6 +294,7 @@ class JpaEqpCrudPortTest {
 
     @Test
     @DisplayName("EQP 수정은 commMode와 appliedParamVersion을 공통 row에 반영합니다")
+    @SuppressWarnings("unchecked")
     void updateEqpPersistsCommModeAndAppliedParamVersion() {
         final Fixture fixture = new Fixture();
         final String eqpId = "EQP-UPDATE-001";

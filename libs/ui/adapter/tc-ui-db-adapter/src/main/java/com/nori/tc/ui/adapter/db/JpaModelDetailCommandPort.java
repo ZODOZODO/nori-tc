@@ -23,14 +23,7 @@ import com.nori.tc.db.core.model.upsert.UpsertTcModelWorkflow;
 import com.nori.tc.db.domain.common.model.DcopCollectionRule;
 import com.nori.tc.db.domain.common.model.VariableIdType;
 import com.nori.tc.db.domain.model.TcModelDcopItem;
-import com.nori.tc.db.domain.model.TcModelEventId;
 import com.nori.tc.db.domain.model.TcModelMdf;
-import com.nori.tc.db.domain.model.TcModelParam;
-import com.nori.tc.db.domain.model.TcModelReportId;
-import com.nori.tc.db.domain.model.TcModelSecsMessage;
-import com.nori.tc.db.domain.model.TcModelSocketMessage;
-import com.nori.tc.db.domain.model.TcModelVariableId;
-import com.nori.tc.db.domain.model.TcModelWorkflow;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.exception.UiNotFoundException;
 import com.nori.tc.ui.core.port.db.ModelDetailCommandPort;
@@ -52,13 +45,10 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * {@link ModelDetailCommandPort}의 DB Store 기반 구현체입니다.
@@ -547,16 +537,6 @@ public class JpaModelDetailCommandPort implements ModelDetailCommandPort {
      */
     private static OffsetDateTime resolveUpdatedAt(final TcModelMdf saved) {
         return saved.updatedAt() == null ? OffsetDateTime.now() : saved.updatedAt();
-    }
-
-    /**
-     * 일반 상세 row 식별자를 prefix + key 형식으로 생성합니다.
-     */
-    private static String modelRowId(final String prefix, final Long key) {
-        if (key == null || key <= 0L) {
-            return "";
-        }
-        return prefix + ":" + key;
     }
 
     /**

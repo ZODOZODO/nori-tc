@@ -9,7 +9,6 @@ import com.nori.tc.ui.domain.auth.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -49,7 +48,6 @@ public class UiSessionCacheService implements TokenCachePort {
     private final Counter hitCounter;
     private final Counter missCounter;
 
-    @Autowired
     public UiSessionCacheService(
             @Qualifier("businessRedisTemplate") final RedisTemplate<String, Object> businessRedisTemplate,
             final UiAuthProperties authProperties,

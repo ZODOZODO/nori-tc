@@ -168,7 +168,7 @@ public final class ModelDetailWorkflowJsonSupport {
         }
 
         final Map<String, ActionFieldSpec> fields = new LinkedHashMap<>();
-        final Iterator<Map.Entry<String, JsonNode>> iterator = fieldsNode.fields();
+        final Iterator<Map.Entry<String, JsonNode>> iterator = fieldsNode.properties().iterator();
         while (iterator.hasNext()) {
             final Map.Entry<String, JsonNode> entry = iterator.next();
             final String fieldName = normalizeOptionalText(entry.getKey());
@@ -561,7 +561,7 @@ public final class ModelDetailWorkflowJsonSupport {
         }
         if (node.isObject()) {
             final Map<String, Object> values = new LinkedHashMap<>();
-            final Iterator<Map.Entry<String, JsonNode>> iterator = node.fields();
+            final Iterator<Map.Entry<String, JsonNode>> iterator = node.properties().iterator();
             while (iterator.hasNext()) {
                 final Map.Entry<String, JsonNode> entry = iterator.next();
                 values.put(entry.getKey(), jsonValue(entry.getValue()));

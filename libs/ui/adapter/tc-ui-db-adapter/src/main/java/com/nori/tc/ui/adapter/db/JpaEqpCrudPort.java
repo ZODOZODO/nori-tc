@@ -35,8 +35,6 @@ import com.nori.tc.ui.core.eqp.EqpManagementSnapshot;
 import com.nori.tc.ui.core.exception.UiBadRequestException;
 import com.nori.tc.ui.core.exception.UiConflictException;
 import com.nori.tc.ui.core.port.db.EqpCrudPort;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
@@ -49,8 +47,6 @@ import java.util.Optional;
  */
 @Repository
 public class JpaEqpCrudPort implements EqpCrudPort {
-
-    private static final Logger log = LoggerFactory.getLogger(JpaEqpCrudPort.class);
 
     private final EqpManagementDbSupport dbSupport;
     private final TcEqpStore eqpStore;

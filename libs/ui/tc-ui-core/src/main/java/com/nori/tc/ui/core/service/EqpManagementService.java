@@ -1,7 +1,6 @@
 package com.nori.tc.ui.core.service;
 
 import com.nori.tc.comm.gateway.domain.profile.GatewayEquipmentProfileSnapshot;
-import com.nori.tc.db.domain.common.eqp.ControlState;
 import com.nori.tc.db.domain.common.eqp.EqpState;
 import com.nori.tc.db.domain.common.model.ModelStatus;
 import com.nori.tc.db.domain.common.model.ProtocolType;
@@ -36,7 +35,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -61,7 +59,6 @@ public class EqpManagementService {
 
     private static final Logger log = LoggerFactory.getLogger(EqpManagementService.class);
 
-    private static final int DEFAULT_SUCCESS_STATUS = 200;
     private static final int BAD_REQUEST_STATUS = 400;
     private static final int NOT_FOUND_STATUS = 404;
     private static final int CONFLICT_STATUS = 409;

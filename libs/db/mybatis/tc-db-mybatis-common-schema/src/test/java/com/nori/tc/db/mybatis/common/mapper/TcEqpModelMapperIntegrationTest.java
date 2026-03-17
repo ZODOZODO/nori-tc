@@ -33,7 +33,6 @@ import com.nori.tc.db.mybatis.common.mapper.model.TcModelMapper;
 import com.nori.tc.db.mybatis.common.typehandler.OffsetDateTimeTypeHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
