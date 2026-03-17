@@ -50,6 +50,16 @@ public interface BusinessModelRuntimeProvider {
     }
 
     /**
+     * eqpId에 매핑된 eqpKey(DB PK)를 조회합니다.
+     *
+     * @param eqpId 장비 ID
+     * @return eqpKey(optional)
+     */
+    default Optional<Long> findEqpKeyByEqpId(final String eqpId) {
+        return currentSnapshot().findEqpKeyByEqpId(eqpId);
+    }
+
+    /**
      * 런타임 주입 이전 단위 테스트/골격 단계에서 사용할 no-op provider를 반환합니다.
      *
      * @return 항상 빈 스냅샷을 반환하는 provider

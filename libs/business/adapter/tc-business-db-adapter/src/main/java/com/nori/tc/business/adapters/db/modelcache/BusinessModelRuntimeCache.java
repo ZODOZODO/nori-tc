@@ -78,7 +78,9 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
      * 전체 eqp/model 런타임 스냅샷을 다시 적재합니다.
      */
     public void reloadAll() {
-        final Map<String, Long> eqpModelBindings = loadEqpModelBindings();
+        final List<TcEqp> allEqps = loadAllEqps();
+        final Map<String, Long> eqpModelBindings = buildEqpModelBindings(allEqps);
+        final Map<String, Long> eqpKeyBindings = buildEqpKeyBindings(allEqps);
         final Set<Long> modelVersionKeys = new LinkedHashSet<>(eqpModelBindings.values());
 
         final Map<Long, TcModelRuntime> modelRuntimes = new LinkedHashMap<>();
@@ -96,7 +98,7 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
         }
 
         final BusinessModelRuntimeSnapshot nextSnapshot =
-                BusinessModelRuntimeSnapshot.of(eqpModelBindings, modelRuntimes);
+                BusinessModelRuntimeSnapshot.of(eqpModelBindings, modelRuntimes, eqpKeyBindings);
         snapshotRef.set(nextSnapshot);
 
         log.info("Business model runtime cache reloaded. eqpBindings={}, modelRuntimes={}",
@@ -127,7 +129,8 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
 
             final BusinessModelRuntimeSnapshot next = BusinessModelRuntimeSnapshot.of(
                     current.eqpModelBindings(),
-                    nextRuntimes
+                    nextRuntimes,
+                    current.eqpKeyBindings()
             );
             if (snapshotRef.compareAndSet(current, next)) {
                 log.info("Model runtime reloaded. modelVersionKey={}, runtimeCount={}", modelVersionKey, next.runtimeCount());
@@ -138,6 +141,8 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
 
     /**
      * eqpId -> modelVersionKey 바인딩을 갱신합니다.
+     *
+     * <p>eqpKey 바인딩도 함께 갱신하기 위해 DB에서 TcEqp를 조회합니다.</p>
      */
     public void updateEqpBinding(final String eqpId, final long modelVersionKey) {
         final String normalizedEqpId = normalizeEqpId(eqpId);
@@ -152,6 +157,11 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
         final TcModelRuntime runtime = current.findRuntimeByModelVersionKey(modelVersionKey)
                 .orElseGet(() -> runtimeAssembler.assemble(modelVersionKey));
 
+        // eqpKey 조회: eqpId → DB에서 TcEqp 로드
+        final Long eqpKey = eqpStore.findByEqpId(normalizedEqpId)
+                .map(TcEqp::eqpKey)
+                .orElse(null);
+
         while (true) {
             final BusinessModelRuntimeSnapshot base = snapshotRef.get();
             final Map<String, Long> nextBindings = new LinkedHashMap<>(base.eqpModelBindings());
@@ -160,11 +170,19 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
             final Map<Long, TcModelRuntime> nextRuntimes = new LinkedHashMap<>(base.modelRuntimes());
             nextRuntimes.put(modelVersionKey, runtime);
 
-            final BusinessModelRuntimeSnapshot next = BusinessModelRuntimeSnapshot.of(nextBindings, nextRuntimes);
+            // eqpKey가 유효한 경우에만 eqpKey 바인딩 갱신
+            final Map<String, Long> nextEqpKeyBindings = new LinkedHashMap<>(base.eqpKeyBindings());
+            if (eqpKey != null && eqpKey > 0L) {
+                nextEqpKeyBindings.put(normalizedEqpId, eqpKey);
+            }
+
+            final BusinessModelRuntimeSnapshot next =
+                    BusinessModelRuntimeSnapshot.of(nextBindings, nextRuntimes, nextEqpKeyBindings);
             if (snapshotRef.compareAndSet(base, next)) {
-                log.info("Eqp binding updated. eqpId={}, modelVersionKey={}, bindingCount={}, runtimeCount={}",
+                log.info("Eqp binding updated. eqpId={}, modelVersionKey={}, eqpKey={}, bindingCount={}, runtimeCount={}",
                         normalizedEqpId,
                         modelVersionKey,
+                        eqpKey,
                         next.bindingCount(),
                         next.runtimeCount());
                 return;
@@ -181,10 +199,9 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
     }
 
     /**
-     * eqpId -> modelVersionKey 바인딩을 DB에서 적재합니다.
+     * TcEqp 목록에서 eqpId → modelVersionKey 매핑을 구성합니다.
      */
-    private Map<String, Long> loadEqpModelBindings() {
-        final List<TcEqp> allEqps = loadAllEqps();
+    private Map<String, Long> buildEqpModelBindings(final List<TcEqp> allEqps) {
         final Map<String, Long> bindings = new LinkedHashMap<>();
         for (TcEqp eqp : allEqps) {
             if (eqp == null) {
@@ -192,15 +209,38 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
             }
             final String eqpId = normalizeEqpId(eqp.eqpId());
             if (eqpId == null) {
-                log.warn("Skipping eqp binding because eqpId is blank. eqpKey={}", eqp.eqpKey());
+                log.warn("Skipping eqp model binding because eqpId is blank. eqpKey={}", eqp.eqpKey());
                 continue;
             }
 
             // 장비 단위 MDC를 분리해서 부트 적재 로그 상관분석을 쉽게 합니다.
             try (BusinessLogContext ignored = BusinessLogContext.withEqpId(eqpId)) {
                 bindings.put(eqpId, eqp.modelVersionKey());
-                log.debug("Boot binding loaded. eqpId={}, modelVersionKey={}", eqpId, eqp.modelVersionKey());
+                log.debug("Boot model binding loaded. eqpId={}, modelVersionKey={}", eqpId, eqp.modelVersionKey());
             }
+        }
+        return bindings;
+    }
+
+    /**
+     * TcEqp 목록에서 eqpId → eqpKey(DB PK) 매핑을 구성합니다.
+     */
+    private Map<String, Long> buildEqpKeyBindings(final List<TcEqp> allEqps) {
+        final Map<String, Long> bindings = new LinkedHashMap<>();
+        for (TcEqp eqp : allEqps) {
+            if (eqp == null) {
+                continue;
+            }
+            final String eqpId = normalizeEqpId(eqp.eqpId());
+            if (eqpId == null) {
+                log.warn("Skipping eqp key binding because eqpId is blank. eqpKey={}", eqp.eqpKey());
+                continue;
+            }
+            if (eqp.eqpKey() <= 0L) {
+                log.warn("Skipping eqp key binding because eqpKey is invalid. eqpId={}, eqpKey={}", eqpId, eqp.eqpKey());
+                continue;
+            }
+            bindings.put(eqpId, eqp.eqpKey());
         }
         return bindings;
     }
@@ -236,7 +276,12 @@ public class BusinessModelRuntimeCache implements BusinessModelRuntimeMutationPo
                 final boolean modelRuntimeRemoved = !modelRuntimeStillReferenced
                         && nextRuntimes.remove(removedModelVersionKey) != null;
 
-                final BusinessModelRuntimeSnapshot next = BusinessModelRuntimeSnapshot.of(nextBindings, nextRuntimes);
+                // eqpKey 바인딩도 함께 제거
+                final Map<String, Long> nextEqpKeyBindings = new LinkedHashMap<>(base.eqpKeyBindings());
+                nextEqpKeyBindings.remove(normalizedEqpId);
+
+                final BusinessModelRuntimeSnapshot next =
+                        BusinessModelRuntimeSnapshot.of(nextBindings, nextRuntimes, nextEqpKeyBindings);
                 if (snapshotRef.compareAndSet(base, next)) {
                     log.info(
                             "Eqp binding removed. eqpId={}, removedModelVersionKey={}, modelRuntimeRemoved={}, bindingCount={}, runtimeCount={}",
