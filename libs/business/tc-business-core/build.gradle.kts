@@ -14,7 +14,7 @@ java {
 
 dependencies {
     // Business 플러그인 SDK: AbstractXxxActionExecutor, @TcAction, TcActionContext SPI 계약
-    api(project(":libs:action:tc-business-action"))
+    api("com.nori.tc:nori-tc-business-action:0.0.1-SNAPSHOT")
 
     /*
      * 비즈니스 코어는 도메인 모델을 중립 계층으로 노출합니다.

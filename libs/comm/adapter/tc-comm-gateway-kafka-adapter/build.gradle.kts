@@ -18,7 +18,7 @@ dependencies {
     /*
      * SocketTypeHandler / SocketTypeEncodeResult / SocketFrame 등 gateway action SPI 계약을 직접 참조합니다.
      */
-    implementation(project(":libs:action:tc-gateway-action"))
+    implementation("com.nori.tc:nori-tc-gateway-action:0.0.1-SNAPSHOT")
 
     /*
      * 게이트웨이 Kafka 처리 흐름은 공통 실행 모듈과 소비 런타임을 사용합니다.

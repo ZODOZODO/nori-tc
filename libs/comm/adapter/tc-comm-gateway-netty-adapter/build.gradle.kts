@@ -19,7 +19,7 @@ dependencies {
      * SocketTypeHandler / SocketTypeDecodeResult / SocketTypeEncodeResult / SocketFrame 등
      * gateway action SPI 계약을 직접 참조합니다.
      */
-    implementation(project(":libs:action:tc-gateway-action"))
+    implementation("com.nori.tc:nori-tc-gateway-action:0.0.1-SNAPSHOT")
 
     implementation(libs.netty.all)
 

@@ -13,6 +13,15 @@
 
 rootProject.name = "nori-tc"
 
+/* ===================================================
+ * Composite Build: 분리된 Action SDK 레포를 로컬 소스로 참조합니다.
+ * - Maven 좌표(com.nori.tc:nori-tc-gateway-action 등)를 사용하는 의존성을
+ *   로컬 레포 소스로 자동 대체합니다.
+ * - 내부 Maven 저장소 구축 후에는 이 블록을 제거하고 Maven 좌표만 유지합니다.
+ * =================================================== */
+includeBuild("../nori-tc-gateway-action")
+includeBuild("../nori-tc-business-action")
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -136,16 +145,11 @@ include(":libs:messaging:starter:tc-messaging-rendezvous-starter")
 project(":libs:messaging:starter:tc-messaging-rendezvous-starter").projectDir = file("libs/messaging/starter/tc-messaging-rendezvous-starter")
 
 /* ===================================================
- * 4. Action Modules (Plugin SDK Layer)
- * - Gateway/Business 플러그인 JAR 개발자를 위한 경량 SDK
- * - 순수 Java / Spring·Kafka 의존 없음
+ * 4. Action SDK Modules (별도 레포로 분리됨)
+ * - nori-tc-gateway-action / nori-tc-business-action 레포 참조
+ * - Gradle Composite Build로 로컬 소스를 Maven 좌표처럼 참조합니다.
+ * - 내부 Maven 저장소 준비 후 includeBuild를 Maven 좌표 참조로 전환합니다.
  * =================================================== */
-
-include(":libs:action:tc-gateway-action")
-project(":libs:action:tc-gateway-action").projectDir = file("libs/action/tc-gateway-action")
-
-include(":libs:action:tc-business-action")
-project(":libs:action:tc-business-action").projectDir = file("libs/action/tc-business-action")
 
 /* ===================================================
  * 5. Gateway Modules (comm-gateway Layer)

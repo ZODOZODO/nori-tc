@@ -18,6 +18,10 @@ dependencies {
     // (hsms/socket/app이 core만 의존해도 domain 타입이 함께 보이도록)
     api(project(":libs:comm:tc-comm-domain"))
 
+    // ReassemblyBuffer가 FrameBuffer를 구현하기 위해 필요합니다.
+    // 의존성 방향: Gateway 서비스 내부(tc-comm-core) → 플러그인 SDK(tc-gateway-action)
+    api("com.nori.tc:nori-tc-gateway-action:0.0.1-SNAPSHOT")
+
     // 외부 의존성(프레임워크/클라이언트 라이브러리) 금지
 }
 

@@ -1,5 +1,7 @@
 package com.nori.tc.comm.core.buffer;
 
+import com.nori.tc.comm.gateway.action.FrameBuffer;
+
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
@@ -18,7 +20,7 @@ import java.util.Objects;
  * <p>2) Bounded memory with explicit maxBytes guard</p>
  * <p>3) Deterministic provenance behavior across append/discard/clear</p>
  */
-public final class ReassemblyBuffer {
+public final class ReassemblyBuffer implements FrameBuffer {
 
     /**
      * Internal storage.

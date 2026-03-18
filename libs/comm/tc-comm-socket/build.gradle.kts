@@ -15,7 +15,7 @@ java {
 
 dependencies {
     // Gateway 플러그인 SDK: SocketTypeHandler/Frame/DecodeResult/EncodeResult SPI 계약
-    api(project(":libs:action:tc-gateway-action"))
+    api("com.nori.tc:nori-tc-gateway-action:0.0.1-SNAPSHOT")
     // tc-comm-core는 tc-gateway-action이 api로 전이하므로 명시적으로 중복 선언하지 않아도 됩니다.
     // 단, 직접 의존이 명시적으로 필요한 경우를 위해 유지합니다.
     api(project(":libs:comm:tc-comm-core"))

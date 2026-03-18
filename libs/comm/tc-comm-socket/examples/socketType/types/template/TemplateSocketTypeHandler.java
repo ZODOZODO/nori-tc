@@ -1,10 +1,10 @@
 package com.nori.tc.comm.gateway.socket.socketType.types.template;
 
-import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
-import com.nori.tc.comm.gateway.socket.frame.SocketFrame;
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeDecodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeEncodeResult;
-import com.nori.tc.comm.gateway.socket.socketType.core.SocketTypeHandler;
+import com.nori.tc.comm.gateway.action.FrameBuffer;
+import com.nori.tc.comm.gateway.action.SocketFrame;
+import com.nori.tc.comm.gateway.action.SocketTypeDecodeResult;
+import com.nori.tc.comm.gateway.action.SocketTypeEncodeResult;
+import com.nori.tc.comm.gateway.action.SocketTypeHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +88,7 @@ public final class TemplateSocketTypeHandler implements SocketTypeHandler {
      * @return 추출된 프레임, 아직 미완성이면 null
      */
     @Override
-    public SocketFrame tryExtractOne(final ReassemblyBuffer buffer, final int maxFrameBytes) {
+    public SocketFrame tryExtractOne(final FrameBuffer buffer, final int maxFrameBytes) {
         if (buffer == null) {
             throw new IllegalArgumentException("buffer is null");
         }

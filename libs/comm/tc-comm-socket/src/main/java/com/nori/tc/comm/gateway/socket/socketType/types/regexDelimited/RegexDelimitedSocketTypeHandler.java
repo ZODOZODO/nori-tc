@@ -1,6 +1,6 @@
 package com.nori.tc.comm.gateway.socket.socketType.types.regexDelimited;
 
-import com.nori.tc.comm.core.buffer.ReassemblyBuffer;
+import com.nori.tc.comm.gateway.action.FrameBuffer;
 import com.nori.tc.comm.gateway.action.SocketFrame;
 import com.nori.tc.comm.gateway.action.SocketTypeDecodeResult;
 import com.nori.tc.comm.gateway.action.SocketTypeEncodeResult;
@@ -93,7 +93,7 @@ public final class RegexDelimitedSocketTypeHandler implements SocketTypeHandler 
      * @return 소켓 통신 모듈 처리 결과
      */
     @Override
-    public SocketFrame tryExtractOne(final ReassemblyBuffer buffer, final int maxFrameBytes) {
+    public SocketFrame tryExtractOne(final FrameBuffer buffer, final int maxFrameBytes) {
         final int readable = buffer.readableBytes();
         if (readable == 0) return null;
 
